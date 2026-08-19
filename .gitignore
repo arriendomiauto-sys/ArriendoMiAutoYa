@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Excluded apps for web-only release
+apps/mobile/
+apps/api/
+
+# Docs
+docs/
+*.md
+docs/Credenciales.txt
+*Credenciales*.txt
+
+# Testing
+coverage/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Next.js & Turborepo
+.next/
+out/
+.turbo/
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+
+# Python Virtual Environments
+venv/
+.venv/
+ENV/
+env/
+
+# Environment variables & secrets (CRITICAL)
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+docs/Credenciales.txt
+*Credenciales*.txt
+*credenciales*.txt
+*.pem
+*.key
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db

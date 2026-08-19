@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark Theme default with #0F223D & #A8E637 */
+    --background: 221 39% 11%;         /* #111827 Dark */
+    --foreground: 210 40% 98%;         /* #F8FAFC Light */
+
+    --card: 214 60% 13%;               /* Deep Navy Tint */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 214 60% 13%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 84 78% 56%;             /* #A8E637 Lime Accent for primary actions */
+    --primary-foreground: 221 39% 11%;  /* #111827 Dark text on lime */
+
+    --secondary: 214 60% 20%;           /* #0F223D Slate Navy variation */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 214 40% 20%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 84 78% 56%;              /* #A8E637 Lime */
+    --accent-foreground: 221 39% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 45% 22%;
+    --input: 214 45% 22%;
+    --ring: 84 78% 56%;                /* Lime focus ring */
+
+    --radius: 0.75rem;
+
+    --font-primary: 'Outfit', sans-serif;
+    --font-body: 'Plus Jakarta Sans', sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-primary);
+    letter-spacing: -0.02em;
+  }
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #FFFFFF 20%, #A8E637 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glass-panel {
+  background: rgba(15, 34, 61, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(168, 230, 55, 0.15);
+}
