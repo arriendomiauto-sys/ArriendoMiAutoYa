@@ -1,540 +1,702 @@
 import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Button } from "../components/ui/button";
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "../components/ui/card";
-import { Badge } from "../components/ui/badge";
-import { Separator } from "../components/ui/separator";
-import { Alert, AlertTitle, AlertDescription } from "../components/ui/alert";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../components/ui/dialog";
 import {
-  Car,
   ShieldCheck,
-  Sparkles,
   MapPin,
-  CheckCircle2,
-  Calendar,
-  DollarSign,
-  Smartphone,
-  Fuel,
-  Camera,
   Gauge,
   Lock,
+  Users,
+  Search,
+  Check,
+  ArrowUpRight,
+  Camera,
+  FileText,
+  Star,
+  ChevronDown,
+  Smartphone,
+  QrCode,
 } from "lucide-react";
 
+/* ──────────────── DATOS FALLBACK ──────────────── */
+const AUTOS_FALLBACK = [
+  {
+    id: "auto-1", marca: "Toyota", modelo: "RAV4 Limited", anio: 2023, categoria: "suv",
+    tarifa_dia: 42000, ubicacion_base: "Plaza de Armas", transmision: "Automática",
+    combustible: "Gasolina", capacidad: "5 Pasajeros", rating: 4.9, viajes: 28,
+    badge: "VERIFICADO",
+    foto: "/cars/toyota-rav4.jpg",
+  },
+  {
+    id: "auto-2", marca: "Hyundai", modelo: "Tucson GL", anio: 2022, categoria: "suv",
+    tarifa_dia: 35000, ubicacion_base: "Av. Alemania", transmision: "Automática",
+    combustible: "Gasolina", capacidad: "5 Pasajeros", rating: 4.8, viajes: 19,
+    badge: "MÁS PEDIDO",
+    foto: "/cars/hyundai-tucson.jpg",
+  },
+  {
+    id: "auto-3", marca: "Suzuki", modelo: "Jimny AllGrip", anio: 2024, categoria: "4x4",
+    tarifa_dia: 48000, ubicacion_base: "Av. Gabriela Mistral", transmision: "Manual",
+    combustible: "Gasolina", capacidad: "4 Pasajeros", rating: 5.0, viajes: 34,
+    badge: "NUEVO",
+    foto: "/cars/suzuki-jimny.jpg",
+  },
+  {
+    id: "auto-4", marca: "Chevrolet", modelo: "Onix Turbo", anio: 2023, categoria: "economico",
+    tarifa_dia: 28000, ubicacion_base: "Terminal Rodoviario", transmision: "Manual",
+    combustible: "Gasolina", capacidad: "5 Pasajeros", rating: 4.7, viajes: 15,
+    badge: "VERIFICADO",
+    foto: "/cars/chevrolet-onix.jpg",
+  },
+  {
+    id: "auto-5", marca: "Ford", modelo: "Ranger XLT 4x4", anio: 2023, categoria: "4x4",
+    tarifa_dia: 55000, ubicacion_base: "Camino a Antuco", transmision: "Automática",
+    combustible: "Diésel", capacidad: "5 Pasajeros", rating: 4.9, viajes: 42,
+    badge: "TOP RATE",
+    foto: "/cars/ford-ranger.jpg",
+  },
+  {
+    id: "auto-6", marca: "Kia", modelo: "Soluto LX 1.4", anio: 2022, categoria: "economico",
+    tarifa_dia: 26000, ubicacion_base: "Mall Plaza", transmision: "Manual",
+    combustible: "Gasolina", capacidad: "5 Pasajeros", rating: 4.6, viajes: 22,
+    badge: "VERIFICADO",
+    foto: "/cars/kia-soluto.jpg",
+  },
+];
+
+/* ──────────────── COMPONENTE PRINCIPAL ──────────────── */
 export default function Home() {
-  const [autos, setAutos] = useState([]);
-  const [selectedAuto, setSelectedAuto] = useState(null);
-  const [dias, setDias] = useState(3);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const [autos, setAutos] = useState(AUTOS_FALLBACK);
+  const [filteredAutos, setFilteredAutos] = useState(AUTOS_FALLBACK);
+  const [modalAuto, setModalAuto] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState("todos");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [openFaq, setOpenFaq] = useState(null);
+
+  // Owner interactive simulator
+  const [diasAlMes, setDiasAlMes] = useState(10);
+  const tarifaEstimada = 38000;
+  const ingresoNeto = Math.round(diasAlMes * tarifaEstimada * 0.8);
 
   useEffect(() => {
-    fetchAutos();
+    (async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/v1/autos");
+        if (res.ok) { const d = await res.json(); setAutos(d); setFilteredAutos(d); }
+      } catch { /* use fallback */ }
+    })();
   }, []);
 
-  const fetchAutos = async () => {
-    try {
-      const res = await fetch("http://localhost:8000/api/v1/autos");
-      if (res.ok) {
-        const data = await res.json();
-        setAutos(data);
-        if (data.length > 0) setSelectedAuto(data[0]);
-      } else {
-        throw new Error("Local fallback");
-      }
-    } catch {
-      const fallback = [
-        {
-          id: "auto-1",
-          marca: "Toyota",
-          modelo: "RAV4 Limited 4x4",
-          anio: 2023,
-          patente: "BBCL-10",
-          tarifa_dia: 42000,
-          ubicacion_base: "Plaza de Armas, Los Ángeles",
-          transmision: "Automática",
-          combustible: "Gasolina 95",
-          capacidad: "5 Pasajeros",
-          fotos: ["https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800"]
-        },
-        {
-          id: "auto-2",
-          marca: "Hyundai",
-          modelo: "Tucson GL 2.0",
-          anio: 2022,
-          patente: "CRTX-45",
-          tarifa_dia: 35000,
-          ubicacion_base: "Av. Alemania, Los Ángeles",
-          transmision: "Automática",
-          combustible: "Gasolina 95",
-          capacidad: "5 Pasajeros",
-          fotos: ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800"]
-        },
-        {
-          id: "auto-3",
-          marca: "Suzuki",
-          modelo: "Jimny AllGrip 4x4",
-          anio: 2024,
-          patente: "JKLM-56",
-          tarifa_dia: 48000,
-          ubicacion_base: "Av. Gabriela Mistral, Los Ángeles",
-          transmision: "Manual 5 Vel.",
-          combustible: "Gasolina 93",
-          capacidad: "4 Pasajeros",
-          fotos: ["https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800"]
-        }
-      ];
-      setAutos(fallback);
-      setSelectedAuto(fallback[0]);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    let r = [...autos];
+    if (selectedCategory !== "todos") r = r.filter((a) => a.categoria === selectedCategory);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      r = r.filter((a) =>
+        a.marca.toLowerCase().includes(q) || a.modelo.toLowerCase().includes(q) || a.ubicacion_base.toLowerCase().includes(q)
+      );
     }
-  };
+    setFilteredAutos(r);
+  }, [selectedCategory, searchQuery, autos]);
 
-  const calcularTotales = () => {
-    if (!selectedAuto) return { subtotal: 0, holdReserva: 0, holdGarantia: 800000, totalPagar: 0 };
-    const subtotal = selectedAuto.tarifa_dia * dias;
-    const holdGarantia = 800000;
-    return {
-      subtotal,
-      holdReserva: subtotal,
-      holdGarantia,
-      totalPagar: subtotal
-    };
-  };
+  const categories = [
+    { id: "todos", label: "Todos" },
+    { id: "suv", label: "SUVs" },
+    { id: "4x4", label: "4x4" },
+    { id: "economico", label: "Económicos" },
+  ];
 
-  const totales = calcularTotales();
+  const faqs = [
+    { q: "¿Cómo funciona el seguro y el deducible de 15 UF?", a: "Cada arriendo incluye seguro con deducible de 15 UF compartido (50/50) entre arrendatario y dueño. Ante un siniestro cubierto, cada parte asume la mitad del deducible y la aseguradora el resto." },
+    { q: "¿Qué es el Hold de Garantía de $800.000?", a: "Es una retención temporal en tu tarjeta, no un cobro. Se libera al devolver el vehículo conforme al checklist de 9 fotos." },
+    { q: "¿Qué documentos necesito para arrendar?", a: "Solo tu Cédula de Identidad chilena al día y Licencia de Conducir Clase B. La validación es digital y toma menos de 1 minuto." },
+    { q: "¿Cómo es la entrega del vehículo?", a: "Te reúnes con el dueño en el punto pactado en Los Ángeles, revisan juntos el checklist de 9 fotos y escanean el código QR en la app para transferir las llaves." },
+  ];
 
   return (
     <>
       <Head>
-        <title>ArriendaTuAuto - Car-sharing en Los Ángeles, Chile</title>
-        <meta
-          name="description"
-          content="Arrienda autos verificados directamente de sus dueños en Los Ángeles, Biobío. Seguro 15 UF 50/50, checklist 9 fotos y garantía protegida."
-        />
+        <title>ArriendoMiAutoYa — Arriendo de autos entre personas en Los Ángeles</title>
+        <meta name="description" content="Arrienda autos directamente de sus dueños en Los Ángeles, Biobío con ArriendoMiAutoYa. Seguro 15 UF, validación digital en 1 minuto y entrega segura con código QR." />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
       </Head>
 
       <Navbar />
 
-      <main className="min-h-screen bg-[#111827]">
-        {/* HERO SECTION */}
-        <section className="relative overflow-hidden border-b border-border/60 py-16 lg:py-24 bg-gradient-to-b from-[#0F223D]/80 via-[#111827] to-[#111827]">
-          <div className="container max-w-7xl px-4 sm:px-6">
-            <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:items-center">
-              
-              {/* Left Column: Value Prop */}
-              <div className="lg:col-span-7 space-y-6">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-[#A8E637]/40 bg-[#0F223D] px-3 py-1 text-xs font-bold text-[#A8E637]">
-                    <MapPin className="h-3.5 w-3.5" />
-                    EXCLUSIVO EN LOS ÁNGELES, BIOBÍO (RADIO 30 KM)
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-[#1F2937] px-3 py-1 text-xs font-bold text-white">
-                    <ShieldCheck className="h-3.5 w-3.5 text-[#A8E637]" />
-                    SEGURO 15 UF 50/50
-                  </span>
+      <main className="min-h-screen bg-[#060B16] text-white">
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            HERO — Split layout: text left, car image right
+        ═══════════════════════════════════════════════════════════════════ */}
+        <section className="relative pt-28 sm:pt-36 pb-16 sm:pb-24 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0A1124] via-[#060B16] to-[#060B16]" />
+
+          <div className="container max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+
+              {/* Left: Copy */}
+              <div className="space-y-6 max-w-xl">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#FBBF24]/30 bg-[#FBBF24]/10 px-4 py-1.5 text-xs font-black text-[#FBBF24] tracking-wide">
+                  <MapPin className="h-3.5 w-3.5" />
+                  ARRIENDO LOCAL EN LOS ÁNGELES, BIOBÍO
                 </div>
 
-                <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl text-white">
-                  Arrienda el auto ideal <br />
-                  <span className="gradient-text">directo de su dueño</span>
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.08]">
+                  TU AUTO IDEAL.{" "}
+                  <span className="text-[#FBBF24]">DIRECTO</span>
+                  <br />
+                  DE SU DUEÑO.
                 </h1>
 
-                <p className="text-base text-slate-300 sm:text-lg max-w-2xl leading-relaxed">
-                  Sin filas en counter ni papeleos. Validación de identidad en segundos con OCR, entrega presencial protegida mediante código QR offline y checklist fotográfico de 9 ángulos.
+                <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-md font-normal">
+                  Olvídate de mesones eternos y letras chicas. Arrienda autos impecables listos para rodar, con
+                  seguro 15 UF (50/50), validación digital en 60 segundos y entrega protegida con código QR.
                 </p>
 
-                {/* Hero Stat Cards */}
-                <div className="grid grid-cols-3 gap-3 pt-2">
-                  <Card className="border-border bg-[#0F223D]/70 p-4 shadow-sm">
-                    <div className="text-2xl font-black text-white">100%</div>
-                    <div className="text-xs text-slate-300 font-medium mt-1">Autos Verificados</div>
-                  </Card>
-                  <Card className="border-border bg-[#0F223D]/70 p-4 shadow-sm">
-                    <div className="text-2xl font-black text-[#A8E637]">15 UF</div>
-                    <div className="text-xs text-slate-300 font-medium mt-1">Deducible Seguro 50/50</div>
-                  </Card>
-                  <Card className="border-border bg-[#0F223D]/70 p-4 shadow-sm">
-                    <div className="text-2xl font-black text-[#A8E637]">$800K</div>
-                    <div className="text-xs text-slate-300 font-medium mt-1">Hold Garantía Protegido</div>
-                  </Card>
-                </div>
-
-                <div className="pt-2 flex flex-wrap gap-3">
-                  <a href="#catalogo">
-                    <Button
-                      size="lg"
-                      className="gap-2 bg-[#A8E637] text-[#111827] font-bold hover:bg-[#93D129] shadow-lg shadow-[#A8E637]/20"
-                    >
-                      <Car className="h-4 w-4" />
-                      Ver Flota Disponible
-                    </Button>
-                  </a>
-                  <a href="#politicas">
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="gap-2 border-border bg-[#0F223D]/80 text-white hover:bg-[#0F223D] hover:text-[#A8E637]"
-                    >
-                      <ShieldCheck className="h-4 w-4 text-[#A8E637]" />
-                      Cómo Funciona el Seguro
-                    </Button>
-                  </a>
-                </div>
-              </div>
-
-              {/* Right Column: Live Price Calculator */}
-              <div className="lg:col-span-5">
-                <Card className="border-[#A8E637]/30 shadow-2xl shadow-[#A8E637]/10 bg-[#0F223D]/95 backdrop-blur-md">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-xl font-bold flex items-center gap-2 text-white">
-                        <DollarSign className="h-5 w-5 text-[#A8E637]" />
-                        Calculadora de Arriendo
-                      </CardTitle>
-                      <span className="font-mono text-xs font-bold text-[#A8E637] bg-[#111827] px-2.5 py-1 rounded-md border border-[#A8E637]/30">
-                        En vivo
-                      </span>
-                    </div>
-                    <CardDescription className="text-slate-300">
-                      Cotiza con transparencia los valores y retenciones bancarias
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent className="space-y-4">
-                    {selectedAuto && (
-                      <>
-                        {/* Selected Car Preview */}
-                        <div className="flex items-center gap-3 rounded-lg border border-border bg-[#111827]/80 p-3">
-                          <img
-                            src={selectedAuto.fotos?.[0] || "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800"}
-                            alt={selectedAuto.modelo}
-                            className="h-16 w-24 rounded-md object-cover border border-border"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-white text-sm truncate">
-                              {selectedAuto.marca} {selectedAuto.modelo}
-                            </div>
-                            <div className="text-xs text-[#A8E637] font-bold">
-                              ${selectedAuto.tarifa_dia?.toLocaleString("es-CL")} CLP / día
-                            </div>
-                            <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                              <MapPin className="h-3 w-3 shrink-0 text-[#A8E637]" />
-                              {selectedAuto.ubicacion_base}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Duration Selector */}
-                        <div className="space-y-2">
-                          <label className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 text-[#A8E637]" />
-                            Duración del Arriendo:
-                          </label>
-                          <div className="grid grid-cols-6 gap-1.5">
-                            {[1, 2, 3, 5, 7, 14].map((d) => (
-                              <Button
-                                key={d}
-                                type="button"
-                                size="sm"
-                                variant={dias === d ? "default" : "outline"}
-                                className={
-                                  dias === d
-                                    ? "bg-[#A8E637] text-[#111827] font-bold hover:bg-[#93D129] shadow-sm"
-                                    : "bg-[#111827] text-slate-300 border-border hover:text-white"
-                                }
-                                onClick={() => setDias(d)}
-                              >
-                                {d}d
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Price Breakdown */}
-                        <div className="rounded-lg border border-border bg-[#111827]/60 p-3.5 space-y-2 text-xs">
-                          <div className="flex justify-between text-slate-300">
-                            <span>Subtotal Arriendo ({dias} {dias === 1 ? "día" : "días"}):</span>
-                            <span className="font-semibold text-white">
-                              ${totales.subtotal.toLocaleString("es-CL")} CLP
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-slate-300">
-                            <span>Hold de Reserva (pre-autorización):</span>
-                            <span>${totales.holdReserva.toLocaleString("es-CL")} CLP</span>
-                          </div>
-                          <div className="flex justify-between text-slate-300">
-                            <span>Hold de Garantía (seguridad cliente):</span>
-                            <span className="text-[#A8E637] font-semibold">$800.000 CLP</span>
-                          </div>
-
-                          <Separator className="my-2 bg-border/60" />
-
-                          <div className="flex justify-between items-center text-sm font-bold text-white">
-                            <span>Total Arriendo a Pagar:</span>
-                            <span className="text-lg font-black text-[#A8E637]">
-                              ${totales.totalPagar.toLocaleString("es-CL")} CLP
-                            </span>
-                          </div>
-                        </div>
-
-                        <Alert variant="info" className="py-2.5 bg-[#111827]/80 border-[#A8E637]/30 text-slate-200">
-                          <CheckCircle2 className="h-4 w-4 text-[#A8E637]" />
-                          <AlertDescription className="text-xs">
-                            El hold de garantía ($800.000) se libera automáticamente tras la restitución del vehículo sin daños.
-                          </AlertDescription>
-                        </Alert>
-                      </>
-                    )}
-                  </CardContent>
-
-                  <CardFooter className="pt-0">
-                    <Button className="w-full gap-2 text-sm font-bold py-5 bg-[#A8E637] text-[#111827] hover:bg-[#93D129] shadow-lg shadow-[#A8E637]/20">
-                      <Smartphone className="h-4 w-4" />
-                      Reservar este Vehículo en la App Móvil
-                    </Button>
-                  </CardFooter>
-                </Card>
-              </div>
-
-            </div>
-          </div>
-        </section>
-
-        {/* CATALOG SECTION */}
-        <section id="catalogo" className="py-16 bg-[#111827]">
-          <div className="container max-w-7xl px-4 sm:px-6">
-            <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">
-              <span className="inline-flex items-center gap-1 rounded-md border border-[#A8E637]/40 bg-[#0F223D] px-3 py-1 text-xs font-bold text-[#A8E637]">
-                FLOTA ACTIVA EN LOS ÁNGELES
-              </span>
-              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-white">
-                Vehículos Disponibles para Arriendo Inmediato
-              </h2>
-              <p className="text-sm text-slate-400">
-                Revisión técnica vigente, seguro de cobertura completa y entrega acordada en puntos céntricos de Los Ángeles.
-              </p>
-            </div>
-
-            {/* Cars Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {autos.map((auto) => {
-                const isSelected = selectedAuto?.id === auto.id;
-                return (
-                  <Card
-                    key={auto.id}
-                    className={`overflow-hidden transition-all duration-200 cursor-pointer bg-[#0F223D]/80 ${
-                      isSelected
-                        ? "border-[#A8E637] shadow-xl shadow-[#A8E637]/15 ring-1 ring-[#A8E637]"
-                        : "border-border/80 hover:border-[#A8E637]/50 hover:shadow-lg"
-                    }`}
-                    onClick={() => setSelectedAuto(auto)}
-                  >
-                    {/* Image & Badges */}
-                    <div className="relative h-48 w-full overflow-hidden bg-muted">
-                      <img
-                        src={auto.fotos?.[0] || "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800"}
-                        alt={auto.modelo}
-                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                      />
-                      <div className="absolute top-3 left-3">
-                        <span className="font-mono text-xs font-bold bg-[#111827]/90 text-white px-2.5 py-1 rounded-md border border-border backdrop-blur-md">
-                          {auto.patente}
-                        </span>
-                      </div>
-                      <div className="absolute top-3 right-3">
-                        <span className="text-[11px] font-bold bg-[#A8E637] text-[#111827] px-2.5 py-0.5 rounded-md">
-                          {auto.anio}
-                        </span>
-                      </div>
-                    </div>
-
-                    <CardHeader className="pb-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg font-bold text-white">
-                            {auto.marca} {auto.modelo}
-                          </CardTitle>
-                          <CardDescription className="flex items-center gap-1 mt-1 text-xs text-slate-300">
-                            <MapPin className="h-3 w-3 text-[#A8E637] shrink-0" />
-                            {auto.ubicacion_base}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="pb-4">
-                      {/* Features */}
-                      <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 border-y border-border/60 py-2.5 my-1">
-                        <div className="flex items-center gap-1.5">
-                          <Gauge className="h-3.5 w-3.5 text-[#A8E637]" />
-                          <span>{auto.transmision || "Automática"}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Fuel className="h-3.5 w-3.5 text-[#A8E637]" />
-                          <span>{auto.combustible || "Gasolina 95"}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-
-                    <CardFooter className="flex items-center justify-between pt-0">
-                      <div>
-                        <div className="text-xs text-slate-400">Tarifa diaria</div>
-                        <div className="text-lg font-extrabold text-white">
-                          ${auto.tarifa_dia?.toLocaleString("es-CL")}{" "}
-                          <span className="text-xs font-normal text-slate-400">CLP</span>
-                        </div>
-                      </div>
-
-                      <Button
-                        size="sm"
-                        variant={isSelected ? "default" : "secondary"}
-                        className={
-                          isSelected
-                            ? "bg-[#A8E637] text-[#111827] font-bold hover:bg-[#93D129] shadow-md shadow-[#A8E637]/20"
-                            : "bg-[#111827] text-slate-200 border border-border hover:text-white"
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedAuto(auto);
-                        }}
-                      >
-                        {isSelected ? "Seleccionado ✓" : "Cotizar"}
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* POLICIES & SAFETY SECTION */}
-        <section id="politicas" className="py-16 border-t border-border/50 bg-[#0F223D]/30">
-          <div className="container max-w-7xl px-4 sm:px-6">
-            <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">
-              <span className="inline-flex items-center gap-1 rounded-md border border-[#A8E637]/40 bg-[#0F223D] px-3 py-1 text-xs font-bold text-[#A8E637]">
-                CONFIANZA Y TRANSPARENCIA
-              </span>
-              <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-white">
-                Estándares de Seguridad para Dueños y Arrendatarios
-              </h2>
-              <p className="text-sm text-slate-400">
-                Reglas claras, contratos digitales auditables y políticas de compensación justas.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="border-border/80 bg-[#0F223D]/80">
-                <CardHeader>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#A8E637]/15 text-[#A8E637] mb-2">
-                    <Camera className="h-6 w-6" />
+                {/* Search Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch gap-2 bg-[#0D1528] rounded-2xl border border-white/10 p-2 max-w-lg shadow-xl">
+                  <div className="flex items-center gap-2 flex-1 px-3">
+                    <MapPin className="h-4 w-4 text-[#FBBF24] shrink-0" />
+                    <span className="text-xs text-slate-200 font-bold whitespace-nowrap">Los Ángeles, Biobío</span>
                   </div>
-                  <CardTitle className="text-lg font-bold text-white">Checklist Fotográfico 9 Ángulos</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    Tanto al entregar como al recibir el vehículo, se registran 4 fotos exteriores, 3 interiores, 1 de odómetro/combustible y 1 de limpieza para evitar cualquier ambigüedad.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/80 bg-[#0F223D]/80">
-                <CardHeader>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#A8E637]/15 text-[#A8E637] mb-2">
-                    <Sparkles className="h-6 w-6" />
-                  </div>
-                  <CardTitle className="text-lg font-bold text-white">100% de Limpieza para el Dueño</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    Si el auto se entrega sucio, se aplica un cargo de lavado estándar ($15.000) o profundo ($35.000) que se transfiere íntegramente al propietario para costear el servicio.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/80 bg-[#0F223D]/80">
-                <CardHeader>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#A8E637]/15 text-[#A8E637] mb-2">
-                    <ShieldCheck className="h-6 w-6" />
-                  </div>
-                  <CardTitle className="text-lg font-bold text-white">Deducible Protegido 15 UF 50/50</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    En caso de siniestro cubierto por la póliza, el deducible de 15 UF se divide en partes iguales entre la empresa y el dueño, minimizando cualquier riesgo financiero.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
-
-        {/* MOBILE APP CTA BANNER */}
-        <section id="descargar-app" className="py-16 bg-gradient-to-r from-[#0F223D] via-[#111827] to-[#0F223D] border-t border-border/60">
-          <div className="container max-w-7xl px-4 sm:px-6">
-            <Card className="border-[#A8E637]/30 bg-[#0F223D]/90 p-8 sm:p-12 shadow-2xl relative overflow-hidden">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-                <div className="md:col-span-8 space-y-4">
-                  <span className="inline-flex items-center gap-1 rounded-md border border-[#A8E637]/40 bg-[#111827] px-3 py-1 text-xs font-bold text-[#A8E637]">
-                    DISPONIBLE EN REACT NATIVE / EXPO
-                  </span>
-                  <h3 className="text-2xl sm:text-4xl font-extrabold text-white">
-                    Todo el control de tus arriendos en tu bolsillo
-                  </h3>
-                  <p className="text-sm sm:text-base text-slate-300 max-w-xl leading-relaxed">
-                    Enrolamiento en 2 pasos con OCR, escáner QR offline para entregas presenciales en Los Ángeles, contrato en PDF generado al instante y gestión de ganancias para dueños.
-                  </p>
-                  <div className="pt-2 flex flex-wrap gap-3">
-                    <Button
-                      size="lg"
-                      className="gap-2 bg-[#A8E637] text-[#111827] font-bold hover:bg-[#93D129] shadow-lg shadow-[#A8E637]/30"
-                    >
-                      <Smartphone className="h-5 w-5" />
-                      Instalar App Móvil
-                    </Button>
-                    <Link href="/manager">
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        className="gap-2 border-border bg-[#111827] text-white hover:bg-[#1F2937]"
-                      >
-                        Acceso a Sucursal Los Ángeles
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="md:col-span-4 flex justify-center">
-                  <div className="rounded-2xl border-2 border-[#A8E637]/30 bg-[#111827]/95 p-6 text-center space-y-3 shadow-xl">
-                    <img
-                      src="/logo.png"
-                      alt="Logo"
-                      className="h-16 w-16 mx-auto rounded-xl object-cover border border-[#A8E637]/40 shadow-md"
+                  <div className="flex items-center gap-2 flex-1 border-l border-white/10 px-3">
+                    <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="4x4, SUV, económico..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="bg-transparent text-xs text-white placeholder:text-slate-500 focus:outline-none w-full py-2"
                     />
-                    <div className="text-sm font-bold text-white">Código QR de Entrega</div>
-                    <div className="text-xs text-[#A8E637] font-mono bg-[#0F223D] px-3 py-1.5 rounded-md border border-border">
-                      HASH: ATA-LA-2026-X89
-                    </div>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-[#A8E637]/30 bg-[#0F223D] px-2 py-0.5 text-[10px] font-bold text-[#A8E637]">
-                      Operativo 100% Offline
+                  </div>
+                  <a href="#catalogo">
+                    <Button className="rounded-xl px-6 py-5 text-xs font-black bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B] shadow-lg shadow-[#FBBF24]/20 gap-1.5 whitespace-nowrap w-full sm:w-auto uppercase tracking-wider">
+                      <Search className="h-3.5 w-3.5" />
+                      BUSCAR
+                    </Button>
+                  </a>
+                </div>
+              </div>
+
+              {/* Right: Hero Car Image */}
+              <div className="relative hidden lg:block">
+                <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-black/60 border border-white/10">
+                  <img
+                    src="/hero-bg-BtEUgRp2.jpg"
+                    alt="Auto en carretera"
+                    className="w-full h-[390px] object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#060B16]/70 via-transparent to-transparent" />
+                </div>
+                {/* Floating Badge */}
+                <div className="absolute -bottom-4 right-8 bg-[#FBBF24] text-[#060B16] rounded-2xl px-5 py-3.5 shadow-2xl shadow-[#FBBF24]/30 border border-[#FBBF24]/50">
+                  <div className="text-2xl font-black leading-none">+500</div>
+                  <div className="text-[10px] font-black uppercase tracking-wider mt-0.5">Viajes realizados</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CÓMO FUNCIONA — 3 Steps with circle numbers
+        ═══════════════════════════════════════════════════════════════════ */}
+        <section id="como-funciona" className="py-16 sm:py-24 bg-[#0D1528]">
+          <div className="container max-w-5xl mx-auto px-4 sm:px-6 space-y-14">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl sm:text-4xl font-black text-white">Tu viaje en 3 simples pasos</h2>
+              <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+                La forma más rápida, transparente y confiable de moverte por la Región del Biobío.
+              </p>
+              <div className="w-16 h-0.5 bg-[#FBBF24] mx-auto mt-4" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 text-center">
+              {[
+                { n: "1", title: "Elige tu vehículo", desc: "Filtra por modelo, 4x4 o SUV verificado en Los Ángeles y reserva los días exactos que necesitas." },
+                { n: "2", title: "Validación relámpago", desc: "Sube tu cédula y licencia chilena. Tu contrato digital queda blindado en 60 segundos." },
+                { n: "3", title: "Llaves con QR", desc: "Reúnete con el dueño, revisen el checklist de 9 fotos y ¡a disfrutar el camino!" },
+              ].map((step) => (
+                <div key={step.n} className="flex flex-col items-center space-y-4">
+                  <div className="h-16 w-16 rounded-full border-2 border-[#FBBF24] flex items-center justify-center text-2xl font-black text-[#FBBF24] bg-[#FBBF24]/5">
+                    {step.n}
+                  </div>
+                  <h3 className="text-base font-bold text-white">{step.title}</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed max-w-[260px]">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CATÁLOGO — "Explora la flota" with category pills & 3-col grid
+        ═══════════════════════════════════════════════════════════════════ */}
+        <section id="catalogo" className="py-16 sm:py-24 bg-[#060B16]">
+          <div className="container max-w-7xl mx-auto px-4 sm:px-6 space-y-8">
+
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+              <div>
+                <h2 className="text-2xl sm:text-4xl font-black text-white">Autos listos para tu viaje</h2>
+                <p className="text-sm text-slate-400 mt-1">Vehículos verificados por sus propios dueños en la comuna de Los Ángeles.</p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {categories.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedCategory(c.id)}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                      selectedCategory === c.id
+                        ? "bg-[#FBBF24] text-[#060B16]"
+                        : "bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid of Cars */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredAutos.map((auto) => (
+                <div
+                  key={auto.id}
+                  className="rounded-2xl border border-white/10 bg-[#0D1528] overflow-hidden group hover:border-[#FBBF24]/40 transition-all flex flex-col"
+                >
+                  {/* Image */}
+                  <div className="relative h-52 overflow-hidden bg-slate-900">
+                    <img
+                      src={auto.foto || auto.fotos?.[0]}
+                      alt={`${auto.marca} ${auto.modelo}`}
+                      className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <span className="absolute top-3 right-3 bg-[#060B16]/90 text-white text-[10px] font-bold uppercase px-2.5 py-1 rounded-md border border-white/15 tracking-wide backdrop-blur-sm">
+                      {auto.badge || "VERIFICADO"}
                     </span>
                   </div>
+
+                  {/* Body */}
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                    <div>
+                      {/* Title + Price */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="text-base font-bold text-white">
+                            {auto.marca} {auto.modelo}
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-0.5">Automática · {auto.anio}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-lg font-black text-[#FBBF24]">
+                            ${auto.tarifa_dia?.toLocaleString("es-CL")}
+                          </span>
+                          <span className="block text-[10px] text-slate-400 uppercase">CLP / DÍA</span>
+                        </div>
+                      </div>
+
+                      {/* Location */}
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-2">
+                        <MapPin className="h-3 w-3 text-[#EF4444] shrink-0" />
+                        <span>{auto.ubicacion_base}</span>
+                      </div>
+
+                      {/* Specs row */}
+                      <div className="flex items-center gap-4 text-[11px] text-slate-300 mt-3 pt-3 border-t border-white/5">
+                        <span className="flex items-center gap-1">
+                          <Gauge className="h-3 w-3 text-[#FBBF24]" />
+                          {auto.transmision}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3 text-[#FBBF24]" />
+                          {auto.capacidad}
+                        </span>
+                        <span className="flex items-center gap-1 ml-auto">
+                          <Star className="h-3 w-3 text-[#FBBF24] fill-[#FBBF24]" />
+                          {auto.rating}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setModalAuto(auto)}
+                        className="flex-1 rounded-xl text-xs font-semibold border-white/15 text-white hover:border-white/30"
+                      >
+                        Ficha
+                      </Button>
+                      <Link href={`/cotizador?auto=${auto.id}`} className="flex-1">
+                        <Button
+                          size="sm"
+                          className="w-full rounded-xl text-xs font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B]"
+                        >
+                          Cotizar
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
                 </div>
+              ))}
+            </div>
+
+            {filteredAutos.length === 0 && (
+              <div className="text-center py-16 space-y-3">
+                <p className="text-slate-400 text-sm">No se encontraron vehículos con esos filtros.</p>
+                <Button variant="outline" size="sm" onClick={() => { setSearchQuery(""); setSelectedCategory("todos"); }} className="rounded-xl text-xs">
+                  Restablecer filtros
+                </Button>
               </div>
-            </Card>
+            )}
           </div>
         </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            GARANTÍAS — 4 cards in a row
+        ═══════════════════════════════════════════════════════════════════ */}
+        <section className="py-16 sm:py-20 bg-[#0D1528] border-y border-white/5">
+          <div className="container max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { icon: <ShieldCheck className="h-6 w-6" />, title: "Seguro 15 UF", desc: "Deducible compartido 50/50 entre dueño y arrendatario." },
+                { icon: <Lock className="h-6 w-6" />, title: "Hold $800.000", desc: "Bloqueo temporal en tarjeta, no es un cobro. Se libera al devolver." },
+                { icon: <Camera className="h-6 w-6" />, title: "9 fotos obligatorias", desc: "Checklist fotográfico auditado en cada entrega y devolución." },
+                { icon: <FileText className="h-6 w-6" />, title: "Contrato digital", desc: "Firmado en línea con cédula y licencia clase B validadas." },
+              ].map((item, i) => (
+                <Link href="/garantias" key={i} className="rounded-2xl border border-white/10 bg-[#060B16] p-6 hover:border-[#FBBF24]/30 transition-all group">
+                  <div className="h-12 w-12 rounded-xl bg-[#FBBF24]/10 border border-[#FBBF24]/20 flex items-center justify-center text-[#FBBF24] group-hover:bg-[#FBBF24]/20 transition-colors mb-4">
+                    {item.icon}
+                  </div>
+                  <h3 className="text-sm font-bold text-white mb-1">{item.title}</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">{item.desc}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            DUEÑOS — Vibrant Yellow card with dark interactive simulator
+        ═══════════════════════════════════════════════════════════════════ */}
+        <section id="propietarios" className="py-16 sm:py-24 bg-[#060B16]">
+          <div className="container max-w-5xl mx-auto px-4 sm:px-6">
+            <div className="rounded-3xl bg-[#FBBF24] text-[#060B16] p-8 sm:p-14 shadow-2xl">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+
+                {/* Left copy */}
+                <div className="space-y-6">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-[#060B16]/10 px-3.5 py-1 text-[11px] font-black uppercase tracking-wider text-[#060B16]">
+                    Rentabiliza tu vehículo
+                  </div>
+                  <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-[#060B16] leading-none">
+                    Pon tu auto a trabajar por ti y dile adiós a las cuotas.
+                  </h2>
+                  <div className="space-y-3.5 pt-2">
+                    {[
+                      "Tú tienes el control: fija tus días disponibles y tu precio",
+                      "El 100% de los cobros por lavado van a tu bolsillo",
+                      "Depósito bancario directo y puntual en tu cuenta",
+                      "Tu auto siempre protegido con seguro comercial",
+                    ].map((t, i) => (
+                      <div key={i} className="flex items-center gap-3 text-sm font-bold text-[#060B16]">
+                        <div className="h-5 w-5 rounded-full bg-[#060B16]/10 flex items-center justify-center shrink-0">
+                          <Check className="h-3.5 w-3.5 text-[#060B16]" />
+                        </div>
+                        <span>{t}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right interactive simulator card */}
+                <div className="rounded-2xl bg-[#0A1124] border border-white/10 p-6 sm:p-8 text-center space-y-5 text-white shadow-2xl">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Ingreso mensual estimado
+                    </p>
+                    <div className="text-4xl sm:text-5xl font-black text-[#FBBF24] mt-1">
+                      ${ingresoNeto.toLocaleString("es-CL")}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-white/10">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                      <span>Días disponibles / mes</span>
+                      <span className="text-[#FBBF24] text-xs font-black">{diasAlMes} DÍAS</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="30"
+                      value={diasAlMes}
+                      onChange={(e) => setDiasAlMes(Number(e.target.value))}
+                      className="w-full accent-[#FBBF24] cursor-pointer h-2 bg-white/10 rounded-lg appearance-none"
+                    />
+                  </div>
+
+                  <Link href="/simulador-duenos">
+                    <Button className="w-full rounded-xl py-6 text-xs font-black bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B] shadow-lg shadow-[#FBBF24]/20 uppercase tracking-wider">
+                      Publicar mi auto
+                    </Button>
+                  </Link>
+
+                  <p className="text-[9px] text-slate-400 uppercase tracking-tight leading-tight">
+                    *Estimado con tarifa promedio de $38.000 CLP diarios menos comisión, en la comuna de Los Ángeles.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            FAQ — "Dudas Comunes" accordion
+        ═══════════════════════════════════════════════════════════════════ */}
+        <section className="py-16 sm:py-20 bg-[#0D1528]">
+          <div className="container max-w-3xl mx-auto px-4 sm:px-6 space-y-8">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl sm:text-3xl font-black text-white">Dudas Comunes</h2>
+              <p className="text-xs text-slate-400">Todo lo que necesitas saber antes de subirte o publicar tu auto.</p>
+            </div>
+
+            <div className="space-y-3">
+              {faqs.map((faq, idx) => (
+                <div key={idx} className="rounded-2xl border border-white/10 bg-[#060B16] overflow-hidden">
+                  <button
+                    onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                    className="w-full p-5 text-left flex justify-between items-center gap-4 focus:outline-none"
+                  >
+                    <span className="font-bold text-white text-sm">{faq.q}</span>
+                    <ChevronDown className={`h-4 w-4 text-[#FBBF24] shrink-0 transition-transform ${openFaq === idx ? "rotate-180" : ""}`} />
+                  </button>
+                  {openFaq === idx && (
+                    <div className="px-5 pb-5 text-xs text-slate-300 leading-relaxed border-t border-white/5 pt-3">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CTA FINAL — "Lleva tu arriendo en el bolsillo"
+        ═══════════════════════════════════════════════════════════════════ */}
+        <section id="descargar-app" className="py-16 sm:py-24 bg-[#060B16] relative overflow-hidden">
+          <div className="container max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="rounded-[2.5rem] bg-[#0A1124] border border-white/10 p-8 sm:p-14 relative overflow-hidden">
+              
+              {/* Ambient gold glow */}
+              <div className="absolute -right-16 -top-16 w-[450px] h-[450px] bg-[#FBBF24]/10 rounded-full filter blur-[120px] pointer-events-none" />
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
+                
+                {/* Left: Copy & Buttons */}
+                <div className="lg:col-span-7 space-y-6">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#FBBF24]/30 bg-[#FBBF24]/10 px-4 py-1.5 text-xs font-black text-[#FBBF24] tracking-wide">
+                    <Smartphone className="h-3.5 w-3.5" />
+                    <span>EXPERIENCIA 100% DIGITAL</span>
+                  </div>
+
+                  <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight">
+                    Lleva tu arriendo<br />
+                    <span className="text-[#FBBF24]">en el bolsillo.</span>
+                  </h2>
+
+                  <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-lg">
+                    Reserva un 4x4 para el volcán Antuco o un auto económico para moverte por la ciudad. Recibe
+                    notificaciones instantáneas, escanea el QR de entrega y audita el checklist de 9 fotos en segundos.
+                  </p>
+
+                  {/* Store download buttons */}
+                  <div className="flex flex-wrap gap-4 pt-2">
+                    <button className="flex items-center gap-3 bg-[#060B16] border border-white/15 hover:border-white/30 rounded-2xl px-5 py-3.5 text-left transition-all group shadow-lg">
+                      <svg className="h-7 w-7 text-white fill-current" viewBox="0 0 24 24">
+                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.64-.78 1.08-1.86.96-2.95-1 .04-2.13.67-2.79 1.45-.58.68-1.1 1.77-.96 2.83 1.12.09 2.19-.58 2.79-1.33z" />
+                      </svg>
+                      <div>
+                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Próximamente en</div>
+                        <div className="text-sm font-black text-white">App Store</div>
+                      </div>
+                    </button>
+
+                    <button className="flex items-center gap-3 bg-[#FBBF24] hover:bg-[#F59E0B] text-[#060B16] rounded-2xl px-5 py-3.5 text-left transition-all shadow-lg shadow-[#FBBF24]/20 group">
+                      <svg className="h-7 w-7 fill-[#060B16]" viewBox="0 0 24 24">
+                        <path d="M3.609 1.814L13.792 12 3.61 22.186a1.99 1.99 0 0 1-.22-.924V2.738c0-.34.08-.654.22-.924zm11.306 11.31l2.424 2.424-11.45 6.61 9.026-9.034zm0-2.248L5.889 1.842l11.45 6.61-2.424 2.424zm1.124 1.124l3.197 1.846c.92.531.92 1.397 0 1.928l-3.197 1.846-2.247-2.247 2.247-2.247z" />
+                      </svg>
+                      <div>
+                        <div className="text-[9px] font-bold text-[#060B16]/80 uppercase tracking-widest">Próximamente en</div>
+                        <div className="text-sm font-black text-[#060B16]">Google Play</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right: Phone Mockup */}
+                <div className="lg:col-span-5 flex justify-center">
+                  <div className="relative w-full max-w-[320px] rounded-[2.5rem] border-4 border-[#1E293B] bg-[#060B16] p-4 shadow-2xl shadow-black/90">
+                    
+                    {/* Phone Header */}
+                    <div className="flex items-center justify-between px-2 pt-1 pb-4 border-b border-white/5">
+                      <span className="text-[11px] font-black tracking-wider text-white">ARRIENDOMIAUTOYA</span>
+                      <div className="h-3.5 w-3.5 rounded-full bg-[#1E293B]" />
+                    </div>
+
+                    {/* Card 1: Próxima Reserva */}
+                    <div className="rounded-2xl bg-[#0A1124] border border-white/10 p-3.5 space-y-1 mt-3">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block">Próxima Reserva</span>
+                      <h4 className="text-sm font-bold text-white">Toyota RAV4 Limited</h4>
+                      <p className="text-[11px] text-slate-400">Hoy, 10:00 · Plaza de Armas</p>
+                    </div>
+
+                    {/* Card 2: Código de Entrega QR */}
+                    <div className="rounded-2xl bg-[#FBBF24] text-[#060B16] p-4 my-3 space-y-2 text-center">
+                      <span className="text-[9px] font-black uppercase tracking-widest block text-[#060B16]">Código de Entrega</span>
+                      <div className="flex justify-center py-1">
+                        <div className="bg-[#060B16]/5 p-2 rounded-xl">
+                          <svg className="h-16 w-16 text-[#060B16]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+                            <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+                            <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
+                            <rect x="14" y="14" width="3" height="3" fill="currentColor" />
+                            <rect x="18" y="14" width="3" height="3" fill="currentColor" />
+                            <rect x="14" y="18" width="3" height="3" fill="currentColor" />
+                            <rect x="18" y="18" width="3" height="3" fill="currentColor" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Checklist de Fotos */}
+                    <div className="rounded-2xl bg-[#0A1124] border border-white/10 p-3.5 space-y-2">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block">Checklist de Fotos</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[...Array(6)].map((_, i) => (
+                          <div key={i} className="h-11 rounded-xl bg-[#060B16] border border-white/5" />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Floating Rating Badge */}
+                    <div className="absolute -bottom-4 -right-4 bg-[#0A1124] border border-white/15 rounded-2xl px-4 py-2.5 shadow-2xl text-center space-y-0.5 z-20">
+                      <div className="text-base font-black text-white leading-none">4.9</div>
+                      <div className="text-[#FBBF24] text-xs font-bold leading-none py-0.5">
+                        ★★★★★
+                      </div>
+                      <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">En App Store</div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            BOTÓN FLOTANTE WHATSAPP DE SOPORTE LOCAL
+        ═══════════════════════════════════════════════════════════════════ */}
+        <div className="fixed bottom-6 right-6 z-40">
+          <a
+            href="https://wa.me/56912345678?text=Hola,%20tengo%20una%20consulta%20sobre%20el%20arriendo%20en%20ArriendoMiAutoYa%20Los%20Angeles"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-[#060B16] font-black text-xs px-4 py-3 rounded-full shadow-2xl shadow-black/50 transition-all hover:scale-105 border border-white/20 group"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
+            </span>
+            <span className="hidden sm:inline text-white">¿Dudas? Chatea con nosotros</span>
+            <span className="sm:hidden text-white font-bold">WhatsApp</span>
+          </a>
+        </div>
+
       </main>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          MODAL FICHA TÉCNICA
+      ═══════════════════════════════════════════════════════════════════ */}
+      {modalAuto && (
+        <Dialog open={!!modalAuto} onOpenChange={() => setModalAuto(null)}>
+          <DialogContent className="max-w-lg bg-[#0D1528] border border-white/15 text-white rounded-3xl p-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-black">
+                {modalAuto.marca} {modalAuto.modelo} ({modalAuto.anio})
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-300 flex items-center gap-1.5 mt-1">
+                <MapPin className="h-3.5 w-3.5 text-[#EF4444]" /> {modalAuto.ubicacion_base}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 my-2">
+              <div className="h-48 rounded-2xl overflow-hidden border border-white/10">
+                <img src={modalAuto.foto || modalAuto.fotos?.[0]} alt={modalAuto.modelo} className="h-full w-full object-cover" />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {[
+                  { label: "Transmisión", value: modalAuto.transmision },
+                  { label: "Combustible", value: modalAuto.combustible },
+                  { label: "Capacidad", value: modalAuto.capacidad },
+                ].map((s) => (
+                  <div key={s.label} className="bg-[#060B16] p-3 rounded-xl border border-white/10 text-center">
+                    <span className="text-slate-400 block text-[10px]">{s.label}</span>
+                    <span className="font-bold text-white">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl bg-[#060B16] p-4 border border-white/10 space-y-1.5 text-xs text-slate-300">
+                <div className="font-bold text-[#FBBF24] flex items-center gap-1.5 mb-1">
+                  <ShieldCheck className="h-4 w-4" /> Incluido en cada arriendo:
+                </div>
+                <p>• Seguro con deducible 15 UF (50/50)</p>
+                <p>• Checklist fotográfico de 9 ángulos</p>
+                <p>• 250 km diarios libres</p>
+                <p>• Hold de garantía $800.000 liberado al retorno</p>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-white/10">
+              <div>
+                <div className="text-[10px] text-slate-400 uppercase">Tarifa diaria</div>
+                <div className="text-lg font-black text-[#FBBF24]">
+                  ${modalAuto.tarifa_dia?.toLocaleString("es-CL")} CLP
+                </div>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Link href={`/cotizador?auto=${modalAuto.id}`} className="flex-1 sm:flex-none">
+                  <Button onClick={() => setModalAuto(null)} variant="outline" className="w-full rounded-xl px-4 text-xs font-semibold border-white/15 text-white">
+                    Cotizar Días
+                  </Button>
+                </Link>
+                <a href="#descargar-app" onClick={() => setModalAuto(null)} className="flex-1 sm:flex-none">
+                  <Button className="w-full rounded-xl px-5 text-xs font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B]">
+                    Arrendar
+                  </Button>
+                </a>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Footer />
     </>

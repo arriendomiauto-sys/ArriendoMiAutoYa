@@ -1,12 +1,19 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Car, Smartphone, LayoutDashboard, Building2 } from "lucide-react";
+import { Menu, X, MapPin } from "lucide-react";
 
 export default function Navbar() {
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const isActive = (path) => {
     if (path === "/" && router.pathname === "/") return true;
@@ -14,86 +21,115 @@ export default function Navbar() {
     return false;
   };
 
+  const navLinks = [
+    { href: "/#catalogo", label: "Catálogo" },
+    { href: "/#como-funciona", label: "Cómo funciona" },
+    { href: "/#propietarios", label: "Dueños" },
+  ];
+
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-border/80 bg-[#111827]/90 backdrop-blur-md">
-      <div className="container flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        {/* Brand with Official Icon */}
-        <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-90">
-          <img
-            src="/logo.png"
-            alt="ArriendaTuAuto Icon"
-            className="h-10 w-10 rounded-xl object-cover border border-[#A8E637]/30 shadow-md shadow-[#A8E637]/10"
-          />
-          <div className="flex flex-col">
-            <span className="text-xl font-black tracking-tight text-white">
-              Arrienda<span className="text-[#A8E637]">TuAuto</span>
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-[#060B16]/90 backdrop-blur-xl border-b border-white/10 shadow-2xl py-3"
+          : "bg-transparent py-4"
+      }`}
+    >
+      <div className="container max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
+        {/* Brand */}
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="relative">
+            <img
+              src="/logo.png"
+              alt="ArriendoMiAutoYa"
+              className="h-9 w-9 rounded-xl object-cover border border-white/15 shadow-md shadow-black/40 group-hover:border-[#FBBF24]/50 transition-all"
+            />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FBBF24] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#FBBF24] border border-[#060B16]" />
             </span>
           </div>
-          <span className="ml-1 hidden rounded-md border border-[#A8E637]/40 bg-[#0F223D] px-2.5 py-0.5 text-[11px] font-bold text-[#A8E637] sm:inline-flex">
-            Los Ángeles, Biobío
+          <span className="text-xl font-black tracking-tight text-white">
+            ARRIENDO<span className="text-[#FBBF24]">MIAUTOYA</span>
           </span>
         </Link>
 
-        {/* Navigation Links */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          <Link href="/">
-            <Button
-              variant={isActive("/") ? "secondary" : "ghost"}
-              size="sm"
-              className={
-                isActive("/")
-                  ? "bg-[#0F223D] text-[#A8E637] font-bold border border-[#A8E637]/30 shadow-sm"
-                  : "text-slate-300 hover:text-white hover:bg-[#0F223D]/50"
-              }
+        {/* Desktop Nav — simple text links */}
+        <nav className="hidden md:flex items-center gap-8">
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
             >
-              <Car className="mr-1.5 h-4 w-4" />
-              Catálogo
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* CTA */}
+        <div className="hidden md:block">
+          <Link href="/#descargar-app">
+            <Button
+              size="sm"
+              className="rounded-full px-5 py-2.5 text-xs font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B] shadow-md shadow-[#FBBF24]/20"
+            >
+              Empezar ahora
             </Button>
           </Link>
+        </div>
 
-          <Link href="/manager">
-            <Button
-              variant={isActive("/manager") ? "secondary" : "ghost"}
-              size="sm"
-              className={
-                isActive("/manager")
-                  ? "bg-[#0F223D] text-[#A8E637] font-bold border border-[#A8E637]/30 shadow-sm"
-                  : "text-slate-300 hover:text-white hover:bg-[#0F223D]/50"
-              }
+        {/* Mobile Menu Trigger */}
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="md:hidden p-2 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 focus:outline-none"
+          aria-label="Abrir Menú"
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div className="md:hidden bg-[#060B16]/98 border-b border-white/10 backdrop-blur-2xl px-6 py-6 space-y-3 mt-2 shadow-2xl">
+          <div className="flex items-center gap-2 pb-3 text-xs font-semibold text-slate-300 border-b border-white/10">
+            <MapPin className="h-3.5 w-3.5 text-[#EF4444]" />
+            <span>Los Ángeles, Región del Biobío</span>
+          </div>
+
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-sm font-semibold text-white hover:text-[#FBBF24] transition-colors"
             >
-              <Building2 className="mr-1.5 h-4 w-4" />
+              {link.label}
+            </Link>
+          ))}
+
+          <div className="pt-2 border-t border-white/10 space-y-2">
+            <Link href="/cotizador" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-sm text-slate-300 hover:text-[#FBBF24]">
+              Cotizador
+            </Link>
+            <Link href="/simulador-duenos" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-sm text-slate-300 hover:text-[#FBBF24]">
+              Simulador de Ingresos
+            </Link>
+            <Link href="/garantias" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-sm text-slate-300 hover:text-[#FBBF24]">
+              Garantías
+            </Link>
+          </div>
+
+          <div className="pt-3 border-t border-white/10 space-y-1">
+            <Link href="/manager" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-xs text-slate-400 hover:text-white">
               Panel Sucursal
-            </Button>
-          </Link>
-
-          <Link href="/admin">
-            <Button
-              variant={isActive("/admin") ? "secondary" : "ghost"}
-              size="sm"
-              className={
-                isActive("/admin")
-                  ? "bg-[#0F223D] text-[#A8E637] font-bold border border-[#A8E637]/30 shadow-sm"
-                  : "text-slate-300 hover:text-white hover:bg-[#0F223D]/50"
-              }
-            >
-              <LayoutDashboard className="mr-1.5 h-4 w-4" />
+            </Link>
+            <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-xs text-slate-400 hover:text-white">
               Panel Admin
-            </Button>
-          </Link>
-
-          <div className="ml-2 hidden md:block">
-            <a href="#descargar-app">
-              <Button
-                size="sm"
-                className="gap-1.5 bg-[#A8E637] text-[#111827] font-bold hover:bg-[#93D129] shadow-md shadow-[#A8E637]/20"
-              >
-                <Smartphone className="h-4 w-4" />
-                Abrir App Móvil
-              </Button>
-            </a>
+            </Link>
           </div>
         </div>
-      </div>
-    </nav>
+      )}
+    </header>
   );
 }

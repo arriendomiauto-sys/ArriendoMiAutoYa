@@ -9,6 +9,15 @@ const nextConfig = {
       },
     ],
   },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        ignored: /node_modules|\.git|\.next|[A-Za-z]:[/\\](?:pagefile\.sys|swapfile\.sys|dumpstack\.log\.tmp|System Volume Information)/,
+        aggregateTimeout: 300,
+      };
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;

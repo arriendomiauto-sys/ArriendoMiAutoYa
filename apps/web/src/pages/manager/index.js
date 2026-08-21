@@ -3,36 +3,17 @@ import Head from "next/head";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { Button } from "../../components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "../../components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
-import { Alert, AlertTitle, AlertDescription } from "../../components/ui/alert";
+import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import {
   Building2,
   Car,
   Headphones,
-  ShieldAlert,
   CheckCircle2,
   MapPin,
   Clock,
   Radio,
   AlertTriangle,
-  FileCheck,
+  Check,
 } from "lucide-react";
 
 export default function ManagerPortal() {
@@ -103,7 +84,6 @@ export default function ManagerPortal() {
           : t
       )
     );
-    alert("Ticket escalado exitosamente a Disputa Formal para resolución del Administrador General.");
   };
 
   const handleCerrarTicket = (ticketId) => {
@@ -115,295 +95,241 @@ export default function ManagerPortal() {
   return (
     <>
       <Head>
-        <title>Panel Sucursal Los Ángeles - ArriendaTuAuto</title>
+        <title>Panel Sucursal Los Ángeles - ArriendoMiAutoYa</title>
       </Head>
 
       <Navbar />
 
-      <main className="min-h-screen py-10 bg-[#111827]">
-        <div className="container max-w-7xl px-4 sm:px-6 space-y-8">
+      <main className="min-h-screen pt-28 pb-16 bg-[#060B16] relative overflow-hidden">
+        {/* Glow ambient background */}
+        <div className="glow-orb-yellow -top-32 -left-32 opacity-20" />
+        <div className="glow-orb-blue top-1/2 -right-32 opacity-20" />
+
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6 space-y-8 relative z-10">
           
           {/* Header Section */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/10 pb-6">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-md border border-[#A8E637]/40 bg-[#0F223D] px-2.5 py-0.5 text-xs font-bold text-[#A8E637]">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FBBF24]/30 bg-[#0A1124] px-3 py-1 text-xs font-bold text-[#FBBF24]">
                   <Building2 className="h-3.5 w-3.5" />
-                  ROL: MANAGER SUCURSAL
+                  SUCURSAL OPERATIVA
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-md border border-border bg-[#1F2937] px-2.5 py-0.5 text-xs font-semibold text-slate-300">
-                  <Radio className="h-3 w-3 animate-pulse text-[#A8E637]" />
-                  Radio 30 km Activo
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300 backdrop-blur-md">
+                  <Radio className="h-3 w-3 animate-pulse text-[#FBBF24]" />
+                  Radio 30 km Los Ángeles Activo
                 </span>
               </div>
-              <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
-                Sucursal Los Ángeles Centro
+              <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                Centro de Operaciones Los Ángeles
               </h1>
               <p className="text-sm text-slate-400">
-                Supervisión operativa de flota local, entregas presenciales y soporte directo (Región del Biobío)
+                Monitoreo de flota local, entregas presenciales y mediación rápida de soporte.
               </p>
             </div>
 
             {/* Manager Avatar Profile */}
-            <Card className="border-border bg-[#0F223D]/80 p-3.5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-11 w-11 border border-[#A8E637]/40 bg-[#111827] text-[#A8E637]">
-                  <AvatarFallback className="font-bold bg-[#111827] text-[#A8E637]">
-                    RM
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="font-bold text-sm text-white">Rodrigo Manager</div>
-                  <div className="text-xs text-slate-400">RUT: 14.333.222-5</div>
-                  <div className="text-[11px] text-[#A8E637] font-semibold mt-0.5">● Sucursal Biobío Online</div>
+            <div className="rounded-2xl border border-white/10 bg-[#0A1124] p-3.5 shadow-xl flex items-center gap-3.5 backdrop-blur-md">
+              <Avatar className="h-10 w-10 border border-[#FBBF24]/50 bg-[#060B16] text-[#FBBF24]">
+                <AvatarFallback className="font-bold bg-[#060B16] text-[#FBBF24]">
+                  RM
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="font-bold text-sm text-white">Rodrigo Morales</div>
+                <div className="text-[11px] text-slate-400">Gerente de Sucursal (RUT 14.333.222-5)</div>
+                <div className="text-[11px] text-[#FBBF24] font-medium flex items-center gap-1 mt-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#FBBF24] animate-pulse" />
+                  Turno Activo
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
 
           {/* Operational KPI Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-border/80 bg-[#0F223D]/70">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider flex items-center justify-between text-slate-300">
-                  <span>Flota en Cobertura</span>
-                  <Car className="h-4 w-4 text-[#A8E637]" />
-                </CardDescription>
-                <CardTitle className="text-2xl font-black text-white">
-                  3 Autos
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-xs text-slate-400">100% operativos en Los Ángeles</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/80 bg-[#0F223D]/70">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider flex items-center justify-between text-slate-300">
-                  <span>Reservas en Curso</span>
-                  <Clock className="h-4 w-4 text-[#A8E637]" />
-                </CardDescription>
-                <CardTitle className="text-2xl font-black text-[#A8E637]">
-                  1 Activa
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-xs text-slate-400">Plaza de Armas • RAV4 Limited</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/80 bg-[#0F223D]/70">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider flex items-center justify-between text-slate-300">
-                  <span>Tickets de Soporte</span>
-                  <Headphones className="h-4 w-4 text-[#A8E637]" />
-                </CardDescription>
-                <CardTitle className="text-2xl font-black text-amber-400">
-                  {tickets.filter((t) => t.estado === "abierto").length} Pendientes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-xs text-slate-400">Atención local y mediación</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/80 bg-[#0F223D]/70">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs font-semibold uppercase tracking-wider flex items-center justify-between text-slate-300">
-                  <span>Radio de Cobertura</span>
-                  <MapPin className="h-4 w-4 text-sky-400" />
-                </CardDescription>
-                <CardTitle className="text-2xl font-black text-sky-400">
-                  30 km
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-xs text-slate-400">Comuna de Los Ángeles, Chile</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main 2-Column Grid: Flota & Soporte */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* Col 1: Flota Registrada (7 Cols) */}
-            <div className="lg:col-span-7">
-              <Card className="border-border/80 bg-[#0F223D]/80 shadow-md">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg font-bold flex items-center gap-2 text-white">
-                        <Car className="h-5 w-5 text-[#A8E637]" />
-                        Flota Registrada en Sucursal
-                      </CardTitle>
-                      <CardDescription className="text-slate-300">
-                        Vehículos verificados bajo jurisdicción de Los Ángeles
-                      </CardDescription>
-                    </div>
-                    <span className="inline-flex items-center rounded-md border border-[#A8E637]/40 bg-[#111827] px-2.5 py-0.5 text-xs font-bold text-[#A8E637]">
-                      {flota.length} Activos
-                    </span>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-border/60 hover:bg-transparent">
-                        <TableHead className="w-[180px] text-slate-300">Vehículo</TableHead>
-                        <TableHead className="text-slate-300">Patente</TableHead>
-                        <TableHead className="text-slate-300">Propietario</TableHead>
-                        <TableHead className="text-slate-300">Tarifa/Día</TableHead>
-                        <TableHead className="text-right text-slate-300">Estado</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {flota.map((auto) => (
-                        <TableRow key={auto.id} className="border-border/50 hover:bg-[#111827]/50">
-                          <TableCell className="font-semibold text-white">
-                            <div>{auto.modelo}</div>
-                            <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                              <MapPin className="h-3 w-3 text-[#A8E637]" />
-                              {auto.ubicacion}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-mono text-xs font-bold bg-[#111827] text-white px-2 py-0.5 rounded border border-border">
-                              {auto.patente}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-xs text-white font-medium">{auto.dueno}</div>
-                            <div className="text-[10px] text-slate-400">{auto.rutDueno}</div>
-                          </TableCell>
-                          <TableCell className="text-xs font-bold text-white">
-                            ${auto.tarifa?.toLocaleString("es-CL")}{" "}
-                            <span className="text-[10px] text-slate-400 font-normal">CLP</span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span className="inline-flex items-center rounded-md border border-[#A8E637]/30 bg-[#111827] px-2 py-0.5 text-[11px] font-bold text-[#A8E637]">
-                              Operativo
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-
-                <CardFooter className="border-t border-border/50 py-3 bg-[#111827]/40 flex justify-between items-center text-xs text-slate-400">
-                  <span>Revisión técnica y póliza al día en todos los vehículos</span>
-                  <span className="font-bold text-[#A8E637]">Los Ángeles, CL</span>
-                </CardFooter>
-              </Card>
+            <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-5 shadow-lg space-y-2">
+              <div className="flex justify-between items-center text-xs font-medium text-slate-400">
+                <span>Flota en Cobertura</span>
+                <Car className="h-4 w-4 text-[#FBBF24]" />
+              </div>
+              <div className="text-3xl font-black text-white">3 Autos</div>
+              <p className="text-[11px] text-slate-400">100% operativos en Los Ángeles</p>
             </div>
 
-            {/* Col 2: Bandeja de Soporte y Mediación (5 Cols) */}
-            <div className="lg:col-span-5 space-y-4">
-              <Card className="border-border/80 bg-[#0F223D]/80 shadow-md">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg font-bold flex items-center gap-2 text-white">
-                        <Headphones className="h-5 w-5 text-amber-400" />
-                        Bandeja de Soporte Local
-                      </CardTitle>
-                      <CardDescription className="text-slate-300">
-                        Atención inmediata de consultas y reclamos de la sucursal
-                      </CardDescription>
-                    </div>
-                    <span className="inline-flex items-center rounded-md border border-amber-500/40 bg-[#111827] px-2.5 py-0.5 text-xs font-bold text-amber-400">
-                      {tickets.length} Tickets
-                    </span>
+            <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-5 shadow-lg space-y-2">
+              <div className="flex justify-between items-center text-xs font-medium text-slate-400">
+                <span>Arriendos en Curso</span>
+                <Clock className="h-4 w-4 text-[#FBBF24]" />
+              </div>
+              <div className="text-3xl font-black text-[#FBBF24]">1 Activo</div>
+              <p className="text-[11px] text-slate-400">Plaza de Armas • RAV4 Limited</p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-5 shadow-lg space-y-2">
+              <div className="flex justify-between items-center text-xs font-medium text-slate-400">
+                <span>Tickets de Mediación</span>
+                <Headphones className="h-4 w-4 text-amber-400" />
+              </div>
+              <div className="text-3xl font-black text-amber-400">
+                {tickets.filter((t) => t.estado === "abierto").length} Pendientes
+              </div>
+              <p className="text-[11px] text-slate-400">Atención local y soporte de entrega</p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-5 shadow-lg space-y-2">
+              <div className="flex justify-between items-center text-xs font-medium text-slate-400">
+                <span>Radio de Cobertura</span>
+                <MapPin className="h-4 w-4 text-sky-400" />
+              </div>
+              <div className="text-3xl font-black text-sky-400">30 km</div>
+              <p className="text-[11px] text-slate-400">Comuna de Los Ángeles, Chile</p>
+            </div>
+          </div>
+
+          {/* Main 2-Column Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            {/* Col 1: Flota Registrada */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Car className="h-4 w-4 text-[#FBBF24]" />
+                      Flota Supervisada en Los Ángeles
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Vehículos verificados con seguro y checklist activo
+                    </p>
                   </div>
-                </CardHeader>
+                  <span className="text-xs font-semibold text-[#FBBF24] bg-[#060B16] border border-white/10 px-3 py-1 rounded-full">
+                    {flota.length} Activos
+                  </span>
+                </div>
 
-                <CardContent className="space-y-4">
-                  {tickets.map((t) => (
-                    <Card key={t.id} className="border-border/60 bg-[#111827]/70">
-                      <CardHeader className="p-4 pb-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <CardTitle className="text-sm font-bold text-white">
-                              {t.asunto}
-                            </CardTitle>
-                            <div className="text-xs text-slate-400 mt-0.5">
-                              👤 {t.usuario} • {t.fecha}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10 text-slate-400">
+                        <th className="pb-3 font-semibold">Vehículo</th>
+                        <th className="pb-3 font-semibold">Patente</th>
+                        <th className="pb-3 font-semibold">Dueño</th>
+                        <th className="pb-3 font-semibold">Tarifa / Día</th>
+                        <th className="pb-3 font-semibold text-right">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-slate-300">
+                      {flota.map((auto) => (
+                        <tr key={auto.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-3.5 font-bold text-white">
+                            <div>{auto.modelo}</div>
+                            <div className="text-[10px] text-slate-500 flex items-center gap-1 font-normal">
+                              <MapPin className="h-3 w-3 text-[#EF4444]" />
+                              {auto.ubicacion}
                             </div>
-                          </div>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold shrink-0 border ${
-                              t.estado === "abierto"
-                                ? "bg-amber-950/40 text-amber-400 border-amber-500/30"
-                                : t.estado === "resuelto"
-                                ? "bg-[#0F223D] text-[#A8E637] border-[#A8E637]/30"
-                                : "bg-red-950/40 text-red-400 border-red-500/30"
-                            }`}
-                          >
-                            {t.estado}
-                          </span>
+                          </td>
+                          <td className="py-3.5 font-mono font-bold text-[#FBBF24]">
+                            {auto.patente}
+                          </td>
+                          <td className="py-3.5">
+                            <div>{auto.dueno}</div>
+                            <div className="text-[10px] text-slate-500 font-mono">{auto.rutDueno}</div>
+                          </td>
+                          <td className="py-3.5 font-semibold text-white">
+                            ${auto.tarifa?.toLocaleString("es-CL")}
+                          </td>
+                          <td className="py-3.5 text-right">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                              Activo
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Col 2: Tickets de Mediación */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Headphones className="h-4 w-4 text-[#FBBF24]" />
+                      Bandeja de Mediación Local
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Gestión de entregas y solicitudes de inspección
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {tickets.map((t) => (
+                    <div
+                      key={t.id}
+                      className={`rounded-2xl border p-4 space-y-3 transition-colors ${
+                        t.estado === "escalado_a_disputa"
+                          ? "border-purple-500/30 bg-purple-950/20"
+                          : t.estado === "resuelto"
+                          ? "border-white/5 bg-white/5 opacity-60"
+                          : "border-amber-500/30 bg-[#060B16]"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-bold text-white text-xs">{t.asunto}</div>
+                          <div className="text-[11px] text-slate-400">{t.usuario} • {t.rut}</div>
                         </div>
-                      </CardHeader>
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                            t.estado === "escalado_a_disputa"
+                              ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                              : t.estado === "resuelto"
+                              ? "bg-white/10 text-slate-400"
+                              : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          }`}
+                        >
+                          {t.estado === "escalado_a_disputa"
+                            ? "Escalado a Admin"
+                            : t.estado === "resuelto"
+                            ? "Resuelto"
+                            : "Pendiente"}
+                        </span>
+                      </div>
 
-                      <CardContent className="p-4 pt-1 pb-3">
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                          {t.descripcion}
-                        </p>
-                      </CardContent>
+                      <p className="text-xs text-slate-300 bg-[#0A1124] p-3 rounded-xl border border-white/5">
+                        "{t.descripcion}"
+                      </p>
 
-                      <CardFooter className="p-4 pt-0 flex justify-between items-center gap-2 border-t border-border/40 mt-1 pt-3">
-                        {t.estado === "abierto" && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="text-xs h-7 gap-1 bg-[#0F223D] text-white hover:bg-[#1E3A5F]"
-                              onClick={() => handleCerrarTicket(t.id)}
-                            >
-                              <CheckCircle2 className="h-3 w-3 text-[#A8E637]" />
-                              Resolver
-                            </Button>
-
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="text-xs h-7 gap-1"
-                              onClick={() => handleEscalarDisputa(t.id)}
-                            >
-                              <AlertTriangle className="h-3 w-3" />
-                              Escalar a Disputa
-                            </Button>
-                          </>
-                        )}
-
-                        {t.escalado && (
-                          <span className="text-xs text-red-400 font-bold flex items-center gap-1">
-                            <ShieldAlert className="h-3.5 w-3.5" />
-                            Caso transferido a Admin Global
-                          </span>
-                        )}
-
-                        {t.estado === "resuelto" && (
-                          <span className="text-xs text-[#A8E637] font-bold flex items-center gap-1">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Caso cerrado por Manager
-                          </span>
-                        )}
-                      </CardFooter>
-                    </Card>
+                      {t.estado === "abierto" && (
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            onClick={() => handleCerrarTicket(t.id)}
+                            className="rounded-xl text-xs font-semibold bg-white/10 text-white hover:bg-white/15 border border-white/10 flex-1"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-[#FBBF24]" />
+                            Resolver Local
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleEscalarDisputa(t.id)}
+                            className="rounded-xl text-xs font-semibold bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 flex-1"
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                            Escalar a Admin
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   ))}
-                </CardContent>
-              </Card>
-
-              {/* Informative Alert regarding Branch Scope (RF-27) */}
-              <Alert variant="info" className="bg-[#0F223D]/80 border-[#A8E637]/30 text-slate-200">
-                <FileCheck className="h-4 w-4 text-[#A8E637]" />
-                <AlertTitle className="text-xs font-bold text-white">Protocolo de Sucursal Los Ángeles</AlertTitle>
-                <AlertDescription className="text-xs leading-relaxed text-slate-300 mt-1">
-                  Los managers resuelven dudas operativas y coordinan entregas. En caso de siniestros o disputas de retención de garantía, el caso se eleva automáticamente a la mesa de arbitraje de Administración General.
-                </AlertDescription>
-              </Alert>
+                </div>
+              </div>
             </div>
 
           </div>
