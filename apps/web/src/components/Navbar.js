@@ -38,17 +38,11 @@ export default function Navbar() {
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative">
-            <img
-              src="/logo.png"
-              alt="ArriendoMiAutoYa"
-              className="h-9 w-9 rounded-xl object-cover border border-white/15 shadow-md shadow-black/40 group-hover:border-[#FBBF24]/50 transition-all"
-            />
-            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FBBF24] opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#FBBF24] border border-[#060B16]" />
-            </span>
-          </div>
+          <img
+            src="/logo.png"
+            alt="ArriendoMiAutoYa"
+            className="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl object-cover shadow-lg transition-transform group-hover:scale-105"
+          />
           <span className="text-xl font-black tracking-tight text-white">
             ARRIENDO<span className="text-[#FBBF24]">MIAUTOYA</span>
           </span>

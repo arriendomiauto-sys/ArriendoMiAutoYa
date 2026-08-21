@@ -15,7 +15,7 @@ export default function Footer() {
               <img
                 src="/logo.png"
                 alt="ArriendoMiAutoYa"
-                className="h-9 w-9 rounded-xl object-cover border border-white/10 shadow-sm"
+                className="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl object-cover shadow-lg"
               />
               <span className="text-xl font-black tracking-tight text-white">
                 ARRIENDO<span className="text-[#FBBF24]">MIAUTOYA</span>
