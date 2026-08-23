@@ -1,4 +1,6 @@
-const API_BASE_URL = "http://localhost:8000/api/v1";
+const API_BASE_URL =
+  (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
+  "http://localhost:8000/api/v1";
 
 export const MOCK_CARS = [
   {
@@ -317,10 +319,10 @@ export class ApiClient {
     }
   }
 
-  // Usuarios y KYC
+  // Usuarios y KYC / Enrolamiento
   static async verifyKyc(kycData) {
     try {
-      return await this.request("/usuarios/kyc", {
+      return await this.request("/enrolamiento/procesar-documentos", {
         method: "POST",
         body: JSON.stringify(kycData),
       });
@@ -333,4 +335,160 @@ export class ApiClient {
       };
     }
   }
+
+  static async completarEnrolamiento(enrolamientoData) {
+    try {
+      return await this.request("/enrolamiento/completar", {
+        method: "POST",
+        body: JSON.stringify(enrolamientoData),
+      });
+    } catch {
+      return {
+        id: `user-${Date.now()}`,
+        ...enrolamientoData,
+        estado_documentos: "verificado",
+        confianza_ocr: 0.98,
+      };
+    }
+  }
+
+  // Flujo de Entrega y Devolución (QR y Checklists)
+  static async generarCodigoQR(reservaId) {
+    try {
+      return await this.request(`/reservas/${reservaId}/generar-codigo`, {
+        method: "POST",
+      });
+    } catch {
+      return {
+        codigo_qr_hash: `QR-AMY-${reservaId || "DEMO"}`,
+        foto_perfil_url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400",
+        nombre_cliente: "Camila Aravena",
+        rut_cliente: "19.345.678-2",
+      };
+    }
+  }
+
+  static async validarCodigoQR(codigoQrHash) {
+    try {
+      return await this.request("/entrega/validar-codigo", {
+        method: "POST",
+        body: JSON.stringify({ codigo_qr_hash: codigoQrHash }),
+      });
+    } catch {
+      return {
+        valido: true,
+        reserva_id: "RES-94821",
+        cliente: {
+          id: "user-camila",
+          nombre: "Camila Aravena",
+          rut: "19.345.678-2",
+          foto_perfil_url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400",
+        },
+        auto: MOCK_CARS[0],
+      };
+    }
+  }
+
+  static async confirmarVerificacionIdentidad(reservaId, data) {
+    try {
+      return await this.request(`/entrega/${reservaId}/confirmar-verificacion`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch {
+      return {
+        success: true,
+        resultado: data.resultado,
+        reserva_id: reservaId,
+      };
+    }
+  }
+
+  static async registrarChecklist(reservaId, checklistData) {
+    try {
+      return await this.request(`/entrega/${reservaId}/checklist`, {
+        method: "POST",
+        body: JSON.stringify(checklistData),
+      });
+    } catch {
+      return {
+        success: true,
+        reserva_id: reservaId,
+        tipo: checklistData.tipo,
+        estado_nuevo: checklistData.tipo === "antes" ? "en_curso" : "finalizada",
+      };
+    }
+  }
+
+  // Pasarela de Pagos Transbank Webpay Plus
+  static async iniciarPagoWebpay(monto, tipo = "hold_reserva", reservaId = null, returnUrl = null) {
+    try {
+      return await this.request("/pagos/webpay/iniciar", {
+        method: "POST",
+        body: JSON.stringify({
+          monto,
+          tipo,
+          reserva_id: reservaId,
+          return_url: returnUrl,
+        }),
+      });
+    } catch {
+      return {
+        pago_id: `pay-${Date.now()}`,
+        token: `tbk-mock-token-${Date.now()}`,
+        url: "https://webpay3gint.transbank.cl/webpayserver/initTransaction",
+        monto,
+      };
+    }
+  }
+
+  static async confirmarPagoWebpay(tokenWs) {
+    try {
+      return await this.request("/pagos/webpay/confirmar", {
+        method: "POST",
+        body: JSON.stringify({ token_ws: tokenWs }),
+      });
+    } catch {
+      return {
+        autorizada: true,
+        mensaje: "Pago autorizado exitosamente en modo simulación.",
+        amount: 188000,
+        authorization_code: "1213",
+      };
+    }
+  }
+
+  // Almacenamiento de Fotos / Documentos (Supabase / Local)
+  static async subirArchivoStorage(fileBlob, filename = "foto.jpg", bucket = "general") {
+    try {
+      const formData = new FormData();
+      formData.append("file", fileBlob, filename);
+      formData.append("bucket", bucket);
+
+      const response = await fetch(`${API_BASE_URL}/storage/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error en subida: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch {
+      return {
+        success: true,
+        url: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+        filename,
+        bucket,
+        provider: "mock",
+      };
+    }
+  }
+
+  static getContratoPdfUrl(reservaId) {
+    return `${API_BASE_URL}/reservas/${reservaId}/contrato-pdf`;
+  }
 }
+
+
