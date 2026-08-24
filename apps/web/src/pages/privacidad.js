@@ -23,59 +23,59 @@ export default function PrivacidadPage() {
 
       <Navbar />
 
-      <main className="min-h-screen bg-[#060B16] text-white pt-32 pb-24 relative overflow-hidden">
+      <main className="min-h-screen bg-[#061E1F] text-white pt-32 pb-24 relative overflow-hidden">
         {/* Ambient glow */}
-        <div className="absolute top-24 right-1/3 w-[600px] h-[350px] bg-[#FBBF24]/5 rounded-full filter blur-[120px] pointer-events-none" />
+        <div className="absolute top-24 right-1/3 w-[600px] h-[350px] bg-[#2FBF9B]/10 rounded-full filter blur-[120px] pointer-events-none" />
 
         <div className="container max-w-4xl mx-auto px-4 sm:px-6 relative z-10 space-y-12">
           
           {/* Header */}
           <div className="text-center space-y-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs font-bold text-[#FBBF24]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2FBF9B]/30 bg-[#2FBF9B]/10 px-3.5 py-1 text-xs font-bold text-[#2FBF9B]">
               <Lock className="h-3.5 w-3.5" />
               LEY N° 19.628 (CHILE)
             </span>
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
               Política de Privacidad
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-300">
               Compromiso de confidencialidad y tratamiento seguro de información · Los Ángeles, Región del Biobío.
             </p>
           </div>
 
           {/* Highlights */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-2xl bg-[#0A1124] border border-white/10 p-5 space-y-2">
-              <Shield className="h-5 w-5 text-[#FBBF24]" />
+            <div className="rounded-2xl bg-[#0E3736] border border-[#2FBF9B]/20 p-5 space-y-2 shadow-lg">
+              <Shield className="h-5 w-5 text-[#2FBF9B]" />
               <h3 className="text-sm font-bold text-white">Encriptación SSL</h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-300">
                 Transmisión segura de cédulas, licencias y datos de pago con protocolos de alta seguridad.
               </p>
             </div>
 
-            <div className="rounded-2xl bg-[#0A1124] border border-white/10 p-5 space-y-2">
-              <Eye className="h-5 w-5 text-[#FBBF24]" />
+            <div className="rounded-2xl bg-[#0E3736] border border-[#2FBF9B]/20 p-5 space-y-2 shadow-lg">
+              <Eye className="h-5 w-5 text-[#2FBF9B]" />
               <h3 className="text-sm font-bold text-white">Cero Comercialización</h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-300">
                 Nunca vendemos ni compartimos tus datos de contacto con fines publicitarios de terceros.
               </p>
             </div>
 
-            <div className="rounded-2xl bg-[#0A1124] border border-white/10 p-5 space-y-2">
-              <FileCheck className="h-5 w-5 text-[#FBBF24]" />
+            <div className="rounded-2xl bg-[#0E3736] border border-[#2FBF9B]/20 p-5 space-y-2 shadow-lg">
+              <FileCheck className="h-5 w-5 text-[#2FBF9B]" />
               <h3 className="text-sm font-bold text-white">Custodia Fotográfica</h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-300">
                 Las 9 fotos de checklist se custodian exclusivamente para el respaldo pericial de tu arriendo.
               </p>
             </div>
           </div>
 
           {/* Detailed Clauses */}
-          <div className="rounded-3xl bg-[#0A1124] border border-white/10 p-6 sm:p-10 space-y-8 text-xs sm:text-sm text-slate-300 leading-relaxed">
+          <div className="rounded-3xl bg-[#0E3736] border border-[#2FBF9B]/20 p-6 sm:p-10 space-y-8 text-xs sm:text-sm text-slate-300 leading-relaxed shadow-2xl">
             
             <section className="space-y-3">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span className="text-[#FBBF24]">1.</span> Responsable del Tratamiento
+                <span className="text-[#2FBF9B]">1.</span> Responsable del Tratamiento
               </h2>
               <p>
                 <strong>ArriendoMiAutoYa Chile SpA</strong>, domiciliada en la comuna de Los Ángeles, Región del Biobío,
@@ -86,7 +86,7 @@ export default function PrivacidadPage() {
 
             <section className="space-y-3">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span className="text-[#FBBF24]">2.</span> Información que Recopilamos
+                <span className="text-[#2FBF9B]">2.</span> Información que Recopilamos
               </h2>
               <ul className="list-disc pl-5 space-y-1.5 text-slate-300">
                 <li><strong>Datos de Identificación:</strong> Nombre completo, RUT/Cédula de Identidad chilena y fecha de nacimiento.</li>
@@ -99,7 +99,7 @@ export default function PrivacidadPage() {
 
             <section className="space-y-3">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span className="text-[#FBBF24]">3.</span> Finalidad del Uso de Datos
+                <span className="text-[#2FBF9B]">3.</span> Finalidad del Uso de Datos
               </h2>
               <p>La información recopilada se destina exclusivamente a:</p>
               <ul className="list-disc pl-5 space-y-1.5 text-slate-300">
@@ -112,7 +112,7 @@ export default function PrivacidadPage() {
 
             <section className="space-y-3">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span className="text-[#FBBF24]">4.</span> Derechos del Titular (ARCO)
+                <span className="text-[#2FBF9B]">4.</span> Derechos del Titular (ARCO)
               </h2>
               <p>
                 El usuario tiene derecho a solicitar el acceso, rectificación, cancelación u oposición al tratamiento

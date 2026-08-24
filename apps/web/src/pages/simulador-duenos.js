@@ -46,15 +46,15 @@ export default function SimuladorDuenosPage() {
 
       <Navbar />
 
-      <main className="min-h-screen bg-[#060B16] text-white pt-32 pb-24 relative overflow-hidden">
+      <main className="min-h-screen bg-[#061E1F] text-white pt-32 pb-24 relative overflow-hidden">
         {/* Ambient glow */}
-        <div className="absolute top-20 right-1/4 w-[500px] h-[400px] bg-[#FBBF24]/5 rounded-full filter blur-[100px] pointer-events-none" />
+        <div className="absolute top-20 right-1/4 w-[500px] h-[400px] bg-[#2FBF9B]/10 rounded-full filter blur-[100px] pointer-events-none" />
 
         <div className="container max-w-5xl mx-auto px-4 sm:px-6 relative z-10 space-y-10">
           
           {/* Header */}
           <div className="text-center max-w-2xl mx-auto space-y-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs font-bold text-[#FBBF24]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2FBF9B]/30 bg-[#2FBF9B]/10 px-3.5 py-1 text-xs font-bold text-[#2FBF9B]">
               <TrendingUp className="h-3.5 w-3.5" />
               SIMULADOR DE RENTABILIDAD
             </span>
@@ -71,7 +71,7 @@ export default function SimuladorDuenosPage() {
             {/* Left: Interactive Controls */}
             <div className="lg:col-span-7 space-y-6">
               
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 sm:p-7 space-y-6 shadow-xl">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 sm:p-7 space-y-6 shadow-xl">
                 
                 {/* Control 1: Days rented */}
                 <div className="space-y-3">
@@ -79,7 +79,7 @@ export default function SimuladorDuenosPage() {
                     <label className="text-sm font-bold text-white">
                       Días arrendados al mes:
                     </label>
-                    <span className="text-base font-black text-[#FBBF24] bg-[#060B16] px-3.5 py-1 rounded-xl border border-white/10">
+                    <span className="text-base font-black text-[#2FBF9B] bg-[#061E1F] px-3.5 py-1 rounded-xl border border-[#2FBF9B]/30">
                       {diasArriendo} días
                     </span>
                   </div>
@@ -90,7 +90,7 @@ export default function SimuladorDuenosPage() {
                     step="1"
                     value={diasArriendo}
                     onChange={(e) => setDiasArriendo(Number(e.target.value))}
-                    className="w-full h-2.5 bg-[#060B16] rounded-lg appearance-none cursor-pointer accent-[#FBBF24]"
+                    className="w-full h-2.5 bg-[#061E1F] rounded-lg appearance-none cursor-pointer accent-[#2FBF9B]"
                   />
                   <div className="flex justify-between text-[11px] text-slate-400 font-medium">
                     <span>1 día</span>
@@ -105,7 +105,7 @@ export default function SimuladorDuenosPage() {
                     <label className="text-sm font-bold text-white">
                       Tarifa diaria fijada por ti:
                     </label>
-                    <span className="text-base font-black text-[#FBBF24] bg-[#060B16] px-3.5 py-1 rounded-xl border border-white/10">
+                    <span className="text-base font-black text-[#2FBF9B] bg-[#061E1F] px-3.5 py-1 rounded-xl border border-[#2FBF9B]/30">
                       ${tarifaDiaria.toLocaleString("es-CL")} CLP
                     </span>
                   </div>
@@ -116,7 +116,7 @@ export default function SimuladorDuenosPage() {
                     step="2000"
                     value={tarifaDiaria}
                     onChange={(e) => setTarifaDiaria(Number(e.target.value))}
-                    className="w-full h-2.5 bg-[#060B16] rounded-lg appearance-none cursor-pointer accent-[#FBBF24]"
+                    className="w-full h-2.5 bg-[#061E1F] rounded-lg appearance-none cursor-pointer accent-[#2FBF9B]"
                   />
                   <div className="flex justify-between text-[11px] text-slate-400 font-medium">
                     <span>$20.000 (Económico)</span>
@@ -131,7 +131,7 @@ export default function SimuladorDuenosPage() {
                     <label className="text-xs font-semibold text-slate-300">
                       Compensaciones estimadas por lavado ($15.000 c/u):
                     </label>
-                    <span className="text-xs font-bold text-white bg-[#060B16] px-2.5 py-1 rounded-lg border border-white/10">
+                    <span className="text-xs font-bold text-white bg-[#061E1F] px-2.5 py-1 rounded-lg border border-white/10">
                       {lavadosEstimados} lavados
                     </span>
                   </div>
@@ -142,29 +142,29 @@ export default function SimuladorDuenosPage() {
                     step="1"
                     value={lavadosEstimados}
                     onChange={(e) => setLavadosEstimados(Number(e.target.value))}
-                    className="w-full h-2 bg-[#060B16] rounded-lg appearance-none cursor-pointer accent-[#FBBF24]"
+                    className="w-full h-2 bg-[#061E1F] rounded-lg appearance-none cursor-pointer accent-[#2FBF9B]"
                   />
                 </div>
 
               </div>
 
               {/* Guarantees Box */}
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 space-y-3">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 space-y-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-[#FBBF24]" />
+                  <ShieldCheck className="h-4 w-4 text-[#2FBF9B]" />
                   Garantías incluidas para tu tranquilidad:
                 </h3>
                 <ul className="space-y-2 text-xs text-slate-300">
                   <li className="flex items-start gap-2">
-                    <Check className="h-3.5 w-3.5 text-[#FBBF24] shrink-0 mt-0.5" />
+                    <Check className="h-3.5 w-3.5 text-[#2FBF9B] shrink-0 mt-0.5" />
                     <span><strong>Seguro deducible 15 UF (50/50):</strong> En siniestros cubiertos, la plataforma asume el 50% del deducible.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="h-3.5 w-3.5 text-[#FBBF24] shrink-0 mt-0.5" />
+                    <Check className="h-3.5 w-3.5 text-[#2FBF9B] shrink-0 mt-0.5" />
                     <span><strong>Hold de garantía $800.000:</strong> Pre-autorización bancaria antes de entregar las llaves.</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="h-3.5 w-3.5 text-[#FBBF24] shrink-0 mt-0.5" />
+                    <Check className="h-3.5 w-3.5 text-[#2FBF9B] shrink-0 mt-0.5" />
                     <span><strong>Checklist de 9 fotos:</strong> Registro inmutable para respaldar estado de pintura, combustible y tapiz.</span>
                   </li>
                 </ul>
@@ -174,11 +174,11 @@ export default function SimuladorDuenosPage() {
 
             {/* Right: Net Earnings Result */}
             <div className="lg:col-span-5">
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 sm:p-8 space-y-6 shadow-2xl sticky top-28">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 sm:p-8 space-y-6 shadow-2xl sticky top-28">
                 
                 <div className="text-center space-y-2 pb-4 border-b border-white/10">
-                  <span className="text-xs font-semibold text-slate-400">Ingreso Neto Mensual Estimado</span>
-                  <div className="text-4xl sm:text-5xl font-black text-[#FBBF24]">
+                  <span className="text-xs font-semibold text-[#92E3CB]">Ingreso Neto Mensual Estimado</span>
+                  <div className="text-4xl sm:text-5xl font-black text-[#2FBF9B]">
                     ${ingresoTotalNeto.toLocaleString("es-CL")}
                   </div>
                   <span className="text-xs text-slate-400">CLP / mes en tu cuenta bancaria</span>
@@ -196,7 +196,7 @@ export default function SimuladorDuenosPage() {
                   {ingresoLavados > 0 && (
                     <div className="flex justify-between text-slate-300">
                       <span>Compensación lavado (100% dueño):</span>
-                      <span className="font-semibold text-emerald-400">+${ingresoLavados.toLocaleString("es-CL")} CLP</span>
+                      <span className="font-semibold text-[#2FBF9B]">+${ingresoLavados.toLocaleString("es-CL")} CLP</span>
                     </div>
                   )}
 
@@ -204,12 +204,12 @@ export default function SimuladorDuenosPage() {
 
                   <div className="flex justify-between items-center text-xs pt-1">
                     <span className="text-slate-400">Proyección a 12 meses:</span>
-                    <span className="font-bold text-[#FBBF24] text-sm">${ingresoAnualProyectado.toLocaleString("es-CL")} CLP / año</span>
+                    <span className="font-bold text-[#2FBF9B] text-sm">${ingresoAnualProyectado.toLocaleString("es-CL")} CLP / año</span>
                   </div>
                 </div>
 
                 <Link href="/#descargar-app">
-                  <Button className="w-full rounded-2xl py-6 font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B] shadow-xl shadow-[#FBBF24]/20 gap-2">
+                  <Button className="w-full rounded-2xl py-6 font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787] shadow-xl shadow-[#2FBF9B]/25 gap-2 transition-all hover:scale-105">
                     <Car className="h-4 w-4" />
                     <span>Publicar mi Auto en la App</span>
                   </Button>

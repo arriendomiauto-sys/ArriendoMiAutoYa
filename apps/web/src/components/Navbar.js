@@ -15,28 +15,24 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const isActive = (path) => {
-    if (path === "/" && router.pathname === "/") return true;
-    if (path !== "/" && router.pathname.startsWith(path)) return true;
-    return false;
-  };
-
   const navLinks = [
     { href: "/#catalogo", label: "Catálogo" },
     { href: "/#como-funciona", label: "Cómo funciona" },
     { href: "/#propietarios", label: "Dueños" },
+    { href: "/cotizador", label: "Cotizador" },
+    { href: "/simulador-duenos", label: "Simulador" },
   ];
 
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-[#060B16]/90 backdrop-blur-xl border-b border-white/10 shadow-2xl py-3"
+          ? "bg-[#061E1F]/90 backdrop-blur-xl border-b border-[#2FBF9B]/20 shadow-2xl py-3"
           : "bg-transparent py-4"
       }`}
     >
       <div className="container max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-        {/* Brand */}
+        {/* Brand - Logo intacto */}
         <Link href="/" className="flex items-center gap-3 group">
           <img
             src="/logo.png"
@@ -44,17 +40,17 @@ export default function Navbar() {
             className="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl object-cover shadow-lg transition-transform group-hover:scale-105"
           />
           <span className="text-xl font-black tracking-tight text-white">
-            ARRIENDO<span className="text-[#FBBF24]">MIAUTOYA</span>
+            ARRIENDO<span className="text-[#2FBF9B]">MIAUTOYA</span>
           </span>
         </Link>
 
-        {/* Desktop Nav — simple text links */}
+        {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
+              className="text-sm font-medium text-slate-300 hover:text-[#2FBF9B] transition-colors"
             >
               {link.label}
             </Link>
@@ -66,9 +62,9 @@ export default function Navbar() {
           <Link href="/#descargar-app">
             <Button
               size="sm"
-              className="rounded-full px-5 py-2.5 text-xs font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B] shadow-md shadow-[#FBBF24]/20"
+              className="rounded-full px-5 py-2.5 text-xs font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787] shadow-md shadow-[#2FBF9B]/25 transition-all hover:scale-105"
             >
-              Empezar ahora
+              Descargar App
             </Button>
           </Link>
         </div>
@@ -79,15 +75,15 @@ export default function Navbar() {
           className="md:hidden p-2 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 focus:outline-none"
           aria-label="Abrir Menú"
         >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {mobileMenuOpen ? <X className="h-5 w-5 text-[#2FBF9B]" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#060B16]/98 border-b border-white/10 backdrop-blur-2xl px-6 py-6 space-y-3 mt-2 shadow-2xl">
-          <div className="flex items-center gap-2 pb-3 text-xs font-semibold text-slate-300 border-b border-white/10">
-            <MapPin className="h-3.5 w-3.5 text-[#EF4444]" />
+        <div className="md:hidden bg-[#061E1F]/98 border-b border-[#2FBF9B]/20 backdrop-blur-2xl px-6 py-6 space-y-3 mt-2 shadow-2xl">
+          <div className="flex items-center gap-2 pb-3 text-xs font-semibold text-[#92E3CB] border-b border-white/10">
+            <MapPin className="h-3.5 w-3.5 text-[#2FBF9B]" />
             <span>Los Ángeles, Región del Biobío</span>
           </div>
 
@@ -96,21 +92,15 @@ export default function Navbar() {
               key={link.href}
               href={link.href}
               onClick={() => setMobileMenuOpen(false)}
-              className="block py-2 text-sm font-semibold text-white hover:text-[#FBBF24] transition-colors"
+              className="block py-2 text-sm font-semibold text-white hover:text-[#2FBF9B] transition-colors"
             >
               {link.label}
             </Link>
           ))}
 
           <div className="pt-2 border-t border-white/10 space-y-2">
-            <Link href="/cotizador" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-sm text-slate-300 hover:text-[#FBBF24]">
-              Cotizador
-            </Link>
-            <Link href="/simulador-duenos" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-sm text-slate-300 hover:text-[#FBBF24]">
-              Simulador de Ingresos
-            </Link>
-            <Link href="/garantias" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-sm text-slate-300 hover:text-[#FBBF24]">
-              Garantías
+            <Link href="/garantias" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-sm text-slate-300 hover:text-[#2FBF9B]">
+              Garantías y Seguro
             </Link>
           </div>
 

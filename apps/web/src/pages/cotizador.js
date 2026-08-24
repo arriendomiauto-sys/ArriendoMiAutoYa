@@ -215,15 +215,15 @@ export default function CotizadorPage() {
 
       <Navbar />
 
-      <main className="min-h-screen bg-[#060B16] text-white pt-32 pb-24 relative overflow-hidden">
+      <main className="min-h-screen bg-[#061E1F] text-white pt-32 pb-24 relative overflow-hidden">
         {/* Subtle Ambient light */}
-        <div className="absolute top-20 left-1/4 w-[500px] h-[400px] bg-[#FBBF24]/5 rounded-full filter blur-[100px] pointer-events-none" />
+        <div className="absolute top-20 left-1/4 w-[500px] h-[400px] bg-[#2FBF9B]/10 rounded-full filter blur-[100px] pointer-events-none" />
 
         <div className="container max-w-6xl mx-auto px-4 sm:px-6 relative z-10 space-y-10">
           
           {/* Header */}
           <div className="text-center max-w-2xl mx-auto space-y-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs font-bold text-[#FBBF24]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2FBF9B]/30 bg-[#2FBF9B]/10 px-3.5 py-1 text-xs font-bold text-[#2FBF9B]">
               <DollarSign className="h-3.5 w-3.5" />
               COTIZADOR EN VIVO
             </span>
@@ -241,13 +241,13 @@ export default function CotizadorPage() {
             <div className="lg:col-span-7 space-y-6">
               
               {/* Step 1: Vehicle Selector */}
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 space-y-4 shadow-xl">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 space-y-4 shadow-xl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <Car className="h-4 w-4 text-[#FBBF24]" />
+                    <Car className="h-4 w-4 text-[#2FBF9B]" />
                     1. Selecciona el Vehículo
                   </h2>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-300">
                     {autos.length} autos disponibles
                   </span>
                 </div>
@@ -261,8 +261,8 @@ export default function CotizadorPage() {
                         onClick={() => setSelectedAuto(auto)}
                         className={`rounded-2xl p-3.5 text-left border transition-all flex items-center gap-3 ${
                           isSelected
-                            ? "border-[#FBBF24] bg-[#060B16] shadow-md shadow-[#FBBF24]/10 ring-1 ring-[#FBBF24]"
-                            : "border-white/10 bg-[#060B16]/60 hover:border-white/25"
+                            ? "border-[#2FBF9B] bg-[#061E1F] shadow-md shadow-[#2FBF9B]/15 ring-1 ring-[#2FBF9B]"
+                            : "border-white/10 bg-[#061E1F]/60 hover:border-[#2FBF9B]/30"
                         }`}
                       >
                         <img
@@ -274,11 +274,11 @@ export default function CotizadorPage() {
                           <div className="text-xs font-bold text-white truncate">
                             {auto.marca} {auto.modelo}
                           </div>
-                          <div className="text-xs font-black text-[#FBBF24] mt-0.5">
+                          <div className="text-xs font-black text-[#2FBF9B] mt-0.5">
                             ${auto.tarifa_dia?.toLocaleString("es-CL")} CLP / día
                           </div>
                           <div className="text-[10px] text-slate-400 truncate mt-0.5 flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-[#EF4444] shrink-0" />
+                            <MapPin className="h-3 w-3 text-[#2FBF9B] shrink-0" />
                             <span className="truncate">{auto.ubicacion_base}</span>
                           </div>
                         </div>
@@ -289,13 +289,13 @@ export default function CotizadorPage() {
               </div>
 
               {/* Step 2: Duration Selector & Dates */}
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 space-y-4 shadow-xl">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 space-y-4 shadow-xl">
                 <div className="flex justify-between items-center">
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-[#FBBF24]" />
+                    <Calendar className="h-4 w-4 text-[#2FBF9B]" />
                     2. Duración del Arriendo
                   </h2>
-                  <span className="text-sm font-black text-[#FBBF24] bg-[#060B16] px-3 py-1 rounded-lg border border-white/10">
+                  <span className="text-sm font-black text-[#2FBF9B] bg-[#061E1F] px-3 py-1 rounded-lg border border-[#2FBF9B]/30">
                     {dias} {dias === 1 ? "día" : "días"}
                   </span>
                 </div>
@@ -307,8 +307,8 @@ export default function CotizadorPage() {
                       onClick={() => handleDiasChange(d)}
                       className={`py-2.5 rounded-xl text-xs font-bold transition-all ${
                         dias === d
-                          ? "bg-[#FBBF24] text-[#060B16] shadow-md shadow-[#FBBF24]/20 scale-105"
-                          : "bg-[#060B16] text-slate-300 hover:text-white border border-white/10"
+                          ? "bg-[#2FBF9B] text-[#061E1F] shadow-md shadow-[#2FBF9B]/20 scale-105"
+                          : "bg-[#061E1F] text-slate-300 hover:text-white border border-white/10 hover:border-[#2FBF9B]/30"
                       }`}
                     >
                       {d} {d === 1 ? "día" : "días"}
@@ -320,32 +320,32 @@ export default function CotizadorPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 text-[#FBBF24]" />
+                      <Clock className="h-3.5 w-3.5 text-[#2FBF9B]" />
                       Fecha de Retiro:
                     </label>
                     <input
                       type="date"
                       value={fechaInicio}
                       onChange={(e) => setFechaInicio(e.target.value)}
-                      className="w-full bg-[#060B16] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FBBF24]"
+                      className="w-full bg-[#061E1F] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#2FBF9B]"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 text-[#FBBF24]" />
+                      <Clock className="h-3.5 w-3.5 text-[#2FBF9B]" />
                       Fecha de Devolución:
                     </label>
                     <input
                       type="date"
                       value={fechaFin}
                       onChange={(e) => setFechaFin(e.target.value)}
-                      className="w-full bg-[#060B16] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FBBF24]"
+                      className="w-full bg-[#061E1F] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#2FBF9B]"
                     />
                   </div>
                 </div>
 
                 <div className="pt-2 text-xs text-slate-300 flex items-center gap-2">
-                  <Info className="h-4 w-4 text-sky-400 shrink-0" />
+                  <Info className="h-4 w-4 text-[#92E3CB] shrink-0" />
                   <span>Incluye <strong>{totales.kmIncluidos} km libres</strong> para circular ({dias * 250} km a razón de 250 km/día).</span>
                 </div>
               </div>
@@ -354,7 +354,7 @@ export default function CotizadorPage() {
 
             {/* Right: Real-Time Live Breakdown Card */}
             <div className="lg:col-span-5">
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 sm:p-7 space-y-6 shadow-2xl sticky top-28">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 sm:p-7 space-y-6 shadow-2xl sticky top-28">
                 
                 {selectedAuto && (
                   <div className="space-y-4">
@@ -369,7 +369,7 @@ export default function CotizadorPage() {
                           {selectedAuto.marca} {selectedAuto.modelo}
                         </h3>
                         <div className="text-xs text-slate-300 flex items-center gap-1 mt-0.5">
-                          <MapPin className="h-3 w-3 text-[#EF4444]" />
+                          <MapPin className="h-3 w-3 text-[#2FBF9B]" />
                           <span>{selectedAuto.ubicacion_base}</span>
                         </div>
                       </div>
@@ -385,17 +385,17 @@ export default function CotizadorPage() {
 
                       <div className="flex justify-between text-slate-200">
                         <span>Seguro Deducible 15 UF (50/50):</span>
-                        <span className="font-bold text-emerald-400">Incluido sin costo</span>
+                        <span className="font-bold text-[#2FBF9B]">Incluido sin costo</span>
                       </div>
 
                       <div className="flex justify-between text-slate-200">
                         <span>Kilometraje libre ({totales.kmIncluidos} km):</span>
-                        <span className="font-bold text-emerald-400">Incluido</span>
+                        <span className="font-bold text-[#2FBF9B]">Incluido</span>
                       </div>
 
                       <div className="flex justify-between text-slate-200">
                         <span>Hold Garantía (pre-autorización):</span>
-                        <span className="font-bold text-[#FBBF24]">$800.000 CLP</span>
+                        <span className="font-bold text-[#2FBF9B]">$800.000 CLP</span>
                       </div>
 
                       <Separator className="my-3 bg-white/10" />
@@ -403,27 +403,27 @@ export default function CotizadorPage() {
                       <div className="flex justify-between items-center text-sm pt-1">
                         <div>
                           <span className="font-bold text-white block">Total Arriendo:</span>
-                          <span className="text-[11px] text-amber-300 font-semibold">
+                          <span className="text-[11px] text-[#92E3CB] font-semibold">
                             Ahorras aprox. ${totales.ahorro?.toLocaleString("es-CL")} CLP
                           </span>
                         </div>
-                        <span className="text-2xl font-black text-[#FBBF24]">
+                        <span className="text-2xl font-black text-[#2FBF9B]">
                           ${totales.total?.toLocaleString("es-CL")}{" "}
                           <span className="text-xs font-normal text-slate-300">CLP</span>
                         </span>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-[#060B16] p-3.5 border border-white/5 space-y-1 text-[11px] text-slate-300">
+                    <div className="rounded-2xl bg-[#061E1F] p-3.5 border border-[#2FBF9B]/20 space-y-1 text-[11px] text-slate-300">
                       <div className="flex items-center gap-1.5 font-bold text-white">
-                        <Lock className="h-3.5 w-3.5 text-[#FBBF24]" />
+                        <Lock className="h-3.5 w-3.5 text-[#2FBF9B]" />
                         Garantía 100% Protegida
                       </div>
                       <p>El hold de $800.000 se libera automáticamente tras entregar el auto conforme al checklist inmutable de 9 fotos.</p>
                     </div>
 
                     <a href="/#descargar-app">
-                      <Button className="w-full rounded-2xl py-6 font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B] shadow-xl shadow-[#FBBF24]/20 gap-2">
+                      <Button className="w-full rounded-2xl py-6 font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787] shadow-xl shadow-[#2FBF9B]/20 gap-2 transition-all hover:scale-105">
                         <Smartphone className="h-4 w-4" />
                         <span>Confirmar Reserva en la App</span>
                       </Button>
