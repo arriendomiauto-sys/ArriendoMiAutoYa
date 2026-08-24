@@ -28,6 +28,8 @@ import {
   Smartphone,
 } from "lucide-react";
 
+import { API_BASE_URL } from "../lib/api";
+
 /* ──────────────── DATOS FALLBACK ──────────────── */
 const AUTOS_FALLBACK = [
   {
@@ -92,7 +94,7 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/v1/autos");
+        const res = await fetch(`${API_BASE_URL}/autos`);
         if (res.ok) { const d = await res.json(); setAutos(d); setFilteredAutos(d); }
       } catch { /* use fallback */ }
     })();

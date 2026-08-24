@@ -35,6 +35,8 @@ import {
   Check,
 } from "lucide-react";
 
+import { API_BASE_URL } from "../../lib/api";
+
 export default function AdminPortal() {
   const [activeTab, setActiveTab] = useState("financiero");
 
@@ -64,7 +66,7 @@ export default function AdminPortal() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/v1/admin/configuracion");
+        const res = await fetch(`${API_BASE_URL}/admin/configuracion`);
         if (res.ok) {
           const d = await res.json();
           setConfigPlataforma(d);
@@ -111,7 +113,7 @@ export default function AdminPortal() {
   const handleGuardarConfig = async (e) => {
     e.preventDefault();
     try {
-      await fetch("http://localhost:8000/api/v1/admin/configuracion", {
+      await fetch(`${API_BASE_URL}/admin/configuracion`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(configPlataforma),

@@ -1,9 +1,8 @@
 import React from "react";
 import Head from "next/head";
-import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { Lock, Shield, Eye, Database, FileCheck } from "lucide-react";
+import { Lock, Shield, Eye, FileCheck } from "lucide-react";
 
 export default function PrivacidadPage() {
   return (

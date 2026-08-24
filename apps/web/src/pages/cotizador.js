@@ -27,6 +27,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+import { API_BASE_URL } from "../lib/api";
+
 export default function CotizadorPage() {
   const router = useRouter();
   const [autos, setAutos] = useState([]);
@@ -51,7 +53,7 @@ export default function CotizadorPage() {
 
   const fetchAutos = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/v1/autos");
+      const res = await fetch(`${API_BASE_URL}/autos`);
       if (res.ok) {
         const data = await res.json();
         setAutos(data);
@@ -180,6 +182,34 @@ export default function CotizadorPage() {
       const end = new Date(start);
       end.setDate(start.getDate() + newDias);
       setFechaFin(end.toISOString().split("T")[0]);
+    }
+  };
+
+  const handleFechaInicioChange = (val) => {
+    setFechaInicio(val);
+    if (val && fechaFin) {
+      const d1 = new Date(val);
+      const d2 = new Date(fechaFin);
+      const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+      if (diff > 0) {
+        setDias(diff);
+      } else {
+        const next = new Date(d1);
+        next.setDate(d1.getDate() + dias);
+        setFechaFin(next.toISOString().split("T")[0]);
+      }
+    }
+  };
+
+  const handleFechaFinChange = (val) => {
+    setFechaFin(val);
+    if (fechaInicio && val) {
+      const d1 = new Date(fechaInicio);
+      const d2 = new Date(val);
+      const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+      if (diff > 0) {
+        setDias(diff);
+      }
     }
   };
 
@@ -326,7 +356,7 @@ export default function CotizadorPage() {
                     <input
                       type="date"
                       value={fechaInicio}
-                      onChange={(e) => setFechaInicio(e.target.value)}
+                      onChange={(e) => handleFechaInicioChange(e.target.value)}
                       className="w-full bg-[#061E1F] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#2FBF9B]"
                     />
                   </div>
@@ -338,7 +368,7 @@ export default function CotizadorPage() {
                     <input
                       type="date"
                       value={fechaFin}
-                      onChange={(e) => setFechaFin(e.target.value)}
+                      onChange={(e) => handleFechaFinChange(e.target.value)}
                       className="w-full bg-[#061E1F] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#2FBF9B]"
                     />
                   </div>
