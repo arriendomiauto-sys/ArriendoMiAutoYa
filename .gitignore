@@ -3,8 +3,12 @@ node_modules/
 .pnp
 .pnp.js
 
-# Excluded apps
-apps/api/
+# Python Database & Cache
+*.db
+*.sqlite3
+apps/api/rentacar_dev.db
+apps/api/test_temp.db
+apps/api/uploads/
 
 # Docs
 docs/
