@@ -1,0 +1,197 @@
+import { getAccessToken } from "./supabase";
+
+const API_BASE_URL =
+  (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
+  "http://localhost:8000/api/v1";
+
+export const MOCK_CARS = [
+  {
+    id: "car-swift-01",
+    marca: "Suzuki",
+    modelo: "Swift",
+    ano: 2023,
+    patente: "BBFK-42",
+    transmision: "Automático",
+    combustible: "Bencina 95",
+    asientos: 5,
+    puertas: 5,
+    tarifa_dia: 38000,
+    tarifa_semana: 228000,
+    tarifa_mes: 820000,
+    garantia_monto: 150000,
+    direccion_entrega: "Av. Providencia 2145",
+    comuna: "Providencia",
+    ciudad: "Santiago",
+    distancia: "a 400 m",
+    disponible: true,
+    foto_principal_url: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+    fotos: [
+      "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800",
+    ],
+    dueno: {
+      id: "dueno-rodrigo",
+      nombre: "Rodrigo Muñoz",
+      rating: 4.8,
+      viajes: 31,
+      telefono: "+56 9 7734 1208",
+      verificado: true,
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+      tiempo_respuesta: "Responde en menos de 15 min",
+    },
+  },
+];
+
+/**
+ * Cliente HTTP único, compartido por las apps mobile-owner y mobile-renter.
+ * Adjunta automáticamente el Bearer token de la sesión Supabase activa a
+ * cada request. Los métodos de lectura pública (getAutos/getAuto) no
+ * requieren sesión.
+ */
+export class ApiClient {
+  static async request(endpoint, options = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const token = await getAccessToken();
+
+    const headers = { ...options.headers };
+    const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+    if (!isFormData) headers["Content-Type"] = "application/json";
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const response = await fetch(url, { ...options, headers });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Error en la solicitud: ${response.status}`);
+    }
+
+    if (response.status === 204) return null;
+    return await response.json();
+  }
+
+  // Usuario autenticado (perfil sincronizado desde Supabase Auth)
+  static async getMe() {
+    return this.request("/usuarios/me");
+  }
+
+  // Autos / Marketplace
+  static async getAutos(params = {}) {
+    try {
+      const query = new URLSearchParams(params).toString();
+      return await this.request(`/autos${query ? `?${query}` : ""}`);
+    } catch {
+      return MOCK_CARS;
+    }
+  }
+
+  static async getAuto(autoId) {
+    return this.request(`/autos/${autoId}`);
+  }
+
+  static async crearAuto(autoData) {
+    return this.request("/autos", {
+      method: "POST",
+      body: JSON.stringify(autoData),
+    });
+  }
+
+  static async actualizarAuto(autoId, autoData) {
+    return this.request(`/autos/${autoId}`, {
+      method: "PATCH",
+      body: JSON.stringify(autoData),
+    });
+  }
+
+  // Reservas
+  static async getReservas(rol = "cliente") {
+    try {
+      return await this.request(`/reservas?rol=${rol}`);
+    } catch {
+      return [];
+    }
+  }
+
+  static async crearReserva(reservaData) {
+    return this.request("/reservas", {
+      method: "POST",
+      body: JSON.stringify(reservaData),
+    });
+  }
+
+  // Enrolamiento / KYC
+  static async verifyKyc(kycData) {
+    return this.request("/enrolamiento/procesar-documentos", {
+      method: "POST",
+      body: JSON.stringify(kycData),
+    });
+  }
+
+  static async completarEnrolamiento(enrolamientoData) {
+    return this.request("/enrolamiento/completar", {
+      method: "POST",
+      body: JSON.stringify(enrolamientoData),
+    });
+  }
+
+  // Flujo de Entrega y Devolución (QR y Checklists)
+  static async generarCodigoQR(reservaId) {
+    return this.request(`/reservas/${reservaId}/generar-codigo`, { method: "POST" });
+  }
+
+  static async validarCodigoQR(codigoQrHash) {
+    return this.request("/entrega/validar-codigo", {
+      method: "POST",
+      body: JSON.stringify({ codigo_qr_hash: codigoQrHash }),
+    });
+  }
+
+  static async confirmarVerificacionIdentidad(reservaId, data) {
+    return this.request(`/entrega/${reservaId}/confirmar-verificacion`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async registrarChecklist(reservaId, checklistData) {
+    return this.request(`/entrega/${reservaId}/checklist`, {
+      method: "POST",
+      body: JSON.stringify(checklistData),
+    });
+  }
+
+  // Pasarela de Pagos Transbank Webpay Plus
+  static async iniciarPagoWebpay(monto, tipo = "hold_reserva", reservaId = null, returnUrl = null) {
+    return this.request("/pagos/webpay/iniciar", {
+      method: "POST",
+      body: JSON.stringify({ monto, tipo, reserva_id: reservaId, return_url: returnUrl }),
+    });
+  }
+
+  static async confirmarPagoWebpay(tokenWs) {
+    return this.request("/pagos/webpay/confirmar", {
+      method: "POST",
+      body: JSON.stringify({ token_ws: tokenWs }),
+    });
+  }
+
+  // Almacenamiento de Fotos / Documentos (Supabase Storage vía backend)
+  static async subirArchivoStorage(fileUriOrBlob, filename = "foto.jpg", bucket = "general") {
+    const formData = new FormData();
+    if (typeof fileUriOrBlob === "string") {
+      // React Native: uri local del picker de imágenes
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1] === "jpg" ? "jpeg" : match[1]}` : "image/jpeg";
+      formData.append("file", { uri: fileUriOrBlob, name: filename, type });
+    } else {
+      // Web: Blob/File
+      formData.append("file", fileUriOrBlob, filename);
+    }
+    formData.append("bucket", bucket);
+
+    return this.request("/storage/upload", { method: "POST", body: formData });
+  }
+
+  static getContratoPdfUrl(reservaId) {
+    return `${API_BASE_URL}/reservas/${reservaId}/contrato-pdf`;
+  }
+}

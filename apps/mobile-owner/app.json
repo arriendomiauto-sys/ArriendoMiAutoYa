@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Arrienda Tu Auto Dueño",
+    "slug": "arrienda-tu-auto-owner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#0F223D" },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "cl.arriendatuauto.owner" },
+    "android": {
+      "package": "cl.arriendatuauto.owner",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#0F223D" }
+    },
+    "web": { "favicon": "./assets/favicon.png", "bundler": "metro" },
+    "plugins": [
+      ["expo-image-picker", { "photosPermission": "Arrienda Tu Auto necesita acceso a tus fotos para publicar tu vehículo y verificar tus documentos." }]
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Arrienda Tu Auto",
+    "slug": "arrienda-tu-auto-renter",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#FAFAF9" },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "cl.arriendatuauto.renter" },
+    "android": {
+      "package": "cl.arriendatuauto.renter",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#FAFAF9" }
+    },
+    "web": { "favicon": "./assets/favicon.png", "bundler": "metro" },
+    "plugins": [
+      ["expo-image-picker", { "photosPermission": "Arrienda Tu Auto necesita acceso a tus fotos para verificar tu identidad y tu licencia." }]
+    ]
+  }
+}
