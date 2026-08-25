@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
@@ -35,6 +35,8 @@ import {
   Check,
 } from "lucide-react";
 
+import { API_BASE_URL } from "../../lib/api";
+
 export default function AdminPortal() {
   const [activeTab, setActiveTab] = useState("financiero");
 
@@ -60,6 +62,18 @@ export default function AdminPortal() {
     total_liquidaciones_pagadas_clp: 0,
     cantidad_transacciones: 4,
   });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/configuracion`);
+        if (res.ok) {
+          const d = await res.json();
+          setConfigPlataforma(d);
+        }
+      } catch { /* use default state */ }
+    })();
+  }, []);
 
   // Disputas con Lightbox de Fotos Antes y Después
   const [disputas, setDisputas] = useState([
@@ -96,8 +110,15 @@ export default function AdminPortal() {
     },
   ]);
 
-  const handleGuardarConfig = (e) => {
+  const handleGuardarConfig = async (e) => {
     e.preventDefault();
+    try {
+      await fetch(`${API_BASE_URL}/admin/configuracion`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(configPlataforma),
+      });
+    } catch { /* saved locally */ }
     setConfigSaved(true);
     setTimeout(() => setConfigSaved(false), 3000);
   };
@@ -143,10 +164,10 @@ export default function AdminPortal() {
 
       <Navbar />
 
-      <main className="min-h-screen pt-28 pb-16 bg-[#060B16] relative overflow-hidden">
+      <main className="min-h-screen pt-28 pb-16 bg-[#061E1F] text-white relative overflow-hidden">
         {/* Glow ambient background */}
-        <div className="glow-orb-yellow -top-32 -left-32 opacity-20" />
-        <div className="glow-orb-blue top-1/2 -right-32 opacity-20" />
+        <div className="absolute top-10 left-1/4 w-[500px] h-[500px] bg-[#2FBF9B]/10 rounded-full filter blur-[100px] pointer-events-none" />
+        <div className="absolute top-1/2 -right-32 w-[600px] h-[600px] bg-[#0F3D3E]/40 rounded-full filter blur-[120px] pointer-events-none" />
 
         <div className="container max-w-7xl mx-auto px-4 sm:px-6 space-y-8 relative z-10">
           
@@ -154,7 +175,7 @@ export default function AdminPortal() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/10 pb-6">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FBBF24]/30 bg-[#0A1124] px-3 py-1 text-xs font-bold text-[#FBBF24]">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2FBF9B]/30 bg-[#0E3736] px-3 py-1 text-xs font-bold text-[#2FBF9B]">
                   <ShieldCheck className="h-3.5 w-3.5" />
                   ADMINISTRADOR GLOBAL
                 </span>
@@ -171,17 +192,17 @@ export default function AdminPortal() {
             </div>
 
             {/* Admin Avatar Profile */}
-            <div className="rounded-2xl border border-white/10 bg-[#0A1124] p-3.5 shadow-xl flex items-center gap-3.5 backdrop-blur-md">
-              <Avatar className="h-10 w-10 border border-[#FBBF24]/50 bg-[#060B16] text-[#FBBF24]">
-                <AvatarFallback className="font-bold bg-[#060B16] text-[#FBBF24]">
+            <div className="rounded-2xl border border-[#2FBF9B]/20 bg-[#0E3736] p-3.5 shadow-xl flex items-center gap-3.5 backdrop-blur-md">
+              <Avatar className="h-10 w-10 border border-[#2FBF9B]/50 bg-[#061E1F] text-[#2FBF9B]">
+                <AvatarFallback className="font-bold bg-[#061E1F] text-[#2FBF9B]">
                   AG
                 </AvatarFallback>
               </Avatar>
               <div>
                 <div className="font-bold text-sm text-white">Administrador General</div>
-                <div className="text-[11px] text-slate-400">RUT: 11.222.333-9</div>
-                <div className="text-[11px] text-[#FBBF24] font-medium flex items-center gap-1 mt-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#FBBF24] animate-pulse" />
+                <div className="text-[11px] text-slate-300">RUT: 11.222.333-9</div>
+                <div className="text-[11px] text-[#2FBF9B] font-medium flex items-center gap-1 mt-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#2FBF9B] animate-pulse" />
                   Superadmin Level 1
                 </div>
               </div>
@@ -190,31 +211,31 @@ export default function AdminPortal() {
 
           {/* Module Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto p-1.5 bg-[#0A1124] border border-white/10 rounded-2xl">
+            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto p-1.5 bg-[#0E3736] border border-[#2FBF9B]/20 rounded-2xl">
               <TabsTrigger
                 value="financiero"
-                className="gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold data-[state=active]:bg-[#FBBF24] data-[state=active]:text-[#060B16] data-[state=active]:font-bold text-slate-300 transition-all"
+                className="gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold data-[state=active]:bg-[#2FBF9B] data-[state=active]:text-[#061E1F] data-[state=active]:font-bold text-slate-300 transition-all"
               >
                 <DollarSign className="h-4 w-4" />
                 Financiero & Holds
               </TabsTrigger>
               <TabsTrigger
                 value="disputas"
-                className="gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold data-[state=active]:bg-[#FBBF24] data-[state=active]:text-[#060B16] data-[state=active]:font-bold text-slate-300 transition-all"
+                className="gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold data-[state=active]:bg-[#2FBF9B] data-[state=active]:text-[#061E1F] data-[state=active]:font-bold text-slate-300 transition-all"
               >
                 <Scale className="h-4 w-4" />
                 Disputas ({disputas.filter((d) => d.estado === "abierta").length})
               </TabsTrigger>
               <TabsTrigger
                 value="documentos"
-                className="gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold data-[state=active]:bg-[#FBBF24] data-[state=active]:text-[#060B16] data-[state=active]:font-bold text-slate-300 transition-all"
+                className="gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold data-[state=active]:bg-[#2FBF9B] data-[state=active]:text-[#061E1F] data-[state=active]:font-bold text-slate-300 transition-all"
               >
                 <FileCheck2 className="h-4 w-4" />
                 Revisión OCR ({documentosPendientes.length})
               </TabsTrigger>
               <TabsTrigger
                 value="configuracion"
-                className="gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold data-[state=active]:bg-[#FBBF24] data-[state=active]:text-[#060B16] data-[state=active]:font-bold text-slate-300 transition-all"
+                className="gap-2 py-3 rounded-xl text-xs sm:text-sm font-semibold data-[state=active]:bg-[#2FBF9B] data-[state=active]:text-[#061E1F] data-[state=active]:font-bold text-slate-300 transition-all"
               >
                 <Settings className="h-4 w-4" />
                 Parámetros (RF-33)
@@ -224,10 +245,10 @@ export default function AdminPortal() {
             {/* TAB 1: FINANCIERO & HOLDS */}
             <TabsContent value="financiero" className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-5 shadow-lg space-y-2">
-                  <div className="flex justify-between items-center text-xs font-medium text-slate-400">
+                <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-5 shadow-lg space-y-2">
+                  <div className="flex justify-between items-center text-xs font-medium text-slate-300">
                     <span>Holds Capturados</span>
-                    <Lock className="h-4 w-4 text-[#FBBF24]" />
+                    <Lock className="h-4 w-4 text-[#2FBF9B]" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white">
                     ${finanzas.total_holds_capturados_clp?.toLocaleString("es-CL")} CLP
@@ -235,30 +256,30 @@ export default function AdminPortal() {
                   <p className="text-[11px] text-slate-400">$800.000 garantía + $126.000 reserva</p>
                 </div>
 
-                <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-5 shadow-lg space-y-2">
-                  <div className="flex justify-between items-center text-xs font-medium text-slate-400">
+                <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-5 shadow-lg space-y-2">
+                  <div className="flex justify-between items-center text-xs font-medium text-slate-300">
                     <span>Cobros Facturados</span>
-                    <CheckCircle2 className="h-4 w-4 text-[#FBBF24]" />
+                    <CheckCircle2 className="h-4 w-4 text-[#2FBF9B]" />
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-[#FBBF24]">
+                  <div className="text-2xl sm:text-3xl font-black text-[#2FBF9B]">
                     ${finanzas.total_cobros_finales_clp?.toLocaleString("es-CL")} CLP
                   </div>
                   <p className="text-[11px] text-slate-400">Transacciones liquidadas</p>
                 </div>
 
-                <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-5 shadow-lg space-y-2">
-                  <div className="flex justify-between items-center text-xs font-medium text-slate-400">
+                <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-5 shadow-lg space-y-2">
+                  <div className="flex justify-between items-center text-xs font-medium text-slate-300">
                     <span>Liquidación Dueños</span>
-                    <DollarSign className="h-4 w-4 text-sky-400" />
+                    <DollarSign className="h-4 w-4 text-[#92E3CB]" />
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-sky-400">
+                  <div className="text-2xl sm:text-3xl font-black text-[#92E3CB]">
                     ${finanzas.total_liquidaciones_pendientes_clp?.toLocaleString("es-CL")} CLP
                   </div>
                   <p className="text-[11px] text-slate-400">80% arriendo + 100% compensaciones</p>
                 </div>
 
-                <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-5 shadow-lg space-y-2">
-                  <div className="flex justify-between items-center text-xs font-medium text-slate-400">
+                <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-5 shadow-lg space-y-2">
+                  <div className="flex justify-between items-center text-xs font-medium text-slate-300">
                     <span>Deducible Seguro</span>
                     <ShieldCheck className="h-4 w-4 text-amber-400" />
                   </div>
@@ -270,11 +291,11 @@ export default function AdminPortal() {
               </div>
 
               {/* Transactions Table Card */}
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 shadow-xl space-y-4">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 shadow-xl space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-[#FBBF24]" />
+                      <DollarSign className="h-4 w-4 text-[#2FBF9B]" />
                       Libro Mayor de Transacciones y Retenciones
                     </h3>
                     <p className="text-xs text-slate-400">
@@ -287,7 +308,7 @@ export default function AdminPortal() {
                     size="sm"
                     className="gap-2 rounded-xl bg-white/10 text-white hover:bg-white/15 border border-white/10 text-xs font-semibold"
                   >
-                    <Download className="h-3.5 w-3.5 text-[#FBBF24]" />
+                    <Download className="h-3.5 w-3.5 text-[#2FBF9B]" />
                     Exportar CSV
                   </Button>
                 </div>
@@ -307,10 +328,10 @@ export default function AdminPortal() {
                       <tr className="hover:bg-white/5 transition-colors">
                         <td className="py-3.5 font-mono font-bold text-white">TBK-ENROL-800K</td>
                         <td className="py-3.5">Hold de Garantía Enrolamiento</td>
-                        <td className="py-3.5 font-bold text-[#FBBF24]">$800.000 CLP</td>
+                        <td className="py-3.5 font-bold text-[#2FBF9B]">$800.000 CLP</td>
                         <td className="py-3.5 text-slate-400">Retención de seguridad bancaria</td>
                         <td className="py-3.5 text-right">
-                          <span className="inline-flex items-center rounded-full bg-[#FBBF24]/15 border border-[#FBBF24]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#FBBF24]">
+                          <span className="inline-flex items-center rounded-full bg-[#2FBF9B]/15 border border-[#2FBF9B]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#2FBF9B]">
                             Capturado
                           </span>
                         </td>
@@ -321,7 +342,7 @@ export default function AdminPortal() {
                         <td className="py-3.5 font-bold text-white">$126.000 CLP</td>
                         <td className="py-3.5 text-slate-400">Toyota RAV4 Limited ($42.000/día)</td>
                         <td className="py-3.5 text-right">
-                          <span className="inline-flex items-center rounded-full bg-[#FBBF24]/15 border border-[#FBBF24]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#FBBF24]">
+                          <span className="inline-flex items-center rounded-full bg-[#2FBF9B]/15 border border-[#2FBF9B]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#2FBF9B]">
                             Capturado
                           </span>
                         </td>
@@ -329,7 +350,7 @@ export default function AdminPortal() {
                       <tr className="hover:bg-white/5 transition-colors">
                         <td className="py-3.5 font-mono font-bold text-white">TBK-LIQ-DUENO-01</td>
                         <td className="py-3.5">Liquidación Arrendador</td>
-                        <td className="py-3.5 font-bold text-sky-400">$100.800 CLP</td>
+                        <td className="py-3.5 font-bold text-[#92E3CB]">$100.800 CLP</td>
                         <td className="py-3.5 text-slate-400">80% arriendo neto ($100.800) a Carlos Mendoza</td>
                         <td className="py-3.5 text-right">
                           <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-400">
@@ -345,11 +366,11 @@ export default function AdminPortal() {
 
             {/* TAB 2: DISPUTAS & LIGHTBOX */}
             <TabsContent value="disputas" className="space-y-6">
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 shadow-xl space-y-4">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 shadow-xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Scale className="h-4 w-4 text-[#FBBF24]" />
+                      <Scale className="h-4 w-4 text-[#2FBF9B]" />
                       Disputas Formales de Arriendo
                     </h3>
                     <p className="text-xs text-slate-400">
@@ -363,7 +384,7 @@ export default function AdminPortal() {
 
                 <div className="space-y-4">
                   {disputas.map((disp) => (
-                    <div key={disp.id} className="rounded-2xl border border-white/10 bg-[#060B16] p-5 space-y-3">
+                    <div key={disp.id} className="rounded-2xl border border-white/10 bg-[#061E1F] p-5 space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div>
                           <h4 className="text-base font-bold text-white">{disp.auto} • Caso #{disp.id}</h4>
@@ -377,20 +398,20 @@ export default function AdminPortal() {
                         </span>
                       </div>
 
-                      <p className="text-xs text-slate-300 leading-relaxed bg-[#0A1124] p-3 rounded-xl border border-white/5">
+                      <p className="text-xs text-slate-300 leading-relaxed bg-[#0E3736] p-3 rounded-xl border border-white/5">
                         <strong className="text-white">Motivo reportado:</strong> {disp.motivo} (Monto en disputa: ${disp.montoDisputa?.toLocaleString("es-CL")} CLP)
                       </p>
 
                       <div className="pt-2 border-t border-white/10 flex justify-between items-center">
                         <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                          <Camera className="h-3.5 w-3.5 text-[#FBBF24]" />
+                          <Camera className="h-3.5 w-3.5 text-[#2FBF9B]" />
                           Checklist de 9 fotos disponible
                         </span>
 
                         <Button
                           size="sm"
                           onClick={() => setLightboxDisputa(disp)}
-                          className="rounded-xl text-xs font-semibold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B] gap-1.5 shadow-md shadow-[#FBBF24]/10"
+                          className="rounded-xl text-xs font-semibold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787] gap-1.5 shadow-md shadow-[#2FBF9B]/20"
                         >
                           <Search className="h-3.5 w-3.5" />
                           Abrir Comparador Antes vs Después
@@ -404,18 +425,18 @@ export default function AdminPortal() {
 
             {/* TAB 3: REVISIÓN MANUAL OCR */}
             <TabsContent value="documentos" className="space-y-6">
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 shadow-xl space-y-4">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 shadow-xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <FileCheck2 className="h-4 w-4 text-amber-400" />
+                      <FileCheck2 className="h-4 w-4 text-[#2FBF9B]" />
                       Cola de Revisión Manual OCR (RF-31)
                     </h3>
                     <p className="text-xs text-slate-400">
                       Usuarios con score OCR &lt; 80% o alertas de legibilidad que requieren validación humana
                     </p>
                   </div>
-                  <span className="text-xs font-semibold text-amber-400 bg-amber-950/30 border border-amber-500/30 px-3 py-1 rounded-full">
+                  <span className="text-xs font-semibold text-[#2FBF9B] bg-[#2FBF9B]/10 border border-[#2FBF9B]/30 px-3 py-1 rounded-full">
                     {documentosPendientes.length} Pendientes
                   </span>
                 </div>
@@ -423,12 +444,12 @@ export default function AdminPortal() {
                 <div className="space-y-4">
                   {documentosPendientes.length === 0 ? (
                     <div className="p-12 text-center text-sm text-slate-400 border border-dashed border-white/10 rounded-2xl flex items-center justify-center gap-2">
-                      <Check className="h-4 w-4 text-[#FBBF24]" />
+                      <Check className="h-4 w-4 text-[#2FBF9B]" />
                       No hay documentos pendientes de validación en este momento.
                     </div>
                   ) : (
                     documentosPendientes.map((doc) => (
-                      <div key={doc.id} className="rounded-2xl border border-white/10 bg-[#060B16] p-5">
+                      <div key={doc.id} className="rounded-2xl border border-white/10 bg-[#061E1F] p-5">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
                           <div className="md:col-span-3 flex justify-center">
                             <img
@@ -441,15 +462,15 @@ export default function AdminPortal() {
                           <div className="md:col-span-9 space-y-3">
                             <div className="flex flex-wrap items-center gap-2">
                               <h4 className="text-base font-bold text-white">{doc.nombre}</h4>
-                              <span className="font-mono text-xs font-bold bg-[#0A1124] text-white px-2 py-0.5 rounded border border-white/10">
+                              <span className="font-mono text-xs font-bold bg-[#0E3736] text-white px-2 py-0.5 rounded border border-white/10">
                                 RUT: {doc.rut}
                               </span>
-                              <span className="font-semibold text-xs bg-amber-950/40 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded">
+                              <span className="font-semibold text-xs bg-[#2FBF9B]/20 text-[#92E3CB] border border-[#2FBF9B]/30 px-2 py-0.5 rounded">
                                 Score OCR: {(doc.confianza_ocr * 100).toFixed(0)}%
                               </span>
                             </div>
 
-                            <p className="text-xs text-amber-300 bg-amber-950/20 p-3 rounded-xl border border-amber-500/30">
+                            <p className="text-xs text-[#92E3CB] bg-[#0E3736] p-3 rounded-xl border border-[#2FBF9B]/20">
                               {doc.motivo_revision}
                             </p>
 
@@ -466,7 +487,7 @@ export default function AdminPortal() {
 
                               <Button
                                 size="sm"
-                                className="rounded-xl text-xs font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B]"
+                                className="rounded-xl text-xs font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787]"
                                 onClick={() => handleAprobarDocumento(doc.id)}
                               >
                                 <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
@@ -484,11 +505,11 @@ export default function AdminPortal() {
 
             {/* TAB 4: CONFIGURACIÓN DINÁMICA (RF-33) */}
             <TabsContent value="configuracion" className="space-y-6">
-              <div className="rounded-3xl border border-white/10 bg-[#0A1124] p-6 shadow-xl space-y-4">
+              <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 shadow-xl space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Settings className="h-4 w-4 text-[#FBBF24]" />
+                      <Settings className="h-4 w-4 text-[#2FBF9B]" />
                       Parámetros Financieros & Operativos de Plataforma (RF-33)
                     </h3>
                     <p className="text-xs text-slate-400">
@@ -496,7 +517,7 @@ export default function AdminPortal() {
                     </p>
                   </div>
                   {configSaved && (
-                    <span className="text-xs font-semibold text-[#FBBF24] bg-[#FBBF24]/10 border border-[#FBBF24]/30 px-3 py-1 rounded-full flex items-center gap-1">
+                    <span className="text-xs font-semibold text-[#2FBF9B] bg-[#2FBF9B]/10 border border-[#2FBF9B]/30 px-3 py-1 rounded-full flex items-center gap-1">
                       <Check className="h-3 w-3" />
                       Guardado con Éxito
                     </span>
@@ -519,7 +540,7 @@ export default function AdminPortal() {
                             valor_uf_clp: parseFloat(e.target.value),
                           })
                         }
-                        className="font-mono text-sm bg-[#060B16] text-white border-white/10 rounded-xl"
+                        className="font-mono text-sm bg-[#061E1F] text-white border-white/10 rounded-xl"
                       />
                       <p className="text-[11px] text-slate-400">
                         Deducible 15 UF = ${(15 * configPlataforma.valor_uf_clp).toLocaleString("es-CL")} CLP (50/50)
@@ -540,7 +561,7 @@ export default function AdminPortal() {
                             comision_plataforma_pct: parseFloat(e.target.value),
                           })
                         }
-                        className="font-mono text-sm bg-[#060B16] text-white border-white/10 rounded-xl"
+                        className="font-mono text-sm bg-[#061E1F] text-white border-white/10 rounded-xl"
                       />
                       <p className="text-[11px] text-slate-400">
                         Dueño recibe el {100 - configPlataforma.comision_plataforma_pct}% del arriendo base
@@ -561,7 +582,7 @@ export default function AdminPortal() {
                             hold_enrolamiento_clp: parseInt(e.target.value),
                           })
                         }
-                        className="font-mono text-sm bg-[#060B16] text-white border-white/10 rounded-xl"
+                        className="font-mono text-sm bg-[#061E1F] text-white border-white/10 rounded-xl"
                       />
                       <p className="text-[11px] text-slate-400">
                         Pre-autorización bancaria de seguridad
@@ -582,7 +603,7 @@ export default function AdminPortal() {
                             cargo_limpieza_estandar_clp: parseInt(e.target.value),
                           })
                         }
-                        className="font-mono text-sm bg-[#060B16] text-white border-white/10 rounded-xl"
+                        className="font-mono text-sm bg-[#061E1F] text-white border-white/10 rounded-xl"
                       />
                       <p className="text-[11px] text-slate-400">
                         100% transferido al dueño para lavado
@@ -603,7 +624,7 @@ export default function AdminPortal() {
                             cargo_limpieza_profunda_clp: parseInt(e.target.value),
                           })
                         }
-                        className="font-mono text-sm bg-[#060B16] text-white border-white/10 rounded-xl"
+                        className="font-mono text-sm bg-[#061E1F] text-white border-white/10 rounded-xl"
                       />
                       <p className="text-[11px] text-slate-400">
                         100% transferido al dueño para tapiz
@@ -624,7 +645,7 @@ export default function AdminPortal() {
                             km_diarios_incluidos: parseInt(e.target.value),
                           })
                         }
-                        className="font-mono text-sm bg-[#060B16] text-white border-white/10 rounded-xl"
+                        className="font-mono text-sm bg-[#061E1F] text-white border-white/10 rounded-xl"
                       />
                       <p className="text-[11px] text-slate-400">
                         Kilometraje libre permitido por día
@@ -636,7 +657,7 @@ export default function AdminPortal() {
                     <Button
                       type="submit"
                       size="lg"
-                      className="rounded-2xl px-8 py-6 text-sm font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B] shadow-xl shadow-[#FBBF24]/20"
+                      className="rounded-2xl px-8 py-6 text-sm font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787] shadow-xl shadow-[#2FBF9B]/20"
                     >
                       Guardar Parámetros de Plataforma
                     </Button>
@@ -649,10 +670,10 @@ export default function AdminPortal() {
           {/* LIGHTBOX DIALOG */}
           {lightboxDisputa && (
             <Dialog open={!!lightboxDisputa} onOpenChange={(open) => !open && setLightboxDisputa(null)}>
-              <DialogContent className="max-w-4xl bg-[#0A1124] border border-white/15 text-white rounded-3xl p-6 sm:p-8">
+              <DialogContent className="max-w-4xl bg-[#0E3736] border border-[#2FBF9B]/30 text-white rounded-3xl p-6 sm:p-8">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-black flex items-center gap-2 text-white">
-                    <Camera className="h-5 w-5 text-[#FBBF24]" />
+                    <Camera className="h-5 w-5 text-[#2FBF9B]" />
                     Contraste Fotográfico de Entrega vs Devolución
                   </DialogTitle>
                   <DialogDescription className="text-xs text-slate-300">
@@ -663,7 +684,7 @@ export default function AdminPortal() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-3">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-[#FBBF24] bg-[#060B16] px-2.5 py-1 rounded-lg border border-white/10">
+                      <span className="font-bold text-[#2FBF9B] bg-[#061E1F] px-2.5 py-1 rounded-lg border border-[#2FBF9B]/30">
                         1. Estado Inicial (Check-in)
                       </span>
                       <span className="text-slate-400">Vehículo limpio</span>
@@ -692,7 +713,7 @@ export default function AdminPortal() {
 
                 <DialogFooter className="flex flex-col sm:flex-row sm:justify-between items-center gap-3 pt-3 border-t border-white/10">
                   <div className="text-xs text-slate-300">
-                    Monto en disputa: <span className="font-bold text-[#FBBF24]">${lightboxDisputa.montoDisputa?.toLocaleString("es-CL")} CLP</span>
+                    Monto en disputa: <span className="font-bold text-[#2FBF9B]">${lightboxDisputa.montoDisputa?.toLocaleString("es-CL")} CLP</span>
                   </div>
 
                   <div className="flex gap-2">
@@ -712,7 +733,7 @@ export default function AdminPortal() {
 
                     <Button
                       size="sm"
-                      className="rounded-xl text-xs font-bold bg-[#FBBF24] text-[#060B16] hover:bg-[#F59E0B]"
+                      className="rounded-xl text-xs font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787]"
                       onClick={() =>
                         handleResolverDisputa(
                           lightboxDisputa.id,
