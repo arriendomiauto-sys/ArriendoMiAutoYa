@@ -1,6 +1,8 @@
 from typing import List, Optional
+import httpx
 from fastapi import HTTPException, status, Header, Depends
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import Usuario, Sucursal
 
@@ -74,3 +76,43 @@ def get_current_user_placeholder(
     db.commit()
     db.refresh(demo_user)
     return demo_user
+
+async def get_current_user(
+    authorization: str = Header(None, description="Bearer <supabase_access_token>"),
+    db: Session = Depends(get_db)
+) -> Usuario:
+    """
+    Dependency real de autenticación: valida el access token de Supabase Auth
+    (enviado como 'Authorization: Bearer <token>') contra el endpoint
+    /auth/v1/user de Supabase, y auto-provisiona/sincroniza la fila local
+    de Usuario (keyed por el mismo id de Supabase Auth) en el primer request.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="No autenticado")
+
+    token = authorization.split(" ", 1)[1]
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{settings.SUPABASE_URL}/auth/v1/user",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "apikey": settings.SUPABASE_ANON_KEY
+            }
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    data = resp.json()
+    supa_id = data.get("id")
+    supa_email = data.get("email")
+
+    user = db.query(Usuario).filter(Usuario.id == supa_id).first()
+    if not user:
+        user = Usuario(id=supa_id, email=supa_email, roles_activos=["cliente"])
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    return user

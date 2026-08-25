@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.schemas import TicketCreate, TicketOut
 from app.models.entities import TicketSoporte, Disputa, Usuario
-from app.services.auth import get_current_user_placeholder
+from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/soporte", tags=["Soporte"])
 
@@ -12,10 +12,10 @@ router = APIRouter(prefix="/soporte", tags=["Soporte"])
 def crear_ticket(
     payload: TicketCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     ticket = TicketSoporte(
-        usuario_id=payload.usuario_id or current_user.id,
+        usuario_id=current_user.id,
         sucursal_id=payload.sucursal_id or current_user.sucursal_id,
         asunto=payload.asunto,
         descripcion=payload.descripcion

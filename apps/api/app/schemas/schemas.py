@@ -7,14 +7,16 @@ from app.core.validators import validar_rut_chileno, validar_patente_chilena
 # USUARIOS & ENROLAMIENTO
 # ==============================================================================
 class UserBase(BaseModel):
-    nombre: str
-    rut: str
+    nombre: Optional[str] = None
+    rut: Optional[str] = None
     email: EmailStr
     telefono: Optional[str] = None
 
     @field_validator("rut")
     @classmethod
-    def check_rut(cls, v: str) -> str:
+    def check_rut(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
         if not validar_rut_chileno(v):
             raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
         return v
@@ -23,6 +25,8 @@ class UserCreate(UserBase):
     pass
 
 class UserEnrolamiento(UserBase):
+    nombre: str
+    rut: str
     carnet_frontal_url: Optional[str] = None
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None

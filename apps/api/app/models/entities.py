@@ -14,8 +14,8 @@ class Usuario(Base):
     __tablename__ = "usuarios"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    nombre = Column(String, nullable=False)
-    rut = Column(String, unique=True, index=True, nullable=False)
+    nombre = Column(String, nullable=True)
+    rut = Column(String, unique=True, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
     telefono = Column(String, nullable=True)
     foto_perfil_verificada_url = Column(String, nullable=True)

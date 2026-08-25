@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.models.entities import Pago, Reserva, Usuario, Disputa, Auto, Sucursal, ConfiguracionPlataforma
 from app.schemas.schemas import UserOut, DocumentReviewRequest, PlatformConfigOut, PlatformConfigUpdate
 from app.services.pricing import PricingService
-from app.services.auth import get_current_user_placeholder
+from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/admin", tags=["Panel Admin & Financiero"])
 
@@ -34,7 +34,7 @@ def obtener_configuracion_plataforma(db: Session = Depends(get_db)):
 def actualizar_configuracion_plataforma(
     payload: PlatformConfigUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     if "admin" not in (current_user.roles_activos or []):
         raise HTTPException(
@@ -102,7 +102,7 @@ def revisar_documentos_usuario(
     usuario_id: str,
     payload: DocumentReviewRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     if "admin" not in (current_user.roles_activos or []):
         raise HTTPException(

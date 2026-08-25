@@ -6,7 +6,7 @@ from app.schemas.schemas import BookingCreate, BookingOut
 from app.models.entities import Reserva, Auto, Usuario, Pago
 from app.services.pricing import PricingService
 from app.services.contract import ContractService
-from app.services.auth import get_current_user_placeholder
+from app.services.auth import get_current_user
 import uuid
 
 from app.core.validators import validar_disponibilidad_reserva
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/reservas", tags=["Reservas"])
 def crear_reserva(
     payload: BookingCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     auto = db.query(Auto).filter(Auto.id == payload.auto_id).first()
     if not auto:
@@ -39,10 +39,12 @@ def crear_reserva(
     reserva_id = str(uuid.uuid4())
     contrato_url = f"/api/v1/reservas/{reserva_id}/contrato-pdf"
 
+    # cliente_id siempre es el usuario autenticado: no se confía en el valor
+    # del payload (evita crear reservas y holds a nombre de otro usuario).
     reserva = Reserva(
         id=reserva_id,
         auto_id=payload.auto_id,
-        cliente_id=payload.cliente_id or current_user.id,
+        cliente_id=current_user.id,
         fecha_inicio=payload.fecha_inicio,
         fecha_fin=payload.fecha_fin,
         estado="confirmada", # En flujo normal pasa a confirmada tras aceptar el hold
@@ -70,7 +72,7 @@ def crear_reserva(
 def listar_reservas(
     rol: Optional[str] = Query(None, description="Filtrar por rol: 'cliente' o 'dueno'"),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     if rol == "dueno":
         # Reservas asociadas a los autos del dueño
@@ -81,18 +83,38 @@ def listar_reservas(
     else:
         return db.query(Reserva).all()
 
+def _verificar_acceso_reserva(reserva: Reserva, current_user: Usuario, db: Session):
+    if "admin" in (current_user.roles_activos or []):
+        return
+    if reserva.cliente_id == current_user.id:
+        return
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    if auto and auto.dueno_id == current_user.id:
+        return
+    raise HTTPException(status_code=403, detail="No tienes permiso para acceder a esta reserva.")
+
 @router.get("/{reserva_id}", response_model=BookingOut, summary="Detalle de una reserva")
-def obtener_reserva(reserva_id: str, db: Session = Depends(get_db)):
+def obtener_reserva(
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    _verificar_acceso_reserva(reserva, current_user, db)
     return reserva
 
 @router.get("/{reserva_id}/contrato-pdf", summary="Descargar contrato digital de arriendo en PDF")
-def descargar_contrato_pdf(reserva_id: str, db: Session = Depends(get_db)):
+def descargar_contrato_pdf(
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    _verificar_acceso_reserva(reserva, current_user, db)
 
     auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
     cliente = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
@@ -136,12 +158,14 @@ def descargar_contrato_pdf(reserva_id: str, db: Session = Depends(get_db)):
 def actualizar_estado_reserva(
     reserva_id: str,
     nuevo_estado: str = Query(..., description="Nuevo estado: 'confirmada', 'cancelada'"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ):
     reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
-    
+    _verificar_acceso_reserva(reserva, current_user, db)
+
     reserva.estado = nuevo_estado
     db.commit()
     db.refresh(reserva)

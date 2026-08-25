@@ -5,7 +5,7 @@ from app.core.config import settings
 from app.schemas.schemas import UserEnrolamiento, UserOut
 from app.models.entities import Usuario, Pago
 from app.services.ocr import OCRService
-from app.services.auth import get_current_user_placeholder
+from app.services.auth import get_current_user
 import uuid
 
 from app.core.validators import validar_rut_chileno
@@ -32,7 +32,7 @@ def procesar_documentos_ocr(payload: UserEnrolamiento):
 def completar_enrolamiento(
     payload: UserEnrolamiento,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Registra los documentos, activa el rol 'cliente', y crea el registro de retención (hold)

@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 from app.core.database import get_db
 from app.models.entities import Pago, Reserva, Usuario
 from app.services.transbank import TransbankService
-from app.services.auth import get_current_user_placeholder
+from app.services.auth import get_current_user
 import uuid
 
 router = APIRouter(prefix="/pagos", tags=["Pasarela de Pagos (Webpay Plus)"])
@@ -16,7 +16,7 @@ def iniciar_pago_webpay(
     reserva_id: Optional[str] = Body(None, embed=True),
     return_url: Optional[str] = Body(None, embed=True),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Crea una sesión de pago en Transbank Webpay Plus Sandbox (o Producción)

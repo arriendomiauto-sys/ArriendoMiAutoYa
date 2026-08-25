@@ -19,7 +19,8 @@ from app.routers import (
     admin,
     calificaciones,
     pagos,
-    storage
+    storage,
+    usuarios
 )
 
 @asynccontextmanager
@@ -68,6 +69,7 @@ app.include_router(admin.router, prefix=api_prefix)
 app.include_router(calificaciones.router, prefix=api_prefix)
 app.include_router(pagos.router, prefix=api_prefix)
 app.include_router(storage.router, prefix=api_prefix)
+app.include_router(usuarios.router, prefix=api_prefix)
 
 @app.get("/", tags=["Health"])
 def root():

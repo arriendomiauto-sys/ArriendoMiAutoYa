@@ -11,7 +11,7 @@ from app.schemas.schemas import (
     ChecklistResponse
 )
 from app.services.delivery import DeliveryService
-from app.services.auth import get_current_user_placeholder
+from app.services.auth import get_current_user
 from app.models.entities import Usuario
 
 router = APIRouter(tags=["Flujo de Entrega y Devolución"])
@@ -24,7 +24,7 @@ router = APIRouter(tags=["Flujo de Entrega y Devolución"])
 def generar_codigo_entrega(
     reserva_id: str,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Genera y devuelve el hash del código QR de la reserva, junto con la URL de la foto
@@ -40,7 +40,7 @@ def generar_codigo_entrega(
 def validar_codigo_entrega(
     payload: ValidateQRRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Devuelve los datos del auto, cliente y foto de perfil verificada para confirmación visual humana.
@@ -56,7 +56,7 @@ def confirmar_verificacion_identidad(
     reserva_id: str,
     payload: ConfirmVerificationRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Registra el resultado de la verificación visual manual.
@@ -81,7 +81,7 @@ def registrar_checklist_auto(
     reserva_id: str,
     payload: ChecklistRequest,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Registra checklist inicial (antes) o final (después).

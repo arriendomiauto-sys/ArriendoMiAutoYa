@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.schemas import RatingCreate, RatingOut
 from app.models.entities import Calificacion, Reserva, Usuario
-from app.services.auth import get_current_user_placeholder
+from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/calificaciones", tags=["Calificaciones (Sistema Bidireccional)"])
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/calificaciones", tags=["Calificaciones (Sistema Bidi
 def crear_calificacion(
     payload: RatingCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user_placeholder)
+    current_user: Usuario = Depends(get_current_user)
 ):
     reserva = db.query(Reserva).filter(Reserva.id == payload.reserva_id).first()
     if not reserva:
