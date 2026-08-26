@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -7,6 +7,7 @@ from app.models.entities import Reserva, Auto, Usuario, Pago
 from app.services.pricing import PricingService
 from app.services.contract import ContractService
 from app.services.auth import get_current_user
+from app.core.limiter import limiter
 import uuid
 
 from app.core.validators import validar_disponibilidad_reserva
@@ -14,7 +15,9 @@ from app.core.validators import validar_disponibilidad_reserva
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
 
 @router.post("", response_model=BookingOut, summary="Crear una nueva solicitud de reserva (Cliente)")
+@limiter.limit("20/minute")
 def crear_reserva(
+    request: Request,
     payload: BookingCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
