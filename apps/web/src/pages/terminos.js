@@ -49,7 +49,7 @@ export default function TerminosPage() {
               <ShieldCheck className="h-5 w-5 text-[#2FBF9B]" />
               <h3 className="text-sm font-bold text-white">Deducible 15 UF (50/50)</h3>
               <p className="text-xs text-slate-300">
-                Ante siniestros cubiertos por la póliza, el deducible de 15 UF se divide en partes iguales.
+                Cuando la póliza de seguro comercial de la plataforma esté vigente, el deducible de 15 UF ante siniestros cubiertos se dividirá en partes iguales. Ver cláusula 3 sobre el estado actual de la cobertura.
               </p>
             </div>
 
@@ -102,12 +102,26 @@ export default function TerminosPage() {
                 <span className="text-[#2FBF9B]">3.</span> Seguro, Siniestros y Deducible 15 UF (50/50)
               </h2>
               <p>
-                Todos los vehículos cuentan con cobertura de seguro comercial durante el período de arriendo. En caso de
-                siniestro calificado (colisión, choque, robo o daño material):
+                <strong>ArriendoMiAutoYa Chile SpA</strong> se encuentra actualmente en proceso de contratación de una
+                póliza de seguro comercial de flota que cubra los vehículos publicados en la plataforma durante el
+                período de arriendo activo. <strong>Mientras dicha póliza no esté vigente, no existe cobertura de
+                seguro comercial para los siniestros ocurridos durante el arriendo</strong>, y el seguro particular
+                del dueño del vehículo —salvo que su aseguradora indique expresamente lo contrario— generalmente no
+                cubre el uso comercial o de arriendo remunerado del vehículo.
+              </p>
+              <p>
+                Como respaldo mientras se formaliza dicha póliza, la plataforma opera con el Hold de garantía de
+                $800.000 CLP y el checklist fotográfico de 9 ángulos (cláusula siguiente) para acotar y documentar
+                daños menores y disputas de estado del vehículo. Estos mecanismos <strong>no reemplazan</strong> una
+                cobertura de responsabilidad civil ni de daños mayores frente a terceros.
+              </p>
+              <p>
+                Una vez vigente la póliza de seguro comercial de flota, ante un siniestro calificado (colisión,
+                choque, robo o daño material):
               </p>
               <ul className="list-disc pl-5 space-y-1.5 text-slate-300">
-                <li>El deducible fijado de <strong>15 UF</strong> es compartido de forma equitativa: 50% de cargo del arrendatario y 50% asumido por la empresa/dueño según corresponda.</li>
-                <li>Es obligación del arrendatario realizar la constancia policial inmediata ante Carabineros de Chile y reportar el evento en la plataforma en un plazo inferior a 2 horas.</li>
+                <li>El deducible fijado de <strong>15 UF</strong> será compartido de forma equitativa: 50% de cargo del arrendatario y 50% asumido por la empresa/dueño según corresponda.</li>
+                <li>Es obligación del arrendatario realizar la constancia policial inmediata ante Carabineros de Chile y reportar el evento en la plataforma en un plazo inferior a 2 horas, independientemente del estado de la póliza.</li>
               </ul>
             </section>
 

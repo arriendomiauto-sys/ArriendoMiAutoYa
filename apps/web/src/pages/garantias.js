@@ -58,10 +58,10 @@ export default function GarantiasPage() {
               SEGURIDAD & COBERTURAS
             </span>
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
-              Garantías y Protección Total
+              Garantías y Protocolos de Seguridad
             </h1>
             <p className="text-sm sm:text-base text-slate-300">
-              Protocolos auditados para que tanto dueños como arrendatarios disfruten de cada viaje con absoluta tranquilidad.
+              Protocolos auditados para que tanto dueños como arrendatarios operen con la mayor transparencia posible en cada viaje.
             </p>
           </div>
 
@@ -71,9 +71,9 @@ export default function GarantiasPage() {
               <div className="h-10 w-10 rounded-xl bg-[#2FBF9B]/10 border border-[#2FBF9B]/20 flex items-center justify-center text-[#2FBF9B]">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Seguro 15 UF (50/50)</h3>
+              <h3 className="text-lg font-bold text-white">Deducible 15 UF (50/50)</h3>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                En cualquier siniestro cubierto por póliza, el deducible fijado en 15 UF se reparte equitativamente: 50% lo asume la plataforma y 50% el dueño.
+                Modelo de reparto acordado para cuando la póliza de seguro comercial de flota esté vigente: 15 UF de deducible dividido 50% plataforma / 50% dueño. Ver Términos, cláusula 3, para el estado actual de la cobertura.
               </p>
             </div>
 
@@ -181,7 +181,7 @@ export default function GarantiasPage() {
                       <td className="p-4 text-rose-400">Sin hora clara ni contrato</td>
                     </tr>
                     <tr>
-                      <td className="p-4 font-semibold text-white">Deducible del Seguro</td>
+                      <td className="p-4 font-semibold text-white">Deducible del Seguro*</td>
                       <td className="p-4 font-bold text-[#2FBF9B] border-x border-white/5">15 UF compartida (50/50)</td>
                       <td className="p-4 text-slate-400">Deducibles elevados a costo del cliente</td>
                       <td className="p-4 text-rose-400">Sin seguro comercial</td>
@@ -201,6 +201,9 @@ export default function GarantiasPage() {
                   </tbody>
                 </table>
               </div>
+              <p className="px-4 sm:px-5 py-3 text-[11px] text-slate-400 border-t border-white/10">
+                * Deducible aplicable una vez vigente la póliza de seguro comercial de flota de la plataforma. Ver Términos y Condiciones, cláusula 3, para el estado actual de la cobertura.
+              </p>
             </div>
           </div>
 

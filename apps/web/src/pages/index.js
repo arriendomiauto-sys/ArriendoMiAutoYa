@@ -419,7 +419,7 @@ export default function Home() {
                       "Tú tienes el control: fija tus días disponibles y tu precio",
                       "El 100% de los cobros por lavado van a tu bolsillo",
                       "Depósito bancario directo y puntual en tu cuenta",
-                      "Tu auto siempre protegido con seguro comercial",
+                      "Hold de garantía y checklist fotográfico en cada entrega",
                     ].map((t, i) => (
                       <div key={i} className="flex items-center gap-3 text-sm font-semibold text-slate-200">
                         <div className="h-5 w-5 rounded-full bg-[#2FBF9B]/20 flex items-center justify-center shrink-0">
