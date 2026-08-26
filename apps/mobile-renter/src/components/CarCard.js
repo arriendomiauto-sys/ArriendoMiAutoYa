@@ -1,10 +1,9 @@
 import React from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
-import { colors, Icon } from "@rentacar/mobile-shared";
+import { colors } from "@rentacar/mobile-shared";
 
 export function CarCard({ car, onPress }) {
-  const precio = (car.tarifa_dia || car.precio_diario || 38000).toLocaleString("es-CL");
-  const distancia = car.distancia || "a 1,2 km de usted";
+  const precio = (car.tarifa_dia || 0).toLocaleString("es-CL");
 
   return (
     <TouchableOpacity
@@ -16,11 +15,7 @@ export function CarCard({ car, onPress }) {
       <View style={styles.imageContainer}>
         <Image
           source={{
-            uri:
-              car.foto_principal_url ||
-              car.imagen_url ||
-              car.fotos?.[0] ||
-              "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+            uri: car.fotos?.[0] || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
           }}
           style={styles.carImage}
           resizeMode="cover"
@@ -35,22 +30,19 @@ export function CarCard({ car, onPress }) {
         <View style={styles.titleRow}>
           <View style={{ flex: 1, paddingRight: 8 }}>
             <Text style={styles.carTitle} numberOfLines={1}>
-              {car.marca} {car.modelo} {car.ano || 2023}
+              {car.marca} {car.modelo} {car.anio || ""}
             </Text>
             <Text style={styles.carSpecs} numberOfLines={1}>
-              {car.transmision || "Automático"} · {car.puertas ? `${car.puertas} puertas` : "5 puertas"} · {car.comuna || "Providencia"}
+              Patente {car.patente || "—"}
             </Text>
-          </View>
-
-          <View style={styles.ratingRow}>
-            <Icon name="star" size={15} color={colors.accent} fill={colors.accent} style={{ marginRight: 4 }} />
-            <Text style={styles.ratingText}>{car.rating_promedio || "4,8"}</Text>
           </View>
         </View>
 
-        {/* Distance and Price Row */}
+        {/* Location and Price Row */}
         <View style={styles.footerRow}>
-          <Text style={styles.distanceText}>{distancia}</Text>
+          <Text style={styles.distanceText} numberOfLines={1}>
+            {car.ubicacion_base || "Los Ángeles"}
+          </Text>
           <Text style={styles.priceValue}>
             ${precio} <Text style={styles.pricePerDay}>/ día</Text>
           </Text>
@@ -113,15 +105,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
     marginTop: 2,
-  },
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
   },
   footerRow: {
     flexDirection: "row",

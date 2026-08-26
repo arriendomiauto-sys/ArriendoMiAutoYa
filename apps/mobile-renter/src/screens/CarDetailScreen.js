@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,40 +6,74 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   SafeAreaView,
   StatusBar,
+  Alert,
 } from "react-native";
 import { colors, Icon } from "@rentacar/mobile-shared";
 
-export function CarDetailScreen({
-  car,
-  onBack,
-  onProceedToPayment,
-}) {
+// Misma regla que app/services/pricing.py:PricingService.calcular_dias_reserva
+// (redondeo hacia arriba, mínimo 1 día) — para que el total mostrado acá
+// coincida con el monto_hold real que calculará el backend al reservar.
+function calcularDias(fechaInicio, fechaFin) {
+  const inicio = new Date(fechaInicio);
+  const fin = new Date(fechaFin);
+  if (isNaN(inicio) || isNaN(fin) || fin <= inicio) return 0;
+  const ms = fin.getTime() - inicio.getTime();
+  return Math.max(1, Math.ceil(ms / 86400000));
+}
+
+function formatearFechaCorta(iso) {
+  try {
+    return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+  } catch {
+    return iso;
+  }
+}
+
+function hoyISO(offsetDias = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDias);
+  return d.toISOString().split("T")[0];
+}
+
+const EQUIPAMIENTO_LABELS = {
+  ac: "Aire acondicionado",
+  bluetooth: "Bluetooth / CarPlay",
+  camara_retroceso: "Cámara de retroceso",
+  doble_traccion: "Tracción 4x4",
+  isofix: "Anclajes ISOFIX",
+};
+
+export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   // Step: '11_detail' | '12_schedule' | '13_summary'
   const [currentStep, setCurrentStep] = useState("11_detail");
 
-  // Booking states
-  const [rentalDays, setRentalDays] = useState(4);
-  const [returnTime, setReturnTime] = useState("21:30");
-  const isNightSurcharge = returnTime >= "21:00";
+  const [fechaInicio, setFechaInicio] = useState(hoyISO(1));
+  const [fechaFin, setFechaFin] = useState(hoyISO(4));
+  const [horaRetiro, setHoraRetiro] = useState("10:00");
+  const [horaDevolucion, setHoraDevolucion] = useState("18:00");
+  const [dateError, setDateError] = useState(null);
 
-  const activeCar = car || {
-    marca: "Suzuki",
-    modelo: "Swift",
-    ano: 2023,
-    precio_diario: 38000,
-    rating_promedio: 4.8,
-    comuna: "Providencia",
-    direccion_entrega: "Av. Providencia 2145",
+  const tarifaDia = car?.tarifa_dia || 0;
+  const dias = useMemo(() => calcularDias(fechaInicio, fechaFin), [fechaInicio, fechaFin]);
+  const montoHold = tarifaDia * dias;
+
+  const fotoPrincipal = car?.fotos?.[0];
+  const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
+  const equipamientoActivo = Object.entries(car?.equipamiento || {})
+    .filter(([, activo]) => activo)
+    .map(([key]) => EQUIPAMIENTO_LABELS[key] || key);
+
+  const handleContinuarAFechas = () => {
+    setDateError(null);
+    if (dias <= 0) {
+      setDateError("La fecha de devolución debe ser posterior a la de retiro.");
+      return;
+    }
+    setCurrentStep("13_summary");
   };
-
-  const dailyRate = activeCar.precio_diario || 38000;
-  const surcharge = isNightSurcharge ? 6000 : 0;
-  const subtotal = dailyRate * rentalDays + surcharge;
-  const iva = Math.round(subtotal * 0.19);
-  const total = subtotal + iva;
-  const guarantee = 150000;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -51,13 +85,11 @@ export function CarDetailScreen({
       {currentStep === "11_detail" && (
         <View style={styles.screenWrapper}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            {/* 232px Hero Photo */}
+            {/* Hero Photo */}
             <View style={styles.heroContainer}>
               <Image
                 source={{
-                  uri:
-                    activeCar.foto_principal_url ||
-                    "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+                  uri: fotoPrincipal || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
                 }}
                 style={styles.heroImage}
                 resizeMode="cover"
@@ -65,96 +97,62 @@ export function CarDetailScreen({
               <TouchableOpacity style={styles.heroBackBtn} onPress={onBack}>
                 <Icon name="arrow-left" size={20} color={colors.primary} />
               </TouchableOpacity>
-              <View style={styles.paginationDots}>
-                <View style={[styles.dot, styles.dotActive]} />
-                <View style={[styles.dot, styles.dotInactive]} />
-                <View style={[styles.dot, styles.dotInactive]} />
-              </View>
+              {car?.fotos?.length > 1 && (
+                <View style={styles.paginationDots}>
+                  {car.fotos.map((_, i) => (
+                    <View key={i} style={[styles.dot, i === 0 ? styles.dotActive : styles.dotInactive]} />
+                  ))}
+                </View>
+              )}
             </View>
 
             {/* Ficha Body */}
             <View style={styles.bodyContent}>
               <View style={styles.titleSection}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.carName}>
-                    {activeCar.marca} {activeCar.modelo} {activeCar.ano || 2023}
-                  </Text>
-                  <View style={styles.ratingBox}>
-                    <Icon name="star" size={15} color="#2FBF9B" style={{ marginRight: 3 }} />
-                    <Text style={styles.ratingNumber}>
-                      {activeCar.rating_promedio || 4.8}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.carSpecsSubtitle}>
-                  {activeCar.transmision || "Automático"} · 5 puertas · 4 asientos · Bencina
-                </Text>
+                <Text style={styles.carName}>{nombreAuto || "Vehículo"}</Text>
+                <Text style={styles.carSpecsSubtitle}>Patente {car?.patente || "—"}</Text>
               </View>
 
-              {/* 3 Pricing Plans */}
+              {/* Pricing */}
               <View style={styles.pricingBoxesRow}>
                 <View style={styles.pricingBox}>
                   <Text style={styles.pricingBoxLabel}>Día</Text>
-                  <Text style={styles.pricingBoxValue}>${dailyRate.toLocaleString("es-CL")}</Text>
+                  <Text style={styles.pricingBoxValue}>${tarifaDia.toLocaleString("es-CL")}</Text>
                 </View>
                 <View style={styles.pricingBox}>
-                  <Text style={styles.pricingBoxLabel}>Semana</Text>
-                  <Text style={styles.pricingBoxValue}>$228.000</Text>
+                  <Text style={styles.pricingBoxLabel}>Semana (aprox.)</Text>
+                  <Text style={styles.pricingBoxValue}>${(tarifaDia * 7).toLocaleString("es-CL")}</Text>
                 </View>
                 <View style={styles.pricingBox}>
-                  <Text style={styles.pricingBoxLabel}>Mes</Text>
-                  <Text style={styles.pricingBoxValue}>$820.000</Text>
+                  <Text style={styles.pricingBoxLabel}>Mes (aprox.)</Text>
+                  <Text style={styles.pricingBoxValue}>${(tarifaDia * 30).toLocaleString("es-CL")}</Text>
                 </View>
               </View>
 
-              {/* Verified Owner Card */}
-              <View style={styles.ownerCard}>
-                <Image
-                  source={{
-                    uri: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-                  }}
-                  style={styles.ownerAvatar}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.ownerName}>Rodrigo Muñoz</Text>
-                  <Text style={styles.ownerDetails}>4,8 · 31 arriendos · verificado</Text>
-                </View>
-                <Icon name="arrow-right" size={20} color={colors.textMuted} />
-              </View>
-
-              {/* Mini Availability Calendar */}
-              <View style={styles.availabilitySection}>
-                <Text style={styles.sectionLabel}>DISPONIBILIDAD</Text>
-                <View style={styles.calendarCard}>
-                  <View style={styles.calendarDaysHeader}>
-                    {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
-                      <Text key={i} style={styles.calendarDayName}>{d}</Text>
-                    ))}
-                  </View>
-                  <View style={styles.calendarGrid}>
-                    <Text style={styles.dayMuted}>8</Text>
-                    <Text style={styles.dayMuted}>9</Text>
-                    <Text style={styles.dayNormal}>10</Text>
-                    <Text style={styles.dayNormal}>11</Text>
-                    <Text style={styles.daySelectedStart}>12</Text>
-                    <Text style={styles.daySelectedMid}>13</Text>
-                    <Text style={styles.daySelectedMid}>14</Text>
-                    <Text style={styles.daySelectedMid}>15</Text>
-                    <Text style={styles.daySelectedEnd}>16</Text>
-                    <Text style={styles.dayNormal}>17</Text>
-                    <Text style={styles.dayNormal}>18</Text>
-                    <Text style={styles.dayDisabled}>19</Text>
-                    <Text style={styles.dayDisabled}>20</Text>
-                    <Text style={styles.dayNormal}>21</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Location Tag */}
+              {/* Location */}
               <View style={styles.locationRow}>
                 <Icon name="location" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
-                <Text style={styles.locationText}>
-                  Cerca de Av. Providencia con Los Leones
+                <Text style={styles.locationText}>{car?.ubicacion_base || "Ubicación no informada"}</Text>
+              </View>
+
+              {/* Equipamiento */}
+              {equipamientoActivo.length > 0 && (
+                <View style={styles.equipSection}>
+                  <Text style={styles.sectionLabel}>EQUIPAMIENTO</Text>
+                  <View style={styles.equipGrid}>
+                    {equipamientoActivo.map((label) => (
+                      <View key={label} style={styles.equipChip}>
+                        <Icon name="check" size={12} color={colors.accent700} style={{ marginRight: 6 }} />
+                        <Text style={styles.equipChipText}>{label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.warningBoxNeutral}>
+                <Text style={styles.warningDescNeutral}>
+                  El retiro y la devolución se coordinan 100% digital: código QR y checklist fotográfico de 9 ángulos, sin mostrador.
                 </Text>
               </View>
             </View>
@@ -163,7 +161,7 @@ export function CarDetailScreen({
           {/* Bottom Bar */}
           <View style={styles.bottomActionBar}>
             <View>
-              <Text style={styles.bottomPriceValue}>${dailyRate.toLocaleString("es-CL")}</Text>
+              <Text style={styles.bottomPriceValue}>${tarifaDia.toLocaleString("es-CL")}</Text>
               <Text style={styles.bottomPriceLabel}>por día</Text>
             </View>
             <TouchableOpacity
@@ -190,73 +188,68 @@ export function CarDetailScreen({
           </View>
 
           <ScrollView contentContainerStyle={styles.scheduleBody} showsVerticalScrollIndicator={false}>
-            {/* Calendar Widget */}
-            <View style={styles.scheduleCalendarCard}>
-              <Text style={styles.calendarMonthTitle}>Agosto 2026</Text>
-              <View style={styles.calendarDaysHeader}>
-                {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
-                  <Text key={i} style={styles.calendarDayName}>{d}</Text>
-                ))}
-              </View>
-              <View style={styles.calendarGrid}>
-                <Text style={styles.dayMuted}>3</Text>
-                <Text style={styles.dayMuted}>4</Text>
-                <Text style={styles.dayMuted}>5</Text>
-                <Text style={styles.dayMuted}>6</Text>
-                <Text style={styles.dayMuted}>7</Text>
-                <Text style={styles.dayMuted}>8</Text>
-                <Text style={styles.dayMuted}>9</Text>
-                <Text style={styles.dayNormal}>10</Text>
-                <Text style={styles.dayNormal}>11</Text>
-                <Text style={styles.daySelectedStart}>12</Text>
-                <Text style={styles.daySelectedMid}>13</Text>
-                <Text style={styles.daySelectedMid}>14</Text>
-                <Text style={styles.daySelectedMid}>15</Text>
-                <Text style={styles.daySelectedEnd}>16</Text>
-              </View>
-            </View>
-
-            {/* Time Pickers */}
-            <View style={styles.timePickersRow}>
-              <View style={styles.timePickerBox}>
+            <View style={styles.datesRow}>
+              <View style={styles.dateGroup}>
                 <Text style={styles.timeLabel}>RETIRO</Text>
-                <View style={styles.timeInput}>
-                  <Text style={styles.timeInputText}>10:00</Text>
-                </View>
+                <TextInput
+                  style={styles.dateInput}
+                  value={fechaInicio}
+                  onChangeText={setFechaInicio}
+                  placeholder="AAAA-MM-DD"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <TextInput
+                  style={[styles.dateInput, { marginTop: 8 }]}
+                  value={horaRetiro}
+                  onChangeText={setHoraRetiro}
+                  placeholder="HH:MM"
+                  placeholderTextColor={colors.textMuted}
+                />
               </View>
-
-              <View style={styles.timePickerBox}>
+              <View style={styles.dateGroup}>
                 <Text style={styles.timeLabel}>DEVOLUCIÓN</Text>
-                <View style={styles.timeInputFocused}>
-                  <Text style={styles.timeInputText}>{returnTime}</Text>
-                </View>
+                <TextInput
+                  style={styles.dateInput}
+                  value={fechaFin}
+                  onChangeText={setFechaFin}
+                  placeholder="AAAA-MM-DD"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <TextInput
+                  style={[styles.dateInput, { marginTop: 8 }]}
+                  value={horaDevolucion}
+                  onChangeText={setHoraDevolucion}
+                  placeholder="HH:MM"
+                  placeholderTextColor={colors.textMuted}
+                />
               </View>
             </View>
 
-            {/* Nocturnal Surcharge Notice */}
-            {isNightSurcharge && (
+            {dateError && (
               <View style={styles.warningBox}>
-                <Text style={styles.warningTitle}>Recargo por horario nocturno</Text>
-                <Text style={styles.warningDesc}>
-                  Devolver después de las 21:00 suma $6.000. Puede cambiar la hora para evitarlo.
-                </Text>
+                <Text style={styles.warningTitle}>Fechas inválidas</Text>
+                <Text style={styles.warningDesc}>{dateError}</Text>
               </View>
             )}
 
             {/* Subtotal Card */}
             <View style={styles.subtotalCard}>
               <View>
-                <Text style={styles.subtotalTitle}>{rentalDays} días de arriendo</Text>
-                <Text style={styles.subtotalRange}>12 ago 10:00 → 16 ago {returnTime}</Text>
+                <Text style={styles.subtotalTitle}>{dias > 0 ? `${dias} día${dias === 1 ? "" : "s"} de arriendo` : "Selecciona fechas válidas"}</Text>
+                {dias > 0 && (
+                  <Text style={styles.subtotalRange}>
+                    {formatearFechaCorta(fechaInicio)} {horaRetiro} → {formatearFechaCorta(fechaFin)} {horaDevolucion}
+                  </Text>
+                )}
               </View>
-              <Text style={styles.subtotalValue}>${subtotal.toLocaleString("es-CL")}</Text>
+              <Text style={styles.subtotalValue}>${montoHold.toLocaleString("es-CL")}</Text>
             </View>
           </ScrollView>
 
           <View style={styles.footerBar}>
             <TouchableOpacity
               style={styles.primaryActionBtn}
-              onPress={() => setCurrentStep("13_summary")}
+              onPress={handleContinuarAFechas}
               activeOpacity={0.85}
             >
               <Text style={styles.primaryActionBtnText}>Ver el resumen</Text>
@@ -283,19 +276,17 @@ export function CarDetailScreen({
               <View style={styles.carSummaryThumb}>
                 <Image
                   source={{
-                    uri:
-                      activeCar.foto_principal_url ||
-                      "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+                    uri: fotoPrincipal || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
                   }}
                   style={styles.summaryCarImg}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.summaryCarName}>
-                  {activeCar.marca} {activeCar.modelo} {activeCar.ano || 2023}
+                <Text style={styles.summaryCarName}>{nombreAuto || "Vehículo"}</Text>
+                <Text style={styles.summaryCarTime}>
+                  {formatearFechaCorta(fechaInicio)} {horaRetiro} → {formatearFechaCorta(fechaFin)} {horaDevolucion}
                 </Text>
-                <Text style={styles.summaryCarTime}>12 ago 10:00 → 16 ago {returnTime}</Text>
-                <Text style={styles.summaryCarLocation}>{activeCar.direccion_entrega || "Av. Providencia 2145"}</Text>
+                <Text style={styles.summaryCarLocation}>{car?.ubicacion_base}</Text>
               </View>
             </View>
 
@@ -303,47 +294,23 @@ export function CarDetailScreen({
             <View style={styles.breakdownCard}>
               <View style={styles.breakdownRow}>
                 <Text style={styles.breakdownLabel}>Tarifa diaria</Text>
-                <Text style={styles.breakdownValue}>${dailyRate.toLocaleString("es-CL")}</Text>
+                <Text style={styles.breakdownValue}>${tarifaDia.toLocaleString("es-CL")}</Text>
               </View>
               <View style={styles.breakdownRow}>
                 <Text style={styles.breakdownLabel}>Días de arriendo</Text>
-                <Text style={styles.breakdownValue}>{rentalDays}</Text>
-              </View>
-              {isNightSurcharge && (
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Recargo horario nocturno</Text>
-                  <Text style={styles.breakdownValue}>$6.000</Text>
-                </View>
-              )}
-              <View style={[styles.breakdownRow, styles.breakdownDivider]}>
-                <Text style={styles.breakdownLabel}>Subtotal</Text>
-                <Text style={styles.breakdownValue}>${subtotal.toLocaleString("es-CL")}</Text>
-              </View>
-              <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownLabel}>IVA 19%</Text>
-                <Text style={styles.breakdownValue}>${iva.toLocaleString("es-CL")}</Text>
+                <Text style={styles.breakdownValue}>{dias}</Text>
               </View>
               <View style={[styles.breakdownRow, styles.breakdownDivider]}>
-                <Text style={styles.breakdownTotalLabel}>Total a pagar</Text>
-                <Text style={styles.breakdownTotalValue}>${total.toLocaleString("es-CL")}</Text>
+                <Text style={styles.breakdownTotalLabel}>Total retenido (hold)</Text>
+                <Text style={styles.breakdownTotalValue}>${montoHold.toLocaleString("es-CL")}</Text>
               </View>
             </View>
 
             {/* Guarantee Hold Notice */}
             <View style={styles.warningBox}>
-              <View style={styles.guaranteeHeader}>
-                <Text style={styles.guaranteeTitle}>Garantía retenida</Text>
-                <Text style={styles.guaranteeAmount}>${guarantee.toLocaleString("es-CL")}</Text>
-              </View>
+              <Text style={styles.warningTitle}>No es un cobro inmediato</Text>
               <Text style={styles.warningDesc}>
-                No es un cobro. Se libera cuando el dueño confirme el estado del auto al devolverlo.
-              </Text>
-            </View>
-
-            {/* Cancellation Terms */}
-            <View style={styles.termsCard}>
-              <Text style={styles.termsText}>
-                Cancelación sin costo hasta 24 horas antes del retiro. Después se retiene el 30%.
+                Se retiene una pre-autorización de ${montoHold.toLocaleString("es-CL")} en tu tarjeta. Se libera cuando el dueño confirme el estado del auto al devolverlo, descontando solo cargos justificados (limpieza, combustible, km extra).
               </Text>
             </View>
           </ScrollView>
@@ -351,7 +318,14 @@ export function CarDetailScreen({
           <View style={styles.footerBar}>
             <TouchableOpacity
               style={styles.primaryActionBtn}
-              onPress={() => onProceedToPayment(activeCar, total, guarantee)}
+              onPress={() =>
+                onProceedToPayment(car, {
+                  fechaInicio: `${fechaInicio}T${horaRetiro}:00`,
+                  fechaFin: `${fechaFin}T${horaDevolucion}:00`,
+                  dias,
+                  montoHold,
+                })
+              }
               activeOpacity={0.85}
             >
               <Text style={styles.primaryActionBtnText}>Ir a pagar</Text>
@@ -423,24 +397,10 @@ const styles = StyleSheet.create({
   titleSection: {
     gap: 6,
   },
-  titleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
   carName: {
     fontSize: 22,
     fontWeight: "600",
     letterSpacing: -0.2,
-    color: colors.text,
-  },
-  ratingBox: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  ratingNumber: {
-    fontSize: 15,
-    fontWeight: "600",
     color: colors.text,
   },
   carSpecsSubtitle: {
@@ -470,33 +430,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
-  ownerCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
+  locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
   },
-  ownerAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-  },
-  ownerName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  ownerDetails: {
-    fontSize: 13,
+  locationText: {
+    fontSize: 14,
     color: colors.textMuted,
-    marginTop: 2,
-  },
-  availabilitySection: {
-    gap: 10,
+    flex: 1,
   },
   sectionLabel: {
     fontSize: 12,
@@ -505,88 +446,38 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textTransform: "uppercase",
   },
-  calendarCard: {
+  equipSection: {
+    gap: 8,
+  },
+  equipGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  equipChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.accent100,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  equipChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.accent700,
+  },
+  warningBoxNeutral: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
     padding: 14,
   },
-  calendarDaysHeader: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 6,
-  },
-  calendarDayName: {
-    fontSize: 11,
+  warningDescNeutral: {
+    fontSize: 13,
     color: colors.textMuted,
-    width: 28,
-    textAlign: "center",
-  },
-  calendarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-around",
-  },
-  dayMuted: {
-    width: 28,
-    textAlign: "center",
-    paddingVertical: 6,
-    color: "#9CA3AF",
-    fontSize: 13,
-  },
-  dayNormal: {
-    width: 28,
-    textAlign: "center",
-    paddingVertical: 6,
-    color: colors.text,
-    fontSize: 13,
-  },
-  daySelectedStart: {
-    width: 28,
-    textAlign: "center",
-    paddingVertical: 6,
-    backgroundColor: colors.primary,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    borderTopLeftRadius: 14,
-    borderBottomLeftRadius: 14,
-    fontSize: 13,
-  },
-  daySelectedMid: {
-    width: 28,
-    textAlign: "center",
-    paddingVertical: 6,
-    backgroundColor: colors.primary100,
-    color: colors.primary,
-    fontSize: 13,
-  },
-  daySelectedEnd: {
-    width: 28,
-    textAlign: "center",
-    paddingVertical: 6,
-    backgroundColor: colors.primary,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    borderTopRightRadius: 14,
-    borderBottomRightRadius: 14,
-    fontSize: 13,
-  },
-  dayDisabled: {
-    width: 28,
-    textAlign: "center",
-    paddingVertical: 6,
-    color: "#D1D5DB",
-    textDecorationLine: "line-through",
-    fontSize: 13,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  locationText: {
-    fontSize: 14,
-    color: colors.textMuted,
+    lineHeight: 19,
   },
   bottomActionBar: {
     paddingHorizontal: 20,
@@ -640,26 +531,12 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 18,
   },
-  scheduleCalendarCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-  },
-  calendarMonthTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 12,
-    color: colors.text,
-  },
-  timePickersRow: {
+  datesRow: {
     flexDirection: "row",
     gap: 12,
   },
-  timePickerBox: {
+  dateGroup: {
     flex: 1,
-    gap: 6,
   },
   timeLabel: {
     fontSize: 12,
@@ -667,27 +544,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     color: colors.textMuted,
     textTransform: "uppercase",
+    marginBottom: 6,
   },
-  timeInput: {
-    height: 52,
+  dateInput: {
+    height: 48,
     borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: 12,
     backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  timeInputFocused: {
-    height: 52,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  timeInputText: {
-    fontSize: 16,
+    paddingHorizontal: 14,
+    fontSize: 15,
     color: colors.text,
   },
   warningBox: {
@@ -825,31 +691,5 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: "600",
     color: colors.text,
-  },
-  guaranteeHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  guaranteeTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#8A5B0B",
-  },
-  guaranteeAmount: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#8A5B0B",
-  },
-  termsCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
-  },
-  termsText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 21,
   },
 });

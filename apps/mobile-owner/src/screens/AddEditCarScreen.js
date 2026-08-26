@@ -99,6 +99,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         tarifa_dia: tarifaNum,
         ubicacion_base: form.ubicacion_base,
         fotos: form.fotos,
+        equipamiento: form.equipamiento,
       };
 
       await addCar(nuevoAuto);

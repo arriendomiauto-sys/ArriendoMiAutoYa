@@ -21,15 +21,15 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFilters }) {
 
   const filteredCars = (cars || []).filter((car) => {
     if (selectedCategory === "Todos") return true;
-    if (selectedCategory === "Automático")
-      return car.transmision?.toLowerCase().includes("auto");
     if (selectedCategory === "Camioneta")
-      return (
-        car.categoria?.toLowerCase().includes("camioneta") ||
-        car.modelo?.toLowerCase().includes("hilux")
-      );
+      return car.modelo?.toLowerCase().includes("hilux") || car.modelo?.toLowerCase().includes("ranger");
+    if (selectedCategory === "SUV")
+      return ["rav4", "tucson", "jimny"].some((m) => car.modelo?.toLowerCase().includes(m));
     if (selectedCategory === "Económico")
-      return (car.precio_diario || 38000) <= 35000;
+      return (car.tarifa_dia || 0) > 0 && car.tarifa_dia <= 35000;
+    // "Automático": el backend no modela transmisión hoy, no hay forma
+    // real de filtrar por esto todavía — se deja pasar todo en vez de
+    // ocultar autos por un dato inventado.
     return true;
   });
 

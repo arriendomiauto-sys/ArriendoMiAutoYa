@@ -9,32 +9,54 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
-import { colors, Icon } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
 
 export function PaymentMethodsScreen({
   car,
-  totalAmount = 188020,
-  guaranteeAmount = 150000,
+  booking,
   onBack,
   onPaymentSuccess,
 }) {
-  const [cvv, setCvv] = useState("•••");
+  const [cvv, setCvv] = useState("");
   const [processing, setProcessing] = useState(false);
 
-  const handlePay = () => {
+  // `booking` viene de CarDetailScreen (reserva real) — si esta pantalla se
+  // abre en modo "billetera" (sin auto/booking, desde el perfil) no hay
+  // nada que cobrar, solo se gestionan métodos de pago.
+  const montoHold = booking?.montoHold ?? 0;
+  const esReservaReal = !!(car?.id && booking);
+
+  const handlePay = async () => {
+    if (esReservaReal && cvv.length < 3) {
+      Alert.alert("Código de seguridad requerido", "Ingresa el CVV de tu tarjeta para continuar.");
+      return;
+    }
+
+    if (!esReservaReal) {
+      // Modo "billetera": no hay reserva que crear.
+      onPaymentSuccess(null);
+      return;
+    }
+
     setProcessing(true);
-    setTimeout(() => {
-      setProcessing(false);
-      onPaymentSuccess({
-        id: "RES-" + Math.floor(100000 + Math.random() * 900000),
-        car: car || { marca: "Suzuki", modelo: "Swift", ano: 2023 },
-        totalAmount,
-        guaranteeAmount,
-        status: "pendiente_aprobacion",
-        createdAt: new Date().toISOString(),
+    try {
+      const reserva = await ApiClient.crearReserva({
+        auto_id: car.id,
+        fecha_inicio: booking.fechaInicio,
+        fecha_fin: booking.fechaFin,
+        lugar_entrega_acordado: car.ubicacion_base,
       });
-    }, 1200);
+      onPaymentSuccess({ ...reserva, car });
+    } catch (error) {
+      Alert.alert(
+        "No se pudo confirmar la reserva",
+        error.message || "Intenta nuevamente en unos segundos."
+      );
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
@@ -58,7 +80,7 @@ export function PaymentMethodsScreen({
           </View>
           <Text style={styles.cardNumber}>4531 •••• •••• 8842</Text>
           <View style={styles.cardFooter}>
-            <Text style={styles.cardHolder}>RODRIGO MUÑOZ</Text>
+            <Text style={styles.cardHolder}>TARJETA REGISTRADA</Text>
             <Text style={styles.cardExp}>09/29</Text>
           </View>
         </View>
@@ -72,6 +94,7 @@ export function PaymentMethodsScreen({
               value={cvv}
               onChangeText={setCvv}
               placeholder="•••"
+              placeholderTextColor={colors.textMuted}
               keyboardType="number-pad"
               maxLength={4}
               secureTextEntry
@@ -82,21 +105,14 @@ export function PaymentMethodsScreen({
           </Text>
         </View>
 
-        {/* Charge Breakdown Card */}
-        <View style={styles.breakdownCard}>
-          <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Total del arriendo</Text>
-            <Text style={styles.breakdownVal}>${totalAmount.toLocaleString("es-CL")}</Text>
+        {esReservaReal && (
+          <View style={styles.breakdownCard}>
+            <View style={[styles.breakdownRow, styles.breakdownDivider]}>
+              <Text style={styles.chargeTodayLabel}>Se retiene hoy (hold)</Text>
+              <Text style={styles.chargeTodayVal}>${montoHold.toLocaleString("es-CL")}</Text>
+            </View>
           </View>
-          <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Garantía retenida</Text>
-            <Text style={styles.guaranteeVal}>${guaranteeAmount.toLocaleString("es-CL")}</Text>
-          </View>
-          <View style={[styles.breakdownRow, styles.breakdownDivider]}>
-            <Text style={styles.chargeTodayLabel}>Se cobra hoy</Text>
-            <Text style={styles.chargeTodayVal}>${totalAmount.toLocaleString("es-CL")}</Text>
-          </View>
-        </View>
+        )}
 
         {/* Security / Encryption Notice */}
         <View style={styles.securityNote}>
@@ -119,7 +135,7 @@ export function PaymentMethodsScreen({
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <Text style={styles.payBtnText}>
-              Pagar ${totalAmount.toLocaleString("es-CL")}
+              {esReservaReal ? `Confirmar reserva · $${montoHold.toLocaleString("es-CL")}` : "Guardar método de pago"}
             </Text>
           )}
         </TouchableOpacity>
@@ -238,22 +254,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   breakdownDivider: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 11,
-  },
-  breakdownLabel: {
-    fontSize: 15,
-    color: colors.textMuted,
-  },
-  breakdownVal: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  guaranteeVal: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#8A5B0B",
+    borderTopWidth: 0,
+    paddingTop: 0,
   },
   chargeTodayLabel: {
     fontSize: 17,

@@ -39,6 +39,7 @@ export function RenterApp() {
 
   // Modales y Flujos Secundarios
   const [selectedCar, setSelectedCar] = useState(null);
+  const [bookingDraft, setBookingDraft] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showEnrolment, setShowEnrolment] = useState(false);
@@ -82,12 +83,16 @@ export function RenterApp() {
         return (
           <PaymentMethodsScreen
             car={selectedCar}
+            booking={bookingDraft}
             onBack={() => setShowPayment(false)}
             onPaymentSuccess={(res) => {
               setShowPayment(false);
               setSelectedCar(null);
-              setActiveReservation(res);
-              setActiveTab("rentals");
+              setBookingDraft(null);
+              if (res) {
+                setActiveReservation(res);
+                setActiveTab("rentals");
+              }
             }}
           />
         );
@@ -97,8 +102,9 @@ export function RenterApp() {
         <CarDetailScreen
           car={selectedCar}
           onBack={() => setSelectedCar(null)}
-          onProceedToPayment={(car) => {
+          onProceedToPayment={(car, draft) => {
             setSelectedCar(car);
+            setBookingDraft(draft);
             setShowPayment(true);
           }}
         />
