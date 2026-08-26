@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.schemas import AutoCreate, AutoUpdate, AutoOut
 from app.models.entities import Auto, Usuario
 from app.services.auth import get_current_user
+from app.core.limiter import limiter
 
 router = APIRouter(prefix="/autos", tags=["Autos y Marketplace"])
 
@@ -33,7 +34,9 @@ def obtener_auto(auto_id: str, db: Session = Depends(get_db)):
     return auto
 
 @router.post("", response_model=AutoOut, summary="Publicar un nuevo auto (Dueño)")
+@limiter.limit("20/minute")
 def crear_auto(
+    request: Request,
     payload: AutoCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)

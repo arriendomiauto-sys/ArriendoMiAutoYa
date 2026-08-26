@@ -1,10 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.core.seed import seed_demo_data
+from app.core.limiter import limiter
 
 import os
 from fastapi.staticfiles import StaticFiles
@@ -43,6 +47,16 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan
 )
+
+# Rate limiting: límite global por IP contra abuso/fuerza bruta (además
+# protege a Supabase de quedar expuesto a un aluvión de tokens basura, ya
+# que get_current_user le hace una llamada real por cada request
+# autenticado). Endpoints puntuales de mayor riesgo (subida de archivos,
+# publicar auto, crear reserva, completar enrolamiento) tienen además su
+# propio límite más estricto, definido en cada router.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS: solo orígenes conocidos (ver settings.CORS_ORIGINS). Las apps
 # mobile no envían Origin (no son navegador), así que esto solo afecta a

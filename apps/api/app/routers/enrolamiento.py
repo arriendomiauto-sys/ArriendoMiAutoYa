@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.config import settings
@@ -6,6 +6,7 @@ from app.schemas.schemas import UserEnrolamiento, UserOut
 from app.models.entities import Usuario, Pago
 from app.services.ocr import OCRService
 from app.services.auth import get_current_user
+from app.core.limiter import limiter
 import uuid
 
 from app.core.validators import validar_rut_chileno
@@ -29,7 +30,9 @@ def procesar_documentos_ocr(payload: UserEnrolamiento):
     }
 
 @router.post("/completar", response_model=UserOut, summary="Completa el enrolamiento y realiza el hold de seguridad de $800.000")
+@limiter.limit("10/minute")
 def completar_enrolamiento(
+    request: Request,
     payload: UserEnrolamiento,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)

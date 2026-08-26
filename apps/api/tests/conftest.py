@@ -8,6 +8,7 @@ from app.main import app
 from app.core.seed import seed_demo_data
 from app.models.entities import Usuario
 from app.services.auth import get_current_user
+from app.core.limiter import limiter
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_temp.db"
 
@@ -26,6 +27,18 @@ def db_session():
     finally:
         db.close()
         Base.metadata.drop_all(bind=engine)
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """
+    El limiter (slowapi) vive a nivel de módulo/proceso, no por test — sin
+    esto, los contadores de "N requests por minuto" se acumularían entre
+    tests distintos y algunos empezarían a fallar con 429 según el orden
+    en que corra la suite.
+    """
+    limiter.reset()
+    yield
+    limiter.reset()
 
 @pytest.fixture(scope="function")
 def client(db_session):

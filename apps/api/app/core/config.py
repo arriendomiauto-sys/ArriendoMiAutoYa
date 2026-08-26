@@ -48,6 +48,13 @@ class Settings(BaseSettings):
         "http://localhost:19006",
     ]
 
+    # Rate limiting (slowapi/limits). "memory://" alcanza para un solo
+    # proceso (dev, o un único worker uvicorn). En producción con más de un
+    # worker/proceso, apuntar a Redis (ya usado por Celery) para que el
+    # límite se comparta entre procesos, ej: "redis://localhost:6379/1".
+    RATE_LIMIT_STORAGE_URI: str = "memory://"
+    RATE_LIMIT_DEFAULT: str = "200/minute"
+
     # Celery & Redis
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
