@@ -57,6 +57,26 @@ def test_patch_auto_propio_funciona(usuario_factory, auth_as):
     assert resp.json()["tarifa_dia"] == 25000
 
 
+def test_crear_auto_persiste_equipamiento(usuario_factory, auth_as):
+    owner = usuario_factory(roles_activos=["dueno"])
+    auto = _crear_auto(
+        auth_as(owner), "TSTA-06",
+        equipamiento={"ac": True, "bluetooth": True, "isofix": False},
+    )
+    assert auto["equipamiento"] == {"ac": True, "bluetooth": True, "isofix": False}
+
+
+def test_patch_auto_actualiza_equipamiento(usuario_factory, auth_as):
+    owner = usuario_factory(roles_activos=["dueno"])
+    c = auth_as(owner)
+    auto = _crear_auto(c, "TSTA-07")
+    assert auto["equipamiento"] == {}
+
+    resp = c.patch(f"/api/v1/autos/{auto['id']}", json={"equipamiento": {"doble_traccion": True}})
+    assert resp.status_code == 200
+    assert resp.json()["equipamiento"] == {"doble_traccion": True}
+
+
 def test_patch_auto_admin_puede_editar_de_cualquiera(usuario_factory, auth_as):
     owner = usuario_factory(roles_activos=["dueno"])
     admin = usuario_factory(roles_activos=["admin"])

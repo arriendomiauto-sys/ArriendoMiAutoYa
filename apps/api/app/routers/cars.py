@@ -59,7 +59,8 @@ def crear_auto(
         ubicacion_base=payload.ubicacion_base,
         latitud=payload.latitud,
         longitud=payload.longitud,
-        fotos=payload.fotos or []
+        fotos=payload.fotos or [],
+        equipamiento=payload.equipamiento or {}
     )
     # Asegurar que el usuario tenga el rol "dueno"
     roles = current_user.roles_activos or []
@@ -94,6 +95,8 @@ def actualizar_auto(
         auto.fotos = payload.fotos
     if payload.ubicacion_base is not None:
         auto.ubicacion_base = payload.ubicacion_base
+    if payload.equipamiento is not None:
+        auto.equipamiento = payload.equipamiento
 
     db.commit()
     db.refresh(auto)
