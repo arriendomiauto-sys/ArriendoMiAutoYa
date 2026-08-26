@@ -1,26 +1,28 @@
-from app.models.entities import Reserva, Disputa
+from app.models.entities import Reserva, Disputa, Usuario
 
-def test_flujo_completo_entrega_y_checklist(client, db_session):
+def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
     # 1. Obtener la reserva demo
     reserva = db_session.query(Reserva).first()
     assert reserva is not None
+    cliente = db_session.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
+    dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
 
     # 2. Cliente genera código QR
-    resp_qr = client.post(f"/api/v1/reservas/{reserva.id}/generar-codigo")
+    resp_qr = auth_as(cliente).post(f"/api/v1/reservas/{reserva.id}/generar-codigo")
     assert resp_qr.status_code == 200
     qr_data = resp_qr.json()
     assert "codigo_qr_hash" in qr_data
     qr_hash = qr_data["codigo_qr_hash"]
 
     # 3. Dueño valida código QR
-    resp_val = client.post("/api/v1/entrega/validar-codigo", json={"codigo_qr_hash": qr_hash})
+    resp_val = auth_as(dueno).post("/api/v1/entrega/validar-codigo", json={"codigo_qr_hash": qr_hash})
     assert resp_val.status_code == 200
     val_data = resp_val.json()
     assert val_data["reserva_id"] == reserva.id
     assert val_data["auto_patente"] == "BBCL-10"
 
     # 4. Dueño confirma verificación de identidad exitosa
-    resp_conf = client.post(
+    resp_conf = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/confirmar-verificacion",
         json={"resultado": "confirmada", "tipo": "entrega"}
     )
@@ -28,7 +30,7 @@ def test_flujo_completo_entrega_y_checklist(client, db_session):
     assert resp_conf.json()["siguiente_paso"] == "checklist_fotos"
 
     # 5. Dueño completa checklist 'antes' (inicia el arriendo)
-    resp_check_antes = client.post(
+    resp_check_antes = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/checklist",
         json={
             "tipo": "antes",
@@ -42,7 +44,7 @@ def test_flujo_completo_entrega_y_checklist(client, db_session):
     assert resp_check_antes.json()["estado_reserva"] == "en_curso"
 
     # 6. Al devolver el auto: Dueño completa checklist 'despues' con suciedad estándar
-    resp_check_despues = client.post(
+    resp_check_despues = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/checklist",
         json={
             "tipo": "despues",
@@ -60,12 +62,13 @@ def test_flujo_completo_entrega_y_checklist(client, db_session):
     assert data_final["cargo_limpieza"] == 15000
     assert data_final["liquidacion_dueno"] > 0
 
-def test_rechazo_identidad_crea_disputa_y_bloquea(client, db_session):
+def test_rechazo_identidad_crea_disputa_y_bloquea(client, db_session, auth_as):
     reserva = db_session.query(Reserva).first()
     assert reserva is not None
+    dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
 
     # Dueño rechaza la identidad con foto y motivo
-    resp_rechazo = client.post(
+    resp_rechazo = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/confirmar-verificacion",
         json={
             "resultado": "rechazada",
