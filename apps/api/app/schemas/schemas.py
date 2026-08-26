@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict
 from datetime import datetime
 from app.core.validators import validar_rut_chileno, validar_patente_chilena
 
@@ -61,6 +61,7 @@ class AutoBase(BaseModel):
     latitud: Optional[float] = None
     longitud: Optional[float] = None
     fotos: List[str] = []
+    equipamiento: Dict[str, bool] = {}
 
     @field_validator("patente")
     @classmethod
@@ -77,6 +78,7 @@ class AutoUpdate(BaseModel):
     estado: Optional[str] = None
     fotos: Optional[List[str]] = None
     ubicacion_base: Optional[str] = None
+    equipamiento: Optional[Dict[str, bool]] = None
 
 class AutoOut(AutoBase):
     model_config = ConfigDict(from_attributes=True)

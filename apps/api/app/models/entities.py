@@ -46,6 +46,7 @@ class Auto(Base):
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)
     fotos = Column(JSON, default=list)
+    equipamiento = Column(JSON, default=dict) # ej. {"ac": true, "bluetooth": true, "isofix": false, ...}
 
     # Relaciones
     dueno = relationship("Usuario", back_populates="autos", foreign_keys=[dueno_id])
