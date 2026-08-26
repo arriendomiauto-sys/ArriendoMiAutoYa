@@ -268,7 +268,9 @@ export function OwnerApp() {
       {showSupport && <SupportScreen variant="owner" onClose={() => setShowSupport(false)} />}
 
       {/* Modal de Contrato */}
-      {showContract && <ContractModal onClose={() => setShowContract(false)} />}
+      {showContract && (
+        <ContractModal visible={showContract} onClose={() => setShowContract(false)} />
+      )}
     </SafeAreaView>
   );
 }

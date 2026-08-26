@@ -11,6 +11,30 @@ import {
 } from "react-native";
 import { colors, Icon } from "@rentacar/mobile-shared";
 
+function formatearFechaHora(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    const fecha = d.toLocaleDateString("es-CL", { weekday: "long", day: "2-digit", month: "long" });
+    const hora = d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    return `${fecha} · ${hora}`;
+  } catch {
+    return iso;
+  }
+}
+
+function formatearFechaCorta(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    const fecha = d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+    const hora = d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    return `${fecha} · ${hora}`;
+  } catch {
+    return iso;
+  }
+}
+
 export function ActiveRentalScreen({
   reservation,
   onBack,
@@ -20,29 +44,22 @@ export function ActiveRentalScreen({
   onOpenChat,
   onOpenContract,
 }) {
+  const res = reservation || {};
+  // El auto viaja como `car` (recién reservado, ver PaymentMethodsScreen)
+  // o como `auto` (al venir de GET /reservas / RentalHistoryScreen).
+  const car = res.car || res.auto || {};
+  const montoHold = res.monto_hold || 0;
+
   // Screen sub-mode: '15_sent' | '16_confirmed' | '18_detail'
   const [viewState, setViewState] = useState(
-    reservation?.status === "confirmada"
-      ? "16_confirmed"
-      : reservation?.status === "en_curso"
+    res.estado === "en_curso"
       ? "18_detail"
+      : res.estado === "confirmada"
+      ? "16_confirmed"
       : "15_sent"
   );
 
-  const res = reservation || {
-    id: "RES-94821",
-    car: {
-      marca: "Suzuki",
-      modelo: "Swift",
-      ano: 2023,
-      patente: "BBFK-42",
-      transmision: "Automático",
-      direccion_entrega: "Av. Providencia 2145",
-    },
-    totalAmount: 188020,
-    guaranteeAmount: 150000,
-    status: "en_curso",
-  };
+  const nombreAuto = [car.marca, car.modelo, car.anio].filter(Boolean).join(" ");
 
   return (
     <SafeAreaView style={styles.container}>
@@ -61,26 +78,24 @@ export function ActiveRentalScreen({
             <View style={styles.textBoxCenter}>
               <Text style={styles.sentTitle}>Solicitud enviada</Text>
               <Text style={styles.sentSub}>
-                Rodrigo tiene 12 horas para responder. Le avisamos apenas conteste.
+                El dueño tiene 12 horas para responder. Le avisamos apenas conteste.
               </Text>
             </View>
 
             <View style={styles.cardInfo}>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Auto</Text>
-                <Text style={styles.infoVal}>
-                  {res.car?.marca} {res.car?.modelo} {res.car?.ano || 2023}
-                </Text>
+                <Text style={styles.infoVal}>{nombreAuto || "—"}</Text>
               </View>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Fechas</Text>
-                <Text style={styles.infoVal}>12 – 16 ago</Text>
+                <Text style={styles.infoVal}>
+                  {formatearFechaCorta(res.fecha_inicio)} → {formatearFechaCorta(res.fecha_fin)}
+                </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Total</Text>
-                <Text style={styles.infoValBold}>
-                  ${(res.totalAmount || 188020).toLocaleString("es-CL")}
-                </Text>
+                <Text style={styles.infoLabel}>Total (hold)</Text>
+                <Text style={styles.infoValBold}>${montoHold.toLocaleString("es-CL")}</Text>
               </View>
               <View style={[styles.infoRow, styles.infoDivider]}>
                 <Text style={styles.infoLabel}>Estado del cobro</Text>
@@ -90,7 +105,7 @@ export function ActiveRentalScreen({
 
             <View style={styles.tealNoticeBox}>
               <Text style={styles.tealNoticeText}>
-                Si Rodrigo no acepta, se libera el monto completo sin ningún cargo.
+                Si el dueño no acepta, se libera el monto completo sin ningún cargo.
               </Text>
             </View>
           </ScrollView>
@@ -127,9 +142,7 @@ export function ActiveRentalScreen({
               </View>
               <View style={{ gap: 8, alignItems: "center" }}>
                 <Text style={styles.confirmedTitle}>Reserva confirmada</Text>
-                <Text style={styles.confirmedSub}>
-                  Rodrigo aceptó. Ya puede coordinar el retiro.
-                </Text>
+                <Text style={styles.confirmedSub}>Ya puede coordinar el retiro con el dueño.</Text>
               </View>
             </View>
 
@@ -142,22 +155,21 @@ export function ActiveRentalScreen({
                 </View>
               </View>
               <Text style={styles.meetingAddress}>
-                {res.car?.direccion_entrega || "Av. Providencia 2145"}
+                {res.lugar_entrega_acordado || car.ubicacion_base || "Por coordinar"}
               </Text>
-              <Text style={styles.meetingTime}>Miércoles 12 de agosto · 10:00</Text>
+              <Text style={styles.meetingTime}>{formatearFechaHora(res.fecha_inicio)}</Text>
             </View>
 
-            {/* Owner Contact Card */}
+            {/* Owner Contact Card — sin datos reales de contacto del dueño
+                todavía (BookingOut no expone nombre/teléfono), así que no
+                se inventa uno: se deriva al chat en la app. */}
             <View style={styles.ownerContactRow}>
-              <Image
-                source={{
-                  uri: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-                }}
-                style={styles.ownerContactAvatar}
-              />
+              <View style={[styles.ownerContactAvatar, styles.ownerContactAvatarPlaceholder]}>
+                <Icon name="user" size={20} color={colors.textMuted} />
+              </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.ownerContactName}>Rodrigo Muñoz</Text>
-                <Text style={styles.ownerContactPhone}>+56 9 7734 1208</Text>
+                <Text style={styles.ownerContactName}>Dueño del vehículo</Text>
+                <Text style={styles.ownerContactPhone}>Coordina por el chat de la reserva</Text>
               </View>
               <TouchableOpacity
                 style={styles.chatActionBtn}
@@ -172,7 +184,7 @@ export function ActiveRentalScreen({
             <View style={styles.licenseNoticeBox}>
               <Text style={styles.licenseNoticeTitle}>Lleve su licencia</Text>
               <Text style={styles.licenseNoticeDesc}>
-                Rodrigo sacará ocho fotos del auto y usted firmará el contrato en su celular.
+                El dueño registrará el checklist fotográfico de 9 ángulos y usted firmará el contrato en su celular.
               </Text>
             </View>
           </ScrollView>
@@ -211,7 +223,7 @@ export function ActiveRentalScreen({
               <Text style={styles.detailNavTitle}>Detalle de la reserva</Text>
             </View>
             <View style={styles.inProgressBadge}>
-              <Text style={styles.inProgressText}>En curso</Text>
+              <Text style={styles.inProgressText}>{res.estado === "en_curso" ? "En curso" : res.estado || "—"}</Text>
             </View>
           </View>
 
@@ -221,21 +233,14 @@ export function ActiveRentalScreen({
               <View style={styles.carMiniThumb}>
                 <Image
                   source={{
-                    uri:
-                      res.car?.foto_principal_url ||
-                      "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+                    uri: car.fotos?.[0] || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
                   }}
                   style={styles.carMiniImg}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.carMiniTitle}>
-                  {res.car?.marca} {res.car?.modelo} {res.car?.ano || 2023}
-                </Text>
-                <Text style={styles.carMiniSub}>
-                  {res.car?.patente || "BBFK-42"} · {res.car?.transmision || "automático"}
-                </Text>
-                <Text style={styles.carMiniSub}>Rodrigo Muñoz · 4,8</Text>
+                <Text style={styles.carMiniTitle}>{nombreAuto || "—"}</Text>
+                <Text style={styles.carMiniSub}>Patente {car.patente || "—"}</Text>
               </View>
             </View>
 
@@ -243,32 +248,22 @@ export function ActiveRentalScreen({
             <View style={styles.specCard}>
               <View style={styles.specRow}>
                 <Text style={styles.specLabel}>Retiro</Text>
-                <Text style={styles.specVal}>12 ago · 10:00</Text>
+                <Text style={styles.specVal}>{formatearFechaCorta(res.fecha_inicio)}</Text>
               </View>
               <View style={styles.specRow}>
                 <Text style={styles.specLabel}>Devolución</Text>
-                <Text style={styles.specVal}>16 ago · 21:30</Text>
-              </View>
-              <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Kilometraje de salida</Text>
-                <Text style={styles.specVal}>48.320 km</Text>
-              </View>
-              <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Combustible de salida</Text>
-                <Text style={styles.specVal}>¾ de tanque</Text>
+                <Text style={styles.specVal}>{formatearFechaCorta(res.fecha_fin)}</Text>
               </View>
               <View style={[styles.specRow, styles.specDivider]}>
-                <Text style={styles.specLabel}>Total pagado</Text>
-                <Text style={styles.specValBold}>
-                  ${(res.totalAmount || 188020).toLocaleString("es-CL")}
-                </Text>
+                <Text style={styles.specLabel}>Garantía retenida (hold)</Text>
+                <Text style={styles.specGuarantee}>${montoHold.toLocaleString("es-CL")}</Text>
               </View>
-              <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Garantía</Text>
-                <Text style={styles.specGuarantee}>
-                  ${(res.guaranteeAmount || 150000).toLocaleString("es-CL")} retenidos
-                </Text>
-              </View>
+              {res.monto_cobro_final > 0 && (
+                <View style={styles.specRow}>
+                  <Text style={styles.specLabel}>Cobro final</Text>
+                  <Text style={styles.specValBold}>${res.monto_cobro_final.toLocaleString("es-CL")}</Text>
+                </View>
+              )}
             </View>
 
             {/* Document Links Menu */}
@@ -287,7 +282,7 @@ export function ActiveRentalScreen({
                 onPress={onStartDelivery}
                 activeOpacity={0.75}
               >
-                <Text style={styles.docMenuText}>Fotos de la entrega · 8</Text>
+                <Text style={styles.docMenuText}>Fotos de la entrega</Text>
                 <Icon name="arrow-right" size={18} color={colors.textMuted} />
               </TouchableOpacity>
 
@@ -296,7 +291,7 @@ export function ActiveRentalScreen({
                 onPress={onOpenChat}
                 activeOpacity={0.75}
               >
-                <Text style={styles.docMenuText}>Escribirle a Rodrigo</Text>
+                <Text style={styles.docMenuText}>Escribirle al dueño</Text>
                 <Icon name="arrow-right" size={18} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -532,6 +527,11 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
+  },
+  ownerContactAvatarPlaceholder: {
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   ownerContactName: {
     fontSize: 16,

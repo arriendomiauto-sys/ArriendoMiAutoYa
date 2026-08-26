@@ -342,7 +342,13 @@ export function RenterApp() {
       )}
 
       {/* Modal de Contrato */}
-      {showContract && <ContractModal onClose={() => setShowContract(false)} />}
+      {showContract && (
+        <ContractModal
+          visible={showContract}
+          reservation={activeReservation}
+          onClose={() => setShowContract(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
