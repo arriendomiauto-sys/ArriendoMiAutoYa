@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -25,11 +25,18 @@ def crear_ticket(
     db.refresh(ticket)
     return ticket
 
+def _requerir_admin_o_manager(current_user: Usuario):
+    roles = current_user.roles_activos or []
+    if "admin" not in roles and "manager" not in roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Manager o Admin.")
+
 @router.get("/tickets", response_model=List[TicketOut], summary="Listar tickets (con filtro por sucursal)")
 def listar_tickets(
     sucursal_id: Optional[str] = Query(None, description="Filtrar por sucursal"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ):
+    _requerir_admin_o_manager(current_user)
     query = db.query(TicketSoporte)
     if sucursal_id:
         query = query.filter(TicketSoporte.sucursal_id == sucursal_id)
@@ -39,8 +46,10 @@ def listar_tickets(
 def escalar_ticket(
     ticket_id: str,
     reserva_id: str = Query(..., description="ID de la reserva asociada"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ):
+    _requerir_admin_o_manager(current_user)
     ticket = db.query(TicketSoporte).filter(TicketSoporte.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")

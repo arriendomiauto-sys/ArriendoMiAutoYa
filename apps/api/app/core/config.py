@@ -1,6 +1,6 @@
 # pyrefly: ignore [missing-import]
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from typing import Optional, List
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Arrienda Tu Auto API"
@@ -39,6 +39,14 @@ class Settings(BaseSettings):
 
     # Storage Local Directory Fallback
     STORAGE_LOCAL_DIR: str = "./uploads"
+
+    # CORS: orígenes explícitos permitidos (dev: web local + Expo web).
+    # Agregar aquí el dominio de producción de apps/web cuando exista.
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:8081",
+        "http://localhost:19006",
+    ]
 
     # Celery & Redis
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"

@@ -44,10 +44,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS
+# CORS: solo orígenes conocidos (ver settings.CORS_ORIGINS). Las apps
+# mobile no envían Origin (no son navegador), así que esto solo afecta a
+# apps/web y a Expo en modo web durante desarrollo.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
