@@ -12,9 +12,32 @@ from app.schemas.schemas import (
 )
 from app.services.delivery import DeliveryService
 from app.services.auth import get_current_user
-from app.models.entities import Usuario
+from app.models.entities import Usuario, Reserva, Auto
 
 router = APIRouter(tags=["Flujo de Entrega y Devolución"])
+
+
+def _obtener_reserva_o_404(reserva_id: str, db: Session) -> Reserva:
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    return reserva
+
+
+def _requerir_cliente_de_reserva(reserva: Reserva, current_user: Usuario):
+    if "admin" in (current_user.roles_activos or []):
+        return
+    if reserva.cliente_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo el arrendatario de esta reserva puede generar su código.")
+
+
+def _requerir_dueno_del_auto(reserva: Reserva, current_user: Usuario, db: Session):
+    if "admin" in (current_user.roles_activos or []):
+        return
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    if not auto or auto.dueno_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Solo el dueño del vehículo puede realizar esta acción.")
+
 
 @router.post(
     "/reservas/{reserva_id}/generar-codigo",
@@ -30,6 +53,8 @@ def generar_codigo_entrega(
     Genera y devuelve el hash del código QR de la reserva, junto con la URL de la foto
     de perfil verificada del cliente para cachear offline.
     """
+    reserva = _obtener_reserva_o_404(reserva_id, db)
+    _requerir_cliente_de_reserva(reserva, current_user)
     return DeliveryService.generar_codigo_qr(reserva_id, db)
 
 @router.post(
@@ -45,7 +70,10 @@ def validar_codigo_entrega(
     """
     Devuelve los datos del auto, cliente y foto de perfil verificada para confirmación visual humana.
     """
-    return DeliveryService.validar_codigo_qr(payload.codigo_qr_hash, db)
+    resultado = DeliveryService.validar_codigo_qr(payload.codigo_qr_hash, db)
+    reserva = _obtener_reserva_o_404(resultado["reserva_id"], db)
+    _requerir_dueno_del_auto(reserva, current_user, db)
+    return resultado
 
 @router.post(
     "/entrega/{reserva_id}/confirmar-verificacion",
@@ -62,6 +90,8 @@ def confirmar_verificacion_identidad(
     Registra el resultado de la verificación visual manual.
     Si se rechaza, bloquea la reserva, solicita foto y motivo, y abre automáticamente una disputa formal.
     """
+    reserva = _obtener_reserva_o_404(reserva_id, db)
+    _requerir_dueno_del_auto(reserva, current_user, db)
     return DeliveryService.confirmar_verificacion(
         reserva_id=reserva_id,
         resultado=payload.resultado,
@@ -87,6 +117,8 @@ def registrar_checklist_auto(
     Registra checklist inicial (antes) o final (después).
     Al completar el checklist final, calcula el cobro total y registra la liquidación al dueño.
     """
+    reserva = _obtener_reserva_o_404(reserva_id, db)
+    _requerir_dueno_del_auto(reserva, current_user, db)
     return DeliveryService.registrar_checklist(
         reserva_id=reserva_id,
         tipo=payload.tipo,
