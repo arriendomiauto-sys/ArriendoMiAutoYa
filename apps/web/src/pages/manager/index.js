@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Head from "next/head";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
@@ -11,97 +11,87 @@ import {
   MapPin,
   CheckCircle2,
   AlertTriangle,
-  Radio,
-  FileCheck2,
   Headphones,
-  UserCheck,
+  LogOut,
+  Loader2,
 } from "lucide-react";
+import { fetchApi } from "../../lib/api";
+import { useStaffAuth } from "../../lib/useStaffAuth";
 
 export default function ManagerPage() {
-  const [flota, setFlota] = useState([
-    {
-      id: "auto-1",
-      modelo: "Toyota RAV4 Limited",
-      patente: "LH-44-22",
-      dueno: "Carlos Mendoza",
-      rutDueno: "15.444.333-2",
-      ubicacion: "Plaza de Armas",
-      estado: "arrendado",
-      tarifa: 42000,
-    },
-    {
-      id: "auto-2",
-      modelo: "Hyundai Tucson GL",
-      patente: "PK-12-99",
-      dueno: "Andrea Valenzuela",
-      rutDueno: "17.888.111-9",
-      ubicacion: "Av. Alemania",
-      estado: "disponible",
-      tarifa: 35000,
-    },
-    {
-      id: "auto-3",
-      modelo: "Suzuki Jimny AllGrip",
-      patente: "RT-77-33",
-      dueno: "Felipe Soto",
-      rutDueno: "18.222.555-K",
-      ubicacion: "Av. Gabriela Mistral",
-      estado: "disponible",
-      tarifa: 48000,
-    },
-  ]);
+  const { loading: authLoading, authorized, staffUser, logout } = useStaffAuth(["admin", "manager"]);
 
-  const [tickets, setTickets] = useState([
-    {
-      id: "TICK-001",
-      usuario: "Camila Aravena",
-      rut: "19.345.678-2",
-      asunto: "Coordinación entrega retrasada por lluvia",
-      estado: "abierto",
-      descripcion: "El dueño y yo acordamos mover el punto de entrega al Mall Plaza techado.",
-    },
-    {
-      id: "TICK-002",
-      usuario: "Jorge Salinas",
-      rut: "14.111.999-3",
-      asunto: "Duda sobre retención Hold $800.000",
-      estado: "resuelto",
-      descripcion: "Confirmado desbloqueo automático con banco emisor.",
-    },
-  ]);
+  const [flota, setFlota] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
 
-  const handleCerrarTicket = (id) => {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, estado: "resuelto" } : t))
-    );
+  const cargarTodo = useCallback(async () => {
+    setLoadingData(true);
+    try {
+      const [flotaData, ticketsData] = await Promise.all([
+        fetchApi("/admin/flota-sucursal"),
+        fetchApi("/soporte/tickets"),
+      ]);
+      setFlota(flotaData);
+      setTickets(ticketsData);
+    } catch (err) {
+      console.warn("[ManagerPage] Error cargando datos:", err.message);
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authorized) cargarTodo();
+  }, [authorized, cargarTodo]);
+
+  const handleCerrarTicket = async (id) => {
+    try {
+      await fetchApi(`/soporte/tickets/${id}/cerrar`, { method: "POST" });
+      setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, estado: "cerrado" } : t)));
+    } catch (err) {
+      alert(`No se pudo cerrar el ticket: ${err.message}`);
+    }
   };
 
-  const handleEscalarDisputa = (id) => {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, estado: "escalado_a_disputa" } : t))
-    );
+  const handleEscalarDisputa = async (id) => {
+    const reservaId = window.prompt("ID de la reserva asociada a esta disputa:");
+    if (!reservaId) return;
+    try {
+      await fetchApi(`/soporte/tickets/${id}/escalar?reserva_id=${encodeURIComponent(reservaId)}`, {
+        method: "POST",
+      });
+      setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, escalado_a_disputa: true } : t)));
+    } catch (err) {
+      alert(`No se pudo escalar: ${err.message}`);
+    }
   };
+
+  if (authLoading || !authorized) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-[#061E1F]">
+        <Loader2 className="h-6 w-6 text-[#2FBF9B] animate-spin" />
+      </main>
+    );
+  }
+
+  const ticketsAbiertos = tickets.filter((t) => t.estado === "abierto");
 
   return (
     <>
       <Head>
-        <title>Panel de Sucursal Los Ángeles — ArriendoMiAutoYa</title>
-        <meta
-          name="description"
-          content="Consola de gestión local para sucursal Los Ángeles: monitoreo de flota, coordinación de entregas y soporte en terreno."
-        />
+        <title>Panel de Sucursal — ArriendoMiAutoYa</title>
+        <meta name="description" content="Consola de gestión local: monitoreo de flota, coordinación de entregas y soporte en terreno." />
       </Head>
 
       <Navbar />
 
       <main className="min-h-screen pt-28 pb-16 bg-[#061E1F] text-white relative overflow-hidden">
-        {/* Glow ambient background */}
         <div className="absolute top-10 left-1/4 w-[500px] h-[500px] bg-[#2FBF9B]/10 rounded-full filter blur-[100px] pointer-events-none" />
         <div className="absolute top-1/2 -right-32 w-[600px] h-[600px] bg-[#0F3D3E]/40 rounded-full filter blur-[120px] pointer-events-none" />
 
         <div className="container max-w-7xl mx-auto px-4 sm:px-6 space-y-8 relative z-10">
-          
-          {/* Header Section */}
+
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/10 pb-6">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
@@ -109,55 +99,46 @@ export default function ManagerPage() {
                   <Building2 className="h-3.5 w-3.5" />
                   SUCURSAL OPERATIVA
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300 backdrop-blur-md">
-                  <Radio className="h-3 w-3 animate-pulse text-[#2FBF9B]" />
-                  Radio 30 km Los Ángeles Activo
-                </span>
               </div>
               <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                Centro de Operaciones Los Ángeles
+                Centro de Operaciones
               </h1>
               <p className="text-sm text-slate-300">
                 Monitoreo de flota local, entregas presenciales y mediación rápida de soporte.
               </p>
             </div>
 
-            {/* Manager Avatar Profile */}
             <div className="rounded-2xl border border-[#2FBF9B]/20 bg-[#0E3736] p-3.5 shadow-xl flex items-center gap-3.5 backdrop-blur-md">
               <Avatar className="h-10 w-10 border border-[#2FBF9B]/50 bg-[#061E1F] text-[#2FBF9B]">
                 <AvatarFallback className="font-bold bg-[#061E1F] text-[#2FBF9B]">
-                  RM
+                  {(staffUser?.nombre || staffUser?.email || "MG").slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <div className="font-bold text-sm text-white">Rodrigo Morales</div>
-                <div className="text-[11px] text-slate-300">Gerente de Sucursal (RUT 14.333.222-5)</div>
-                <div className="text-[11px] text-[#2FBF9B] font-medium flex items-center gap-1 mt-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#2FBF9B] animate-pulse" />
-                  Turno Activo
-                </div>
+                <div className="font-bold text-sm text-white">{staffUser?.nombre || staffUser?.email}</div>
+                <div className="text-[11px] text-slate-300">{staffUser?.rut ? `RUT: ${staffUser.rut}` : "Manager"}</div>
               </div>
+              <Button onClick={logout} size="sm" variant="ghost" className="text-slate-400 hover:text-white">
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
+          {loadingData ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-6 w-6 text-[#2FBF9B] animate-spin" />
+            </div>
+          ) : (
+          <>
           {/* Operational KPI Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-5 shadow-lg space-y-2">
               <div className="flex justify-between items-center text-xs font-medium text-slate-300">
-                <span>Flota en Cobertura</span>
+                <span>Flota Supervisada</span>
                 <Car className="h-4 w-4 text-[#2FBF9B]" />
               </div>
-              <div className="text-3xl font-black text-white">3 Autos</div>
-              <p className="text-[11px] text-slate-400">100% operativos en Los Ángeles</p>
-            </div>
-
-            <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-5 shadow-lg space-y-2">
-              <div className="flex justify-between items-center text-xs font-medium text-slate-300">
-                <span>Arriendos en Curso</span>
-                <Clock className="h-4 w-4 text-[#2FBF9B]" />
-              </div>
-              <div className="text-3xl font-black text-[#2FBF9B]">1 Activo</div>
-              <p className="text-[11px] text-slate-400">Plaza de Armas • RAV4 Limited</p>
+              <div className="text-3xl font-black text-white">{flota.length} Autos</div>
+              <p className="text-[11px] text-slate-400">{flota.filter((a) => a.estado === "activo").length} activos</p>
             </div>
 
             <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-5 shadow-lg space-y-2">
@@ -165,25 +146,23 @@ export default function ManagerPage() {
                 <span>Tickets de Mediación</span>
                 <Headphones className="h-4 w-4 text-[#2FBF9B]" />
               </div>
-              <div className="text-3xl font-black text-[#2FBF9B]">
-                {tickets.filter((t) => t.estado === "abierto").length} Pendientes
-              </div>
+              <div className="text-3xl font-black text-[#2FBF9B]">{ticketsAbiertos.length} Pendientes</div>
               <p className="text-[11px] text-slate-400">Atención local y soporte de entrega</p>
             </div>
 
             <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-5 shadow-lg space-y-2">
               <div className="flex justify-between items-center text-xs font-medium text-slate-300">
-                <span>Radio de Cobertura</span>
-                <MapPin className="h-4 w-4 text-[#92E3CB]" />
+                <span>Tickets Totales</span>
+                <Clock className="h-4 w-4 text-[#92E3CB]" />
               </div>
-              <div className="text-3xl font-black text-[#92E3CB]">30 km</div>
-              <p className="text-[11px] text-slate-400">Comuna de Los Ángeles, Chile</p>
+              <div className="text-3xl font-black text-[#92E3CB]">{tickets.length}</div>
+              <p className="text-[11px] text-slate-400">Historial de esta sucursal</p>
             </div>
           </div>
 
           {/* Main 2-Column Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
+
             {/* Col 1: Flota Registrada */}
             <div className="lg:col-span-7 space-y-4">
               <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 shadow-xl space-y-4">
@@ -191,17 +170,20 @@ export default function ManagerPage() {
                   <div>
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
                       <Car className="h-4 w-4 text-[#2FBF9B]" />
-                      Flota Supervisada en Los Ángeles
+                      Flota Supervisada
                     </h3>
-                    <p className="text-xs text-slate-400">
-                      Vehículos verificados con seguro y checklist activo
-                    </p>
+                    <p className="text-xs text-slate-400">Vehículos de dueños en tu sucursal</p>
                   </div>
                   <span className="text-xs font-semibold text-[#2FBF9B] bg-[#061E1F] border border-[#2FBF9B]/30 px-3 py-1 rounded-full">
-                    {flota.length} Activos
+                    {flota.length} Autos
                   </span>
                 </div>
 
+                {flota.length === 0 ? (
+                  <div className="p-10 text-center text-sm text-slate-400 border border-dashed border-white/10 rounded-2xl">
+                    No hay autos registrados en tu sucursal todavía.
+                  </div>
+                ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -217,26 +199,28 @@ export default function ManagerPage() {
                       {flota.map((auto) => (
                         <tr key={auto.id} className="hover:bg-white/5 transition-colors">
                           <td className="py-3.5 font-bold text-white">
-                            <div>{auto.modelo}</div>
+                            <div>{auto.marca} {auto.modelo}</div>
                             <div className="text-[10px] text-slate-400 flex items-center gap-1 font-normal">
                               <MapPin className="h-3 w-3 text-[#2FBF9B]" />
-                              {auto.ubicacion}
+                              {auto.ubicacion_base}
                             </div>
                           </td>
-                          <td className="py-3.5 font-mono font-bold text-[#2FBF9B]">
-                            {auto.patente}
-                          </td>
+                          <td className="py-3.5 font-mono font-bold text-[#2FBF9B]">{auto.patente}</td>
                           <td className="py-3.5">
-                            <div>{auto.dueno}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{auto.rutDueno}</div>
+                            <div>{auto.dueno_nombre || "—"}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{auto.dueno_rut || ""}</div>
                           </td>
                           <td className="py-3.5 font-semibold text-white">
-                            ${auto.tarifa?.toLocaleString("es-CL")}
+                            ${auto.tarifa_dia?.toLocaleString("es-CL")}
                           </td>
                           <td className="py-3.5 text-right">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                              Activo
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                              auto.estado === "activo"
+                                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                                : "bg-white/5 border-white/10 text-slate-400"
+                            }`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${auto.estado === "activo" ? "bg-emerald-400" : "bg-slate-500"}`} />
+                              {auto.estado}
                             </span>
                           </td>
                         </tr>
@@ -244,6 +228,7 @@ export default function ManagerPage() {
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
             </div>
 
@@ -262,14 +247,19 @@ export default function ManagerPage() {
                   </div>
                 </div>
 
+                {tickets.length === 0 ? (
+                  <div className="p-10 text-center text-sm text-slate-400 border border-dashed border-white/10 rounded-2xl">
+                    No hay tickets registrados en tu sucursal.
+                  </div>
+                ) : (
                 <div className="space-y-4">
                   {tickets.map((t) => (
                     <div
                       key={t.id}
                       className={`rounded-2xl border p-4 space-y-3 transition-colors ${
-                        t.estado === "escalado_a_disputa"
+                        t.escalado_a_disputa
                           ? "border-purple-500/30 bg-purple-950/20"
-                          : t.estado === "resuelto"
+                          : t.estado === "cerrado"
                           ? "border-white/5 bg-white/5 opacity-60"
                           : "border-[#2FBF9B]/30 bg-[#061E1F]"
                       }`}
@@ -277,22 +267,16 @@ export default function ManagerPage() {
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="font-bold text-white text-xs">{t.asunto}</div>
-                          <div className="text-[11px] text-slate-400">{t.usuario} • {t.rut}</div>
+                          <div className="text-[11px] text-slate-400 font-mono">Ticket #{t.id.slice(0, 8).toUpperCase()}</div>
                         </div>
-                        <span
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                            t.estado === "escalado_a_disputa"
-                              ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                              : t.estado === "resuelto"
-                              ? "bg-white/10 text-slate-400"
-                              : "bg-[#2FBF9B]/20 text-[#92E3CB] border border-[#2FBF9B]/30"
-                          }`}
-                        >
-                          {t.estado === "escalado_a_disputa"
-                            ? "Escalado a Admin"
-                            : t.estado === "resuelto"
-                            ? "Resuelto"
-                            : "Pendiente"}
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                          t.escalado_a_disputa
+                            ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                            : t.estado === "cerrado"
+                            ? "bg-white/10 text-slate-400"
+                            : "bg-[#2FBF9B]/20 text-[#92E3CB] border border-[#2FBF9B]/30"
+                        }`}>
+                          {t.escalado_a_disputa ? "Escalado a Admin" : t.estado === "cerrado" ? "Resuelto" : "Pendiente"}
                         </span>
                       </div>
 
@@ -300,7 +284,7 @@ export default function ManagerPage() {
                         "{t.descripcion}"
                       </p>
 
-                      {t.estado === "abierto" && (
+                      {t.estado === "abierto" && !t.escalado_a_disputa && (
                         <div className="flex gap-2 pt-1">
                           <Button
                             size="sm"
@@ -323,10 +307,13 @@ export default function ManagerPage() {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             </div>
 
           </div>
+          </>
+          )}
 
         </div>
       </main>
