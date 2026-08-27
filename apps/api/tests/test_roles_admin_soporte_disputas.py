@@ -3,7 +3,67 @@ Pruebas de restricción por rol en endpoints internos: admin.py (panel
 financiero, métricas, documentos pendientes), soporte.py (tickets) y
 disputas.py. Todos exigían cero autenticación antes de esta sesión.
 """
-from app.models.entities import Disputa, TicketSoporte, Reserva
+from app.models.entities import Disputa, TicketSoporte, Reserva, Auto
+
+
+def test_flota_sucursal_requiere_admin_o_manager(usuario_factory, auth_as):
+    cliente = usuario_factory(roles_activos=["cliente"])
+    assert auth_as(cliente).get("/api/v1/admin/flota-sucursal").status_code == 403
+
+
+def test_flota_sucursal_manager_solo_ve_su_propia_sucursal(db_session, usuario_factory, auth_as):
+    auto = db_session.query(Auto).first()
+    dueno_sucursal_id = auto.dueno.sucursal_id
+
+    manager_misma_sucursal = usuario_factory(roles_activos=["manager"], sucursal_id=dueno_sucursal_id)
+    manager_otra_sucursal = usuario_factory(roles_activos=["manager"], sucursal_id="otra-sucursal-id")
+
+    resp_misma = auth_as(manager_misma_sucursal).get("/api/v1/admin/flota-sucursal")
+    assert resp_misma.status_code == 200
+    assert any(a["id"] == auto.id for a in resp_misma.json())
+
+    resp_otra = auth_as(manager_otra_sucursal).get("/api/v1/admin/flota-sucursal")
+    assert resp_otra.status_code == 200
+    assert all(a["id"] != auto.id for a in resp_otra.json())
+
+
+def test_cerrar_ticket_requiere_admin_o_manager(db_session, usuario_factory, auth_as):
+    autor = usuario_factory(roles_activos=["cliente"])
+    ticket = TicketSoporte(usuario_id=autor.id, asunto="Consulta", descripcion="detalle")
+    db_session.add(ticket)
+    db_session.commit()
+    db_session.refresh(ticket)
+
+    cliente = usuario_factory(roles_activos=["cliente"])
+    manager = usuario_factory(roles_activos=["manager"])
+
+    assert auth_as(cliente).post(f"/api/v1/soporte/tickets/{ticket.id}/cerrar").status_code == 403
+
+    resp_ok = auth_as(manager).post(f"/api/v1/soporte/tickets/{ticket.id}/cerrar")
+    assert resp_ok.status_code == 200
+    assert resp_ok.json()["estado"] == "cerrado"
+
+
+def test_listar_tickets_manager_no_ve_otra_sucursal(db_session, usuario_factory, auth_as):
+    ticket_sucursal_a = TicketSoporte(
+        usuario_id=usuario_factory(roles_activos=["cliente"]).id,
+        sucursal_id="sucursal-a",
+        asunto="A", descripcion="ticket sucursal a",
+    )
+    ticket_sucursal_b = TicketSoporte(
+        usuario_id=usuario_factory(roles_activos=["cliente"]).id,
+        sucursal_id="sucursal-b",
+        asunto="B", descripcion="ticket sucursal b",
+    )
+    db_session.add_all([ticket_sucursal_a, ticket_sucursal_b])
+    db_session.commit()
+
+    manager_a = usuario_factory(roles_activos=["manager"], sucursal_id="sucursal-a")
+    resp = auth_as(manager_a).get("/api/v1/soporte/tickets", params={"sucursal_id": "sucursal-b"})
+    assert resp.status_code == 200
+    asuntos = [t["asunto"] for t in resp.json()]
+    assert "A" in asuntos
+    assert "B" not in asuntos
 
 
 def test_panel_financiero_sin_auth_da_401(client):

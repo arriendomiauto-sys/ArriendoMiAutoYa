@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.schemas.schemas import BookingCreate, BookingOut
+from datetime import timedelta
+from app.schemas.schemas import BookingCreate, BookingOut, ExtendBookingRequest
 from app.models.entities import Reserva, Auto, Usuario, Pago
 from app.services.pricing import PricingService
 from app.services.contract import ContractService
@@ -170,6 +171,52 @@ def actualizar_estado_reserva(
     _verificar_acceso_reserva(reserva, current_user, db)
 
     reserva.estado = nuevo_estado
+    db.commit()
+    db.refresh(reserva)
+    return reserva
+
+@router.post(
+    "/{reserva_id}/extender",
+    response_model=BookingOut,
+    summary="Extender la fecha de devolución de una reserva activa (Cliente)"
+)
+@limiter.limit("10/minute")
+def extender_reserva(
+    request: Request,
+    reserva_id: str,
+    payload: ExtendBookingRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=403, detail="Solo el arrendatario de esta reserva puede extenderla.")
+    if reserva.estado not in ("confirmada", "en_curso"):
+        raise HTTPException(status_code=400, detail="Solo se puede extender una reserva confirmada o en curso.")
+
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    nueva_fecha_fin = reserva.fecha_fin + timedelta(days=payload.dias_adicionales)
+
+    if not validar_disponibilidad_reserva(reserva.auto_id, reserva.fecha_fin, nueva_fecha_fin, db, excluir_reserva_id=reserva.id):
+        raise HTTPException(
+            status_code=400,
+            detail="El vehículo ya tiene otra reserva confirmada en los días solicitados para la extensión."
+        )
+
+    monto_adicional = PricingService.calcular_monto_hold_reserva(auto.tarifa_dia, payload.dias_adicionales)
+
+    reserva.fecha_fin = nueva_fecha_fin
+    reserva.monto_hold += monto_adicional
+    db.add(Pago(
+        reserva_id=reserva.id,
+        usuario_id=reserva.cliente_id,
+        tipo="hold_reserva",
+        monto=monto_adicional,
+        estado="capturado",
+        referencia_transbank=f"TBK-EXT-{uuid.uuid4().hex[:8].upper()}"
+    ))
     db.commit()
     db.refresh(reserva)
     return reserva

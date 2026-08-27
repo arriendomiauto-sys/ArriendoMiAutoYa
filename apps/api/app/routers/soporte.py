@@ -38,9 +38,31 @@ def listar_tickets(
 ):
     _requerir_admin_o_manager(current_user)
     query = db.query(TicketSoporte)
-    if sucursal_id:
+
+    roles = current_user.roles_activos or []
+    if "admin" not in roles:
+        # Un Manager solo ve los tickets de su propia sucursal, sin importar
+        # qué sucursal_id se pida por query param.
+        query = query.filter(TicketSoporte.sucursal_id == current_user.sucursal_id)
+    elif sucursal_id:
         query = query.filter(TicketSoporte.sucursal_id == sucursal_id)
+
     return query.all()
+
+@router.post("/tickets/{ticket_id}/cerrar", response_model=TicketOut, summary="Marcar un ticket como resuelto localmente (Manager)")
+def cerrar_ticket(
+    ticket_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    _requerir_admin_o_manager(current_user)
+    ticket = db.query(TicketSoporte).filter(TicketSoporte.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    ticket.estado = "cerrado"
+    db.commit()
+    db.refresh(ticket)
+    return ticket
 
 @router.post("/tickets/{ticket_id}/escalar", response_model=TicketOut, summary="Escalar ticket a disputa formal (Manager)")
 def escalar_ticket(

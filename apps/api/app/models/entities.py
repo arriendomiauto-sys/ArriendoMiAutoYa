@@ -51,6 +51,8 @@ class Auto(Base):
     # Relaciones
     dueno = relationship("Usuario", back_populates="autos", foreign_keys=[dueno_id])
     reservas = relationship("Reserva", back_populates="auto")
+    mantenciones = relationship("MantencionAuto", back_populates="auto")
+    bloqueos_calendario = relationship("BloqueoCalendarioAuto", back_populates="auto")
 
 class Reserva(Base):
     __tablename__ = "reservas"
@@ -192,6 +194,34 @@ class Sucursal(Base):
 
     # Relaciones
     tickets = relationship("TicketSoporte", back_populates="sucursal")
+
+class MantencionAuto(Base):
+    __tablename__ = "mantenciones_auto"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    auto_id = Column(String, ForeignKey("autos.id"), nullable=False)
+    tipo = Column(String, nullable=False) # documento_legal, servicio_mecanico
+    nombre = Column(String, nullable=False) # ej. "Revisión Técnica", "Cambio de aceite"
+    fecha_vencimiento = Column(DateTime, nullable=True) # solo aplica a documento_legal
+    kilometraje = Column(Integer, nullable=True) # solo aplica a servicio_mecanico
+    notas = Column(Text, nullable=True)
+    documento_url = Column(String, nullable=True)
+    creado_en = Column(DateTime, default=utc_now)
+
+    # Relaciones
+    auto = relationship("Auto", back_populates="mantenciones")
+
+class BloqueoCalendarioAuto(Base):
+    __tablename__ = "bloqueos_calendario_auto"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    auto_id = Column(String, ForeignKey("autos.id"), nullable=False)
+    fecha = Column(DateTime, nullable=False) # día bloqueado (00:00 del día)
+    motivo = Column(String, nullable=True)
+    creado_en = Column(DateTime, default=utc_now)
+
+    # Relaciones
+    auto = relationship("Auto", back_populates="bloqueos_calendario")
 
 class ConfiguracionPlataforma(Base):
     __tablename__ = "configuracion_plataforma"
