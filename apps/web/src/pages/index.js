@@ -302,7 +302,9 @@ export default function Home() {
                           <h3 className="text-base font-bold text-white">
                             {auto.marca} {auto.modelo}
                           </h3>
-                          <p className="text-xs text-slate-300 mt-0.5">Automática · {auto.anio}</p>
+                          <p className="text-xs text-slate-300 mt-0.5">
+                            {auto.transmision ? `${auto.transmision} · ` : ""}{auto.anio}
+                          </p>
                         </div>
                         <div className="text-right shrink-0">
                           <span className="text-lg font-black text-[#2FBF9B]">
@@ -320,18 +322,24 @@ export default function Home() {
 
                       {/* Specs row */}
                       <div className="flex items-center gap-4 text-[11px] text-slate-300 mt-3 pt-3 border-t border-white/5">
-                        <span className="flex items-center gap-1">
-                          <Gauge className="h-3 w-3 text-[#2FBF9B]" />
-                          {auto.transmision}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3 text-[#2FBF9B]" />
-                          {auto.capacidad}
-                        </span>
-                        <span className="flex items-center gap-1 ml-auto">
-                          <Star className="h-3 w-3 text-[#2FBF9B] fill-[#2FBF9B]" />
-                          {auto.rating}
-                        </span>
+                        {auto.transmision && (
+                          <span className="flex items-center gap-1">
+                            <Gauge className="h-3 w-3 text-[#2FBF9B]" />
+                            {auto.transmision}
+                          </span>
+                        )}
+                        {auto.capacidad && (
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-[#2FBF9B]" />
+                            {auto.capacidad}
+                          </span>
+                        )}
+                        {auto.rating && (
+                          <span className="flex items-center gap-1 ml-auto">
+                            <Star className="h-3 w-3 text-[#2FBF9B] fill-[#2FBF9B]" />
+                            {auto.rating}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -658,18 +666,24 @@ export default function Home() {
                 <img src={modalAuto.foto || modalAuto.fotos?.[0]} alt={modalAuto.modelo} className="h-full w-full object-cover" />
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                {[
+              {(() => {
+                const specs = [
                   { label: "Transmisión", value: modalAuto.transmision },
                   { label: "Combustible", value: modalAuto.combustible },
                   { label: "Capacidad", value: modalAuto.capacidad },
-                ].map((s) => (
-                  <div key={s.label} className="bg-[#061E1F] p-3 rounded-xl border border-white/10 text-center">
-                    <span className="text-slate-400 block text-[10px]">{s.label}</span>
-                    <span className="font-bold text-white">{s.value}</span>
+                ].filter((s) => s.value);
+                if (specs.length === 0) return null;
+                return (
+                  <div className="grid gap-2 text-xs" style={{ gridTemplateColumns: `repeat(${specs.length}, minmax(0, 1fr))` }}>
+                    {specs.map((s) => (
+                      <div key={s.label} className="bg-[#061E1F] p-3 rounded-xl border border-white/10 text-center">
+                        <span className="text-slate-400 block text-[10px]">{s.label}</span>
+                        <span className="font-bold text-white">{s.value}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
 
               <div className="rounded-2xl bg-[#061E1F] p-4 border border-[#2FBF9B]/20 space-y-1.5 text-xs text-slate-300">
                 <div className="font-bold text-[#2FBF9B] flex items-center gap-1.5 mb-1">
