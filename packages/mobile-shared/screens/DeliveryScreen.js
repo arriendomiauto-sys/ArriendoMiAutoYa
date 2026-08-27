@@ -68,6 +68,12 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   const [enviandoChecklist, setEnviandoChecklist] = useState(false);
   const [resultadoChecklist, setResultadoChecklist] = useState(null);
 
+  // Calificación al cliente tras la devolución
+  const [puntajeCliente, setPuntajeCliente] = useState(0);
+  const [comentarioCliente, setComentarioCliente] = useState("");
+  const [enviandoCalificacion, setEnviandoCalificacion] = useState(false);
+  const [calificacionEnviada, setCalificacionEnviada] = useState(false);
+
   const angle = ANGLES[currentAngleIdx] || ANGLES[0];
   const isDarkScreen = stage === "20_camera" || stage === "25_return_cam";
 
@@ -188,6 +194,25 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       Alert.alert("No se pudo registrar el checklist", error.message);
     } finally {
       setEnviandoChecklist(false);
+    }
+  };
+
+  const handleCalificarCliente = async () => {
+    if (!puntajeCliente || !reserva?.cliente_id) return;
+    setEnviandoCalificacion(true);
+    try {
+      await ApiClient.crearCalificacion({
+        reserva_id: reservaIdActiva,
+        autor_rol: "dueno",
+        destinatario_id: reserva.cliente_id,
+        puntaje: puntajeCliente,
+        comentario: comentarioCliente.trim() || undefined,
+      });
+      setCalificacionEnviada(true);
+    } catch (error) {
+      Alert.alert("No se pudo enviar la calificación", error.message);
+    } finally {
+      setEnviandoCalificacion(false);
     }
   };
 
@@ -889,6 +914,47 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
                 La garantía se libera al cliente tras esta inspección de devolución.
               </Text>
             </View>
+
+            {reserva?.cliente_id && (
+              <View style={styles.ratingCard}>
+                {calificacionEnviada ? (
+                  <Text style={styles.ratingSentText}>¡Gracias por calificar al cliente!</Text>
+                ) : (
+                  <>
+                    <Text style={styles.ratingTitle}>¿Cómo fue tu experiencia con el cliente?</Text>
+                    <View style={styles.starsRow}>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <TouchableOpacity key={n} onPress={() => setPuntajeCliente(n)} hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
+                          <Icon
+                            name="star"
+                            size={30}
+                            color={n <= puntajeCliente ? colors.warning : colors.border}
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TextInput
+                      style={styles.ratingCommentInput}
+                      placeholder="Comentario opcional"
+                      placeholderTextColor={colors.textMuted}
+                      value={comentarioCliente}
+                      onChangeText={setComentarioCliente}
+                    />
+                    <TouchableOpacity
+                      style={[styles.ratingSubmitBtn, (!puntajeCliente || enviandoCalificacion) && styles.btnDisabled]}
+                      onPress={handleCalificarCliente}
+                      disabled={!puntajeCliente || enviandoCalificacion}
+                    >
+                      {enviandoCalificacion ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.ratingSubmitBtnText}>Enviar calificación</Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
           </ScrollView>
 
           <View style={styles.bottomFixedBar}>
@@ -1586,6 +1652,54 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 10,
+  },
+  ratingCard: {
+    width: "100%",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 18,
+    gap: 12,
+    alignItems: "center",
+  },
+  ratingTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    textAlign: "center",
+  },
+  starsRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  ratingCommentInput: {
+    width: "100%",
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: colors.text,
+  },
+  ratingSubmitBtn: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ratingSubmitBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  ratingSentText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.success,
   },
 
   // Bottom Action Bars

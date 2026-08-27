@@ -6,29 +6,49 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
+  Linking,
   Alert,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { useApp } from "../context/AppContext";
 import { Icon } from "../components/Icon";
+import { ApiClient } from "../api/client";
 
 export function ContractModal({ visible, onClose, reservation }) {
   const { currentUser } = useApp();
 
-  const res = reservation || {
-    id: "reserva-demo-1",
-    auto: {
-      marca: "Toyota",
-      modelo: "RAV4 Limited 4x4",
-      patente: "BBCL-10",
-      anio: 2023,
-    },
-    fecha_inicio: new Date().toLocaleDateString("es-CL"),
-    lugar_entrega_acordado: "Plaza de Armas, Los Ángeles",
-    monto_hold: 114000,
+  const handleDescargarPdf = async () => {
+    try {
+      const blob = await ApiClient.descargarContratoPdfBlob(reservation.id);
+      const url = URL.createObjectURL(blob);
+      Linking.openURL(url);
+    } catch (err) {
+      Alert.alert("No se pudo abrir el contrato", err.message);
+    }
   };
 
-  const auto = res.auto || { marca: "Toyota", modelo: "RAV4", patente: "BBCL-10" };
+  if (!reservation) {
+    return (
+      <Modal visible={visible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.headerRow}>
+              <Text style={styles.contractTitle}>CONTRATO DIGITAL DE ARRIENDO</Text>
+              <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+                <Icon name="close" size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.clauseText}>
+              Selecciona una reserva específica para ver su contrato.
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  const res = reservation;
+  const auto = res.auto || {};
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -49,7 +69,7 @@ export function ContractModal({ visible, onClose, reservation }) {
           <ScrollView style={styles.contractBody} showsVerticalScrollIndicator={false}>
             <View style={styles.legalBox}>
               <Text style={styles.legalCode}>
-                FOLIO DIGITAL N°: {res.id?.toUpperCase() || "RES-CL-2026-88"}
+                FOLIO DIGITAL N°: {res.id.toUpperCase()}
               </Text>
               <Text style={styles.legalDate}>
                 Ciudad de Los Ángeles, Región del Biobío, Chile.
@@ -58,11 +78,12 @@ export function ContractModal({ visible, onClose, reservation }) {
               <Text style={styles.clauseHeader}>COMPARECEN:</Text>
               <Text style={styles.clauseText}>
                 1. <Text style={{ fontWeight: "800" }}>ARRENDATARIO:</Text>{" "}
-                {currentUser?.nombre || "Carlos Mendoza"}, Cédula Nacional de Identidad{" "}
-                {currentUser?.rut || "15.892.341-6"}, con domicilio registrado en Los Ángeles, Chile.
+                {currentUser?.nombre || currentUser?.email || "—"}
+                {currentUser?.rut ? `, Cédula Nacional de Identidad ${currentUser.rut}` : ""}, con
+                domicilio registrado en Los Ángeles, Chile.
                 {"\n"}
-                2. <Text style={{ fontWeight: "800" }}>VEHÍCULO:</Text> Tipo {auto.marca}{" "}
-                {auto.modelo}, Placa Patente Única {auto.patente}, Año {auto.anio || 2023}.
+                2. <Text style={{ fontWeight: "800" }}>VEHÍCULO:</Text> Tipo {auto.marca || "—"}{" "}
+                {auto.modelo || ""}, Placa Patente Única {auto.patente || "—"}, Año {auto.anio || "—"}.
                 {"\n"}
                 3. <Text style={{ fontWeight: "800" }}>PLATAFORMA:</Text> Arrienda Tu Auto SpA, RUT 77.892.120-K.
               </Text>
@@ -84,7 +105,7 @@ export function ContractModal({ visible, onClose, reservation }) {
 
               <Text style={styles.clauseHeader}>CLÁUSULA CUARTA (HOLD DE GARANTÍA):</Text>
               <Text style={styles.clauseText}>
-                Se autoriza la retención de garantía (hold) en la tarjeta de crédito/débito registrada por la suma de ${((res.monto_hold || 114000)).toLocaleString("es-CL")} CLP, liberable tras la inspección de devolución sin novedades.
+                Se autoriza la retención de garantía (hold) en la tarjeta de crédito/débito registrada por la suma de ${(res.monto_hold || 0).toLocaleString("es-CL")} CLP, liberable tras la inspección de devolución sin novedades.
               </Text>
 
               <View style={styles.stampCard}>
@@ -103,16 +124,8 @@ export function ContractModal({ visible, onClose, reservation }) {
           </ScrollView>
 
           <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={styles.downloadBtn}
-              onPress={() =>
-                Alert.alert(
-                  "Descargar Contrato",
-                  "Copia certificada en PDF descargada en tu dispositivo para portar en el vehículo."
-                )
-              }
-            >
-              <Text style={styles.downloadBtnText}>Descargar Copia PDF</Text>
+            <TouchableOpacity style={styles.downloadBtn} onPress={handleDescargarPdf}>
+              <Text style={styles.downloadBtnText}>Ver / Descargar PDF</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.okBtn} onPress={onClose}>
               <Text style={styles.okBtnText}>Cerrar</Text>

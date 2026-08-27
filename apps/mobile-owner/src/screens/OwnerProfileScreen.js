@@ -138,7 +138,7 @@ export function OwnerProfileScreen({
           <TouchableOpacity style={styles.menuItem} onPress={onOpenContract}>
             <View style={styles.menuItemLeft}>
               <Icon name="document" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Contratos de arriendo modelo</Text>
+              <Text style={styles.menuItemText}>Contratos de mis reservas</Text>
             </View>
             <Icon name="arrow-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>

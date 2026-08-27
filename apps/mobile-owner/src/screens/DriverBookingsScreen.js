@@ -23,7 +23,7 @@ function formatearFecha(iso) {
 // de "aceptar/rechazar" separado hoy) — esta pantalla muestra las reservas
 // reales de los autos del dueño y desde acá se entra al flujo de
 // entrega/devolución con QR para la reserva correspondiente.
-export function DriverBookingsScreen({ onOpenDelivery }) {
+export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -149,6 +149,13 @@ export function DriverBookingsScreen({ onOpenDelivery }) {
                     </Text>
                   </TouchableOpacity>
                 )}
+
+                <TouchableOpacity
+                  style={styles.contractLink}
+                  onPress={() => onOpenContract && onOpenContract(item)}
+                >
+                  <Text style={styles.contractLinkText}>Ver contrato de esta reserva</Text>
+                </TouchableOpacity>
               </View>
             );
           }}
@@ -312,6 +319,17 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "800",
     fontSize: 12,
+  },
+  contractLink: {
+    marginTop: 8,
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  contractLinkText: {
+    color: colors.textSilver,
+    fontSize: 11,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
   emptyBox: {
     alignItems: "center",

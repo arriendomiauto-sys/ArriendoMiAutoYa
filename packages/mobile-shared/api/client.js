@@ -271,4 +271,17 @@ export class ApiClient {
   static getContratoPdfUrl(reservaId) {
     return `${API_BASE_URL}/reservas/${reservaId}/contrato-pdf`;
   }
+
+  // El PDF requiere sesión (Bearer token) — no se puede abrir como link
+  // directo, hay que pedirlo autenticado y abrir el blob resultante.
+  static async descargarContratoPdfBlob(reservaId) {
+    const token = await getAccessToken();
+    const headers = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const response = await fetch(this.getContratoPdfUrl(reservaId), { headers });
+    if (!response.ok) {
+      throw new Error(`No se pudo obtener el contrato (status ${response.status})`);
+    }
+    return response.blob();
+  }
 }

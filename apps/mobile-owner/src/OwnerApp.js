@@ -47,6 +47,7 @@ export function OwnerApp() {
   const [selectedCarForModal, setSelectedCarForModal] = useState(null);
   const [selectedReservaForDelivery, setSelectedReservaForDelivery] = useState(null);
   const [selectedReservaForChat, setSelectedReservaForChat] = useState(null);
+  const [selectedReservaForContract, setSelectedReservaForContract] = useState(null);
 
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
@@ -112,6 +113,10 @@ export function OwnerApp() {
               setSelectedReservaForDelivery(reserva);
               setShowDeliveryFlow(true);
             }}
+            onOpenContract={(reserva) => {
+              setSelectedReservaForContract(reserva);
+              setShowContract(true);
+            }}
           />
         );
 
@@ -147,7 +152,7 @@ export function OwnerApp() {
             onOpenDisputes={() => setShowDisputes(true)}
             onOpenNotifications={() => setShowNotifications(true)}
             onOpenSupport={() => setShowSupport(true)}
-            onOpenContract={() => setShowContract(true)}
+            onOpenContract={() => setActiveTab("bookings")}
             onOpenChat={() => setActiveTab("chat")}
           />
         );
@@ -285,7 +290,14 @@ export function OwnerApp() {
 
       {/* Modal de Contrato */}
       {showContract && (
-        <ContractModal visible={showContract} onClose={() => setShowContract(false)} />
+        <ContractModal
+          visible={showContract}
+          reservation={selectedReservaForContract}
+          onClose={() => {
+            setShowContract(false);
+            setSelectedReservaForContract(null);
+          }}
+        />
       )}
     </SafeAreaView>
   );
