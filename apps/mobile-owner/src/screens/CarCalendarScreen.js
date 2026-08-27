@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,58 +6,101 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
 
-export function CarCalendarScreen({ onBack }) {
+const MESES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+function mismoDia(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+export function CarCalendarScreen({ car, onBack }) {
   const { cars } = useApp();
-  const [selectedCarId, setSelectedCarId] = useState(cars[0]?.id || "auto-1");
+  const [selectedCarId, setSelectedCarId] = useState(car?.id || cars[0]?.id || null);
 
-  // Mock days of month: 1 to 31
-  // Status: 'available' | 'booked' | 'blocked'
-  const [daysState, setDaysState] = useState({
-    16: "booked",
-    17: "booked",
-    18: "booked",
-    22: "blocked",
-    23: "blocked",
-  });
+  const [reservas, setReservas] = useState([]);
+  const [bloqueos, setBloqueos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggleDayState = (dayNum) => {
-    if (daysState[dayNum] === "booked") {
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const mes = hoy.getMonth(); // mes actual real
+  const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+  const primerDiaSemana = (new Date(anio, mes, 1).getDay() + 6) % 7; // 0 = lunes
+
+  const cargar = useCallback(async () => {
+    if (!selectedCarId) return;
+    setLoading(true);
+    try {
+      const [todasReservas, bloqueosData] = await Promise.all([
+        ApiClient.getReservas("dueno"),
+        ApiClient.getBloqueosCalendario(selectedCarId),
+      ]);
+      setReservas((todasReservas || []).filter((r) => r.auto_id === selectedCarId));
+      setBloqueos(bloqueosData || []);
+    } catch (err) {
+      Alert.alert("No se pudo cargar el calendario", err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCarId]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const estadoDelDia = (day) => {
+    const fecha = new Date(anio, mes, day);
+
+    const reservado = reservas.some((r) => {
+      if (!["confirmada", "en_curso"].includes(r.estado)) return false;
+      const inicio = new Date(r.fecha_inicio);
+      const fin = new Date(r.fecha_fin);
+      return fecha >= new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()) &&
+        fecha < new Date(fin.getFullYear(), fin.getMonth(), fin.getDate() + 1);
+    });
+    if (reservado) return "booked";
+
+    const bloqueo = bloqueos.find((b) => mismoDia(new Date(b.fecha), fecha));
+    if (bloqueo) return { state: "blocked", bloqueo };
+
+    return "available";
+  };
+
+  const toggleDayState = async (day) => {
+    const estado = estadoDelDia(day);
+    if (estado === "booked") {
       Alert.alert("Día con Arriendo Activo", "Este día cuenta con una reserva confirmada y no puede ser bloqueado.");
       return;
     }
-    setDaysState((prev) => {
-      const current = prev[dayNum];
-      if (!current || current === "available") {
-        return { ...prev, [dayNum]: "blocked" };
-      } else {
-        const next = { ...prev };
-        delete next[dayNum];
-        return next;
+    const fecha = new Date(anio, mes, day);
+
+    if (typeof estado === "object" && estado.state === "blocked") {
+      // Ya bloqueado: lo quitamos
+      try {
+        await ApiClient.eliminarBloqueoCalendario(estado.bloqueo.id);
+        setBloqueos((prev) => prev.filter((b) => b.id !== estado.bloqueo.id));
+      } catch (err) {
+        Alert.alert("No se pudo desbloquear", err.message);
       }
-    });
-  };
+      return;
+    }
 
-  const handleBlockWeekends = () => {
-    setDaysState((prev) => ({
-      ...prev,
-      22: "blocked",
-      23: "blocked",
-      29: "blocked",
-      30: "blocked",
-    }));
-    Alert.alert("Fines de Semana Bloqueados", "Los fines de semana restantes del mes quedaron reservados para tu uso personal.");
-  };
-
-  const handleClearBlocks = () => {
-    setDaysState({
-      16: "booked",
-      17: "booked",
-      18: "booked",
-    });
-    Alert.alert("Calendario Habilitado", "Todos los días libres quedaron disponibles para arriendo.");
+    try {
+      const nuevo = await ApiClient.crearBloqueoCalendario(selectedCarId, fecha.toISOString(), "Uso personal");
+      setBloqueos((prev) => [...prev, nuevo]);
+    } catch (err) {
+      Alert.alert("No se pudo bloquear el día", err.message);
+    }
   };
 
   return (
@@ -75,14 +118,14 @@ export function CarCalendarScreen({ onBack }) {
         </View>
         <Text style={styles.title}>Calendario de Fechas</Text>
         <Text style={styles.subtitle}>
-          Bloquea días de uso personal o mantención técnica de tus autos
+          Bloquea días de uso personal — los días con reserva confirmada no se pueden tocar
         </Text>
       </View>
 
       {/* Selector de Vehículo */}
       <View style={styles.carPickerRow}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {(cars.length > 0 ? cars : [{ id: "auto-1", marca: "Toyota", modelo: "RAV4", patente: "BBCL-10" }]).map((c) => {
+          {cars.map((c) => {
             const isSelected = selectedCarId === c.id;
             return (
               <TouchableOpacity
@@ -91,7 +134,7 @@ export function CarCalendarScreen({ onBack }) {
                 onPress={() => setSelectedCarId(c.id)}
               >
                 <Text style={[styles.carChipText, isSelected && styles.carChipTextActive]}>
-                  {c.marca} {c.modelo} ({c.patente || "BBCL-10"})
+                  {c.marca} {c.modelo} ({c.patente || "—"})
                 </Text>
               </TouchableOpacity>
             );
@@ -102,94 +145,77 @@ export function CarCalendarScreen({ onBack }) {
       {/* Calendario Mensual */}
       <View style={styles.calendarCard}>
         <View style={styles.calendarHeader}>
-          <Text style={styles.monthTitle}>Agosto 2026</Text>
+          <Text style={styles.monthTitle}>{MESES[mes]} {anio}</Text>
           <Text style={styles.monthSub}>Los Ángeles, Chile</Text>
         </View>
 
-        {/* Días de la Semana */}
-        <View style={styles.weekdaysRow}>
-          {["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map((d, i) => (
-            <Text key={i} style={styles.weekdayText}>
-              {d}
-            </Text>
-          ))}
-        </View>
+        {loading ? (
+          <ActivityIndicator color={colors.accent} style={{ marginVertical: 30 }} />
+        ) : (
+          <>
+            <View style={styles.weekdaysRow}>
+              {["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map((d, i) => (
+                <Text key={i} style={styles.weekdayText}>{d}</Text>
+              ))}
+            </View>
 
-        {/* Grilla de Días */}
-        <View style={styles.daysGrid}>
-          {/* Offset de días iniciales si parte en sábado */}
-          {[null, null, null, null, null].map((_, i) => (
-            <View key={`empty-${i}`} style={styles.dayCellEmpty} />
-          ))}
+            <View style={styles.daysGrid}>
+              {Array.from({ length: primerDiaSemana }, (_, i) => (
+                <View key={`empty-${i}`} style={styles.dayCellEmpty} />
+              ))}
 
-          {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
-            const state = daysState[day] || "available";
-            const isBooked = state === "booked";
-            const isBlocked = state === "blocked";
+              {Array.from({ length: diasEnMes }, (_, i) => i + 1).map((day) => {
+                const estado = estadoDelDia(day);
+                const isBooked = estado === "booked";
+                const isBlocked = typeof estado === "object" && estado.state === "blocked";
 
-            return (
-              <TouchableOpacity
-                key={day}
-                style={[
-                  styles.dayCell,
-                  isBooked && styles.dayCellBooked,
-                  isBlocked && styles.dayCellBlocked,
-                ]}
-                onPress={() => toggleDayState(day)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.dayNum,
-                    isBooked && styles.dayNumBooked,
-                    isBlocked && styles.dayNumBlocked,
-                  ]}
-                >
-                  {day}
-                </Text>
-                <View
-                  style={[
-                    styles.dayDot,
-                    isBooked
-                      ? styles.dotBooked
-                      : isBlocked
-                      ? styles.dotBlocked
-                      : styles.dotAvailable,
-                  ]}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                return (
+                  <TouchableOpacity
+                    key={day}
+                    style={[
+                      styles.dayCell,
+                      isBooked && styles.dayCellBooked,
+                      isBlocked && styles.dayCellBlocked,
+                    ]}
+                    onPress={() => toggleDayState(day)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.dayNum,
+                        isBooked && styles.dayNumBooked,
+                        isBlocked && styles.dayNumBlocked,
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                    <View
+                      style={[
+                        styles.dayDot,
+                        isBooked ? styles.dotBooked : isBlocked ? styles.dotBlocked : styles.dotAvailable,
+                      ]}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-        {/* Leyenda */}
-        <View style={styles.legendRow}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, styles.dotAvailable]} />
-            <Text style={styles.legendText}>Disponible</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, styles.dotBooked]} />
-            <Text style={styles.legendText}>Arrendado</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, styles.dotBlocked]} />
-            <Text style={styles.legendText}>Bloqueado</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Acciones Rápidas de Bloqueo */}
-      <View style={styles.actionsCard}>
-        <Text style={styles.actionsTitle}>Acciones Rápidas</Text>
-
-        <TouchableOpacity style={styles.actionBtn} onPress={handleBlockWeekends}>
-          <Text style={styles.actionBtnText}>Bloquear todos los fines de semana restantes</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.actionBtnOutline} onPress={handleClearBlocks}>
-          <Text style={styles.actionBtnOutlineText}>Desbloquear todos los días libres</Text>
-        </TouchableOpacity>
+            <View style={styles.legendRow}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.dotAvailable]} />
+                <Text style={styles.legendText}>Disponible</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.dotBooked]} />
+                <Text style={styles.legendText}>Arrendado</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, styles.dotBlocked]} />
+                <Text style={styles.legendText}>Bloqueado</Text>
+              </View>
+            </View>
+          </>
+        )}
       </View>
     </ScrollView>
   );
@@ -379,42 +405,5 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 10,
     color: colors.textSilver,
-  },
-  actionsCard: {
-    backgroundColor: colors.darkCard,
-    borderRadius: 10,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  actionsTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: colors.textWhite,
-    marginBottom: 8,
-  },
-  actionBtn: {
-    backgroundColor: colors.darkCardHover,
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: "center",
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  actionBtnText: {
-    color: colors.textWhite,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  actionBtnOutline: {
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: "center",
-  },
-  actionBtnOutlineText: {
-    color: colors.textSilver,
-    fontSize: 11,
-    fontWeight: "600",
   },
 });

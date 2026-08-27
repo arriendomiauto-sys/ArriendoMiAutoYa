@@ -8,10 +8,10 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
 
 export function ExtendRentalScreen({ onBack, onComplete }) {
-  const { activeReservation } = useApp();
+  const { activeReservation, setActiveReservation } = useApp();
   const [extraDays, setExtraDays] = useState(1);
   const [loading, setLoading] = useState(false);
 
@@ -23,16 +23,22 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
   const currentEndDate = new Date(reservation.fecha_fin || Date.now() + 2 * 86400000);
   const newEndDate = new Date(currentEndDate.getTime() + extraDays * 86400000);
 
-  const handleRequestExtension = () => {
+  const handleRequestExtension = async () => {
+    if (!reservation.id) return;
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const actualizada = await ApiClient.extenderReserva(reservation.id, extraDays);
+      setActiveReservation({ ...actualizada, auto: reservation.auto });
       Alert.alert(
-        "Solicitud de Extensión Enviada",
-        `Se ha solicitado extender ${extraDays} ${extraDays === 1 ? "día" : "días"} hasta el ${newEndDate.toLocaleDateString("es-CL")} a las 18:00 hrs. El hold adicional de $${montoAdicional.toLocaleString("es-CL")} CLP será retenido una vez que el dueño confirme.`,
+        "Arriendo Extendido",
+        `Tu arriendo ahora termina el ${new Date(actualizada.fecha_fin).toLocaleDateString("es-CL")}. Se retuvo un hold adicional de $${montoAdicional.toLocaleString("es-CL")} CLP.`,
         [{ text: "Entendido", onPress: onComplete || onBack }]
       );
-    }, 600);
+    } catch (err) {
+      Alert.alert("No se pudo extender el arriendo", err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -127,15 +133,15 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
         </View>
 
         <Text style={styles.disclaimer}>
-          * El monto adicional se retendrá en tu tarjeta inscrita solo una vez que el dueño apruebe la solicitud en su aplicación.
+          * El monto adicional se retiene de inmediato como hold, igual que en tu reserva original.
         </Text>
       </View>
 
       {/* Botón Solicitar */}
       <TouchableOpacity
-        style={[styles.submitBtn, loading && styles.btnDisabled]}
+        style={[styles.submitBtn, (loading || !reservation.id) && styles.btnDisabled]}
         onPress={handleRequestExtension}
-        disabled={loading}
+        disabled={loading || !reservation.id}
         activeOpacity={0.85}
       >
         {loading ? (

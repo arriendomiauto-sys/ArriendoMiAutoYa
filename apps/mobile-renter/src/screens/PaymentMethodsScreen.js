@@ -78,10 +78,9 @@ export function PaymentMethodsScreen({
             <View style={styles.chipSim} />
             <Text style={styles.cardType}>Crédito</Text>
           </View>
-          <Text style={styles.cardNumber}>4531 •••• •••• 8842</Text>
+          <Text style={styles.cardNumber}>•••• •••• •••• ••••</Text>
           <View style={styles.cardFooter}>
-            <Text style={styles.cardHolder}>TARJETA REGISTRADA</Text>
-            <Text style={styles.cardExp}>09/29</Text>
+            <Text style={styles.cardHolder}>SIN TARJETA GUARDADA</Text>
           </View>
         </View>
 

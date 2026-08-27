@@ -10,6 +10,7 @@ import {
 import {
   colors,
   Icon,
+  useApp,
   RentalChatScreen,
   NotificationsScreen,
   SupportScreen,
@@ -28,6 +29,8 @@ import { DisputesScreen } from "./screens/DisputesScreen";
 import { OwnerProfileScreen } from "./screens/OwnerProfileScreen";
 
 export function OwnerApp() {
+  const { cars } = useApp();
+
   // Pestañas de Navegación del Dueño
   const [activeTab, setActiveTab] = useState("cars"); // 'cars' | 'bookings' | 'earnings' | 'chat' | 'profile'
 
@@ -132,7 +135,10 @@ export function OwnerApp() {
           <OwnerProfileScreen
             onOpenMyCars={() => setActiveTab("cars")}
             onOpenEarnings={() => setActiveTab("earnings")}
-            onOpenMaintenance={() => setShowMaintenance(true)}
+            onOpenMaintenance={() => {
+              if (cars?.[0]) setSelectedCarForModal(cars[0]);
+              setShowMaintenance(true);
+            }}
             onOpenDisputes={() => setShowDisputes(true)}
             onOpenNotifications={() => setShowNotifications(true)}
             onOpenSupport={() => setShowSupport(true)}

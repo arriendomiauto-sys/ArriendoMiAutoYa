@@ -124,6 +124,41 @@ export class ApiClient {
     });
   }
 
+  static async extenderReserva(reservaId, diasAdicionales) {
+    return this.request(`/reservas/${reservaId}/extender`, {
+      method: "POST",
+      body: JSON.stringify({ dias_adicionales: diasAdicionales }),
+    });
+  }
+
+  // Mantenciones y documentación legal del auto
+  static async getMantenciones(autoId) {
+    return this.request(`/autos/${autoId}/mantenciones`);
+  }
+
+  static async crearMantencion(autoId, data) {
+    return this.request(`/autos/${autoId}/mantenciones`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Calendario de disponibilidad (bloqueos por uso personal)
+  static async getBloqueosCalendario(autoId) {
+    return this.request(`/autos/${autoId}/bloqueos`);
+  }
+
+  static async crearBloqueoCalendario(autoId, fecha, motivo) {
+    return this.request(`/autos/${autoId}/bloqueos`, {
+      method: "POST",
+      body: JSON.stringify({ fecha, motivo }),
+    });
+  }
+
+  static async eliminarBloqueoCalendario(bloqueoId) {
+    return this.request(`/bloqueos/${bloqueoId}`, { method: "DELETE" });
+  }
+
   // Enrolamiento / KYC
   static async verifyKyc(kycData) {
     return this.request("/enrolamiento/procesar-documentos", {
