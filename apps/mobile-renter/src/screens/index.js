@@ -1,7 +1,6 @@
 export { MarketplaceScreen } from "./MarketplaceScreen";
 export { MapExploreScreen } from "./MapExploreScreen";
 export { CarDetailScreen } from "./CarDetailScreen";
-export { EnrolmentScreen } from "./EnrolmentScreen";
 export { ActiveRentalScreen } from "./ActiveRentalScreen";
 export { ExtendRentalScreen } from "./ExtendRentalScreen";
 export { RentalHistoryScreen } from "./RentalHistoryScreen";

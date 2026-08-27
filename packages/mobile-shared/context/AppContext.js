@@ -21,8 +21,6 @@ export function AppProvider({ children }) {
   const [reservations, setReservations] = useState([]);
   const [activeReservation, setActiveReservation] = useState(null);
 
-  const [driverBookings, setDriverBookings] = useState([]);
-
   const [notifications, setNotifications] = useState([]);
 
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -117,19 +115,6 @@ export function AppProvider({ children }) {
     setActiveReservation(newRes);
   };
 
-  const cancelReservation = (resId, refundAmount) => {
-    setReservations((prev) =>
-      prev.map((r) => (r.id === resId ? { ...r, status: "cancelada", refundAmount } : r))
-    );
-    if (activeReservation?.id === resId) setActiveReservation(null);
-  };
-
-  const respondBookingRequest = (bookingId, action) => {
-    setDriverBookings((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, estado: action } : b))
-    );
-  };
-
   const markNotificationAsRead = (notifId) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === notifId ? { ...n, leido: true } : n))
@@ -171,10 +156,6 @@ export function AppProvider({ children }) {
         activeReservation,
         setActiveReservation,
         addReservation,
-        cancelReservation,
-        driverBookings,
-        setDriverBookings,
-        respondBookingRequest,
         bankAccount,
         setBankAccount,
         paymentMethods,

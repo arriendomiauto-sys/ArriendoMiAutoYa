@@ -9,3 +9,4 @@ export { NotificationsScreen } from "./screens/NotificationsScreen";
 export { RentalChatScreen } from "./screens/RentalChatScreen";
 export { SupportScreen } from "./screens/SupportScreen";
 export { DeliveryScreen } from "./screens/DeliveryScreen";
+export { KycScreen } from "./auth/screens/KycScreen";

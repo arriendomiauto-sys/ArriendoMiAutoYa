@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,118 +7,142 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
-import { colors } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
+
+function formatearRangoFechas(inicio, fin) {
+  if (!inicio || !fin) return "—";
+  const opts = { day: "numeric", month: "short" };
+  return `${new Date(inicio).toLocaleDateString("es-CL", opts)} – ${new Date(fin).toLocaleDateString("es-CL", opts)}`;
+}
+
+const BADGE_POR_ESTADO = {
+  en_curso: { label: "En curso", bg: colors.primary100, color: colors.primary },
+  confirmada: { label: "Confirmada", bg: "#FFF8EC", color: "#8A5B0B" },
+  finalizada: { label: "Finalizada", bg: "#F3F4F6", color: "#4B5563" },
+  cancelada: { label: "Cancelada", bg: colors.dangerBg, color: colors.dangerText },
+};
 
 export function RentalHistoryScreen({ onSelectReservation, onBack }) {
   const [activeTab, setActiveTab] = useState("activas"); // 'activas' | 'proximas' | 'pasadas'
+  const [reservas, setReservas] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await ApiClient.getReservas("cliente");
+      setReservas(data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const filtradas = reservas.filter((r) => {
+    if (activeTab === "activas") return r.estado === "en_curso";
+    if (activeTab === "proximas") return r.estado === "confirmada";
+    return r.estado === "finalizada" || r.estado === "cancelada";
+  });
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Title Header (Pantalla 17) */}
       <View style={styles.titleArea}>
         <Text style={styles.screenTitle}>Mis reservas</Text>
       </View>
 
-      {/* 3 Tabs */}
       <View style={styles.tabsRow}>
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "activas" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("activas")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "activas" && styles.tabTextActive,
-            ]}
+        {[
+          { id: "activas", label: "Activas" },
+          { id: "proximas", label: "Próximas" },
+          { id: "pasadas", label: "Pasadas" },
+        ].map((t) => (
+          <TouchableOpacity
+            key={t.id}
+            style={[styles.tabBtn, activeTab === t.id && styles.tabBtnActive]}
+            onPress={() => setActiveTab(t.id)}
           >
-            Activas
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "proximas" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("proximas")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "proximas" && styles.tabTextActive,
-            ]}
-          >
-            Próximas
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "pasadas" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("pasadas")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "pasadas" && styles.tabTextActive,
-            ]}
-          >
-            Pasadas
-          </Text>
-        </TouchableOpacity>
+            <Text style={[styles.tabText, activeTab === t.id && styles.tabTextActive]}>
+              {t.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Reservations List */}
-      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-        {/* Card 1: En curso */}
-        <View style={styles.rentalCard}>
-          <View style={styles.cardMain}>
-            <View style={styles.thumbBox} />
-            <View style={{ flex: 1, gap: 4 }}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.carName}>Suzuki Swift 2023</Text>
-                <View style={styles.inCourseBadge}>
-                  <Text style={styles.inCourseText}>En curso</Text>
+      {loading ? (
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+      ) : error ? (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyTitle}>No se pudo cargar</Text>
+          <Text style={styles.emptySub}>{error}</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+          {filtradas.map((r) => {
+            const auto = r.auto || {};
+            const badge = BADGE_POR_ESTADO[r.estado] || BADGE_POR_ESTADO.confirmada;
+            const nombreAuto = [auto.marca, auto.modelo, auto.anio].filter(Boolean).join(" ") || "Auto";
+
+            return (
+              <TouchableOpacity
+                key={r.id}
+                style={styles.rentalCardSimple}
+                onPress={() => onSelectReservation(r)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.thumbBox}>
+                  {auto.fotos?.[0] && (
+                    <Icon name="car" size={22} color={colors.primary} />
+                  )}
                 </View>
-              </View>
-              <Text style={styles.carSub}>Devuelve el sábado 16 a las 21:30</Text>
-            </View>
-          </View>
-          <View style={styles.cardFooter}>
-            <Text style={styles.guaranteeText}>Garantía retenida · $150.000</Text>
-            <TouchableOpacity onPress={() => onSelectReservation({ status: "en_curso" })}>
-              <Text style={styles.viewLinkText}>Ver</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <View style={styles.cardHeaderRow}>
+                    <Text style={styles.carName}>{nombreAuto}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.statusBadgeText, { color: badge.color }]}>
+                        {badge.label}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.carSub}>
+                    {formatearRangoFechas(r.fecha_inicio, r.fecha_fin)}
+                    {r.lugar_entrega_acordado ? ` · ${r.lugar_entrega_acordado}` : ""}
+                  </Text>
+                  {r.estado === "en_curso" && (
+                    <Text style={styles.guaranteeText}>
+                      Garantía retenida · ${(r.monto_hold || 0).toLocaleString("es-CL")}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
 
-        {/* Card 2: Por aprobar */}
-        <View style={styles.rentalCardSimple}>
-          <View style={styles.thumbBox} />
-          <View style={{ flex: 1, gap: 4 }}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.carName}>Toyota Yaris 2022</Text>
-              <View style={styles.pendingBadge}>
-                <Text style={styles.pendingText}>Por aprobar</Text>
-              </View>
+          {filtradas.length === 0 && (
+            <View style={styles.emptyBox}>
+              <Icon name="calendar" size={32} color={colors.textMuted} style={{ marginBottom: 10 }} />
+              <Text style={styles.emptyTitle}>Nada por aquí</Text>
+              <Text style={styles.emptySub}>
+                {activeTab === "activas"
+                  ? "No tienes arriendos en curso ahora mismo."
+                  : activeTab === "proximas"
+                  ? "No tienes reservas confirmadas próximas."
+                  : "Aún no tienes arriendos finalizados o cancelados."}
+              </Text>
             </View>
-            <Text style={styles.carSub}>2 – 5 sep · Las Condes</Text>
-          </View>
-        </View>
-
-        {/* Card 3: Finalizada */}
-        <View style={[styles.rentalCardSimple, { opacity: 0.75 }]}>
-          <View style={styles.thumbBox} />
-          <View style={{ flex: 1, gap: 4 }}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.carName}>Kia Morning 2021</Text>
-              <View style={styles.finishedBadge}>
-                <Text style={styles.finishedText}>Finalizada</Text>
-              </View>
-            </View>
-            <Text style={styles.carSub}>14 – 17 jul · calificada 5,0</Text>
-          </View>
-        </View>
-      </ScrollView>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -165,24 +189,13 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 14,
   },
-  rentalCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  cardMain: {
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
   thumbBox: {
     width: 76,
     height: 58,
     borderRadius: 10,
     backgroundColor: colors.primary100,
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -198,35 +211,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
   },
-  inCourseBadge: {
-    backgroundColor: colors.primary100,
+  statusBadge: {
     paddingVertical: 4,
     paddingHorizontal: 9,
     borderRadius: 999,
   },
-  inCourseText: {
+  statusBadgeText: {
     fontSize: 12,
     fontWeight: "600",
-    color: colors.primary,
-  },
-  cardFooter: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
   guaranteeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#8A5B0B",
-  },
-  viewLinkText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.accent700,
   },
   rentalCardSimple: {
     backgroundColor: colors.surface,
@@ -238,26 +235,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
   },
-  pendingBadge: {
-    backgroundColor: "#FFF8EC",
-    paddingVertical: 4,
-    paddingHorizontal: 9,
-    borderRadius: 999,
+  emptyBox: {
+    alignItems: "center",
+    paddingVertical: 50,
+    paddingHorizontal: 30,
   },
-  pendingText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#8A5B0B",
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
   },
-  finishedBadge: {
-    backgroundColor: "#F3F4F6",
-    paddingVertical: 4,
-    paddingHorizontal: 9,
-    borderRadius: 999,
-  },
-  finishedText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#4B5563",
+  emptySub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+    textAlign: "center",
   },
 });

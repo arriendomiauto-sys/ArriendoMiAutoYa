@@ -14,11 +14,11 @@ import { colors, useApp, Icon } from "@rentacar/mobile-shared";
 export function EarningsScreen() {
   const { bankAccount, setBankAccount } = useApp();
   const [bankModalVisible, setBankModalVisible] = useState(false);
-  const [banco, setBanco] = useState(bankAccount?.banco || "Banco Estado (CuentaRUT)");
-  const [tipoCuenta, setTipoCuenta] = useState(bankAccount?.tipo_cuenta || "CuentaRUT / Vista");
-  const [numeroCuenta, setNumeroCuenta] = useState(bankAccount?.numero || "15892341");
-  const [titular, setTitular] = useState(bankAccount?.titular || "Patricio Morales");
-  const [rutTitular, setRutTitular] = useState(bankAccount?.rut || "14.234.567-8");
+  const [banco, setBanco] = useState(bankAccount?.banco || "");
+  const [tipoCuenta, setTipoCuenta] = useState(bankAccount?.tipo_cuenta || "");
+  const [numeroCuenta, setNumeroCuenta] = useState(bankAccount?.numero || "");
+  const [titular, setTitular] = useState(bankAccount?.titular || "");
+  const [rutTitular, setRutTitular] = useState(bankAccount?.rut || "");
 
   const [filterPeriod, setFilterPeriod] = useState("semana");
 
@@ -106,13 +106,19 @@ export function EarningsScreen() {
             <Text style={styles.bankEditLink}>Cambiar</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.bankName}>{bankAccount?.banco || "Banco Estado (CuentaRUT)"}</Text>
-        <Text style={styles.bankDetails}>
-          {bankAccount?.tipo_cuenta || "CuentaRUT"} • N° {bankAccount?.numero || "15892341"}
-        </Text>
-        <Text style={styles.bankOwner}>
-          Titular: {bankAccount?.titular || "Patricio Morales"} ({bankAccount?.rut || "14.234.567-8"})
-        </Text>
+        {bankAccount ? (
+          <>
+            <Text style={styles.bankName}>{bankAccount.banco}</Text>
+            <Text style={styles.bankDetails}>
+              {bankAccount.tipo_cuenta} • N° {bankAccount.numero}
+            </Text>
+            <Text style={styles.bankOwner}>
+              Titular: {bankAccount.titular} ({bankAccount.rut})
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.bankDetails}>Aún no has configurado una cuenta de depósito.</Text>
+        )}
       </View>
 
       {/* Gráfico Semanal Simplificado */}

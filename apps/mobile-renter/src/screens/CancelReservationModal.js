@@ -7,19 +7,39 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
-import { colors, Icon } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
 
 export function CancelReservationModal({
   reservation,
   onClose,
   onConfirmCancel,
 }) {
-  const [selectedReason, setSelectedReason] = useState("Cambiaron mis planes");
+  const [cancelling, setCancelling] = useState(false);
 
-  const totalPaid = reservation?.totalAmount || 188020;
-  const penalty = Math.round(totalPaid * 0.3);
-  const refund = totalPaid - penalty;
+  const montoHold = reservation?.monto_hold || 0;
+  const horasParaRetiro = reservation?.fecha_inicio
+    ? (new Date(reservation.fecha_inicio).getTime() - Date.now()) / 3_600_000
+    : null;
+  const esMenosDe24h = horasParaRetiro !== null && horasParaRetiro < 24 && horasParaRetiro > 0;
+
+  const handleCancelar = async () => {
+    if (!reservation?.id) {
+      onConfirmCancel();
+      return;
+    }
+    setCancelling(true);
+    try {
+      const actualizada = await ApiClient.actualizarEstadoReserva(reservation.id, "cancelada");
+      onConfirmCancel(actualizada);
+    } catch (err) {
+      Alert.alert("No se pudo cancelar", err.message);
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -34,77 +54,50 @@ export function CancelReservationModal({
       </View>
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        {/* Warning Penalty Box (<24h) */}
-        <View style={styles.penaltyNoticeBox}>
-          <Text style={styles.penaltyNoticeTitle}>Queda menos de 24 horas</Text>
-          <Text style={styles.penaltyNoticeDesc}>
-            El retiro es mañana a las 10:00, así que aplica la penalidad del 30%.
-          </Text>
-        </View>
+        {esMenosDe24h && (
+          <View style={styles.penaltyNoticeBox}>
+            <Text style={styles.penaltyNoticeTitle}>Queda menos de 24 horas</Text>
+            <Text style={styles.penaltyNoticeDesc}>
+              El retiro está agendado muy pronto. Revisa con el dueño antes de cancelar.
+            </Text>
+          </View>
+        )}
 
-        {/* Refund Calculations Card */}
+        {/* Resumen real de la reserva */}
         <View style={styles.calcCard}>
           <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>Total pagado</Text>
-            <Text style={styles.calcVal}>${totalPaid.toLocaleString("es-CL")}</Text>
+            <Text style={styles.calcLabel}>Garantía retenida (hold)</Text>
+            <Text style={styles.calcVal}>${montoHold.toLocaleString("es-CL")}</Text>
           </View>
-          <View style={styles.calcRow}>
-            <Text style={styles.calcLabel}>Penalidad 30%</Text>
-            <Text style={styles.penaltyVal}>−${penalty.toLocaleString("es-CL")}</Text>
-          </View>
-          <View style={[styles.calcRow, styles.calcDivider]}>
-            <Text style={styles.refundTotalLabel}>Se le devuelve</Text>
-            <Text style={styles.refundTotalVal}>${refund.toLocaleString("es-CL")}</Text>
-          </View>
+          {reservation?.fecha_inicio && (
+            <View style={styles.calcRow}>
+              <Text style={styles.calcLabel}>Fecha de retiro acordada</Text>
+              <Text style={styles.calcVal}>
+                {new Date(reservation.fecha_inicio).toLocaleDateString("es-CL")}
+              </Text>
+            </View>
+          )}
           <Text style={styles.guaranteeReleaseNote}>
-            La garantía de $150.000 se libera completa. Puede tardar 5 días hábiles en su cupo.
+            Al cancelar, tu garantía queda liberada. Si el retiro es en menos de 24 horas, nuestro
+            equipo de soporte se comunicará contigo para coordinar cualquier ajuste según nuestra
+            política de cancelación.
           </Text>
-        </View>
-
-        {/* Motivo Selector */}
-        <View style={styles.reasonSection}>
-          <Text style={styles.reasonSectionTitle}>MOTIVO</Text>
-          <View style={styles.reasonCard}>
-            {["Cambiaron mis planes", "Encontré otro auto", "Problema con el dueño"].map(
-              (reason, index) => {
-                const isSelected = selectedReason === reason;
-                return (
-                  <TouchableOpacity
-                    key={reason}
-                    style={[
-                      styles.reasonItem,
-                      index === 2 && { borderBottomWidth: 0 },
-                    ]}
-                    onPress={() => setSelectedReason(reason)}
-                    activeOpacity={0.8}
-                  >
-                    <View
-                      style={[
-                        styles.radioOuter,
-                        isSelected && styles.radioOuterSelected,
-                      ]}
-                    >
-                      {isSelected && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={styles.reasonItemText}>{reason}</Text>
-                  </TouchableOpacity>
-                );
-              }
-            )}
-          </View>
         </View>
       </ScrollView>
 
       {/* Bottom CTA */}
       <View style={styles.bottomBar}>
         <TouchableOpacity
-          style={styles.cancelDangerBtn}
-          onPress={() => onConfirmCancel(refund)}
+          style={[styles.cancelDangerBtn, cancelling && styles.btnDisabled]}
+          onPress={handleCancelar}
+          disabled={cancelling}
           activeOpacity={0.85}
         >
-          <Text style={styles.cancelDangerBtnText}>
-            Cancelar y aceptar la penalidad
-          </Text>
+          {cancelling ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.cancelDangerBtnText}>Confirmar cancelación</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -271,6 +264,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#DC2626",
     alignItems: "center",
     justifyContent: "center",
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   cancelDangerBtnText: {
     color: "#FFFFFF",

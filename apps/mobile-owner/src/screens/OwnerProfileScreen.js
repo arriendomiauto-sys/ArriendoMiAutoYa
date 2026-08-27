@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
 
 export function OwnerProfileScreen({
   onOpenMyCars,
@@ -23,13 +23,18 @@ export function OwnerProfileScreen({
   onOpenChat,
 }) {
   const { currentUser, bankAccount, cars, logout } = useApp();
+  const [calificaciones, setCalificaciones] = useState([]);
 
-  const user = currentUser || {
-    nombre: "Rodrigo Muñoz (Dueño)",
-    email: "rodrigo.munoz@gmail.com",
-    rating: 4.9,
-    viajes_completados: 31,
-  };
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    ApiClient.getCalificaciones(currentUser.id).then(setCalificaciones);
+  }, [currentUser?.id]);
+
+  const user = currentUser || {};
+  const promedioRating =
+    calificaciones.length > 0
+      ? (calificaciones.reduce((sum, c) => sum + c.puntaje, 0) / calificaciones.length).toFixed(1)
+      : null;
 
   const handleLogout = () => {
     Alert.alert("Cerrar Sesión", "¿Seguro que deseas salir de tu cuenta de dueño?", [
@@ -45,9 +50,11 @@ export function OwnerProfileScreen({
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <Text style={styles.screenTitle}>Perfil de Dueño</Text>
-          <View style={styles.badgeAnfitrion}>
-            <Text style={styles.badgeAnfitrionText}>Anfitrión Verificado</Text>
-          </View>
+          {user.estado_documentos === "verificado" && (
+            <View style={styles.badgeAnfitrion}>
+              <Text style={styles.badgeAnfitrionText}>Anfitrión Verificado</Text>
+            </View>
+          )}
         </View>
 
         {/* User Card */}
@@ -61,11 +68,13 @@ export function OwnerProfileScreen({
             style={styles.avatarImg}
           />
           <View style={{ flex: 1, gap: 3 }}>
-            <Text style={styles.userName}>{user.nombre}</Text>
+            <Text style={styles.userName}>{user.nombre || user.email || "Mi cuenta"}</Text>
             <View style={styles.ratingRow}>
               <Icon name="star" size={14} color={colors.accent} style={{ marginRight: 5 }} />
               <Text style={styles.ratingText}>
-                {user.rating || "4,9"} · {cars?.length || 2} autos publicados
+                {promedioRating
+                  ? `${promedioRating} · ${calificaciones.length} calificaciones`
+                  : "Sin calificaciones aún"} · {cars?.length || 0} autos publicados
               </Text>
             </View>
           </View>
@@ -74,18 +83,13 @@ export function OwnerProfileScreen({
         {/* Resumen de Flota y Cuenta */}
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{cars?.length || 2}</Text>
+            <Text style={styles.statNumber}>{cars?.length || 0}</Text>
             <Text style={styles.statLabel}>Autos activos</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>31</Text>
-            <Text style={styles.statLabel}>Arriendos hechos</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>98%</Text>
-            <Text style={styles.statLabel}>Aceptación</Text>
+            <Text style={styles.statNumber}>{calificaciones.length}</Text>
+            <Text style={styles.statLabel}>Calificaciones</Text>
           </View>
         </View>
 
@@ -96,7 +100,7 @@ export function OwnerProfileScreen({
               <Icon name="car" size={20} color={colors.primary} />
               <Text style={styles.menuItemText}>Mis vehículos y tarifas</Text>
             </View>
-            <Text style={styles.menuItemMeta}>{cars?.length || 2} autos</Text>
+            <Text style={styles.menuItemMeta}>{cars?.length || 0} autos</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem} onPress={onOpenEarnings}>
@@ -104,7 +108,7 @@ export function OwnerProfileScreen({
               <Icon name="card" size={20} color={colors.primary} />
               <Text style={styles.menuItemText}>Datos de transferencia bancaria</Text>
             </View>
-            <Text style={styles.menuItemMeta}>{bankAccount?.banco || "Banco Estado"}</Text>
+            <Text style={styles.menuItemMeta}>{bankAccount?.banco || "Sin configurar"}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem} onPress={onOpenMaintenance}>

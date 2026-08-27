@@ -11,25 +11,24 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
 
 export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance }) {
   const { cars, setCars } = useApp();
   const [editingCar, setEditingCar] = useState(null);
   const [newTarifa, setNewTarifa] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const updateCarRate = (carId, tarifa) => {
-    setCars((prev) =>
-      prev.map((c) => (c.id === carId ? { ...c, tarifa_dia: tarifa } : c))
-    );
-  };
-
-  const toggleCarAvailability = (carId) => {
-    setCars((prev) =>
-      prev.map((c) =>
-        c.id === carId ? { ...c, disponible: c.disponible === false } : c
-      )
-    );
+  const toggleCarAvailability = async (car) => {
+    const nuevoEstado = car.estado === "pausado" ? "activo" : "pausado";
+    // Optimista: refleja el cambio de inmediato y revierte si el backend falla.
+    setCars((prev) => prev.map((c) => (c.id === car.id ? { ...c, estado: nuevoEstado } : c)));
+    try {
+      await ApiClient.actualizarAuto(car.id, { estado: nuevoEstado });
+    } catch (err) {
+      setCars((prev) => prev.map((c) => (c.id === car.id ? { ...c, estado: car.estado } : c)));
+      Alert.alert("No se pudo actualizar", err.message);
+    }
   };
 
   const handleOpenRateModal = (car) => {
@@ -37,16 +36,23 @@ export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance })
     setNewTarifa(String(car.tarifa_dia || 38000));
   };
 
-  const handleSaveRate = () => {
-    if (editingCar && newTarifa) {
-      const tarifaNum = parseInt(newTarifa, 10);
-      if (isNaN(tarifaNum) || tarifaNum < 15000) {
-        Alert.alert("Tarifa Inválida", "La tarifa mínima sugerida es de $15.000 CLP/día.");
-        return;
-      }
-      updateCarRate(editingCar.id, tarifaNum);
+  const handleSaveRate = async () => {
+    if (!editingCar || !newTarifa) return;
+    const tarifaNum = parseInt(newTarifa, 10);
+    if (isNaN(tarifaNum) || tarifaNum < 15000) {
+      Alert.alert("Tarifa Inválida", "La tarifa mínima sugerida es de $15.000 CLP/día.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const actualizado = await ApiClient.actualizarAuto(editingCar.id, { tarifa_dia: tarifaNum });
+      setCars((prev) => prev.map((c) => (c.id === editingCar.id ? actualizado : c)));
       setEditingCar(null);
       Alert.alert("Tarifa Actualizada", `Nueva tarifa diaria: $${tarifaNum.toLocaleString("es-CL")} CLP.`);
+    } catch (err) {
+      Alert.alert("No se pudo guardar la tarifa", err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -72,7 +78,7 @@ export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance })
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
-          const isDisponible = item.disponible !== false;
+          const isDisponible = item.estado === "activo";
           const tarifa = item.tarifa_dia || 38000;
           const gananciaNeta = Math.round(tarifa * 0.8);
 
@@ -138,7 +144,7 @@ export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance })
                   <Text style={styles.switchLabel}>Disponible para arriendos inmediatos</Text>
                   <Switch
                     value={isDisponible}
-                    onValueChange={() => toggleCarAvailability(item.id)}
+                    onValueChange={() => toggleCarAvailability(item)}
                     trackColor={{ false: colors.darkBorder, true: colors.accent }}
                     thumbColor={isDisponible ? colors.white : colors.textMuted}
                   />

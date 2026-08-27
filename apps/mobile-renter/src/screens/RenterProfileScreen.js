@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
 
 export function RenterProfileScreen({
   onOpenEnrolment,
@@ -23,13 +23,19 @@ export function RenterProfileScreen({
   onOpenChat,
 }) {
   const { currentUser, reservations, paymentMethods, logout } = useApp();
+  const [calificaciones, setCalificaciones] = useState([]);
 
-  const user = currentUser || {
-    nombre: "Camila Aravena",
-    email: "camila.aravena@gmail.com",
-    rating: 4.9,
-    viajes_completados: 12,
-  };
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    ApiClient.getCalificaciones(currentUser.id).then(setCalificaciones);
+  }, [currentUser?.id]);
+
+  const user = currentUser || {};
+  const promedioRating =
+    calificaciones.length > 0
+      ? (calificaciones.reduce((sum, c) => sum + c.puntaje, 0) / calificaciones.length).toFixed(1)
+      : null;
+  const viajesFinalizados = (reservations || []).filter((r) => r.estado === "finalizada").length;
 
   const handleLogout = () => {
     Alert.alert("Cerrar Sesión", "¿Seguro que deseas salir de tu cuenta?", [
@@ -45,9 +51,11 @@ export function RenterProfileScreen({
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <Text style={styles.screenTitle}>Mi Perfil</Text>
-          <View style={styles.badgeKyc}>
-            <Text style={styles.badgeKycText}>Licencia Verificada</Text>
-          </View>
+          {user.estado_documentos === "verificado" && (
+            <View style={styles.badgeKyc}>
+              <Text style={styles.badgeKycText}>Identidad Verificada</Text>
+            </View>
+          )}
         </View>
 
         {/* User Card */}
@@ -61,11 +69,13 @@ export function RenterProfileScreen({
             style={styles.avatarImg}
           />
           <View style={{ flex: 1, gap: 3 }}>
-            <Text style={styles.userName}>{user.nombre}</Text>
+            <Text style={styles.userName}>{user.nombre || user.email || "Mi cuenta"}</Text>
             <View style={styles.ratingRow}>
               <Icon name="star" size={14} color={colors.accent} style={{ marginRight: 5 }} />
               <Text style={styles.ratingText}>
-                {user.rating || "4,9"} · {user.viajes_completados || 12} viajes completados
+                {promedioRating
+                  ? `${promedioRating} · ${calificaciones.length} calificaciones`
+                  : "Sin calificaciones aún"}
               </Text>
             </View>
           </View>
@@ -74,18 +84,18 @@ export function RenterProfileScreen({
         {/* Resumen del Arrendatario */}
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{reservations?.length || 3}</Text>
+            <Text style={styles.statNumber}>{reservations?.length || 0}</Text>
             <Text style={styles.statLabel}>Arriendos</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{paymentMethods?.length || 2}</Text>
-            <Text style={styles.statLabel}>Tarjetas</Text>
+            <Text style={styles.statNumber}>{viajesFinalizados}</Text>
+            <Text style={styles.statLabel}>Finalizados</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>100%</Text>
-            <Text style={styles.statLabel}>Garantías devueltas</Text>
+            <Text style={styles.statNumber}>{paymentMethods?.length || 0}</Text>
+            <Text style={styles.statLabel}>Tarjetas</Text>
           </View>
         </View>
 

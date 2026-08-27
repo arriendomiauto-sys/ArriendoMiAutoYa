@@ -7,47 +7,67 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from "react-native";
-import { colors, Icon } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
+
+const MOTIVO_LABELS = {
+  multa_tag: "Peaje / TAG",
+  multa_policia: "Multa Tránsito",
+  danio_oculto: "Daño Oculto",
+};
 
 export function DisputesScreen({ onBack }) {
   const [activeTab, setActiveTab] = useState("activas"); // 'activas' | 'nueva'
   const [montoReclamo, setMontoReclamo] = useState("");
   const [motivo, setMotivo] = useState("multa_tag");
   const [folioMulta, setFolioMulta] = useState("");
+  const [reservaId, setReservaId] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
-  const disputasMock = [
-    {
-      id: "DSP-101",
-      reservaId: "RES-CL-2026-88",
-      motivo: "Cobro TAG Autopista del Itata no declarado",
-      monto: "$8.400 CLP",
-      fecha: "12 Ago 2026",
-      estado: "aprobada",
-      resolucion: "Hold descontado y transferido al dueño.",
-    },
-    {
-      id: "DSP-102",
-      reservaId: "RES-CL-2026-74",
-      motivo: "Parte empadronado Juzgado de Policía Local Los Ángeles",
-      monto: "$48.200 CLP",
-      fecha: "05 Ago 2026",
-      estado: "en_revision",
-      resolucion: "En mediación con equipo legal de Arrienda Tu Auto.",
-    },
-  ];
+  // No existe hoy un endpoint para que el dueño liste sus propias disputas
+  // (/disputas es solo Admin/Manager) — los reclamos ingresados quedan
+  // registrados como tickets de soporte, visibles para el equipo, hasta que
+  // se agregue esa vista.
+  const [reclamosEnviados, setReclamosEnviados] = useState([]);
 
-  const handleCrearDisputa = () => {
+  const handleCrearDisputa = async () => {
     if (!montoReclamo || !descripcion) {
       Alert.alert("Campos requeridos", "Ingresa el monto del cobro y la descripción.");
       return;
     }
-    Alert.alert(
-      "Disputa Ingresada",
-      "El equipo de soporte y mediación legal revisará los antecedentes y contrastará con el contrato y checklist fotográfico.",
-      [{ text: "Entendido", onPress: () => setActiveTab("activas") }]
-    );
+    setEnviando(true);
+    try {
+      const detalle = [
+        `Tipo de cobro: ${MOTIVO_LABELS[motivo]}`,
+        `Monto a cobrar: $${parseInt(montoReclamo, 10).toLocaleString("es-CL")} CLP`,
+        reservaId ? `Reserva: ${reservaId}` : null,
+        folioMulta ? `Folio/comprobante: ${folioMulta}` : null,
+        `Detalle: ${descripcion.trim()}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const ticket = await ApiClient.crearTicketSoporte(
+        "Reclamo de garantía (Dueño)",
+        detalle
+      );
+      setReclamosEnviados((prev) => [ticket, ...prev]);
+      setMontoReclamo("");
+      setFolioMulta("");
+      setReservaId("");
+      setDescripcion("");
+      Alert.alert(
+        "Reclamo Ingresado",
+        `Ticket #${ticket.id.slice(0, 8).toUpperCase()} creado. El equipo de soporte y mediación revisará los antecedentes contra el contrato y el checklist fotográfico.`,
+        [{ text: "Entendido", onPress: () => setActiveTab("activas") }]
+      );
+    } catch (err) {
+      Alert.alert("No se pudo enviar el reclamo", err.message);
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -76,7 +96,7 @@ export function DisputesScreen({ onBack }) {
           onPress={() => setActiveTab("activas")}
         >
           <Text style={[styles.tabBtnText, activeTab === "activas" && styles.tabBtnTextActive]}>
-            Mis Reclamos ({disputasMock.length})
+            Mis Reclamos ({reclamosEnviados.length})
           </Text>
         </TouchableOpacity>
 
@@ -93,36 +113,35 @@ export function DisputesScreen({ onBack }) {
       {/* TAB 1: LISTA */}
       {activeTab === "activas" && (
         <View>
-          {disputasMock.map((d) => (
+          {reclamosEnviados.length === 0 && (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>
+                Aún no has ingresado reclamos en esta sesión. Usa "+ Ingresar Disputa" para
+                reportar un cobro pendiente.
+              </Text>
+            </View>
+          )}
+          {reclamosEnviados.map((d) => (
             <View key={d.id} style={styles.disputeCard}>
               <View style={styles.disputeHeader}>
-                <Text style={styles.disputeId}>{d.id} • {d.reservaId}</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    d.estado === "aprobada" ? styles.statusApproved : styles.statusReview,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      d.estado === "aprobada" ? styles.textSuccess : styles.textWarning,
-                    ]}
-                  >
-                    {d.estado === "aprobada" ? "Aprobada y Cobrada" : "En Mediación"}
+                <Text style={styles.disputeId}>Ticket #{d.id.slice(0, 8).toUpperCase()}</Text>
+                <View style={styles.statusReview}>
+                  <Text style={styles.textWarning}>
+                    {d.estado === "abierto" ? "Recibido" : d.estado}
                   </Text>
                 </View>
               </View>
 
-              <Text style={styles.disputeMotivo}>{d.motivo}</Text>
+              <Text style={styles.disputeMotivo}>{d.asunto}</Text>
 
               <View style={styles.disputeInfoRow}>
-                <Text style={styles.disputeAmount}>{d.monto}</Text>
-                <Text style={styles.disputeDate}>{d.fecha}</Text>
+                <Text style={styles.disputeDate}>
+                  {new Date(d.timestamp).toLocaleDateString("es-CL")}
+                </Text>
               </View>
 
               <View style={styles.resolutionBox}>
-                <Text style={styles.resolutionText}>Resolución: {d.resolucion}</Text>
+                <Text style={styles.resolutionText}>{d.descripcion}</Text>
               </View>
             </View>
           ))}
@@ -168,6 +187,18 @@ export function DisputesScreen({ onBack }) {
           </View>
 
           <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>ID de la Reserva (Opcional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="ej. 20fa33e9-4777-..."
+              placeholderTextColor={colors.textMuted}
+              value={reservaId}
+              onChangeText={setReservaId}
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Folio de Citación o Comprobante TAG</Text>
             <TextInput
               style={styles.input}
@@ -191,8 +222,16 @@ export function DisputesScreen({ onBack }) {
             />
           </View>
 
-          <TouchableOpacity style={styles.submitBtn} onPress={handleCrearDisputa}>
-            <Text style={styles.submitBtnText}>Enviar a Mediación Legal →</Text>
+          <TouchableOpacity
+            style={[styles.submitBtn, enviando && styles.btnDisabled]}
+            onPress={handleCrearDisputa}
+            disabled={enviando}
+          >
+            {enviando ? (
+              <ActivityIndicator color={colors.dark} />
+            ) : (
+              <Text style={styles.submitBtnText}>Enviar a Mediación Legal →</Text>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -278,6 +317,22 @@ const styles = StyleSheet.create({
   tabBtnTextActive: {
     color: colors.dark,
     fontWeight: "800",
+  },
+  emptyBox: {
+    padding: 20,
+    backgroundColor: colors.darkCard,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+  },
+  emptyText: {
+    fontSize: 12,
+    color: colors.textSilver,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   disputeCard: {
     backgroundColor: colors.darkCard,

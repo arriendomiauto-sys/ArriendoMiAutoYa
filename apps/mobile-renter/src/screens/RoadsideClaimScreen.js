@@ -9,8 +9,17 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Linking,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import * as ImagePicker from "expo-image-picker";
+import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
+
+const INCIDENT_LABELS = {
+  colision: "Colisión / Choque",
+  panne: "Panne Mecánica",
+  neumatico: "Pinchazo / Neumático",
+  robo: "Robo / Daño a Terceros",
+};
 
 export function RoadsideClaimScreen({ onBack, onComplete }) {
   const { activeReservation } = useApp();
@@ -20,30 +29,72 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   const [thirdPartyDriver, setThirdPartyDriver] = useState("");
   const [thirdPartyInsurance, setThirdPartyInsurance] = useState("");
   const [photos, setPhotos] = useState([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleAddPhoto = () => {
-    setPhotos((prev) => [
-      ...prev,
-      "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
-    ]);
+  const handleAddPhoto = async () => {
+    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert("Permiso requerido", "Necesitamos acceso a tus fotos para adjuntar el daño.");
+      return;
+    }
+    const resultado = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+    });
+    if (resultado.canceled || !resultado.assets?.length) return;
+
+    setUploadingPhoto(true);
+    try {
+      const asset = resultado.assets[0];
+      const filename = asset.fileName || `siniestro-${Date.now()}.jpg`;
+      const subida = await ApiClient.subirArchivoStorage(asset.uri, filename, "evidencias");
+      setPhotos((prev) => [...prev, subida.url]);
+    } catch (err) {
+      Alert.alert("No se pudo subir la foto", err.message);
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
-  const handleSubmitClaim = () => {
+  const handleLlamarCarabineros = () => {
+    Linking.openURL("tel:133");
+  };
+
+  const handleSubmitClaim = async () => {
     if (!description.trim()) {
       Alert.alert("Campo Requerido", "Por favor describe brevemente lo sucedido.");
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const detalle = [
+        `Tipo: ${INCIDENT_LABELS[incidentType]}`,
+        activeReservation?.id ? `Reserva: ${activeReservation.id}` : null,
+        `Descripción: ${description.trim()}`,
+        thirdPartyPlate ? `Patente tercero: ${thirdPartyPlate}` : null,
+        thirdPartyDriver ? `Conductor tercero: ${thirdPartyDriver}` : null,
+        thirdPartyInsurance ? `Aseguradora tercero: ${thirdPartyInsurance}` : null,
+        photos.length ? `Fotos adjuntas: ${photos.join(", ")}` : "Sin fotos adjuntas",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const ticket = await ApiClient.crearTicketSoporte(
+        "Auxilio en ruta / Siniestro",
+        detalle
+      );
       setLoading(false);
       Alert.alert(
-        "Reporte de Siniestro Ingresado",
-        "Folio de siniestro #CLM-2026-99 creado. El equipo de siniestros de Arrienda Tu Auto ha notificado a la aseguradora y despachado el móvil de asistencia.",
+        "Reporte Ingresado",
+        `Ticket #${ticket.id.slice(0, 8).toUpperCase()} creado. El equipo de soporte revisará tu caso y coordinará auxilio y/o la aseguradora.`,
         [{ text: "Entendido", onPress: onComplete || onBack }]
       );
-    }, 700);
+    } catch (err) {
+      setLoading(false);
+      Alert.alert("No se pudo enviar el reporte", err.message);
+    }
   };
 
   return (
@@ -71,26 +122,28 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
         <View style={styles.emergencyButtonsRow}>
           <TouchableOpacity
             style={styles.emergencyBtnRed}
-            onPress={() =>
-              Alert.alert(
-                "Despachar Grúa 24/7",
-                "Móvil de auxilio y remolque despachado a tu ubicación en Los Ángeles."
-              )
-            }
+            onPress={async () => {
+              try {
+                await ApiClient.crearTicketSoporte(
+                  "Solicitud de grúa urgente",
+                  `Solicitud de grúa/auxilio mecánico.${
+                    activeReservation?.id ? ` Reserva: ${activeReservation.id}.` : ""
+                  } Tipo de incidente: ${INCIDENT_LABELS[incidentType]}.`
+                );
+                Alert.alert(
+                  "Solicitud enviada",
+                  "Se notificó al equipo de soporte para coordinar la grúa. Te contactarán a la brevedad."
+                );
+              } catch (err) {
+                Alert.alert("No se pudo enviar la solicitud", err.message);
+              }
+            }}
           >
             <Icon name="shield" size={14} color={colors.textWhite} style={{ marginRight: 6 }} />
             <Text style={styles.emergencyBtnText}>Solicitar Grúa</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.emergencyBtnBlue}
-            onPress={() =>
-              Alert.alert(
-                "Llamando 133",
-                "Conectando con Central de Comunicaciones de Carabineros de Chile..."
-              )
-            }
-          >
+          <TouchableOpacity style={styles.emergencyBtnBlue} onPress={handleLlamarCarabineros}>
             <Icon name="shield" size={14} color={colors.textWhite} style={{ marginRight: 6 }} />
             <Text style={styles.emergencyBtnText}>Carabineros (133)</Text>
           </TouchableOpacity>
@@ -196,8 +249,12 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
               <Image source={{ uri: p }} style={styles.photoImg} />
             </View>
           ))}
-          <TouchableOpacity style={styles.addPhotoBox} onPress={handleAddPhoto}>
-            <Text style={styles.addPhotoText}>+ Foto</Text>
+          <TouchableOpacity style={styles.addPhotoBox} onPress={handleAddPhoto} disabled={uploadingPhoto}>
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.addPhotoText}>+ Foto</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>

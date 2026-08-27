@@ -13,7 +13,6 @@ import { colors, useApp, Icon } from "@rentacar/mobile-shared";
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
 import { MapExploreScreen } from "./screens/MapExploreScreen";
 import { CarDetailScreen } from "./screens/CarDetailScreen";
-import { EnrolmentScreen } from "./screens/EnrolmentScreen";
 import { ActiveRentalScreen } from "./screens/ActiveRentalScreen";
 import { ExtendRentalScreen } from "./screens/ExtendRentalScreen";
 import { RentalHistoryScreen } from "./screens/RentalHistoryScreen";
@@ -29,6 +28,7 @@ import {
   NotificationsScreen,
   SupportScreen,
   ContractModal,
+  KycScreen,
 } from "@rentacar/mobile-shared";
 
 export function RenterApp() {
@@ -54,10 +54,13 @@ export function RenterApp() {
 
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
-    // 1. Verificación de Identidad KYC
+    // 1. Verificación de Identidad KYC (captura y sube documentos reales,
+    // llama al OCR y a completarEnrolamiento; mismo componente que usa el
+    // registro inicial en AuthFlow)
     if (showEnrolment) {
       return (
-        <EnrolmentScreen
+        <KycScreen
+          role="renter"
           onBack={() => setShowEnrolment(false)}
           onComplete={() => setShowEnrolment(false)}
         />

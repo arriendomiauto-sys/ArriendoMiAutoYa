@@ -118,6 +118,12 @@ export class ApiClient {
     });
   }
 
+  static async actualizarEstadoReserva(reservaId, nuevoEstado) {
+    return this.request(`/reservas/${reservaId}/estado?nuevo_estado=${nuevoEstado}`, {
+      method: "PATCH",
+    });
+  }
+
   // Enrolamiento / KYC
   static async verifyKyc(kycData) {
     return this.request("/enrolamiento/procesar-documentos", {
@@ -156,6 +162,30 @@ export class ApiClient {
     return this.request(`/entrega/${reservaId}/checklist`, {
       method: "POST",
       body: JSON.stringify(checklistData),
+    });
+  }
+
+  // Calificaciones (sistema bidireccional dueño/cliente)
+  static async getCalificaciones(destinatarioId) {
+    try {
+      return await this.request(`/calificaciones?destinatario_id=${destinatarioId}`);
+    } catch {
+      return [];
+    }
+  }
+
+  static async crearCalificacion(data) {
+    return this.request("/calificaciones", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Soporte (tickets)
+  static async crearTicketSoporte(asunto, descripcion) {
+    return this.request("/soporte/tickets", {
+      method: "POST",
+      body: JSON.stringify({ asunto, descripcion }),
     });
   }
 

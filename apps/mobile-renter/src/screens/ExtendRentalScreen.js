@@ -15,20 +15,9 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
   const [extraDays, setExtraDays] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const reservation = activeReservation || {
-    id: "reserva-demo-1",
-    auto: {
-      marca: "Toyota",
-      modelo: "RAV4 Limited 4x4",
-      patente: "BBCL-10",
-      tarifa_dia: 38000,
-    },
-    fecha_fin: "2026-08-18T18:00:00.000Z",
-    monto_hold: 114000,
-  };
-
-  const auto = reservation.auto || { marca: "Toyota", modelo: "RAV4", tarifa_dia: 38000 };
-  const tarifaDia = auto.tarifa_dia || 38000;
+  const reservation = activeReservation || {};
+  const auto = reservation.auto || {};
+  const tarifaDia = auto.tarifa_dia || 0;
   const montoAdicional = tarifaDia * extraDays;
 
   const currentEndDate = new Date(reservation.fecha_fin || Date.now() + 2 * 86400000);
@@ -73,7 +62,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
             <Text style={styles.carName}>
               {auto.marca} {auto.modelo}
             </Text>
-            <Text style={styles.carPatente}>Patente: {auto.patente || "BBCL-10"}</Text>
+            <Text style={styles.carPatente}>Patente: {auto.patente || "—"}</Text>
           </View>
           <View style={styles.rateBadge}>
             <Text style={styles.rateText}>${tarifaDia.toLocaleString("es-CL")} CLP / día</Text>
