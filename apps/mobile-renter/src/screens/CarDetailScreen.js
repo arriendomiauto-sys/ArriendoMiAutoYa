@@ -9,7 +9,6 @@ import {
   TextInput,
   SafeAreaView,
   StatusBar,
-  Alert,
 } from "react-native";
 import { colors, Icon } from "@rentacar/mobile-shared";
 

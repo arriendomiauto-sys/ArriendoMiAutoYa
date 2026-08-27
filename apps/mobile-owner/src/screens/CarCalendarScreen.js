@@ -5,10 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from "react-native";
-import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -48,7 +47,7 @@ export function CarCalendarScreen({ car, onBack }) {
       setReservas((todasReservas || []).filter((r) => r.auto_id === selectedCarId));
       setBloqueos(bloqueosData || []);
     } catch (err) {
-      Alert.alert("No se pudo cargar el calendario", err.message);
+      showAlert("No se pudo cargar el calendario", err.message);
     } finally {
       setLoading(false);
     }
@@ -79,7 +78,7 @@ export function CarCalendarScreen({ car, onBack }) {
   const toggleDayState = async (day) => {
     const estado = estadoDelDia(day);
     if (estado === "booked") {
-      Alert.alert("Día con Arriendo Activo", "Este día cuenta con una reserva confirmada y no puede ser bloqueado.");
+      showAlert("Día con Arriendo Activo", "Este día cuenta con una reserva confirmada y no puede ser bloqueado.");
       return;
     }
     const fecha = new Date(anio, mes, day);
@@ -90,7 +89,7 @@ export function CarCalendarScreen({ car, onBack }) {
         await ApiClient.eliminarBloqueoCalendario(estado.bloqueo.id);
         setBloqueos((prev) => prev.filter((b) => b.id !== estado.bloqueo.id));
       } catch (err) {
-        Alert.alert("No se pudo desbloquear", err.message);
+        showAlert("No se pudo desbloquear", err.message);
       }
       return;
     }
@@ -99,7 +98,7 @@ export function CarCalendarScreen({ car, onBack }) {
       const nuevo = await ApiClient.crearBloqueoCalendario(selectedCarId, fecha.toISOString(), "Uso personal");
       setBloqueos((prev) => [...prev, nuevo]);
     } catch (err) {
-      Alert.alert("No se pudo bloquear el día", err.message);
+      showAlert("No se pudo bloquear el día", err.message);
     }
   };
 

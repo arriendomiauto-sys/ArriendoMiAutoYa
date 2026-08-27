@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   Modal,
   Linking,
-  Alert,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { useApp } from "../context/AppContext";
 import { Icon } from "../components/Icon";
 import { ApiClient } from "../api/client";
+import { showAlert } from "../utils/alert";
 
 export function ContractModal({ visible, onClose, reservation }) {
   const { currentUser } = useApp();
@@ -23,7 +23,7 @@ export function ContractModal({ visible, onClose, reservation }) {
       const url = URL.createObjectURL(blob);
       Linking.openURL(url);
     } catch (err) {
-      Alert.alert("No se pudo abrir el contrato", err.message);
+      showAlert("No se pudo abrir el contrato", err.message);
     }
   };
 

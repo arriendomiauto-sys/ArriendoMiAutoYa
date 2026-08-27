@@ -6,11 +6,10 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
-  Alert,
   SafeAreaView,
   StatusBar,
 } from "react-native";
-import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function OwnerProfileScreen({
   onOpenMyCars,
@@ -37,7 +36,7 @@ export function OwnerProfileScreen({
       : null;
 
   const handleLogout = () => {
-    Alert.alert("Cerrar Sesión", "¿Seguro que deseas salir de tu cuenta de dueño?", [
+    showAlert("Cerrar Sesión", "¿Seguro que deseas salir de tu cuenta de dueño?", [
       { text: "Cancelar", style: "cancel" },
       { text: "Cerrar Sesión", style: "destructive", onPress: logout },
     ]);

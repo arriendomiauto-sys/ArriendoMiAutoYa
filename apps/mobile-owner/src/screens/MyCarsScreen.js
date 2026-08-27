@@ -9,9 +9,8 @@ import {
   Image,
   Modal,
   TextInput,
-  Alert,
 } from "react-native";
-import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance }) {
   const { cars, setCars } = useApp();
@@ -27,7 +26,7 @@ export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance })
       await ApiClient.actualizarAuto(car.id, { estado: nuevoEstado });
     } catch (err) {
       setCars((prev) => prev.map((c) => (c.id === car.id ? { ...c, estado: car.estado } : c)));
-      Alert.alert("No se pudo actualizar", err.message);
+      showAlert("No se pudo actualizar", err.message);
     }
   };
 
@@ -40,7 +39,7 @@ export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance })
     if (!editingCar || !newTarifa) return;
     const tarifaNum = parseInt(newTarifa, 10);
     if (isNaN(tarifaNum) || tarifaNum < 15000) {
-      Alert.alert("Tarifa Inválida", "La tarifa mínima sugerida es de $15.000 CLP/día.");
+      showAlert("Tarifa Inválida", "La tarifa mínima sugerida es de $15.000 CLP/día.");
       return;
     }
     setSaving(true);
@@ -48,9 +47,9 @@ export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance })
       const actualizado = await ApiClient.actualizarAuto(editingCar.id, { tarifa_dia: tarifaNum });
       setCars((prev) => prev.map((c) => (c.id === editingCar.id ? actualizado : c)));
       setEditingCar(null);
-      Alert.alert("Tarifa Actualizada", `Nueva tarifa diaria: $${tarifaNum.toLocaleString("es-CL")} CLP.`);
+      showAlert("Tarifa Actualizada", `Nueva tarifa diaria: $${tarifaNum.toLocaleString("es-CL")} CLP.`);
     } catch (err) {
-      Alert.alert("No se pudo guardar la tarifa", err.message);
+      showAlert("No se pudo guardar la tarifa", err.message);
     } finally {
       setSaving(false);
     }

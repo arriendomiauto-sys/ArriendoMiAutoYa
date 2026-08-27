@@ -9,13 +9,13 @@ import {
   StatusBar,
   TextInput,
   Image,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { colors } from "../theme/colors";
 import { Icon } from "../components/Icon";
 import { ApiClient } from "../api/client";
+import { showAlert } from "../utils/alert";
 
 const ANGLES = [
   { id: 1, name: "Frontal", desc: "Parte delantera completa" },
@@ -83,7 +83,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
     try {
       const resultado = await ApiClient.validarCodigoQR(codigoInput.trim());
       if (reservaIdActiva && resultado.reserva_id !== reservaIdActiva) {
-        Alert.alert(
+        showAlert(
           "Código de otra reserva",
           "Este código corresponde a una reserva distinta a la que abriste. Verifica con el cliente."
         );
@@ -93,7 +93,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       setReservaIdActiva(resultado.reserva_id);
       setStage("06_confirm");
     } catch (error) {
-      Alert.alert("Código inválido", error.message);
+      showAlert("Código inválido", error.message);
     } finally {
       setValidando(false);
     }
@@ -107,12 +107,12 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
         tipo: tipo === "antes" ? "entrega" : "devolucion",
       });
       if (resultado.siguiente_paso !== "checklist_fotos") {
-        Alert.alert("No se pudo continuar", resultado.mensaje);
+        showAlert("No se pudo continuar", resultado.mensaje);
         return;
       }
       setStage(tipo === "antes" ? "20_camera" : "25_return_cam");
     } catch (error) {
-      Alert.alert("Error", error.message);
+      showAlert("Error", error.message);
     } finally {
       setConfirmando(false);
     }
@@ -120,7 +120,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   const handleRechazarIdentidad = async () => {
     if (!motivoRechazo.trim()) {
-      Alert.alert("Motivo requerido", "Describe brevemente por qué no coincide la identidad.");
+      showAlert("Motivo requerido", "Describe brevemente por qué no coincide la identidad.");
       return;
     }
     setConfirmando(true);
@@ -130,13 +130,13 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
         tipo: tipo === "antes" ? "entrega" : "devolucion",
         motivo_rechazo: motivoRechazo.trim(),
       });
-      Alert.alert(
+      showAlert(
         "Identidad rechazada",
         "Se bloqueó la reserva y se abrió una disputa formal para revisión de soporte/admin.",
         [{ text: "Entendido", onPress: onCompleteDelivery }]
       );
     } catch (error) {
-      Alert.alert("Error", error.message);
+      showAlert("Error", error.message);
     } finally {
       setConfirmando(false);
     }
@@ -145,7 +145,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   const handleTomarFoto = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
-      Alert.alert("Permiso requerido", "Necesitamos acceso a tus fotos para el checklist.");
+      showAlert("Permiso requerido", "Necesitamos acceso a tus fotos para el checklist.");
       return;
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({
@@ -162,7 +162,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       setFotos((prev) => [...prev, subida.url]);
       setCurrentAngleIdx((prev) => Math.min(ANGLES.length - 1, prev + 1));
     } catch (error) {
-      Alert.alert("Error al subir foto", error.message);
+      showAlert("Error al subir foto", error.message);
     } finally {
       setSubiendoFoto(false);
     }
@@ -172,7 +172,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   const handleContinuarMetricas = () => {
     if (!km.trim()) {
-      Alert.alert("Kilometraje requerido", "Ingresa el kilometraje actual del vehículo.");
+      showAlert("Kilometraje requerido", "Ingresa el kilometraje actual del vehículo.");
       return;
     }
     setStage(tipo === "antes" ? "23_signature" : "26_compare");
@@ -191,7 +191,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       setResultadoChecklist(resultado);
       setStage(tipo === "antes" ? "24_signed" : "28_done");
     } catch (error) {
-      Alert.alert("No se pudo registrar el checklist", error.message);
+      showAlert("No se pudo registrar el checklist", error.message);
     } finally {
       setEnviandoChecklist(false);
     }
@@ -210,7 +210,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       });
       setCalificacionEnviada(true);
     } catch (error) {
-      Alert.alert("No se pudo enviar la calificación", error.message);
+      showAlert("No se pudo enviar la calificación", error.message);
     } finally {
       setEnviandoCalificacion(false);
     }

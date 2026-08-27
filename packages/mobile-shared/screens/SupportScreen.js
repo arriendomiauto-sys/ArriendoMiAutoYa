@@ -6,10 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { Icon } from "../components/Icon";
+import { showAlert } from "../utils/alert";
 
 const FAQ_ITEMS = [
   {
@@ -93,10 +93,10 @@ export function SupportScreen({ onBack, variant = "renter" }) {
 
   const handleSendTicket = () => {
     if (!ticketSubject || !ticketDescription) {
-      Alert.alert("Campos Requeridos", "Por favor completa el asunto y la descripción.");
+      showAlert("Campos Requeridos", "Por favor completa el asunto y la descripción.");
       return;
     }
-    Alert.alert(
+    showAlert(
       "Ticket Creado",
       "Tu requerimiento ha sido registrado con el folio #TK-" + Math.floor(1000 + Math.random() * 9000) + ". Te responderemos por email y notificación."
     );
@@ -216,7 +216,7 @@ export function SupportScreen({ onBack, variant = "renter" }) {
             <TouchableOpacity
               style={styles.contactRow}
               onPress={() =>
-                Alert.alert(
+                showAlert(
                   "WhatsApp de Soporte",
                   "Abriendo chat directo con ejecutivo en Los Ángeles (+56 9 8765 4321)..."
                 )
@@ -231,7 +231,7 @@ export function SupportScreen({ onBack, variant = "renter" }) {
             <TouchableOpacity
               style={styles.contactRow}
               onPress={() =>
-                Alert.alert(
+                showAlert(
                   "Central de Emergencias",
                   "Conectando con auxilio en ruta y grúa 24/7..."
                 )

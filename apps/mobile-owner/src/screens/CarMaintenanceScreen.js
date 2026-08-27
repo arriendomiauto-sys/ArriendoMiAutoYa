@@ -5,12 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Modal,
   TextInput,
   ActivityIndicator,
 } from "react-native";
-import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 function formatearFecha(iso) {
   if (!iso) return null;
@@ -56,7 +55,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
 
   const handleGuardar = async () => {
     if (!formNombre.trim()) {
-      Alert.alert("Nombre requerido", "Ingresa el nombre del documento o servicio.");
+      showAlert("Nombre requerido", "Ingresa el nombre del documento o servicio.");
       return;
     }
     setSaving(true);
@@ -75,7 +74,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
       setFormNotas("");
       cargar();
     } catch (err) {
-      Alert.alert("No se pudo guardar", err.message);
+      showAlert("No se pudo guardar", err.message);
     } finally {
       setSaving(false);
     }

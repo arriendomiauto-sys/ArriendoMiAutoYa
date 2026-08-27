@@ -6,13 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   Image,
   ActivityIndicator,
   Linking,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 const INCIDENT_LABELS = {
   colision: "Colisión / Choque",
@@ -35,7 +34,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   const handleAddPhoto = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
-      Alert.alert("Permiso requerido", "Necesitamos acceso a tus fotos para adjuntar el daño.");
+      showAlert("Permiso requerido", "Necesitamos acceso a tus fotos para adjuntar el daño.");
       return;
     }
     const resultado = await ImagePicker.launchImageLibraryAsync({
@@ -51,7 +50,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
       const subida = await ApiClient.subirArchivoStorage(asset.uri, filename, "evidencias");
       setPhotos((prev) => [...prev, subida.url]);
     } catch (err) {
-      Alert.alert("No se pudo subir la foto", err.message);
+      showAlert("No se pudo subir la foto", err.message);
     } finally {
       setUploadingPhoto(false);
     }
@@ -63,7 +62,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
 
   const handleSubmitClaim = async () => {
     if (!description.trim()) {
-      Alert.alert("Campo Requerido", "Por favor describe brevemente lo sucedido.");
+      showAlert("Campo Requerido", "Por favor describe brevemente lo sucedido.");
       return;
     }
 
@@ -86,14 +85,14 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
         detalle
       );
       setLoading(false);
-      Alert.alert(
+      showAlert(
         "Reporte Ingresado",
         `Ticket #${ticket.id.slice(0, 8).toUpperCase()} creado. El equipo de soporte revisará tu caso y coordinará auxilio y/o la aseguradora.`,
         [{ text: "Entendido", onPress: onComplete || onBack }]
       );
     } catch (err) {
       setLoading(false);
-      Alert.alert("No se pudo enviar el reporte", err.message);
+      showAlert("No se pudo enviar el reporte", err.message);
     }
   };
 
@@ -130,12 +129,12 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
                     activeReservation?.id ? ` Reserva: ${activeReservation.id}.` : ""
                   } Tipo de incidente: ${INCIDENT_LABELS[incidentType]}.`
                 );
-                Alert.alert(
+                showAlert(
                   "Solicitud enviada",
                   "Se notificó al equipo de soporte para coordinar la grúa. Te contactarán a la brevedad."
                 );
               } catch (err) {
-                Alert.alert("No se pudo enviar la solicitud", err.message);
+                showAlert("No se pudo enviar la solicitud", err.message);
               }
             }}
           >

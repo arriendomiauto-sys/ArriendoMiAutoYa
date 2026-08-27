@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
@@ -14,6 +13,7 @@ import {
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
+import { showAlert } from "../../utils/alert";
 
 // El rol ya no se elige aquí con un toggle "TIPO DE CUENTA": cada app
 // (mobile-owner / mobile-renter) es un binario dedicado a un solo rol, que
@@ -42,31 +42,31 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
 
   const handleRegister = async () => {
     if (!form.nombre.trim()) {
-      Alert.alert("Campo requerido", "Por favor ingresa tu nombre completo.");
+      showAlert("Campo requerido", "Por favor ingresa tu nombre completo.");
       return;
     }
     if (!form.rut.trim()) {
-      Alert.alert("Campo requerido", "Por favor ingresa tu RUT chileno.");
+      showAlert("Campo requerido", "Por favor ingresa tu RUT chileno.");
       return;
     }
     if (!form.email.trim()) {
-      Alert.alert("Campo requerido", "Por favor ingresa tu correo electrónico.");
+      showAlert("Campo requerido", "Por favor ingresa tu correo electrónico.");
       return;
     }
     if (!form.telefono.trim()) {
-      Alert.alert("Campo requerido", "Por favor ingresa tu número de teléfono móvil.");
+      showAlert("Campo requerido", "Por favor ingresa tu número de teléfono móvil.");
       return;
     }
     if (!form.password || form.password.length < 6) {
-      Alert.alert("Contraseña débil", "La clave debe tener al menos 6 caracteres.");
+      showAlert("Contraseña débil", "La clave debe tener al menos 6 caracteres.");
       return;
     }
     if (form.password !== form.confirmPassword) {
-      Alert.alert("Error", "Las contraseñas no coinciden.");
+      showAlert("Error", "Las contraseñas no coinciden.");
       return;
     }
     if (!acceptedTerms) {
-      Alert.alert(
+      showAlert(
         "Términos requeridos",
         "Debes aceptar los términos y condiciones y declarar tener 22 años o más."
       );
@@ -99,7 +99,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         onNavigate("confirm_email", prefillData);
       }
     } catch (err) {
-      Alert.alert("No se pudo crear la cuenta", err.message);
+      showAlert("No se pudo crear la cuenta", err.message);
     } finally {
       setLoading(false);
     }

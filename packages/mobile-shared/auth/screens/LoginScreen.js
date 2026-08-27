@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
@@ -14,6 +13,7 @@ import {
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
+import { showAlert } from "../../utils/alert";
 
 // El login ya no tiene un selector de rol: AppContext determina quién es el
 // usuario a partir de su token de sesión, sin importar en qué app inició.
@@ -46,7 +46,7 @@ export function LoginScreen({ onNavigate }) {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Campos requeridos", "Ingresa tu correo y tu contraseña.");
+      showAlert("Campos requeridos", "Ingresa tu correo y tu contraseña.");
       return;
     }
     setLoading(true);
@@ -54,7 +54,7 @@ export function LoginScreen({ onNavigate }) {
       await login(email, password);
       setPendingProfileCheck(true);
     } catch (err) {
-      Alert.alert("No se pudo iniciar sesión", err.message);
+      showAlert("No se pudo iniciar sesión", err.message);
     } finally {
       setLoading(false);
     }

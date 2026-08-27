@@ -6,10 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
 } from "react-native";
-import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 const MOTIVO_LABELS = {
   multa_tag: "Peaje / TAG",
@@ -34,7 +33,7 @@ export function DisputesScreen({ onBack }) {
 
   const handleCrearDisputa = async () => {
     if (!montoReclamo || !descripcion) {
-      Alert.alert("Campos requeridos", "Ingresa el monto del cobro y la descripción.");
+      showAlert("Campos requeridos", "Ingresa el monto del cobro y la descripción.");
       return;
     }
     setEnviando(true);
@@ -58,13 +57,13 @@ export function DisputesScreen({ onBack }) {
       setFolioMulta("");
       setReservaId("");
       setDescripcion("");
-      Alert.alert(
+      showAlert(
         "Reclamo Ingresado",
         `Ticket #${ticket.id.slice(0, 8).toUpperCase()} creado. El equipo de soporte y mediación revisará los antecedentes contra el contrato y el checklist fotográfico.`,
         [{ text: "Entendido", onPress: () => setActiveTab("activas") }]
       );
     } catch (err) {
-      Alert.alert("No se pudo enviar el reclamo", err.message);
+      showAlert("No se pudo enviar el reclamo", err.message);
     } finally {
       setEnviando(false);
     }

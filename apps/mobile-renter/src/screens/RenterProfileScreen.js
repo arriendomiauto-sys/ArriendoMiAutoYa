@@ -6,11 +6,10 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
-  Alert,
   SafeAreaView,
   StatusBar,
 } from "react-native";
-import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function RenterProfileScreen({
   onOpenEnrolment,
@@ -38,7 +37,7 @@ export function RenterProfileScreen({
   const viajesFinalizados = (reservations || []).filter((r) => r.estado === "finalizada").length;
 
   const handleLogout = () => {
-    Alert.alert("Cerrar Sesión", "¿Seguro que deseas salir de tu cuenta?", [
+    showAlert("Cerrar Sesión", "¿Seguro que deseas salir de tu cuenta?", [
       { text: "Cancelar", style: "cancel" },
       { text: "Cerrar Sesión", style: "destructive", onPress: logout },
     ]);

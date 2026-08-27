@@ -9,9 +9,8 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
-import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function PaymentMethodsScreen({
   car,
@@ -30,7 +29,7 @@ export function PaymentMethodsScreen({
 
   const handlePay = async () => {
     if (esReservaReal && cvv.length < 3) {
-      Alert.alert("Código de seguridad requerido", "Ingresa el CVV de tu tarjeta para continuar.");
+      showAlert("Código de seguridad requerido", "Ingresa el CVV de tu tarjeta para continuar.");
       return;
     }
 
@@ -50,7 +49,7 @@ export function PaymentMethodsScreen({
       });
       onPaymentSuccess({ ...reserva, car });
     } catch (error) {
-      Alert.alert(
+      showAlert(
         "No se pudo confirmar la reserva",
         error.message || "Intenta nuevamente en unos segundos."
       );

@@ -6,12 +6,11 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   Image,
   ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { colors, Icon, useApp, ApiClient } from "@rentacar/mobile-shared";
+import { colors, Icon, useApp, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function AddEditCarScreen({ onBack, onComplete }) {
   const { addCar, currentUser } = useApp();
@@ -42,7 +41,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   const handleNext = () => {
     if (step === 1) {
       if (!form.marca || !form.modelo || !form.patente) {
-        Alert.alert("Campos Requeridos", "Ingresa la marca, modelo y placa patente.");
+        showAlert("Campos Requeridos", "Ingresa la marca, modelo y placa patente.");
         return;
       }
       setStep(2);
@@ -56,7 +55,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   const handleAddPhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Permiso Requerido", "Necesitamos acceso a tus fotos para subir imágenes del vehículo.");
+      showAlert("Permiso Requerido", "Necesitamos acceso a tus fotos para subir imágenes del vehículo.");
       return;
     }
 
@@ -73,7 +72,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
       const uploaded = await ApiClient.subirArchivoStorage(asset.uri, filename, "autos");
       setForm((prev) => ({ ...prev, fotos: [...prev.fotos, uploaded.url] }));
     } catch (error) {
-      Alert.alert("Error al Subir Foto", error.message);
+      showAlert("Error al Subir Foto", error.message);
     } finally {
       setUploadingPhoto(false);
     }
@@ -85,7 +84,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
   const handleSubmit = async () => {
     if (form.fotos.length < 2) {
-      Alert.alert("Fotos Requeridas", "Sube al menos 2 fotos del vehículo antes de publicar.");
+      showAlert("Fotos Requeridas", "Sube al menos 2 fotos del vehículo antes de publicar.");
       setStep(3);
       return;
     }
@@ -104,13 +103,13 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
       await addCar(nuevoAuto);
 
-      Alert.alert(
+      showAlert(
         "Vehículo Publicado",
         `Tu ${form.marca} ${form.modelo} (${form.patente.toUpperCase()}) ya está disponible para recibir arriendos en Los Ángeles.`,
         [{ text: "Ver en mi Flota", onPress: onComplete }]
       );
     } catch (error) {
-      Alert.alert("Error", error.message);
+      showAlert("Error", error.message);
     } finally {
       setLoading(false);
     }

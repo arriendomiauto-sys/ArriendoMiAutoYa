@@ -8,9 +8,8 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
-import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function CancelReservationModal({
   reservation,
@@ -35,7 +34,7 @@ export function CancelReservationModal({
       const actualizada = await ApiClient.actualizarEstadoReserva(reservation.id, "cancelada");
       onConfirmCancel(actualizada);
     } catch (err) {
-      Alert.alert("No se pudo cancelar", err.message);
+      showAlert("No se pudo cancelar", err.message);
     } finally {
       setCancelling(false);
     }

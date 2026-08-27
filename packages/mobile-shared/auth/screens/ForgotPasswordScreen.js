@@ -6,12 +6,12 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   StatusBar,
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { Icon } from "../../components/Icon";
+import { showAlert } from "../../utils/alert";
 
 export function ForgotPasswordScreen({ onNavigate }) {
   const [step, setStep] = useState(1);
@@ -23,14 +23,14 @@ export function ForgotPasswordScreen({ onNavigate }) {
 
   const handleSendOtp = () => {
     if (!emailOrRut) {
-      Alert.alert("Campo Requerido", "Ingresa tu email o RUT registrado.");
+      showAlert("Campo Requerido", "Ingresa tu email o RUT registrado.");
       return;
     }
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
       setStep(2);
-      Alert.alert(
+      showAlert(
         "Código Enviado",
         "Hemos enviado un código SMS de 4 dígitos a tu número registrado (+56 9 **** 4321)."
       );
@@ -39,7 +39,7 @@ export function ForgotPasswordScreen({ onNavigate }) {
 
   const handleVerifyOtp = () => {
     if (otp.length < 4) {
-      Alert.alert("Código Incompleto", "Ingresa el código de 4 dígitos.");
+      showAlert("Código Incompleto", "Ingresa el código de 4 dígitos.");
       return;
     }
     setLoading(true);
@@ -51,11 +51,11 @@ export function ForgotPasswordScreen({ onNavigate }) {
 
   const handleResetPassword = () => {
     if (!newPassword || newPassword.length < 6) {
-      Alert.alert("Contraseña Débil", "La nueva clave debe tener al menos 6 caracteres.");
+      showAlert("Contraseña Débil", "La nueva clave debe tener al menos 6 caracteres.");
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Las contraseñas no coinciden.");
+      showAlert("Error", "Las contraseñas no coinciden.");
       return;
     }
 

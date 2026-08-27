@@ -9,13 +9,13 @@ import {
   ActivityIndicator,
   ScrollView,
   TextInput,
-  Alert,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
 import { ApiClient } from "../../api/client";
+import { showAlert } from "../../utils/alert";
 
 // Valida un RUT chileno con el dígito verificador Módulo 11.
 function isRutValid(rutRaw) {
@@ -65,7 +65,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const captureAndUpload = async (filenamePrefix, bucket = "documentos-kyc") => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
+      showAlert(
         "Permiso requerido",
         "Activa el acceso a la cámara para continuar con la verificación de identidad."
       );
@@ -100,7 +100,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         setCurrentStep(isDriver ? "03_facial" : "02_licencia");
       }
     } catch (err) {
-      Alert.alert("No se pudo subir el documento", err.message);
+      showAlert("No se pudo subir el documento", err.message);
     } finally {
       setCapturing(false);
     }
@@ -113,7 +113,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       if (url) setLicenciaUrl(url);
       setCurrentStep("03_facial");
     } catch (err) {
-      Alert.alert("No se pudo subir la licencia", err.message);
+      showAlert("No se pudo subir la licencia", err.message);
       setCurrentStep("03_facial");
     } finally {
       setCapturing(false);
@@ -139,11 +139,11 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
 
   const handleApprove = async () => {
     if (!nombre.trim() || !rut.trim()) {
-      Alert.alert("Datos incompletos", "Ingresa tu nombre completo y tu RUT para continuar.");
+      showAlert("Datos incompletos", "Ingresa tu nombre completo y tu RUT para continuar.");
       return;
     }
     if (!isRutValid(rut)) {
-      Alert.alert(
+      showAlert(
         "RUT inválido",
         "Revisa el RUT ingresado: el dígito verificador no coincide (Módulo 11)."
       );
@@ -167,7 +167,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       });
       setCurrentStep("05_approved");
     } catch (err) {
-      Alert.alert("No se pudo completar la verificación", err.message);
+      showAlert("No se pudo completar la verificación", err.message);
     } finally {
       setSubmitting(false);
     }

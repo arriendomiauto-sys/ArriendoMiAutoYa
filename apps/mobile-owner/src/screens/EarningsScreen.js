@@ -7,9 +7,8 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, showAlert } from "@rentacar/mobile-shared";
 
 export function EarningsScreen() {
   const { bankAccount, setBankAccount } = useApp();
@@ -24,7 +23,7 @@ export function EarningsScreen() {
 
   const handleSaveBank = () => {
     if (!numeroCuenta || !titular || !rutTitular) {
-      Alert.alert("Datos Incompletos", "Por favor completa todos los datos bancarios.");
+      showAlert("Datos Incompletos", "Por favor completa todos los datos bancarios.");
       return;
     }
     setBankAccount({
@@ -35,11 +34,11 @@ export function EarningsScreen() {
       rut: rutTitular,
     });
     setBankModalVisible(false);
-    Alert.alert("Cuenta Guardada", "Tus transferencias semanales se depositarán en esta cuenta.");
+    showAlert("Cuenta Guardada", "Tus transferencias semanales se depositarán en esta cuenta.");
   };
 
   const handleRequestPayout = () => {
-    Alert.alert(
+    showAlert(
       "Solicitar Transferencia Inmediata",
       `Se transferirán $284.000 CLP netos a tu ${banco} N° ${numeroCuenta}. Plazo estimado: 15 minutos.`,
       [
@@ -47,7 +46,7 @@ export function EarningsScreen() {
         {
           text: "Confirmar Transferencia",
           onPress: () =>
-            Alert.alert("Transferencia en Proceso", "Comprobante emitido. Los fondos llegarán a tu cuenta bancaria."),
+            showAlert("Transferencia en Proceso", "Comprobante emitido. Los fondos llegarán a tu cuenta bancaria."),
         },
       ]
     );

@@ -5,10 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from "react-native";
-import { colors, useApp, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function ExtendRentalScreen({ onBack, onComplete }) {
   const { activeReservation, setActiveReservation } = useApp();
@@ -29,13 +28,13 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
     try {
       const actualizada = await ApiClient.extenderReserva(reservation.id, extraDays);
       setActiveReservation({ ...actualizada, auto: reservation.auto });
-      Alert.alert(
+      showAlert(
         "Arriendo Extendido",
         `Tu arriendo ahora termina el ${new Date(actualizada.fecha_fin).toLocaleDateString("es-CL")}. Se retuvo un hold adicional de $${montoAdicional.toLocaleString("es-CL")} CLP.`,
         [{ text: "Entendido", onPress: onComplete || onBack }]
       );
     } catch (err) {
-      Alert.alert("No se pudo extender el arriendo", err.message);
+      showAlert("No se pudo extender el arriendo", err.message);
     } finally {
       setLoading(false);
     }
