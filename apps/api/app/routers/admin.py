@@ -100,6 +100,40 @@ def obtener_metricas(
         "total_disputas_abiertas": db.query(Disputa).filter(Disputa.estado == "abierta").count()
     }
 
+@router.get("/flota-sucursal", summary="Listar la flota de la sucursal del Manager (Admin/Manager)")
+def listar_flota_sucursal(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Autos cuyos dueños pertenecen a la misma sucursal del Manager autenticado,
+    con el nombre/RUT del dueño incluido (visible solo para Admin/Manager).
+    Un Admin ve la flota completa de la plataforma.
+    """
+    roles = current_user.roles_activos or []
+    if "admin" not in roles and "manager" not in roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin o Manager.")
+
+    query = db.query(Auto).join(Usuario, Auto.dueno_id == Usuario.id)
+    if "admin" not in roles:
+        query = query.filter(Usuario.sucursal_id == current_user.sucursal_id)
+
+    return [
+        {
+            "id": auto.id,
+            "marca": auto.marca,
+            "modelo": auto.modelo,
+            "anio": auto.anio,
+            "patente": auto.patente,
+            "tarifa_dia": auto.tarifa_dia,
+            "estado": auto.estado,
+            "ubicacion_base": auto.ubicacion_base,
+            "dueno_nombre": auto.dueno.nombre,
+            "dueno_rut": auto.dueno.rut,
+        }
+        for auto in query.all()
+    ]
+
 @router.get("/documentos/pendientes", response_model=List[UserOut], summary="Listar usuarios con documentos que requieren revisión manual (Admin/Manager RF-27)")
 def listar_documentos_pendientes(
     db: Session = Depends(get_db),

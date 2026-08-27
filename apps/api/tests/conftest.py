@@ -69,6 +69,7 @@ def usuario_factory(db_session):
             telefono=kwargs.get("telefono"),
             roles_activos=roles_activos if roles_activos is not None else ["cliente"],
             estado_documentos=kwargs.get("estado_documentos", "verificado"),
+            sucursal_id=kwargs.get("sucursal_id"),
         )
         db_session.add(user)
         db_session.commit()

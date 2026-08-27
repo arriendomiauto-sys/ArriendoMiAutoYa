@@ -299,3 +299,49 @@ class RatingOut(BaseModel):
     puntaje: int
     comentario: Optional[str] = None
     timestamp: datetime
+
+# ==============================================================================
+# MANTENCIONES Y DOCUMENTACIÓN DEL AUTO
+# ==============================================================================
+class MaintenanceCreate(BaseModel):
+    tipo: Literal["documento_legal", "servicio_mecanico"]
+    nombre: str
+    fecha_vencimiento: Optional[datetime] = None
+    kilometraje: Optional[int] = None
+    notas: Optional[str] = None
+    documento_url: Optional[str] = None
+
+class MaintenanceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    auto_id: str
+    tipo: str
+    nombre: str
+    fecha_vencimiento: Optional[datetime] = None
+    kilometraje: Optional[int] = None
+    notas: Optional[str] = None
+    documento_url: Optional[str] = None
+    creado_en: datetime
+
+# ==============================================================================
+# CALENDARIO DE DISPONIBILIDAD DEL AUTO
+# ==============================================================================
+class CalendarBlockCreate(BaseModel):
+    fecha: datetime
+    motivo: Optional[str] = None
+
+class CalendarBlockOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    auto_id: str
+    fecha: datetime
+    motivo: Optional[str] = None
+    creado_en: datetime
+
+# ==============================================================================
+# EXTENSIÓN DE RESERVA
+# ==============================================================================
+class ExtendBookingRequest(BaseModel):
+    dias_adicionales: int = Field(..., gt=0, le=30)
