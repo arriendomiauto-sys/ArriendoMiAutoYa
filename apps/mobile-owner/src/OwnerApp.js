@@ -27,6 +27,7 @@ import { DriverBookingsScreen } from "./screens/DriverBookingsScreen";
 import { EarningsScreen } from "./screens/EarningsScreen";
 import { DisputesScreen } from "./screens/DisputesScreen";
 import { OwnerProfileScreen } from "./screens/OwnerProfileScreen";
+import { ChatListScreen } from "./screens/ChatListScreen";
 
 export function OwnerApp() {
   const { cars } = useApp();
@@ -45,6 +46,7 @@ export function OwnerApp() {
   const [showContract, setShowContract] = useState(false);
   const [selectedCarForModal, setSelectedCarForModal] = useState(null);
   const [selectedReservaForDelivery, setSelectedReservaForDelivery] = useState(null);
+  const [selectedReservaForChat, setSelectedReservaForChat] = useState(null);
 
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
@@ -122,13 +124,16 @@ export function OwnerApp() {
         );
 
       case "chat":
-        return (
-          <RentalChatScreen
-            variant="owner"
-            onBack={() => setActiveTab("cars")}
-            onOpenContract={() => setShowContract(true)}
-          />
-        );
+        if (selectedReservaForChat) {
+          return (
+            <RentalChatScreen
+              variant="owner"
+              reservation={selectedReservaForChat}
+              onBack={() => setSelectedReservaForChat(null)}
+            />
+          );
+        }
+        return <ChatListScreen onSelectReserva={setSelectedReservaForChat} />;
 
       case "profile":
         return (

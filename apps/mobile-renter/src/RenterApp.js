@@ -193,8 +193,8 @@ export function RenterApp() {
         return (
           <RentalChatScreen
             variant="renter"
+            reservation={activeReservation}
             onBack={() => setActiveTab("explore")}
-            onOpenContract={() => setShowContract(true)}
           />
         );
 

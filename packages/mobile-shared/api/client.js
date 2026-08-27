@@ -200,6 +200,18 @@ export class ApiClient {
     });
   }
 
+  // Mensajería de coordinación por reserva
+  static async getMensajes(reservaId) {
+    return this.request(`/reservas/${reservaId}/mensajes`);
+  }
+
+  static async enviarMensaje(reservaId, texto) {
+    return this.request(`/reservas/${reservaId}/mensajes`, {
+      method: "POST",
+      body: JSON.stringify({ texto }),
+    });
+  }
+
   // Calificaciones (sistema bidireccional dueño/cliente)
   static async getCalificaciones(destinatarioId) {
     try {

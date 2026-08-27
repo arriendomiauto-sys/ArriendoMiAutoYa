@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,91 +6,88 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Image,
-  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { useApp } from "../context/AppContext";
 import { Icon } from "../components/Icon";
+import { ApiClient } from "../api/client";
+
+const POLL_MS = 4000;
 
 export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const { currentUser } = useApp();
   const isDriver = variant === "owner";
 
-  const res = reservation || {
-    id: "reserva-demo-1",
-    auto: {
-      marca: "Toyota",
-      modelo: "RAV4 Limited 4x4",
-      patente: "BBCL-10",
-      ubicacion_base: "Plaza de Armas, Los Ángeles",
-    },
-    cliente_nombre: "Carlos Mendoza",
-    dueno_nombre: "Patricio Morales",
-  };
-
-  const interlocutorName = isDriver
-    ? res.cliente_nombre || "Carlos Mendoza"
-    : res.dueno_nombre || "Patricio Morales";
-
-  const interlocutorAvatar = isDriver
-    ? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400"
-    : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400";
-
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      sender: "them",
-      text: "Hola, ¿cómo estás? Te espero en la entrada principal de Plaza de Armas (frente a la Catedral) para la entrega.",
-      time: "10:14",
-    },
-    {
-      id: "2",
-      sender: "me",
-      text: "Excelente, voy en camino. Llegaré en 5 minutos con mi carnet y la app lista para el escaneo QR.",
-      time: "10:16",
-    },
-    {
-      id: "3",
-      sender: "them",
-      text: "Perfecto, el auto está limpio y con estanque 4/4 completo. Nos vemos aquí.",
-      time: "10:17",
-    },
-  ]);
-
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
 
-  const handleSend = (textToSend = inputText) => {
-    if (!textToSend.trim()) return;
-    const newMsg = {
-      id: String(Date.now()),
-      sender: "me",
-      text: textToSend,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    setMessages((prev) => [...prev, newMsg]);
+  const interlocutorLabel = isDriver ? "Arrendatario" : "Dueño del vehículo";
+  const auto = reservation?.auto || {};
+
+  const cargar = useCallback(async () => {
+    if (!reservation?.id) return;
+    try {
+      const data = await ApiClient.getMensajes(reservation.id);
+      setMessages(data || []);
+    } catch {
+      // silencioso: el polling reintenta solo
+    } finally {
+      setLoading(false);
+    }
+  }, [reservation?.id]);
+
+  useEffect(() => {
+    cargar();
+    const interval = setInterval(cargar, POLL_MS);
+    return () => clearInterval(interval);
+  }, [cargar]);
+
+  const handleSend = async () => {
+    const texto = inputText.trim();
+    if (!texto || !reservation?.id) return;
+    setSending(true);
     setInputText("");
-
-    // Simulated reply after 1s
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(Date.now() + 1),
-          sender: "them",
-          text: "Recibido, gracias por confirmar.",
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
-    }, 1200);
+    try {
+      const nuevo = await ApiClient.enviarMensaje(reservation.id, texto);
+      setMessages((prev) => [...prev, nuevo]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch {
+      setInputText(texto); // devolvemos el texto si falló el envío
+    } finally {
+      setSending(false);
+    }
   };
 
   const quickReplies = [
     "Ya llegué al punto de encuentro",
     "Estoy a 5 minutos del lugar",
-    "¿Podrías enviarme la ubicación GPS exacta?",
+    "¿Podrías enviarme la ubicación exacta?",
     "Listo para la entrega del vehículo",
   ];
+
+  if (!reservation?.id) {
+    return (
+      <View style={[styles.container, isDriver ? styles.bgDriver : styles.bgPassenger, styles.emptyCenter]}>
+        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+          <Icon name="arrow-left" size={14} color={isDriver ? colors.textWhite : colors.textDark} style={{ marginRight: 4 }} />
+          <Text style={[styles.backBtnText, isDriver ? styles.textWhite : styles.textDark]}>Volver</Text>
+        </TouchableOpacity>
+        <Icon name="chat" size={32} color={colors.textMuted} style={{ marginTop: 40 }} />
+        <Text style={[styles.emptyText, isDriver ? styles.textWhite : styles.textDark]}>
+          No tienes una conversación activa
+        </Text>
+        <Text style={styles.emptySub}>
+          {isDriver
+            ? "Selecciona una reserva desde tus solicitudes para chatear con el arrendatario."
+            : "Cuando tengas un arriendo activo o confirmado, podrás coordinar aquí con el dueño."}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, isDriver ? styles.bgDriver : styles.bgPassenger]}>
@@ -104,96 +101,72 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         </TouchableOpacity>
 
         <View style={styles.interlocutorRow}>
-          <Image source={{ uri: interlocutorAvatar }} style={styles.avatar} />
+          <View style={styles.avatarPlaceholder}>
+            <Icon name="user" size={16} color={colors.accent} />
+          </View>
           <View style={{ marginLeft: 10 }}>
             <Text style={[styles.interlocutorName, isDriver ? styles.textWhite : styles.textDark]}>
-              {interlocutorName}
+              {interlocutorLabel}
             </Text>
-            <View style={styles.statusRow}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.statusText}>En línea • {res.auto?.marca} {res.auto?.modelo}</Text>
-            </View>
+            <Text style={styles.statusText}>{auto.marca} {auto.modelo} {auto.patente ? `• ${auto.patente}` : ""}</Text>
           </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.callBtn}
-          onPress={() =>
-            Alert.alert(
-              "Llamada Segura",
-              `Conectando llamada cifrada con ${interlocutorName} vía Arrienda Tu Auto...`
-            )
-          }
-        >
-          <Icon name="key" size={14} color={colors.accent} />
-        </TouchableOpacity>
       </View>
 
       {/* Mensajes */}
       <ScrollView
+        ref={scrollRef}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
         <View style={styles.securityNotice}>
           <Icon name="shield" size={12} color={colors.textMuted} style={{ marginRight: 6 }} />
           <Text style={styles.securityText}>
-            Chat cifrado para la coordinación de la reserva {res.id?.toUpperCase() || "RES-88"}
+            Coordinación de la reserva #{reservation.id.slice(0, 8).toUpperCase()}
           </Text>
         </View>
 
-        {messages.map((m) => {
-          const isMe = m.sender === "me";
-          return (
-            <View
-              key={m.id}
-              style={[
-                styles.bubbleWrapper,
-                isMe ? styles.bubbleWrapperMe : styles.bubbleWrapperThem,
-              ]}
-            >
+        {loading ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
+        ) : messages.length === 0 ? (
+          <Text style={styles.emptyMsgText}>Aún no hay mensajes. Escribe el primero.</Text>
+        ) : (
+          messages.map((m) => {
+            const isMe = m.autor_id === currentUser?.id;
+            return (
               <View
-                style={[
-                  styles.bubble,
-                  isMe
-                    ? isDriver
-                      ? styles.bubbleMeDriver
-                      : styles.bubbleMePassenger
-                    : isDriver
-                    ? styles.bubbleThemDriver
-                    : styles.bubbleThemPassenger,
-                ]}
+                key={m.id}
+                style={[styles.bubbleWrapper, isMe ? styles.bubbleWrapperMe : styles.bubbleWrapperThem]}
               >
-                <Text
+                <View
                   style={[
-                    styles.msgText,
-                    isMe
-                      ? isDriver
-                        ? styles.msgTextMeDriver
-                        : styles.msgTextMePassenger
-                      : isDriver
-                      ? styles.msgTextThemDriver
-                      : styles.msgTextThemPassenger,
+                    styles.bubble,
+                    isMe ? (isDriver ? styles.bubbleMeDriver : styles.bubbleMePassenger) : (isDriver ? styles.bubbleThemDriver : styles.bubbleThemPassenger),
                   ]}
                 >
-                  {m.text}
-                </Text>
-                <Text
-                  style={[
-                    styles.timeText,
-                    isMe
-                      ? isDriver
-                        ? styles.timeTextMeDriver
-                        : styles.timeTextMePassenger
-                      : styles.timeTextThem,
-                  ]}
-                >
-                  {m.time}
-                </Text>
+                  <Text
+                    style={[
+                      styles.msgText,
+                      isMe ? (isDriver ? styles.msgTextMeDriver : styles.msgTextMePassenger) : (isDriver ? styles.msgTextThemDriver : styles.msgTextThemPassenger),
+                    ]}
+                  >
+                    {m.texto}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.timeText,
+                      isMe ? (isDriver ? styles.timeTextMeDriver : styles.timeTextMePassenger) : styles.timeTextThem,
+                    ]}
+                  >
+                    {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </Text>
+                </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
       </ScrollView>
 
       {/* Respuestas Rápidas */}
@@ -203,7 +176,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
             <TouchableOpacity
               key={idx}
               style={[styles.quickChip, isDriver ? styles.quickChipDriver : styles.quickChipPassenger]}
-              onPress={() => handleSend(q)}
+              onPress={() => setInputText(q)}
             >
               <Text style={[styles.quickChipText, isDriver ? styles.textSilver : styles.textSecondary]}>
                 {q}
@@ -221,13 +194,18 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
           placeholderTextColor={colors.textMuted}
           value={inputText}
           onChangeText={setInputText}
-          onSubmitEditing={() => handleSend()}
+          onSubmitEditing={handleSend}
         />
         <TouchableOpacity
           style={[styles.sendButton, isDriver ? styles.sendButtonDriver : styles.sendButtonPassenger]}
-          onPress={() => handleSend()}
+          onPress={handleSend}
+          disabled={sending || !inputText.trim()}
         >
-          <Text style={[styles.sendButtonText, isDriver && { color: colors.dark }]}>Enviar</Text>
+          {sending ? (
+            <ActivityIndicator size="small" color={isDriver ? colors.dark : "#FFFFFF"} />
+          ) : (
+            <Text style={[styles.sendButtonText, isDriver && { color: colors.dark }]}>Enviar</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -243,6 +221,28 @@ const styles = StyleSheet.create({
   },
   bgDriver: {
     backgroundColor: colors.darkBg,
+  },
+  emptyCenter: {
+    alignItems: "center",
+    padding: 24,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginTop: 14,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 19,
+  },
+  emptyMsgText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: 20,
   },
   header: {
     flexDirection: "row",
@@ -277,37 +277,24 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 4,
   },
-  avatar: {
+  avatarPlaceholder: {
     width: 34,
     height: 34,
     borderRadius: 17,
     borderWidth: 1,
     borderColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.accentMuted,
   },
   interlocutorName: {
     fontSize: 12,
     fontWeight: "800",
   },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 1,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.success,
-    marginRight: 4,
-  },
   statusText: {
     fontSize: 9,
     color: colors.textMuted,
-  },
-  callBtn: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: colors.accentMuted,
+    marginTop: 1,
   },
   messagesContainer: {
     flex: 1,
@@ -462,6 +449,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 6,
+    minWidth: 64,
+    alignItems: "center",
   },
   sendButtonPassenger: {
     backgroundColor: colors.primary,
