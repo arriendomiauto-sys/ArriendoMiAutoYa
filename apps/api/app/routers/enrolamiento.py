@@ -55,11 +55,24 @@ def completar_enrolamiento(
         rut_usuario=payload.rut
     )
 
+    # Un rechazo del OCR bloquea el enrolamiento de verdad: no se otorga el
+    # rol "cliente" ni se cobra el hold de garantía sobre documentos que la
+    # verificación marcó como no válidos.
+    if resultado_ocr.get("estado_recomendado") == "rechazado":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=resultado_ocr.get("motivo") or "No se pudo verificar tus documentos. Vuelve a tomar las fotos con buena iluminación."
+        )
+
     current_user.nombre = payload.nombre
     current_user.rut = payload.rut
     current_user.telefono = payload.telefono
+    if payload.foto_perfil_verificada_url:
+        current_user.foto_perfil_verificada_url = payload.foto_perfil_verificada_url
     current_user.confianza_ocr = resultado_ocr.get("confianza_ocr", 0.95)
     current_user.estado_documentos = resultado_ocr.get("estado_recomendado", "verificado")
+    if resultado_ocr.get("motivo"):
+        current_user.notas_auditoria = resultado_ocr["motivo"]
     
     roles = current_user.roles_activos or []
     if "cliente" not in roles:

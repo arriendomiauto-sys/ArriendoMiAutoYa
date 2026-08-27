@@ -30,6 +30,7 @@ class UserEnrolamiento(UserBase):
     carnet_frontal_url: Optional[str] = None
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None
+    foto_perfil_verificada_url: Optional[str] = None
     tarjeta_token: Optional[str] = None
 
 class UserOut(UserBase):
