@@ -106,3 +106,42 @@ def confirmar_pago_webpay(
 @router.get("/webpay/estado/{token_ws}", summary="Consulta el estado de una transacción en Webpay")
 def consultar_estado_pago(token_ws: str):
     return TransbankService.consultar_estado(token_ws)
+
+@router.get("/mis-ganancias", summary="Resumen real de ganancias y liquidaciones del dueño autenticado")
+def obtener_mis_ganancias(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Se calcula directo de los Pago tipo "liquidacion_dueno" que
+    delivery.py registra al completar el checklist de devolución — no hay
+    números de ejemplo acá, si el dueño no tiene arriendos finalizados
+    todo sale en cero.
+    """
+    pagos_liquidacion = (
+        db.query(Pago)
+        .filter(Pago.usuario_id == current_user.id, Pago.tipo == "liquidacion_dueno")
+        .order_by(Pago.timestamp.desc())
+        .all()
+    )
+
+    saldo_disponible_clp = sum(p.monto for p in pagos_liquidacion if p.estado == "pendiente")
+    total_pagado_clp = sum(p.monto for p in pagos_liquidacion if p.estado == "pagado")
+
+    historial = [
+        {
+            "id": p.id,
+            "reserva_id": p.reserva_id,
+            "monto": p.monto,
+            "estado": p.estado,
+            "timestamp": p.timestamp,
+        }
+        for p in pagos_liquidacion[:30]
+    ]
+
+    return {
+        "saldo_disponible_clp": saldo_disponible_clp,
+        "total_pagado_clp": total_pagado_clp,
+        "cantidad_liquidaciones": len(pagos_liquidacion),
+        "historial": historial,
+    }

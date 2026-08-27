@@ -44,6 +44,21 @@ class UserOut(UserBase):
     roles_activos: List[str]
     sucursal_id: Optional[str] = None
     fecha_registro: datetime
+    cuenta_bancaria: Optional[Dict[str, str]] = None
+
+class CuentaBancariaUpdate(BaseModel):
+    banco: str
+    tipo_cuenta: str
+    numero: str
+    titular: str
+    rut: str
+
+    @field_validator("rut")
+    @classmethod
+    def check_rut_titular(cls, v: str) -> str:
+        if not validar_rut_chileno(v):
+            raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
+        return v
 
 class DocumentReviewRequest(BaseModel):
     accion: Literal["aprobar", "rechazar"]

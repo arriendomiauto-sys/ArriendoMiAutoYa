@@ -25,6 +25,7 @@ class Usuario(Base):
     roles_activos = Column(JSON, default=lambda: ["cliente"]) # ["dueno", "cliente", "manager", "admin"]
     sucursal_id = Column(String, ForeignKey("sucursales.id"), nullable=True)
     fecha_registro = Column(DateTime, default=utc_now)
+    cuenta_bancaria = Column(JSON, nullable=True) # {"banco","tipo_cuenta","numero","titular","rut"} — solo dueños
 
     # Relaciones
     autos = relationship("Auto", back_populates="dueno", foreign_keys="Auto.dueno_id")
