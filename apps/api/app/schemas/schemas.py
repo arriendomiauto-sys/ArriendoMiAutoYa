@@ -345,3 +345,18 @@ class CalendarBlockOut(BaseModel):
 # ==============================================================================
 class ExtendBookingRequest(BaseModel):
     dias_adicionales: int = Field(..., gt=0, le=30)
+
+# ==============================================================================
+# MENSAJERÍA (CHAT POR RESERVA)
+# ==============================================================================
+class MessageCreate(BaseModel):
+    texto: str = Field(..., min_length=1, max_length=2000)
+
+class MessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    reserva_id: str
+    autor_id: str
+    texto: str
+    timestamp: datetime

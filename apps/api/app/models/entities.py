@@ -84,6 +84,7 @@ class Reserva(Base):
     pagos = relationship("Pago", back_populates="reserva")
     disputas = relationship("Disputa", back_populates="reserva")
     calificaciones = relationship("Calificacion", back_populates="reserva")
+    mensajes = relationship("Mensaje", back_populates="reserva")
 
 class VerificacionEntrega(Base):
     __tablename__ = "verificaciones_entrega"
@@ -222,6 +223,18 @@ class BloqueoCalendarioAuto(Base):
 
     # Relaciones
     auto = relationship("Auto", back_populates="bloqueos_calendario")
+
+class Mensaje(Base):
+    __tablename__ = "mensajes"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False)
+    autor_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
+    texto = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=utc_now)
+
+    # Relaciones
+    reserva = relationship("Reserva", back_populates="mensajes")
 
 class ConfiguracionPlataforma(Base):
     __tablename__ = "configuracion_plataforma"
