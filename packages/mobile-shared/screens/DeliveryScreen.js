@@ -143,13 +143,14 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   };
 
   const handleTomarFoto = async () => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    // El checklist exige fotos tomadas en el momento (no de la galería):
+    // una foto vieja no sirve como evidencia real del estado del auto.
+    const permiso = await ImagePicker.requestCameraPermissionsAsync();
     if (!permiso.granted) {
-      showAlert("Permiso requerido", "Necesitamos acceso a tus fotos para el checklist.");
+      showAlert("Permiso requerido", "Necesitamos acceso a la cámara para el checklist.");
       return;
     }
-    const resultado = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    const resultado = await ImagePicker.launchCameraAsync({
       quality: 0.8,
     });
     if (resultado.canceled || !resultado.assets?.length) return;
@@ -432,7 +433,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
             </View>
             <View style={styles.viewfinderPromptBottom}>
               <Text style={styles.viewfinderPromptText}>
-                Toque el botón para elegir la foto real de este ángulo desde su galería.
+                Toque el botón para tomar la foto real de este ángulo con la cámara.
               </Text>
             </View>
           </View>

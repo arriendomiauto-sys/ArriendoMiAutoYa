@@ -32,13 +32,14 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   const [loading, setLoading] = useState(false);
 
   const handleAddPhoto = async () => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    // Evidencia de un siniestro: tiene que ser una foto tomada ahí mismo,
+    // no una de la galería.
+    const permiso = await ImagePicker.requestCameraPermissionsAsync();
     if (!permiso.granted) {
-      showAlert("Permiso requerido", "Necesitamos acceso a tus fotos para adjuntar el daño.");
+      showAlert("Permiso requerido", "Necesitamos acceso a la cámara para adjuntar el daño.");
       return;
     }
-    const resultado = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    const resultado = await ImagePicker.launchCameraAsync({
       quality: 0.7,
     });
     if (resultado.canceled || !resultado.assets?.length) return;

@@ -50,6 +50,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const [carnetFrontalUrl, setCarnetFrontalUrl] = useState(null);
   const [carnetTraseroUrl, setCarnetTraseroUrl] = useState(null);
   const [licenciaUrl, setLicenciaUrl] = useState(null);
+  const [selfieUrl, setSelfieUrl] = useState(null);
 
   // Datos del formulario final, prellenados desde RegisterScreen (prefill)
   // o desde el perfil ya sincronizado (currentUser) cuando existan.
@@ -62,7 +63,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const rutTouched = rut.trim().length > 0;
   const rutIsValid = isRutValid(rut);
 
-  const captureAndUpload = async (filenamePrefix, bucket = "documentos-kyc") => {
+  const captureAndUpload = async (filenamePrefix, bucket = "documentos-kyc", front = false) => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       showAlert(
@@ -74,6 +75,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
     const result = await ImagePicker.launchCameraAsync({
       quality: 0.7,
       allowsEditing: false,
+      cameraType: front ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
     });
     if (result.canceled || !result.assets?.length) return null;
 
@@ -123,17 +125,20 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const handleCaptureFacial = async () => {
     setCapturing(true);
     try {
-      // Llamada real al backend con fallback local: no bloquea al usuario si
-      // el servicio de OCR/verificación biométrica no responde.
-      await ApiClient.verifyKyc({
-        rut: rut || currentUser?.rut || "",
-        nombre: nombre || currentUser?.nombre || "",
-      });
-    } catch {
-      // Continúa con fallback sin interrumpir al usuario
+      // La selfie es obligatoria y sí o sí se toma con la cámara — no hay
+      // opción de elegirla de la galería. Se sube y se guarda como
+      // foto_perfil_verificada_url del usuario; el OCR real de los
+      // documentos corre (y puede bloquear el enrolamiento) en el paso
+      // siguiente, cuando se envían todos los datos juntos a
+      // /enrolamiento/completar.
+      const url = await captureAndUpload("selfie_verificacion", "documentos-kyc", true);
+      if (!url) return; // el usuario canceló o no dio permiso de cámara
+      setSelfieUrl(url);
+      setCurrentStep("04_review");
+    } catch (err) {
+      showAlert("No se pudo capturar la selfie", err.message);
     } finally {
       setCapturing(false);
-      setCurrentStep("04_review");
     }
   };
 
@@ -150,12 +155,26 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       return;
     }
 
+    if (!carnetFrontalUrl) {
+      showAlert(
+        "Falta la foto de tu cédula",
+        "Debes fotografiar tu cédula de identidad con la cámara antes de continuar."
+      );
+      setCurrentStep("01_cedula");
+      return;
+    }
+
     setSubmitting(true);
     try {
       // El Dueño completa el mismo enrolamiento (nombre/RUT/carnet) que el
       // Arrendatario — el backend le otorga el rol "dueno" automáticamente
       // la primera vez que publique un auto, así que no se envía un campo
       // de rol aquí.
+      //
+      // El backend corre el OCR real acá (con todos los datos juntos) y
+      // devuelve 400 si rechaza los documentos — eso deja al usuario en
+      // este mismo paso para que vuelva a intentarlo, no lo deja avanzar
+      // igual como pasaba antes.
       await completeEnrolment({
         nombre,
         rut,
@@ -164,10 +183,11 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         carnet_frontal_url: carnetFrontalUrl,
         carnet_trasero_url: carnetTraseroUrl,
         licencia_url: role === "renter" ? licenciaUrl : undefined,
+        foto_perfil_verificada_url: selfieUrl,
       });
       setCurrentStep("05_approved");
     } catch (err) {
-      showAlert("No se pudo completar la verificación", err.message);
+      showAlert("No se pudo verificar tu identidad", err.message);
     } finally {
       setSubmitting(false);
     }
@@ -338,7 +358,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             <Text style={styles.camMainPrompt}>Mire al frente sin lentes</Text>
             <View style={styles.camBottomTip}>
               <Text style={styles.camBottomTipText}>
-                Comparamos automáticamente su rostro con la foto de su carnet.
+                Esta selfie queda como tu foto de perfil verificada junto a tus documentos.
               </Text>
             </View>
           </View>
@@ -462,10 +482,10 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
               </View>
 
               <View style={styles.checkItem}>
-                <View style={styles.checkDone}>
+                <View style={[styles.checkDone, !selfieUrl && styles.checkPending]}>
                   <Icon name="check" size={14} color="#FFFFFF" />
                 </View>
-                <Text style={styles.checkText}>Validación biométrica facial</Text>
+                <Text style={styles.checkText}>Selfie de verificación capturada</Text>
               </View>
             </View>
 
