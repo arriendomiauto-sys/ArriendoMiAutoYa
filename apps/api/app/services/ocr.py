@@ -283,6 +283,17 @@ class OCRService:
         Pipeline de verificación real de documentos de identidad y licencia de conducir con Google Cloud Vision.
         Si las API Keys no están presentes o USE_OCR_MOCK=True, utiliza simulación inteligente con datos chilenos.
         """
+        # 0. La cédula de identidad (al menos el frente) es obligatoria: sin
+        # ninguna foto capturada, no hay nada que verificar.
+        if not carnet_frontal_url:
+            return {
+                "documentos_legibles": False,
+                "confianza_ocr": 0.0,
+                "estado_recomendado": "rechazado",
+                "motivo": "Falta la foto de la cédula de identidad (frente). Debes tomarla con la cámara para continuar.",
+                "es_mock": True
+            }
+
         # 1. Validación de formato de imágenes
         for url in [carnet_frontal_url, carnet_trasero_url, licencia_url]:
             if url and not cls.validar_formato_imagen(url):
