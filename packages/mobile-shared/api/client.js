@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { getAccessToken } from "./supabase";
 
 const API_BASE_URL =
@@ -254,13 +255,24 @@ export class ApiClient {
   // Almacenamiento de Fotos / Documentos (Supabase Storage vía backend)
   static async subirArchivoStorage(fileUriOrBlob, filename = "foto.jpg", bucket = "general") {
     const formData = new FormData();
+
     if (typeof fileUriOrBlob === "string") {
-      // React Native: uri local del picker de imágenes
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1] === "jpg" ? "jpeg" : match[1]}` : "image/jpeg";
-      formData.append("file", { uri: fileUriOrBlob, name: filename, type });
+      if (Platform.OS === "web") {
+        // En RN-Web, expo-image-picker también devuelve un `uri` de tipo
+        // string (blob:/data:), pero el FormData del navegador es el real:
+        // el truco de RN {uri, name, type} no sirve acá — append() lo
+        // castea a "[object Object]" en vez de subir la foto. Hay que
+        // resolver el uri a un Blob real primero.
+        const blob = await fetch(fileUriOrBlob).then((r) => r.blob());
+        formData.append("file", blob, filename);
+      } else {
+        // Nativo (iOS/Android): uri local del picker de imágenes.
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1] === "jpg" ? "jpeg" : match[1]}` : "image/jpeg";
+        formData.append("file", { uri: fileUriOrBlob, name: filename, type });
+      }
     } else {
-      // Web: Blob/File
+      // Ya viene como Blob/File
       formData.append("file", fileUriOrBlob, filename);
     }
     formData.append("bucket", bucket);
