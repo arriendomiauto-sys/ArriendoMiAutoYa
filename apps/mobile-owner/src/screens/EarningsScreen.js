@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,50 +7,134 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
-import { colors, useApp, Icon, showAlert } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, showAlert, ApiClient } from "@rentacar/mobile-shared";
+
+const DIAS_SEMANA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+function formatCLP(monto) {
+  return `$${Math.abs(monto).toLocaleString("es-CL")} CLP`;
+}
+
+function formatFecha(timestamp) {
+  if (!timestamp) return "";
+  return new Date(timestamp).toLocaleDateString("es-CL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export function EarningsScreen() {
-  const { bankAccount, setBankAccount } = useApp();
+  const { bankAccount, updateBankAccount } = useApp();
   const [bankModalVisible, setBankModalVisible] = useState(false);
   const [banco, setBanco] = useState(bankAccount?.banco || "");
   const [tipoCuenta, setTipoCuenta] = useState(bankAccount?.tipo_cuenta || "");
   const [numeroCuenta, setNumeroCuenta] = useState(bankAccount?.numero || "");
   const [titular, setTitular] = useState(bankAccount?.titular || "");
   const [rutTitular, setRutTitular] = useState(bankAccount?.rut || "");
+  const [savingBank, setSavingBank] = useState(false);
 
-  const [filterPeriod, setFilterPeriod] = useState("semana");
+  const [ganancias, setGanancias] = useState(null);
+  const [loadingGanancias, setLoadingGanancias] = useState(true);
+  const [requestingPayout, setRequestingPayout] = useState(false);
 
-  const handleSaveBank = () => {
+  const cargarGanancias = useCallback(async () => {
+    setLoadingGanancias(true);
+    try {
+      const data = await ApiClient.getMisGanancias();
+      setGanancias(data);
+    } catch (err) {
+      console.warn("[EarningsScreen] No se pudo cargar ganancias:", err.message);
+    } finally {
+      setLoadingGanancias(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarGanancias();
+  }, [cargarGanancias]);
+
+  const handleSaveBank = async () => {
     if (!numeroCuenta || !titular || !rutTitular) {
       showAlert("Datos Incompletos", "Por favor completa todos los datos bancarios.");
       return;
     }
-    setBankAccount({
-      banco,
-      tipo_cuenta: tipoCuenta,
-      numero: numeroCuenta,
-      titular,
-      rut: rutTitular,
-    });
-    setBankModalVisible(false);
-    showAlert("Cuenta Guardada", "Tus transferencias semanales se depositarán en esta cuenta.");
+    setSavingBank(true);
+    try {
+      await updateBankAccount({
+        banco,
+        tipo_cuenta: tipoCuenta,
+        numero: numeroCuenta,
+        titular,
+        rut: rutTitular,
+      });
+      setBankModalVisible(false);
+      showAlert("Cuenta Guardada", "Tus liquidaciones se depositarán en esta cuenta.");
+    } catch (err) {
+      showAlert("No se pudo guardar", err.message || "Verifica el RUT ingresado e intenta de nuevo.");
+    } finally {
+      setSavingBank(false);
+    }
   };
 
   const handleRequestPayout = () => {
+    if (!bankAccount) {
+      showAlert("Falta tu cuenta bancaria", "Configura una cuenta de depósito antes de solicitar el retiro.");
+      setBankModalVisible(true);
+      return;
+    }
+    if (!ganancias || ganancias.saldo_disponible_clp <= 0) {
+      showAlert("Sin saldo disponible", "No tienes liquidaciones pendientes de pago por retirar.");
+      return;
+    }
     showAlert(
-      "Solicitar Transferencia Inmediata",
-      `Se transferirán $284.000 CLP netos a tu ${banco} N° ${numeroCuenta}. Plazo estimado: 15 minutos.`,
+      "Solicitar Retiro Inmediato",
+      `Se solicitará la transferencia de ${formatCLP(ganancias.saldo_disponible_clp)} a tu ${bankAccount.banco} N° ${bankAccount.numero}. Nuestro equipo de soporte procesará la solicitud manualmente.`,
       [
         { text: "Cancelar", style: "cancel" },
         {
-          text: "Confirmar Transferencia",
-          onPress: () =>
-            showAlert("Transferencia en Proceso", "Comprobante emitido. Los fondos llegarán a tu cuenta bancaria."),
+          text: "Confirmar Solicitud",
+          onPress: async () => {
+            setRequestingPayout(true);
+            try {
+              await ApiClient.crearTicketSoporte(
+                "Solicitud de retiro inmediato",
+                `Solicito la transferencia inmediata de mi saldo disponible (${formatCLP(ganancias.saldo_disponible_clp)}) a mi cuenta registrada: ${bankAccount.banco}, ${bankAccount.tipo_cuenta} N° ${bankAccount.numero}, titular ${bankAccount.titular} (${bankAccount.rut}).`
+              );
+              showAlert("Solicitud Enviada", "Tu solicitud quedó registrada y nuestro equipo de soporte gestionará la transferencia.");
+            } catch (err) {
+              showAlert("No se pudo enviar la solicitud", err.message || "Intenta de nuevo más tarde.");
+            } finally {
+              setRequestingPayout(false);
+            }
+          },
         },
       ]
     );
   };
+
+  const saldoDisponible = ganancias?.saldo_disponible_clp ?? 0;
+  const historial = ganancias?.historial ?? [];
+
+  const hoy = new Date();
+  const barras = Array.from({ length: 7 }).map((_, idx) => {
+    const dia = new Date(hoy);
+    dia.setDate(hoy.getDate() - (6 - idx));
+    const totalDia = historial
+      .filter((h) => {
+        const fechaLiq = new Date(h.timestamp);
+        return (
+          fechaLiq.getFullYear() === dia.getFullYear() &&
+          fechaLiq.getMonth() === dia.getMonth() &&
+          fechaLiq.getDate() === dia.getDate()
+        );
+      })
+      .reduce((sum, h) => sum + h.monto, 0);
+    return { dia: DIAS_SEMANA[dia.getDay()], monto: totalDia };
+  });
+  const maxBarra = Math.max(...barras.map((b) => b.monto), 1);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -70,18 +154,29 @@ export function EarningsScreen() {
             <Text style={styles.badgePillText}>DISPONIBLE</Text>
           </View>
         </View>
-        <Text style={styles.balanceAmount}>$284.000 <Text style={styles.currency}>CLP</Text></Text>
+        {loadingGanancias ? (
+          <ActivityIndicator color={colors.accent} style={{ marginVertical: 10 }} />
+        ) : (
+          <Text style={styles.balanceAmount}>
+            {formatCLP(saldoDisponible)} <Text style={styles.currency}>CLP</Text>
+          </Text>
+        )}
         <Text style={styles.balanceSub}>
-          Próxima liquidación automática: Lunes 09:00 hrs
+          {ganancias
+            ? `${ganancias.cantidad_liquidaciones} liquidación(es) registrada(s) en total`
+            : "Cargando tus liquidaciones..."}
         </Text>
 
         <View style={styles.balanceButtonsRow}>
           <TouchableOpacity
-            style={styles.payoutBtn}
+            style={[styles.payoutBtn, requestingPayout && { opacity: 0.6 }]}
             onPress={handleRequestPayout}
             activeOpacity={0.85}
+            disabled={requestingPayout}
           >
-            <Text style={styles.payoutBtnText}>Solicitar Retiro Inmediato →</Text>
+            <Text style={styles.payoutBtnText}>
+              {requestingPayout ? "Enviando solicitud..." : "Solicitar Retiro Inmediato →"}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -120,45 +215,21 @@ export function EarningsScreen() {
         )}
       </View>
 
-      {/* Gráfico Semanal Simplificado */}
+      {/* Gráfico Semanal (liquidaciones reales de los últimos 7 días) */}
       <View style={styles.chartCard}>
         <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>Rendimiento de Arriendos</Text>
-          <View style={styles.periodRow}>
-            {["semana", "mes"].map((p) => (
-              <TouchableOpacity
-                key={p}
-                onPress={() => setFilterPeriod(p)}
-                style={[
-                  styles.periodBtn,
-                  filterPeriod === p && styles.periodBtnActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.periodBtnText,
-                    filterPeriod === p && styles.periodBtnTextActive,
-                  ]}
-                >
-                  {p === "semana" ? "Esta Semana" : "Este Mes"}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <Text style={styles.chartTitle}>Liquidaciones de los Últimos 7 Días</Text>
         </View>
 
         <View style={styles.barsContainer}>
-          {[
-            { dia: "Lun", monto: 35000, h: 40 },
-            { dia: "Mar", monto: 35000, h: 40 },
-            { dia: "Mié", monto: 70000, h: 80 },
-            { dia: "Jue", monto: 35000, h: 40 },
-            { dia: "Vie", monto: 105000, h: 100 },
-            { dia: "Sáb", monto: 70000, h: 80 },
-            { dia: "Dom", monto: 35000, h: 40 },
-          ].map((bar, idx) => (
+          {barras.map((bar, idx) => (
             <View key={idx} style={styles.barColumn}>
-              <View style={[styles.barFill, { height: bar.h }]} />
+              <View
+                style={[
+                  styles.barFill,
+                  { height: Math.max((bar.monto / maxBarra) * 100, bar.monto > 0 ? 6 : 2) },
+                ]}
+              />
               <Text style={styles.barDay}>{bar.dia}</Text>
             </View>
           ))}
@@ -169,44 +240,34 @@ export function EarningsScreen() {
       <View style={styles.historyCard}>
         <Text style={styles.historyTitle}>Últimas Liquidaciones</Text>
 
-        {[
-          {
-            id: "1",
-            concepto: "Arriendo 3 días - Toyota RAV4 (BBCL-10)",
-            fecha: "15 Ago 2026",
-            neto: "+$89.600 CLP",
-            tipo: "arriendo",
-          },
-          {
-            id: "2",
-            concepto: "Compensación Aseo Estándar ($15.000 CLP al 100%)",
-            fecha: "14 Ago 2026",
-            neto: "+$15.000 CLP",
-            tipo: "extra",
-          },
-          {
-            id: "3",
-            concepto: "Transferencia a CuentaRUT Banco Estado",
-            fecha: "11 Ago 2026",
-            neto: "-$140.000 CLP",
-            tipo: "retiro",
-          },
-        ].map((item) => (
-          <View key={item.id} style={styles.historyRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.historyConcept}>{item.concepto}</Text>
-              <Text style={styles.historyDate}>{item.fecha}</Text>
+        {loadingGanancias ? (
+          <ActivityIndicator color={colors.accent} style={{ marginVertical: 10 }} />
+        ) : historial.length === 0 ? (
+          <Text style={styles.bankDetails}>
+            Aún no tienes liquidaciones. Aparecerán aquí cuando termines tu primer arriendo.
+          </Text>
+        ) : (
+          historial.map((item) => (
+            <View key={item.id} style={styles.historyRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.historyConcept}>
+                  Liquidación de arriendo{item.reserva_id ? ` (reserva ${item.reserva_id.slice(0, 8)})` : ""}
+                </Text>
+                <Text style={styles.historyDate}>
+                  {formatFecha(item.timestamp)} • {item.estado === "pagado" ? "Pagada" : "Pendiente de pago"}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.historyAmount,
+                  item.estado === "pagado" ? styles.textAccent : styles.textMuted,
+                ]}
+              >
+                +{formatCLP(item.monto)}
+              </Text>
             </View>
-            <Text
-              style={[
-                styles.historyAmount,
-                item.tipo === "retiro" ? styles.textRed : styles.textAccent,
-              ]}
-            >
-              {item.neto}
-            </Text>
-          </View>
-        ))}
+          ))
+        )}
       </View>
 
       {/* Modal Cuenta Bancaria */}
@@ -271,8 +332,14 @@ export function EarningsScreen() {
               />
             </View>
 
-            <TouchableOpacity style={styles.saveBankBtn} onPress={handleSaveBank}>
-              <Text style={styles.saveBankBtnText}>Guardar Cuenta de Depósito →</Text>
+            <TouchableOpacity
+              style={[styles.saveBankBtn, savingBank && { opacity: 0.6 }]}
+              onPress={handleSaveBank}
+              disabled={savingBank}
+            >
+              <Text style={styles.saveBankBtnText}>
+                {savingBank ? "Guardando..." : "Guardar Cuenta de Depósito →"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -442,27 +509,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.textWhite,
   },
-  periodRow: {
-    flexDirection: "row",
-  },
-  periodBtn: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-    marginLeft: 4,
-  },
-  periodBtnActive: {
-    backgroundColor: colors.accentMuted,
-  },
-  periodBtnText: {
-    fontSize: 10,
-    color: colors.textSilver,
-    fontWeight: "600",
-  },
-  periodBtnTextActive: {
-    color: colors.accent,
-    fontWeight: "800",
-  },
   barsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -525,6 +571,9 @@ const styles = StyleSheet.create({
   },
   textRed: {
     color: colors.danger,
+  },
+  textMuted: {
+    color: colors.textMuted,
   },
   modalOverlay: {
     flex: 1,

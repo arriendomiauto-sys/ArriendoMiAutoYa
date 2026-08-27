@@ -252,6 +252,17 @@ export class ApiClient {
     });
   }
 
+  static async getMisGanancias() {
+    return this.request("/pagos/mis-ganancias");
+  }
+
+  static async actualizarCuentaBancaria(cuentaBancaria) {
+    return this.request("/usuarios/me/cuenta-bancaria", {
+      method: "PUT",
+      body: JSON.stringify(cuentaBancaria),
+    });
+  }
+
   // Almacenamiento de Fotos / Documentos (Supabase Storage vía backend)
   static async subirArchivoStorage(fileUriOrBlob, filename = "foto.jpg", bucket = "general") {
     const formData = new FormData();

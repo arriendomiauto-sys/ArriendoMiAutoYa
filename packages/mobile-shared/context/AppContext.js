@@ -24,7 +24,7 @@ export function AppProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
 
   const [paymentMethods, setPaymentMethods] = useState([]);
-  const [bankAccount, setBankAccount] = useState(null);
+  const bankAccount = currentUser?.cuenta_bancaria || null;
 
   const syncProfile = useCallback(async () => {
     try {
@@ -104,6 +104,12 @@ export function AppProvider({ children }) {
     return profile;
   };
 
+  const updateBankAccount = async (cuentaBancaria) => {
+    const profile = await ApiClient.actualizarCuentaBancaria(cuentaBancaria);
+    setCurrentUser(profile);
+    return profile;
+  };
+
   const addCar = async (carData) => {
     const created = await ApiClient.crearAuto(carData);
     setCars((prev) => [created, ...prev]);
@@ -157,7 +163,7 @@ export function AppProvider({ children }) {
         setActiveReservation,
         addReservation,
         bankAccount,
-        setBankAccount,
+        updateBankAccount,
         paymentMethods,
         addPaymentMethod,
         removePaymentMethod,
