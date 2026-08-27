@@ -21,10 +21,10 @@ import { RoadsideClaimScreen } from "./screens/RoadsideClaimScreen";
 import { PaymentMethodsScreen } from "./screens/PaymentMethodsScreen";
 import { CancelReservationModal } from "./screens/CancelReservationModal";
 import { RenterProfileScreen } from "./screens/RenterProfileScreen";
+import { MyQRCodeScreen } from "./screens/MyQRCodeScreen";
 
-// Modales Compartidos y Delivery
+// Modales Compartidos
 import {
-  DeliveryScreen,
   RentalChatScreen,
   NotificationsScreen,
   SupportScreen,
@@ -45,7 +45,7 @@ export function RenterApp() {
   const [showEnrolment, setShowEnrolment] = useState(false);
   const [showExtendRental, setShowExtendRental] = useState(false);
   const [showRoadsideClaim, setShowRoadsideClaim] = useState(false);
-  const [showDeliveryFlow, setShowDeliveryFlow] = useState(false);
+  const [showMyQRCode, setShowMyQRCode] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
@@ -142,12 +142,12 @@ export function RenterApp() {
       );
     }
 
-    // 7. Inspección de Entrega / Devolución Digital
-    if (showDeliveryFlow) {
+    // 7. Código de Entrega / Devolución (lo muestra el arrendatario al dueño)
+    if (showMyQRCode) {
       return (
-        <DeliveryScreen
-          onBack={() => setShowDeliveryFlow(false)}
-          onCompleteDelivery={() => setShowDeliveryFlow(false)}
+        <MyQRCodeScreen
+          reservation={activeReservation}
+          onBack={() => setShowMyQRCode(false)}
         />
       );
     }
@@ -169,8 +169,8 @@ export function RenterApp() {
             <ActiveRentalScreen
               reservation={activeReservation}
               onBack={() => setActiveReservation(null)}
-              onStartDelivery={() => setShowDeliveryFlow(true)}
-              onStartReturn={() => setShowDeliveryFlow(true)}
+              onStartDelivery={() => setShowMyQRCode(true)}
+              onStartReturn={() => setShowMyQRCode(true)}
               onExtendRental={() => setShowExtendRental(true)}
               onRoadsideClaim={() => setShowRoadsideClaim(true)}
               onCancelReservation={() => setShowCancelModal(true)}
@@ -221,7 +221,7 @@ export function RenterApp() {
     showExtendRental ||
     showRoadsideClaim ||
     showWallet ||
-    showDeliveryFlow;
+    showMyQRCode;
 
   return (
     <SafeAreaView style={styles.appContainer}>

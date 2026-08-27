@@ -195,7 +195,7 @@ export function ActiveRentalScreen({
               onPress={onStartDelivery}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryActionBtnText}>Iniciar entrega / fotos</Text>
+              <Text style={styles.primaryActionBtnText}>Mostrar mi código de entrega</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -282,7 +282,7 @@ export function ActiveRentalScreen({
                 onPress={onStartDelivery}
                 activeOpacity={0.75}
               >
-                <Text style={styles.docMenuText}>Fotos de la entrega</Text>
+                <Text style={styles.docMenuText}>Mi código de entrega</Text>
                 <Icon name="arrow-right" size={18} color={colors.textMuted} />
               </TouchableOpacity>
 
@@ -304,7 +304,7 @@ export function ActiveRentalScreen({
               onPress={onStartReturn}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryActionBtnText}>Iniciar la devolución</Text>
+              <Text style={styles.primaryActionBtnText}>Mostrar mi código de devolución</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

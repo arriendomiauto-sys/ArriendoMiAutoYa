@@ -41,6 +41,7 @@ export function OwnerApp() {
   const [showSupport, setShowSupport] = useState(false);
   const [showContract, setShowContract] = useState(false);
   const [selectedCarForModal, setSelectedCarForModal] = useState(null);
+  const [selectedReservaForDelivery, setSelectedReservaForDelivery] = useState(null);
 
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
@@ -48,8 +49,12 @@ export function OwnerApp() {
     if (showDeliveryFlow) {
       return (
         <DeliveryScreen
+          reserva={selectedReservaForDelivery}
           onBack={() => setShowDeliveryFlow(false)}
-          onCompleteDelivery={() => setShowDeliveryFlow(false)}
+          onCompleteDelivery={() => {
+            setShowDeliveryFlow(false);
+            setSelectedReservaForDelivery(null);
+          }}
         />
       );
     }
@@ -84,7 +89,6 @@ export function OwnerApp() {
         return (
           <MyCarsScreen
             onAddNewCar={() => setShowAddCar(true)}
-            onOpenDelivery={() => setShowDeliveryFlow(true)}
             onOpenCalendar={(car) => {
               setSelectedCarForModal(car);
               setShowCalendar(true);
@@ -99,9 +103,10 @@ export function OwnerApp() {
       case "bookings":
         return (
           <DriverBookingsScreen
-            onStartDelivery={() => setShowDeliveryFlow(true)}
-            onOpenChat={() => setActiveTab("chat")}
-            onOpenContract={() => setShowContract(true)}
+            onOpenDelivery={(reserva) => {
+              setSelectedReservaForDelivery(reserva);
+              setShowDeliveryFlow(true);
+            }}
           />
         );
 

@@ -8,9 +8,14 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
+  Image,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { colors } from "../theme/colors";
 import { Icon } from "../components/Icon";
+import { ApiClient } from "../api/client";
 
 const ANGLES = [
   { id: 1, name: "Frontal", desc: "Parte delantera completa" },
@@ -23,29 +28,168 @@ const ANGLES = [
   { id: 8, name: "Tablero km", desc: "Odómetro y combustible nítido" },
 ];
 
-export function DeliveryScreen({ onBack, onCompleteDelivery }) {
-  // Screen sub-state: '20_camera' | '21_review' | '22_metrics' | '23_signature' | '24_signed' | '25_return_cam' | '26_compare' | '27_damage' | '28_done'
-  const [stage, setStage] = useState("20_camera");
+// Símbolo mostrado en el selector -> valor real que espera el backend
+// (Literal["lleno","3/4","1/2","1/4","vacio"] en ChecklistRequest).
+const FUEL_SYMBOL_TO_VALUE = { E: "vacio", "¼": "1/4", "½": "1/2", "¾": "3/4", F: "lleno" };
 
-  // Step 20 camera
-  const [currentAngleIdx, setCurrentAngleIdx] = useState(2); // 3 of 8 (Trasera)
+export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
+  // Si la reserva ya está "en_curso" estamos en la devolución (checklist
+  // "despues"); si no, es la entrega inicial (checklist "antes").
+  const tipo = reserva?.estado === "en_curso" ? "despues" : "antes";
+  const auto = reserva?.auto || {};
 
-  // Step 22 metrics
-  const [km, setKm] = useState("48.320");
+  // Screen sub-state
+  const [stage, setStage] = useState("05_code");
+
+  // Paso 05: validar código QR mostrado por el cliente
+  const [codigoInput, setCodigoInput] = useState("");
+  const [validando, setValidando] = useState(false);
+  const [datosValidados, setDatosValidados] = useState(null);
+  const [reservaIdActiva, setReservaIdActiva] = useState(reserva?.id || null);
+
+  // Paso 06: confirmar/rechazar identidad
+  const [confirmando, setConfirmando] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState("");
+
+  // Fotos reales (uno o más URLs subidos de verdad)
+  const [fotos, setFotos] = useState([]);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [currentAngleIdx, setCurrentAngleIdx] = useState(0);
+
+  // Métricas
+  const [km, setKm] = useState("");
   const [fuelLevel, setFuelLevel] = useState("¾");
 
-  // Step 27 damage reporting
+  // Reporte de diferencia en la devolución (se agrega como nota al checklist)
   const [damageType, setDamageType] = useState("Rayón");
-  const [damageDesc, setDamageDesc] = useState(
-    "Rayón de unos 15 cm en la puerta trasera izquierda. No estaba el día de la entrega."
-  );
+  const [damageDesc, setDamageDesc] = useState("");
 
-  // Step 28 rating
-  const [rating, setRating] = useState(5);
+  // Envío del checklist final
+  const [enviandoChecklist, setEnviandoChecklist] = useState(false);
+  const [resultadoChecklist, setResultadoChecklist] = useState(null);
 
-  const angle = ANGLES[currentAngleIdx] || ANGLES[2];
-
+  const angle = ANGLES[currentAngleIdx] || ANGLES[0];
   const isDarkScreen = stage === "20_camera" || stage === "25_return_cam";
+
+  const handleValidarCodigo = async () => {
+    if (!codigoInput.trim()) return;
+    setValidando(true);
+    try {
+      const resultado = await ApiClient.validarCodigoQR(codigoInput.trim());
+      if (reservaIdActiva && resultado.reserva_id !== reservaIdActiva) {
+        Alert.alert(
+          "Código de otra reserva",
+          "Este código corresponde a una reserva distinta a la que abriste. Verifica con el cliente."
+        );
+        return;
+      }
+      setDatosValidados(resultado);
+      setReservaIdActiva(resultado.reserva_id);
+      setStage("06_confirm");
+    } catch (error) {
+      Alert.alert("Código inválido", error.message);
+    } finally {
+      setValidando(false);
+    }
+  };
+
+  const handleConfirmarIdentidad = async () => {
+    setConfirmando(true);
+    try {
+      const resultado = await ApiClient.confirmarVerificacionIdentidad(reservaIdActiva, {
+        resultado: "confirmada",
+        tipo: tipo === "antes" ? "entrega" : "devolucion",
+      });
+      if (resultado.siguiente_paso !== "checklist_fotos") {
+        Alert.alert("No se pudo continuar", resultado.mensaje);
+        return;
+      }
+      setStage(tipo === "antes" ? "20_camera" : "25_return_cam");
+    } catch (error) {
+      Alert.alert("Error", error.message);
+    } finally {
+      setConfirmando(false);
+    }
+  };
+
+  const handleRechazarIdentidad = async () => {
+    if (!motivoRechazo.trim()) {
+      Alert.alert("Motivo requerido", "Describe brevemente por qué no coincide la identidad.");
+      return;
+    }
+    setConfirmando(true);
+    try {
+      const resultado = await ApiClient.confirmarVerificacionIdentidad(reservaIdActiva, {
+        resultado: "rechazada",
+        tipo: tipo === "antes" ? "entrega" : "devolucion",
+        motivo_rechazo: motivoRechazo.trim(),
+      });
+      Alert.alert(
+        "Identidad rechazada",
+        "Se bloqueó la reserva y se abrió una disputa formal para revisión de soporte/admin.",
+        [{ text: "Entendido", onPress: onCompleteDelivery }]
+      );
+    } catch (error) {
+      Alert.alert("Error", error.message);
+    } finally {
+      setConfirmando(false);
+    }
+  };
+
+  const handleTomarFoto = async () => {
+    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert("Permiso requerido", "Necesitamos acceso a tus fotos para el checklist.");
+      return;
+    }
+    const resultado = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (resultado.canceled || !resultado.assets?.length) return;
+
+    setSubiendoFoto(true);
+    try {
+      const asset = resultado.assets[0];
+      const filename = asset.fileName || `checklist-${Date.now()}.jpg`;
+      const subida = await ApiClient.subirArchivoStorage(asset.uri, filename, "checklists");
+      setFotos((prev) => [...prev, subida.url]);
+      setCurrentAngleIdx((prev) => Math.min(ANGLES.length - 1, prev + 1));
+    } catch (error) {
+      Alert.alert("Error al subir foto", error.message);
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
+
+  const irAMetricas = () => setStage("22_metrics");
+
+  const handleContinuarMetricas = () => {
+    if (!km.trim()) {
+      Alert.alert("Kilometraje requerido", "Ingresa el kilometraje actual del vehículo.");
+      return;
+    }
+    setStage(tipo === "antes" ? "23_signature" : "26_compare");
+  };
+
+  const enviarChecklist = async (notasExtra) => {
+    setEnviandoChecklist(true);
+    try {
+      const resultado = await ApiClient.registrarChecklist(reservaIdActiva, {
+        tipo,
+        fotos: fotos.length > 0 ? fotos : ["sin-foto"], // el backend exige al menos 1
+        kilometraje: parseInt(km.replace(/\D/g, ""), 10) || 0,
+        nivel_combustible: FUEL_SYMBOL_TO_VALUE[fuelLevel] || "3/4",
+        notas: notasExtra || undefined,
+      });
+      setResultadoChecklist(resultado);
+      setStage(tipo === "antes" ? "24_signed" : "28_done");
+    } catch (error) {
+      Alert.alert("No se pudo registrar el checklist", error.message);
+    } finally {
+      setEnviandoChecklist(false);
+    }
+  };
 
   return (
     <SafeAreaView
@@ -59,6 +203,139 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
       />
 
       {/* ========================================================================= */}
+      {/* PASO 05: INGRESAR CÓDIGO DEL CLIENTE */}
+      {/* ========================================================================= */}
+      {stage === "05_code" && (
+        <View style={styles.screenWrapper}>
+          <View style={styles.topNavHeader}>
+            <TouchableOpacity onPress={onBack}>
+              <Icon name="arrow-left" size={22} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.topNavTitle}>{tipo === "antes" ? "Verificar entrega" : "Verificar devolución"}</Text>
+          </View>
+
+          <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.scrollContent}>
+            <View style={styles.blueNoticeRow}>
+              <Icon name="shield" size={20} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={styles.blueNoticeText}>
+                Pídele al cliente que te muestre el código de su reserva y escríbelo aquí para validar su identidad.
+              </Text>
+            </View>
+
+            {auto?.marca && (
+              <View style={styles.contractSummaryBox}>
+                <Text style={styles.contractBoxTitle}>{auto.marca} {auto.modelo} {auto.anio}</Text>
+                <View style={styles.contractRow}>
+                  <Text style={styles.contractLabel}>Patente</Text>
+                  <Text style={styles.contractVal}>{auto.patente}</Text>
+                </View>
+                <View style={styles.contractRow}>
+                  <Text style={styles.contractLabel}>Lugar acordado</Text>
+                  <Text style={styles.contractVal}>{reserva?.lugar_entrega_acordado}</Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Código de la reserva</Text>
+              <View style={styles.kmInputRow}>
+                <TextInput
+                  style={styles.kmTextInput}
+                  value={codigoInput}
+                  onChangeText={setCodigoInput}
+                  placeholder="Código mostrado en el celular del cliente"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
+          </ScrollView>
+
+          <View style={styles.bottomFixedBar}>
+            <TouchableOpacity
+              style={[styles.primaryBtn, (validando || !codigoInput.trim()) && styles.btnDisabled]}
+              onPress={handleValidarCodigo}
+              disabled={validando || !codigoInput.trim()}
+              activeOpacity={0.85}
+            >
+              {validando ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Validar código</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PASO 06: CONFIRMAR O RECHAZAR IDENTIDAD */}
+      {/* ========================================================================= */}
+      {stage === "06_confirm" && datosValidados && (
+        <View style={styles.screenWrapper}>
+          <View style={styles.topNavHeader}>
+            <TouchableOpacity onPress={() => setStage("05_code")}>
+              <Icon name="arrow-left" size={22} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.topNavTitle}>Confirmar identidad</Text>
+          </View>
+
+          <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.scrollContent}>
+            {datosValidados.foto_perfil_verificada_url && (
+              <Image source={{ uri: datosValidados.foto_perfil_verificada_url }} style={styles.perfilFoto} />
+            )}
+
+            <View style={styles.contractSummaryBox}>
+              <Text style={styles.contractBoxTitle}>{datosValidados.cliente_nombre}</Text>
+              <View style={styles.contractRow}>
+                <Text style={styles.contractLabel}>Vehículo</Text>
+                <Text style={styles.contractVal}>
+                  {datosValidados.auto_marca} {datosValidados.auto_modelo} · {datosValidados.auto_patente}
+                </Text>
+              </View>
+              <View style={styles.contractRow}>
+                <Text style={styles.contractLabel}>Lugar</Text>
+                <Text style={styles.contractVal}>{datosValidados.lugar_entrega_acordado}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.tableroInstruction}>
+              Compare el rostro de la persona presente con la foto de perfil verificada.
+            </Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Motivo del rechazo (si no coincide)</Text>
+              <View style={styles.damageInputBox}>
+                <TextInput
+                  style={styles.damageTextInput}
+                  value={motivoRechazo}
+                  onChangeText={setMotivoRechazo}
+                  placeholder="ej. La persona no coincide con la foto del carnet"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                />
+              </View>
+            </View>
+          </ScrollView>
+
+          <View style={styles.bottomFixedBar}>
+            <TouchableOpacity
+              style={[styles.primaryBtn, confirmando && styles.btnDisabled]}
+              onPress={handleConfirmarIdentidad}
+              disabled={confirmando}
+              activeOpacity={0.85}
+            >
+              {confirmando ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Confirmar identidad</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.dangerBtn, confirmando && styles.btnDisabled]}
+              onPress={handleRechazarIdentidad}
+              disabled={confirmando}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.dangerBtnText}>No coincide</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ========================================================================= */}
       {/* PANTALLA 20: CHECKLIST DE ENTREGA — CÁMARA GUIADA */}
       {/* ========================================================================= */}
       {stage === "20_camera" && (
@@ -68,35 +345,29 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
               <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Icon name="close" size={22} color="#FFFFFF" />
               </TouchableOpacity>
-              <Text style={styles.camVehicleTitle}>Entrega · Suzuki Swift</Text>
-              <Text style={styles.camFraction}>{currentAngleIdx + 1} / 8</Text>
+              <Text style={styles.camVehicleTitle}>Entrega · {auto.marca} {auto.modelo}</Text>
+              <Text style={styles.camFraction}>{fotos.length} / {ANGLES.length}</Text>
             </View>
 
-            {/* 8 Dot bars */}
             <View style={styles.camBarsRow}>
               {ANGLES.map((_, idx) => (
                 <View
                   key={idx}
                   style={[
                     styles.camBarSegment,
-                    idx < currentAngleIdx
-                      ? styles.barCompleted
-                      : idx === currentAngleIdx
-                      ? styles.barActive
-                      : styles.barPending,
+                    idx < fotos.length ? styles.barCompleted : idx === currentAngleIdx ? styles.barActive : styles.barPending,
                   ]}
                 />
               ))}
             </View>
 
-            {/* Step Pills */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.anglePillsRow}
             >
               {ANGLES.map((a, idx) => {
-                const isPast = idx < currentAngleIdx;
+                const isPast = idx < fotos.length;
                 const isCurr = idx === currentAngleIdx;
                 return (
                   <TouchableOpacity
@@ -125,56 +396,55 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
             </ScrollView>
           </View>
 
-          {/* Viewfinder with silhouette */}
           <View style={styles.camViewfinderArea}>
-            <View style={styles.viewfinderGuideBox} />
+            {fotos[currentAngleIdx] ? (
+              <Image source={{ uri: fotos[currentAngleIdx] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <View style={styles.viewfinderGuideBox} />
+            )}
             <View style={styles.viewfinderBadgeTop}>
               <Text style={styles.viewfinderBadgeText}>{angle.desc}</Text>
             </View>
             <View style={styles.viewfinderPromptBottom}>
               <Text style={styles.viewfinderPromptText}>
-                Retroceda unos pasos hasta que entren las dos luces y la patente dentro de la guía.
+                Toque el botón para elegir la foto real de este ángulo desde su galería.
               </Text>
             </View>
           </View>
 
-          {/* Shutter Area */}
           <View style={styles.camShutterBar}>
             <View style={styles.shutterRow}>
-              <TouchableOpacity onPress={() => setCurrentAngleIdx(Math.min(7, currentAngleIdx + 1))}>
+              <TouchableOpacity
+                onPress={() => setCurrentAngleIdx(Math.min(ANGLES.length - 1, currentAngleIdx + 1))}
+              >
                 <Text style={styles.skipPhotoText}>Saltar esta foto</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.camShutterBtn}
-                onPress={() => {
-                  if (currentAngleIdx < 7) {
-                    setCurrentAngleIdx(currentAngleIdx + 1);
-                  } else {
-                    setStage("21_review");
-                  }
-                }}
+                onPress={handleTomarFoto}
+                disabled={subiendoFoto}
                 activeOpacity={0.85}
               >
-                <View style={styles.camShutterInnerCircle} />
+                {subiendoFoto ? <ActivityIndicator color={colors.darkBg} /> : <View style={styles.camShutterInnerCircle} />}
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.miniThumbCounter}
                 onPress={() => setStage("21_review")}
               >
-                <Text style={styles.thumbCounterText}>{currentAngleIdx + 1}</Text>
+                <Text style={styles.thumbCounterText}>{fotos.length}</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.camShutterNote}>
-              Puede volver a cualquier foto antes de confirmar
+              Mínimo 1 foto para continuar · llevas {fotos.length} de {ANGLES.length}
             </Text>
           </View>
         </View>
       )}
 
       {/* ========================================================================= */}
-      {/* PANTALLA 21: REVISIÓN DE LAS 8 FOTOS */}
+      {/* PANTALLA 21: REVISIÓN DE FOTOS */}
       {/* ========================================================================= */}
       {stage === "21_review" && (
         <View style={styles.screenWrapper}>
@@ -182,93 +452,57 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
             <TouchableOpacity onPress={() => setStage("20_camera")}>
               <Icon name="arrow-left" size={22} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.topNavTitle}>Revise las 8 fotos</Text>
+            <Text style={styles.topNavTitle}>Revise las fotos ({fotos.length})</Text>
           </View>
 
           <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.scrollContent}>
-            <View style={styles.warningNoticeRow}>
-              <Icon name="alert" size={20} color={colors.warning} style={{ marginRight: 8 }} />
-              <Text style={styles.warningNoticeDesc}>
-                La foto del maletero salió oscura. Puede repetirla o dejarla así.
-              </Text>
-            </View>
-
+            {fotos.length === 0 && (
+              <View style={styles.warningNoticeRow}>
+                <Icon name="alert" size={20} color={colors.warning} style={{ marginRight: 8 }} />
+                <Text style={styles.warningNoticeDesc}>
+                  Todavía no tomaste ninguna foto real. Vuelve atrás y toma al menos una.
+                </Text>
+              </View>
+            )}
             <View style={styles.photoGrid2x4}>
-              {ANGLES.map((a) => {
-                const isDark = a.name === "Maletero";
-                return (
-                  <View
-                    key={a.id}
-                    style={[styles.gridPhotoCard, isDark && styles.gridCardWarning]}
-                  >
-                    <View
-                      style={[
-                        styles.gridPhotoThumb,
-                        isDark && styles.gridPhotoThumbDark,
-                      ]}
-                    >
-                      {isDark && <Text style={styles.darkTagText}>oscura</Text>}
-                    </View>
-                    <View style={styles.gridPhotoFooter}>
-                      <Text style={styles.gridPhotoName}>{a.name}</Text>
-                      {isDark ? (
-                        <Text style={styles.repeatBadge}>Repetir</Text>
-                      ) : (
-                        <Text style={styles.checkBadge}>✓</Text>
-                      )}
-                    </View>
+              {fotos.map((url, idx) => (
+                <View key={url + idx} style={styles.gridPhotoCard}>
+                  <Image source={{ uri: url }} style={styles.gridPhotoThumb} />
+                  <View style={styles.gridPhotoFooter}>
+                    <Text style={styles.gridPhotoName}>{ANGLES[idx]?.name || `Foto ${idx + 1}`}</Text>
+                    <Text style={styles.checkBadge}>✓</Text>
                   </View>
-                );
-              })}
+                </View>
+              ))}
             </View>
           </ScrollView>
 
           <View style={styles.bottomFixedBar}>
             <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => setStage("22_metrics")}
+              style={[styles.primaryBtn, fotos.length === 0 && styles.btnDisabled]}
+              onPress={irAMetricas}
+              disabled={fotos.length === 0}
               activeOpacity={0.85}
             >
               <Text style={styles.primaryBtnText}>Continuar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => {
-                setCurrentAngleIdx(6); // Maletero
-                setStage("20_camera");
-              }}
-            >
-              <Text style={styles.linkBtnText}>Repetir la del maletero</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
       {/* ========================================================================= */}
-      {/* PANTALLA 22: KILOMETRAJE Y COMBUSTIBLE */}
+      {/* PANTALLA 22: KILOMETRAJE Y COMBUSTIBLE (entrega y devolución) */}
       {/* ========================================================================= */}
       {stage === "22_metrics" && (
         <View style={styles.screenWrapper}>
           <View style={styles.topNavHeader}>
-            <TouchableOpacity onPress={() => setStage("21_review")}>
+            <TouchableOpacity onPress={() => setStage(tipo === "antes" ? "21_review" : "25_return_cam")}>
               <Icon name="arrow-left" size={22} color={colors.primary} />
             </TouchableOpacity>
             <Text style={styles.topNavTitle}>Kilometraje y combustible</Text>
           </View>
 
           <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.scrollContent}>
-            {/* Foto del Tablero Preview */}
-            <View style={styles.tableroCard}>
-              <View style={styles.tableroMockPhoto}>
-                <Icon name="camera" size={28} color={colors.textMuted} />
-                <Text style={styles.mockPhotoText}>foto del tablero</Text>
-              </View>
-              <Text style={styles.tableroInstruction}>
-                Copie los datos directamente desde esta foto.
-              </Text>
-            </View>
-
-            {/* Input Km */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Kilometraje actual</Text>
               <View style={styles.kmInputRow}>
@@ -277,12 +511,13 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
                   value={km}
                   onChangeText={setKm}
                   keyboardType="numeric"
+                  placeholder="ej. 48320"
+                  placeholderTextColor={colors.textMuted}
                 />
                 <Text style={styles.kmSuffix}>km</Text>
               </View>
             </View>
 
-            {/* Selector Combustible */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Nivel de combustible</Text>
               <View style={styles.fuelButtonsRow}>
@@ -291,55 +526,33 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
                   return (
                     <TouchableOpacity
                       key={level}
-                      style={[
-                        styles.fuelLevelBtn,
-                        isSelected && styles.fuelLevelBtnActive,
-                      ]}
+                      style={[styles.fuelLevelBtn, isSelected && styles.fuelLevelBtnActive]}
                       onPress={() => setFuelLevel(level)}
                     >
-                      <Text
-                        style={[
-                          styles.fuelLevelText,
-                          isSelected && styles.fuelLevelTextActive,
-                        ]}
-                      >
-                        {level}
-                      </Text>
-                      {level === "E" && (
-                        <Text style={[styles.fuelSubText, isSelected && styles.fuelSubTextActive]}>vacío</Text>
-                      )}
-                      {level === "F" && (
-                        <Text style={[styles.fuelSubText, isSelected && styles.fuelSubTextActive]}>lleno</Text>
-                      )}
+                      <Text style={[styles.fuelLevelText, isSelected && styles.fuelLevelTextActive]}>{level}</Text>
+                      {level === "E" && <Text style={[styles.fuelSubText, isSelected && styles.fuelSubTextActive]}>vacío</Text>}
+                      {level === "F" && <Text style={[styles.fuelSubText, isSelected && styles.fuelSubTextActive]}>lleno</Text>}
                     </TouchableOpacity>
                   );
                 })}
               </View>
-            </View>
-
-            {/* Fuel Notice */}
-            <View style={styles.cardInfoBox}>
-              <Text style={styles.cardInfoTitle}>Se devuelve con {fuelLevel} de tanque</Text>
-              <Text style={styles.cardInfoDesc}>
-                Si vuelve con menos, se descuenta de la garantía según el precio de bencina del día.
-              </Text>
             </View>
           </ScrollView>
 
           <View style={styles.bottomFixedBar}>
             <TouchableOpacity
               style={styles.primaryBtn}
-              onPress={() => setStage("23_signature")}
+              onPress={handleContinuarMetricas}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>Ir a la firma</Text>
+              <Text style={styles.primaryBtnText}>{tipo === "antes" ? "Ir a la firma" : "Continuar"}</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
       {/* ========================================================================= */}
-      {/* PANTALLA 23: FIRMA CON VERIFICACIÓN FACIAL */}
+      {/* PANTALLA 23: FIRMA (entrega) */}
       {/* ========================================================================= */}
       {stage === "23_signature" && (
         <View style={styles.screenWrapper}>
@@ -350,38 +563,28 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
               </TouchableOpacity>
               <Text style={styles.topNavTitle}>Firma del contrato</Text>
             </View>
-            <Text style={styles.stepFractionText}>2 / 2</Text>
           </View>
 
           <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.scrollContent}>
             <View style={styles.blueNoticeRow}>
               <Icon name="shield" size={20} color={colors.primary} style={{ marginRight: 8 }} />
               <Text style={styles.blueNoticeText}>
-                Ahora firma <Text style={{ fontWeight: "700" }}>Camila Aravena</Text>, la arrendataria. Pásele el teléfono.
+                Ahora firma <Text style={{ fontWeight: "700" }}>{datosValidados?.cliente_nombre || "el cliente"}</Text>. Pásele el teléfono.
               </Text>
             </View>
 
-            {/* Contract Summary Box */}
             <View style={styles.contractSummaryBox}>
-              <Text style={styles.contractBoxTitle}>Contrato de arriendo · BBFK-42</Text>
-              <View style={styles.contractRow}>
-                <Text style={styles.contractLabel}>Del 12 al 16 de agosto</Text>
-                <Text style={styles.contractVal}>4 días</Text>
-              </View>
+              <Text style={styles.contractBoxTitle}>Contrato de arriendo · {auto.patente}</Text>
               <View style={styles.contractRow}>
                 <Text style={styles.contractLabel}>Kilometraje de salida</Text>
-                <Text style={styles.contractVal}>48.320 km</Text>
+                <Text style={styles.contractVal}>{km} km</Text>
               </View>
               <View style={styles.contractRow}>
                 <Text style={styles.contractLabel}>Garantía retenida</Text>
-                <Text style={styles.contractVal}>$150.000</Text>
+                <Text style={styles.contractVal}>${(reserva?.monto_hold || 0).toLocaleString("es-CL")}</Text>
               </View>
-              <TouchableOpacity style={{ marginTop: 4 }}>
-                <Text style={styles.contractLink}>Leer el contrato completo</Text>
-              </TouchableOpacity>
             </View>
 
-            {/* Facial Verification Camera View */}
             <View style={styles.faceCamContainer}>
               <View style={styles.faceCamCircle}>
                 <Icon name="user" size={48} color="rgba(146,227,203,0.7)" />
@@ -395,14 +598,15 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
 
           <View style={styles.bottomFixedBar}>
             <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => setStage("24_signed")}
+              style={[styles.primaryBtn, enviandoChecklist && styles.btnDisabled]}
+              onPress={() => enviarChecklist()}
+              disabled={enviandoChecklist}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>Firmar y entregar las llaves</Text>
+              {enviandoChecklist ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Firmar y entregar las llaves</Text>}
             </TouchableOpacity>
             <Text style={styles.signFooterDisclaimer}>
-              Al firmar acepta el estado registrado en las 8 fotos.
+              Al firmar acepta el estado registrado en las fotos.
             </Text>
           </View>
         </View>
@@ -421,78 +625,59 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
             <View style={styles.centerTextBox}>
               <Text style={styles.largeHeroTitle}>Contrato firmado</Text>
               <Text style={styles.heroSubText}>
-                El arriendo está en curso. Camila tiene el auto hasta el sábado 16 a las 18:00.
+                El arriendo está en curso. Devolución acordada para el {reserva?.fecha_fin ? new Date(reserva.fecha_fin).toLocaleDateString("es-CL") : "—"}.
               </Text>
             </View>
 
             <View style={styles.cardDetailBox}>
               <View style={styles.cardDetailRow}>
-                <Text style={styles.cardDetailLabel}>Contrato</Text>
-                <Text style={styles.cardDetailMono}>AMY-2026-04871</Text>
-              </View>
-              <View style={styles.cardDetailRow}>
-                <Text style={styles.cardDetailLabel}>Firmado</Text>
-                <Text style={styles.cardDetailVal}>12 ago · 09:53</Text>
+                <Text style={styles.cardDetailLabel}>Reserva</Text>
+                <Text style={styles.cardDetailMono}>{(reservaIdActiva || "").slice(0, 8).toUpperCase()}</Text>
               </View>
               <View style={styles.cardDetailRow}>
                 <Text style={styles.cardDetailLabel}>Registro fotográfico</Text>
-                <Text style={styles.cardDetailVal}>8 fotos</Text>
+                <Text style={styles.cardDetailVal}>{fotos.length} fotos</Text>
               </View>
               <View style={[styles.cardDetailRow, { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }]}>
                 <Text style={styles.cardDetailLabel}>Garantía</Text>
-                <Text style={styles.guaranteeHoldText}>$150.000 retenidos</Text>
+                <Text style={styles.guaranteeHoldText}>${(reserva?.monto_hold || 0).toLocaleString("es-CL")} retenidos</Text>
               </View>
-            </View>
-
-            <View style={styles.yellowReminderBox}>
-              <Text style={styles.yellowReminderText}>
-                La devolución es el sábado 16 a las 18:00 en Av. Providencia 2145. Le avisaremos una hora antes.
-              </Text>
             </View>
           </ScrollView>
 
           <View style={styles.bottomFixedBar}>
             <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={() => setStage("25_return_cam")}
-              activeOpacity={0.85}
-            >
-              <Icon name="document" size={18} color={colors.primary} style={{ marginRight: 8 }} />
-              <Text style={styles.secondaryBtnText}>Ver el PDF del contrato</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={styles.primaryBtn}
-              onPress={() => setStage("25_return_cam")}
+              onPress={onCompleteDelivery}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>Continuar a Devolución (Demo)</Text>
+              <Text style={styles.primaryBtnText}>Listo</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
       {/* ========================================================================= */}
-      {/* PANTALLA 25: CHECKLIST DE DEVOLUCIÓN */}
+      {/* PANTALLA 25: CHECKLIST DE DEVOLUCIÓN — CÁMARA GUIADA */}
       {/* ========================================================================= */}
       {stage === "25_return_cam" && (
         <View style={styles.screenWrapper}>
           <View style={styles.camTopArea}>
             <View style={styles.camHeaderRow}>
-              <TouchableOpacity onPress={() => setStage("24_signed")}>
+              <TouchableOpacity onPress={onBack}>
                 <Icon name="close" size={22} color="#FFFFFF" />
               </TouchableOpacity>
-              <Text style={styles.camVehicleTitle}>Devolución · Suzuki Swift</Text>
-              <Text style={styles.camFraction}>5 / 8</Text>
+              <Text style={styles.camVehicleTitle}>Devolución · {auto.marca} {auto.modelo}</Text>
+              <Text style={styles.camFraction}>{fotos.length} / {ANGLES.length}</Text>
             </View>
 
             <View style={styles.camBarsRow}>
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((idx) => (
+              {ANGLES.map((_, idx) => (
                 <View
                   key={idx}
                   style={[
                     styles.camBarSegment,
-                    idx < 4 ? styles.barCompleted : idx === 4 ? styles.barActive : styles.barPending,
+                    idx < fotos.length ? styles.barCompleted : idx === currentAngleIdx ? styles.barActive : styles.barPending,
                   ]}
                 />
               ))}
@@ -500,127 +685,83 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
           </View>
 
           <View style={styles.camViewfinderArea}>
-            <View style={styles.viewfinderGuideBox} />
+            {fotos[currentAngleIdx] ? (
+              <Image source={{ uri: fotos[currentAngleIdx] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <View style={styles.viewfinderGuideBox} />
+            )}
             <View style={styles.viewfinderBadgeTop}>
-              <Text style={styles.viewfinderBadgeText}>Asientos delanteros</Text>
-            </View>
-
-            {/* Thumbnail comparison overlay */}
-            <View style={styles.comparisonFloatingThumb}>
-              <View style={styles.comparisonMockImg} />
-              <View style={styles.comparisonTag}>
-                <Text style={styles.comparisonTagText}>Cómo estaba el 12 ago</Text>
-              </View>
+              <Text style={styles.viewfinderBadgeText}>{angle.desc}</Text>
             </View>
           </View>
 
           <View style={styles.camShutterBar}>
             <View style={styles.shutterRow}>
-              <TouchableOpacity onPress={() => setStage("26_compare")}>
+              <TouchableOpacity onPress={() => setCurrentAngleIdx(Math.min(ANGLES.length - 1, currentAngleIdx + 1))}>
                 <Text style={styles.skipPhotoText}>Saltar</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.camShutterBtn}
-                onPress={() => setStage("26_compare")}
+                onPress={handleTomarFoto}
+                disabled={subiendoFoto}
                 activeOpacity={0.85}
               >
-                <View style={styles.camShutterInnerCircle} />
+                {subiendoFoto ? <ActivityIndicator color={colors.darkBg} /> : <View style={styles.camShutterInnerCircle} />}
               </TouchableOpacity>
 
-              <View style={styles.miniThumbCounter}>
-                <Text style={styles.thumbCounterText}>4</Text>
-              </View>
+              <TouchableOpacity style={styles.miniThumbCounter} onPress={irAMetricas}>
+                <Text style={styles.thumbCounterText}>{fotos.length}</Text>
+              </TouchableOpacity>
             </View>
             <Text style={styles.camShutterNote}>
-              Repita el mismo ángulo que el día de la entrega
+              Repita el mismo ángulo que el día de la entrega · {fotos.length} de {ANGLES.length}
             </Text>
           </View>
         </View>
       )}
 
       {/* ========================================================================= */}
-      {/* PANTALLA 26: COMPARACIÓN LADO A LADO */}
+      {/* PANTALLA 26: CONFIRMAR DEVOLUCIÓN */}
       {/* ========================================================================= */}
       {stage === "26_compare" && (
         <View style={styles.screenWrapper}>
           <View style={styles.topNavHeader}>
-            <TouchableOpacity onPress={() => setStage("25_return_cam")}>
+            <TouchableOpacity onPress={() => setStage("22_metrics")}>
               <Icon name="arrow-left" size={22} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.topNavTitle}>Entrega vs. devolución</Text>
+            <Text style={styles.topNavTitle}>Confirmar devolución</Text>
           </View>
 
           <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.scrollContent}>
-            <View style={styles.compareHeadersRow}>
-              <Text style={styles.compareColHeader}>12 ago · entrega</Text>
-              <Text style={styles.compareColHeader}>16 ago · devolución</Text>
-            </View>
-
-            {/* Comparison Item 1: Frontal */}
-            <View style={styles.compareItemBox}>
-              <View style={styles.comparePhotosRow}>
-                <View style={styles.compareThumb} />
-                <View style={styles.compareThumb} />
-              </View>
-              <View style={styles.compareStatusRow}>
-                <Text style={styles.compareAngleName}>Frontal</Text>
-                <Text style={styles.noDiffText}>Sin diferencias</Text>
-              </View>
-            </View>
-
-            {/* Comparison Item 2: Lateral Izq with damage tag */}
-            <View style={styles.compareItemBox}>
-              <View style={styles.comparePhotosRow}>
-                <View style={styles.compareThumb} />
-                <View style={[styles.compareThumb, styles.compareThumbDamaged]}>
-                  <View style={styles.damageBoxRedMarker} />
-                </View>
-              </View>
-              <View style={styles.compareStatusRow}>
-                <Text style={styles.compareAngleName}>Lateral izquierdo</Text>
-                <Text style={styles.markedByOwnerText}>Marcada por el dueño</Text>
-              </View>
-            </View>
-
-            {/* Comparison Item 3: Trasera */}
-            <View style={styles.compareItemBox}>
-              <View style={styles.comparePhotosRow}>
-                <View style={styles.compareThumb} />
-                <View style={styles.compareThumb} />
-              </View>
-              <View style={styles.compareStatusRow}>
-                <Text style={styles.compareAngleName}>Trasera</Text>
-                <Text style={styles.noDiffText}>Sin diferencias</Text>
-              </View>
-            </View>
-
-            {/* Km Difference Card */}
             <View style={styles.deltaCard}>
               <View>
-                <Text style={styles.deltaTitle}>Kilometraje</Text>
-                <Text style={styles.deltaSub}>48.320 → 48.941</Text>
+                <Text style={styles.deltaTitle}>Kilometraje registrado</Text>
+                <Text style={styles.deltaSub}>{km} km</Text>
               </View>
-              <Text style={styles.deltaValue}>+621 km</Text>
             </View>
-
-            {/* Fuel Difference Card */}
             <View style={styles.deltaCard}>
               <View>
-                <Text style={styles.deltaTitle}>Combustible</Text>
-                <Text style={styles.deltaSub}>¾ → ½</Text>
+                <Text style={styles.deltaTitle}>Combustible registrado</Text>
+                <Text style={styles.deltaSub}>{fuelLevel}</Text>
               </View>
-              <Text style={styles.deltaWarningVal}>Falta ¼</Text>
+            </View>
+            <View style={styles.deltaCard}>
+              <View>
+                <Text style={styles.deltaTitle}>Fotos de devolución</Text>
+                <Text style={styles.deltaSub}>{fotos.length} de {ANGLES.length}</Text>
+              </View>
             </View>
           </ScrollView>
 
           <View style={styles.bottomFixedBar}>
             <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => setStage("28_done")}
+              style={[styles.primaryBtn, enviandoChecklist && styles.btnDisabled]}
+              onPress={() => enviarChecklist()}
+              disabled={enviandoChecklist}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>Todo en orden, liberar garantía</Text>
+              {enviandoChecklist ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Todo en orden, cerrar arriendo</Text>}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -647,40 +788,24 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
           </View>
 
           <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.scrollContent}>
-            {/* Photo with damage tap marker */}
-            <View style={styles.damagePhotoCard}>
-              <View style={styles.damagePhotoCanvas}>
-                <View style={styles.damageTapMarker} />
-              </View>
-              <Text style={styles.damagePhotoHelp}>
-                Lateral izquierdo · toque la foto para marcar la zona
-              </Text>
-            </View>
-
-            {/* Damage Type Pills */}
             <View style={styles.damageSection}>
               <Text style={styles.damageSectionTitle}>Tipo de diferencia</Text>
               <View style={styles.damagePillsRow}>
-                {["Rayón", "Golpe", "Vidrio", "Neumático", "Interior", "Falta combustible"].map(
-                  (type) => {
-                    const isSel = damageType === type;
-                    return (
-                      <TouchableOpacity
-                        key={type}
-                        style={[styles.damagePill, isSel && styles.damagePillSelected]}
-                        onPress={() => setDamageType(type)}
-                      >
-                        <Text style={[styles.damagePillText, isSel && styles.damagePillTextSelected]}>
-                          {type}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  }
-                )}
+                {["Rayón", "Golpe", "Vidrio", "Neumático", "Interior", "Falta combustible"].map((type) => {
+                  const isSel = damageType === type;
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.damagePill, isSel && styles.damagePillSelected]}
+                      onPress={() => setDamageType(type)}
+                    >
+                      <Text style={[styles.damagePillText, isSel && styles.damagePillTextSelected]}>{type}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
 
-            {/* Damage Description */}
             <View style={styles.damageSection}>
               <Text style={styles.damageSectionTitle}>Qué pasó</Text>
               <View style={styles.damageInputBox}>
@@ -688,6 +813,8 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
                   style={styles.damageTextInput}
                   value={damageDesc}
                   onChangeText={setDamageDesc}
+                  placeholder="Describe la diferencia encontrada"
+                  placeholderTextColor={colors.textMuted}
                   multiline
                 />
               </View>
@@ -696,24 +823,22 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
             <View style={styles.yellowHoldNotice}>
               <Text style={styles.yellowHoldTitle}>La garantía sigue retenida</Text>
               <Text style={styles.yellowHoldDesc}>
-                Camila tiene 48 horas para responder. Si no hay acuerdo, revisamos el caso con las fotos de ambas partes.
+                Este reporte queda como nota del checklist de devolución para respaldar el cargo correspondiente.
               </Text>
             </View>
           </ScrollView>
 
           <View style={styles.bottomFixedBar}>
             <TouchableOpacity
-              style={styles.dangerBtn}
-              onPress={() => setStage("28_done")}
+              style={[styles.dangerBtn, enviandoChecklist && styles.btnDisabled]}
+              onPress={() => enviarChecklist(`[${damageType}] ${damageDesc}`.trim())}
+              disabled={enviandoChecklist}
               activeOpacity={0.85}
             >
-              <Text style={styles.dangerBtnText}>Enviar el reporte</Text>
+              {enviandoChecklist ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.dangerBtnText}>Enviar el reporte y cerrar</Text>}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => setStage("26_compare")}
-            >
+            <TouchableOpacity style={styles.linkBtn} onPress={() => setStage("26_compare")}>
               <Text style={styles.linkBtnText}>Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -726,79 +851,53 @@ export function DeliveryScreen({ onBack, onCompleteDelivery }) {
       {stage === "28_done" && (
         <View style={styles.screenWrapper}>
           <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.finalCenterContent}>
-            {/* Top Check Badge */}
             <View style={styles.successCheckCircle}>
               <Icon name="check" size={38} color={colors.success} strokeWidth={2.4} />
             </View>
 
-            {/* Title & Subtitle */}
             <View style={styles.centerTextBox}>
               <Text style={styles.largeHeroTitle}>Devolución confirmada</Text>
-              <Text style={styles.heroSubText}>
-                Rodrigo revisó el auto y no reportó diferencias. El arriendo quedó cerrado.
-              </Text>
+              <Text style={styles.heroSubText}>El arriendo quedó cerrado y liquidado.</Text>
             </View>
 
-            {/* Guarantee Release Card */}
             <View style={styles.guaranteeFinalCard}>
               <View style={styles.guaranteeFinalHeader}>
-                <Text style={styles.guaranteeFinalLabel}>Garantía</Text>
+                <Text style={styles.guaranteeFinalLabel}>Liquidación para ti</Text>
                 <View style={styles.liberadaBadge}>
-                  <Text style={styles.liberadaBadgeText}>Liberada</Text>
+                  <Text style={styles.liberadaBadgeText}>Pendiente de pago</Text>
                 </View>
               </View>
               <View style={styles.guaranteeFinalRow}>
                 <Text style={styles.guaranteeFinalLabel}>Monto</Text>
-                <Text style={styles.guaranteeFinalValBold}>$150.000</Text>
+                <Text style={styles.guaranteeFinalValBold}>
+                  ${(resultadoChecklist?.liquidacion_dueno || 0).toLocaleString("es-CL")}
+                </Text>
               </View>
-              <View style={styles.guaranteeFinalRow}>
-                <Text style={styles.guaranteeFinalLabel}>Descuentos</Text>
-                <Text style={styles.guaranteeFinalVal}>$0</Text>
-              </View>
+              {resultadoChecklist?.cargo_limpieza > 0 && (
+                <View style={styles.guaranteeFinalRow}>
+                  <Text style={styles.guaranteeFinalLabel}>Cargo limpieza</Text>
+                  <Text style={styles.guaranteeFinalVal}>${resultadoChecklist.cargo_limpieza.toLocaleString("es-CL")}</Text>
+                </View>
+              )}
+              {resultadoChecklist?.cargo_combustible > 0 && (
+                <View style={styles.guaranteeFinalRow}>
+                  <Text style={styles.guaranteeFinalLabel}>Cargo combustible</Text>
+                  <Text style={styles.guaranteeFinalVal}>${resultadoChecklist.cargo_combustible.toLocaleString("es-CL")}</Text>
+                </View>
+              )}
               <Text style={styles.guaranteeFinalBankNote}>
-                El banco puede tardar hasta 5 días hábiles en mostrar la liberación en su cupo.
+                La garantía se libera al cliente tras esta inspección de devolución.
               </Text>
-            </View>
-
-            {/* Rating Widget with Real SVG Stars */}
-            <View style={styles.ratingWidgetCard}>
-              <Text style={styles.ratingWidgetTitle}>¿Cómo fue con Rodrigo?</Text>
-              <View style={styles.starsRow}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => setRating(star)}
-                    activeOpacity={0.8}
-                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                  >
-                    <Icon
-                      name="star"
-                      size={34}
-                      color={star <= rating ? colors.accent : colors.primary200}
-                      fill={star <= rating ? colors.accent : colors.primary100}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
           </ScrollView>
 
-          {/* Bottom Fixed Action Bar */}
           <View style={styles.bottomFixedBar}>
             <TouchableOpacity
               style={styles.primaryBtn}
               onPress={onCompleteDelivery}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryBtnText}>Calificar a Rodrigo</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={onCompleteDelivery}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.linkBtnText}>Ver el detalle del arriendo</Text>
+              <Text style={styles.primaryBtnText}>Listo</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -835,6 +934,15 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     alignItems: "center",
     gap: 20,
+  },
+  btnDisabled: {
+    opacity: 0.5,
+  },
+  perfilFoto: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignSelf: "center",
   },
 
   // Cam Header
@@ -1045,11 +1153,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
-  stepFractionText: {
-    fontFamily: "monospace",
-    fontSize: 13,
-    color: colors.textMuted,
-  },
 
   // Notices
   warningNoticeRow: {
@@ -1096,23 +1199,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  gridCardWarning: {
-    borderColor: colors.warning,
-    borderWidth: 1.5,
-  },
   gridPhotoThumb: {
     height: 72,
+    width: "100%",
     backgroundColor: colors.surfaceSecondary,
-  },
-  gridPhotoThumbDark: {
-    backgroundColor: "#4B5563",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  darkTagText: {
-    fontFamily: "monospace",
-    fontSize: 11,
-    color: "#D1D5DB",
   },
   gridPhotoFooter: {
     padding: 8,
@@ -1129,37 +1219,8 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "700",
   },
-  repeatBadge: {
-    color: colors.warning,
-    fontSize: 12,
-    fontWeight: "600",
-  },
 
   // Inputs & Metrics
-  tableroCard: {
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  tableroMockPhoto: {
-    height: 120,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  mockPhotoText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontFamily: "monospace",
-  },
-  tableroInstruction: {
-    padding: 12,
-    fontSize: 14,
-    color: colors.textMuted,
-  },
   inputGroup: {
     gap: 8,
   },
@@ -1183,7 +1244,7 @@ const styles = StyleSheet.create({
     boxShadow: "0 0 0 4px #E4F8F2",
   },
   kmTextInput: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: "700",
     color: colors.text,
     flex: 1,
@@ -1227,24 +1288,6 @@ const styles = StyleSheet.create({
   fuelSubTextActive: {
     color: "#DCEFEC",
   },
-  cardInfoBox: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    gap: 6,
-  },
-  cardInfoTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  cardInfoDesc: {
-    fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
 
   // Facial Verification
   contractSummaryBox: {
@@ -1275,10 +1318,10 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "500",
   },
-  contractLink: {
+  tableroInstruction: {
     fontSize: 14,
-    color: colors.accentDark,
-    fontWeight: "600",
+    color: colors.textMuted,
+    lineHeight: 20,
   },
   faceCamContainer: {
     height: 240,
@@ -1380,105 +1423,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.warningText,
   },
-  yellowReminderBox: {
-    width: "100%",
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    borderRadius: 12,
-    padding: 14,
-  },
-  yellowReminderText: {
-    fontSize: 14,
-    color: colors.warningText,
-    lineHeight: 20,
-  },
 
-  // Comparison View
-  comparisonFloatingThumb: {
-    position: "absolute",
-    bottom: 20,
-    right: 20,
-    width: 130,
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.5)",
-  },
-  comparisonMockImg: {
-    height: 70,
-    backgroundColor: colors.surfaceSecondary,
-  },
-  comparisonTag: {
-    backgroundColor: "rgba(6, 30, 31, 0.92)",
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-  },
-  comparisonTagText: {
-    fontSize: 11,
-    color: colors.accent300,
-  },
-
-  compareHeadersRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  compareColHeader: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    color: colors.textMuted,
-  },
-  compareItemBox: {
-    gap: 8,
-  },
-  comparePhotosRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  compareThumb: {
-    flex: 1,
-    height: 76,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  compareThumbDamaged: {
-    borderColor: colors.danger,
-    borderWidth: 1.5,
-    position: "relative",
-  },
-  damageBoxRedMarker: {
-    position: "absolute",
-    top: 24,
-    left: 20,
-    width: 44,
-    height: 26,
-    borderWidth: 2,
-    borderColor: colors.danger,
-    borderRadius: 6,
-  },
-  compareStatusRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  compareAngleName: {
-    fontSize: 14,
-    color: colors.text,
-  },
-  noDiffText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.success,
-  },
-  markedByOwnerText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.danger,
-  },
   deltaCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -1499,45 +1444,8 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
-  deltaValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  deltaWarningVal: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.warning,
-  },
 
   // Damage reporting
-  damagePhotoCard: {
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  damagePhotoCanvas: {
-    height: 110,
-    backgroundColor: colors.primary100,
-    position: "relative",
-  },
-  damageTapMarker: {
-    position: "absolute",
-    top: 34,
-    left: 112,
-    width: 64,
-    height: 36,
-    borderWidth: 2.5,
-    borderColor: colors.danger,
-    borderRadius: 8,
-  },
-  damagePhotoHelp: {
-    padding: 12,
-    fontSize: 14,
-    color: colors.textMuted,
-  },
   damageSection: {
     gap: 8,
   },
@@ -1574,7 +1482,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   damageInputBox: {
-    height: 76,
+    minHeight: 76,
     borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: 12,
@@ -1679,25 +1587,6 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingTop: 10,
   },
-  ratingWidgetCard: {
-    width: "100%",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 18,
-    gap: 14,
-  },
-  ratingWidgetTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  starsRow: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    gap: 12,
-  },
 
   // Bottom Action Bars
   bottomFixedBar: {
@@ -1719,21 +1608,6 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
-  },
-  secondaryBtn: {
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryBtnText: {
-    color: colors.primary,
-    fontSize: 15,
     fontWeight: "600",
   },
   linkBtn: {
