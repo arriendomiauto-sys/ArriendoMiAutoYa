@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS public.usuarios (
     notas_auditoria TEXT,
     roles_activos JSONB DEFAULT '["cliente"]'::JSONB, -- subconjunto de: dueno, cliente, manager, admin
     sucursal_id TEXT REFERENCES public.sucursales(id),
-    fecha_registro TIMESTAMPTZ DEFAULT NOW()
+    fecha_registro TIMESTAMPTZ DEFAULT NOW(),
+    cuenta_bancaria JSONB -- {"banco","tipo_cuenta","numero","titular","rut"} — solo dueños
 );
 
 CREATE INDEX IF NOT EXISTS idx_usuarios_rut ON public.usuarios(rut);

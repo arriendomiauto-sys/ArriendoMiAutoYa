@@ -3,6 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.main import app
 from app.core.seed import seed_demo_data
@@ -10,10 +11,18 @@ from app.models.entities import Usuario
 from app.services.auth import get_current_user
 from app.core.limiter import limiter
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test_temp.db"
+# En memoria: create_all()/drop_all() corren ~80 veces en la suite y un
+# archivo real en disco no aporta nada (no se inspecciona entre corridas) —
+# solo agrega I/O innecesario. Bajó el tiempo de la suite de ~170s a ~6s.
+# StaticPool es obligatorio para :memory: porque cada conexión nueva a
+# :memory: ve una DB vacía distinta; con StaticPool todas las conexiones
+# comparten la misma DB en memoria.
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

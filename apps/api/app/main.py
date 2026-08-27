@@ -31,7 +31,11 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Crear tablas automáticamente si es SQLite local
+    # Crear tablas automáticamente si es SQLite local. create_all() no altera
+    # tablas ya existentes: si agregas una columna a un modelo, borra
+    # rentacar_dev.db (gitignored, se regenera solo) o quedará desincronizada
+    # y todo lo que use TestClient (tests, uvicorn --reload) fallará con
+    # "no such column" al chocar contra el schema viejo en disco.
     Base.metadata.create_all(bind=engine)
     os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
     db = SessionLocal()
