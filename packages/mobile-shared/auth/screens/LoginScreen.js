@@ -38,7 +38,7 @@ export function LoginScreen({ onNavigate }) {
     }
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
     } catch (err) {
       showAlert("No se pudo iniciar sesión", traducirErrorAuth(err));
     } finally {

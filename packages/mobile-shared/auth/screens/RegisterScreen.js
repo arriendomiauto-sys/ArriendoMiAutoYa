@@ -75,7 +75,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
 
     setLoading(true);
     try {
-      const data = await register(form.email, form.password);
+      const data = await register(form.email.trim(), form.password);
 
       if (data?.session) {
         // El proyecto Supabase no exige confirmación de correo: la sesión
@@ -98,7 +98,18 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         onNavigate("confirm_email");
       }
     } catch (err) {
-      showAlert("No se pudo crear la cuenta", traducirErrorAuth(err));
+      if (err.code === "already_registered") {
+        showAlert(
+          "Ya tienes una cuenta",
+          "Ya existe una cuenta con este correo. Inicia sesión en vez de crear una nueva.",
+          [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Iniciar sesión", onPress: () => onNavigate("login") },
+          ]
+        );
+      } else {
+        showAlert("No se pudo crear la cuenta", traducirErrorAuth(err));
+      }
     } finally {
       setLoading(false);
     }

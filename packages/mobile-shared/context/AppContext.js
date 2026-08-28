@@ -82,6 +82,21 @@ export function AppProvider({ children }) {
   const register = async (email, password) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
+
+    // Supabase NO devuelve error si el correo ya tiene una cuenta — por
+    // diseño, para no dejar enumerar qué correos están registrados. En vez
+    // de eso responde 200 con session=null y, la señal confiable, un
+    // user.identities vacío (ver docs de Supabase Auth). Sin este chequeo
+    // el flujo caía directo a "confirma tu correo" como si la cuenta fuera
+    // nueva — dejaba "crear" la misma cuenta las veces que quisieras, sin
+    // avisar nunca que ya existía.
+    const yaExistia = !data?.session && (data?.user?.identities?.length ?? 0) === 0;
+    if (yaExistia) {
+      const err = new Error("User already registered");
+      err.code = "already_registered";
+      throw err;
+    }
+
     return data;
   };
 
