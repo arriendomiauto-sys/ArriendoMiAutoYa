@@ -10,12 +10,20 @@ import {
   Modal,
   TextInput,
 } from "react-native";
-import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient, showAlert, VerifyIdentityBanner } from "@rentacar/mobile-shared";
 
 // `cars`/`setCars` vienen como props (la flota real del dueño, desde
 // OwnerApp) — no del contexto global, que es el marketplace público
 // completo y mostraría autos de otros dueños.
-export function MyCarsScreen({ cars, setCars, onAddNewCar, onOpenCalendar, onOpenMaintenance }) {
+export function MyCarsScreen({
+  cars,
+  setCars,
+  onAddNewCar,
+  onOpenCalendar,
+  onOpenMaintenance,
+  identidadVerificada,
+  onVerifyIdentity,
+}) {
   const [editingCar, setEditingCar] = useState(null);
   const [newTarifa, setNewTarifa] = useState("");
   const [saving, setSaving] = useState(false);
@@ -71,6 +79,12 @@ export function MyCarsScreen({ cars, setCars, onAddNewCar, onOpenCalendar, onOpe
           <Text style={styles.addBtnText}>+ Publicar Auto</Text>
         </TouchableOpacity>
       </View>
+
+      {!identidadVerificada && (
+        <View style={styles.bannerWrap}>
+          <VerifyIdentityBanner role="owner" onPress={onVerifyIdentity} />
+        </View>
+      )}
 
       {/* Lista de Flota */}
       <FlatList
@@ -234,6 +248,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.darkBg,
     padding: 16,
+  },
+  bannerWrap: {
+    marginBottom: 14,
   },
   header: {
     flexDirection: "row",

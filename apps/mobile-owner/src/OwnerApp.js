@@ -143,6 +143,8 @@ export function OwnerApp() {
             cars={misAutos}
             setCars={setMisAutos}
             onAddNewCar={handleAddNewCar}
+            identidadVerificada={identidadVerificada}
+            onVerifyIdentity={() => setShowEnrolment(true)}
             onOpenCalendar={(car) => {
               setSelectedCarForModal(car);
               setShowCalendar(true);

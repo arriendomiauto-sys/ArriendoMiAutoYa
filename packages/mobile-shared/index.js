@@ -1,5 +1,6 @@
 export { colors } from "./theme/colors";
 export { Icon } from "./components/Icon";
+export { VerifyIdentityBanner } from "./components/VerifyIdentityBanner";
 export { ApiClient, MOCK_CARS } from "./api/client";
 export { supabase } from "./api/supabase";
 export { AppProvider, useApp } from "./context/AppContext";

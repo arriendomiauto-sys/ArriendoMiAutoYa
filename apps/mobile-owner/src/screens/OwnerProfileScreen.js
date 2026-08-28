@@ -104,14 +104,6 @@ export function OwnerProfileScreen({
             <Text style={styles.menuItemMeta}>{cars?.length || 0} autos</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenEarnings}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="card" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Datos de transferencia bancaria</Text>
-            </View>
-            <Text style={styles.menuItemMeta}>{bankAccount?.banco || "Sin configurar"}</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.menuItem} onPress={onOpenEnrolment}>
             <View style={styles.menuItemLeft}>
               <Icon name="document" size={20} color={colors.primary} />
@@ -120,6 +112,22 @@ export function OwnerProfileScreen({
             <Text style={styles.menuItemMeta}>
               {user.estado_documentos === "verificado" ? "Verificado" : "Pendiente"}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={onOpenSupport}>
+            <View style={styles.menuItemLeft}>
+              <Icon name="shield" size={20} color={colors.primary} />
+              <Text style={styles.menuItemText}>Soporte para Anfitriones 24/7</Text>
+            </View>
+            <Icon name="arrow-right" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={onOpenEarnings}>
+            <View style={styles.menuItemLeft}>
+              <Icon name="card" size={20} color={colors.primary} />
+              <Text style={styles.menuItemText}>Datos de transferencia bancaria</Text>
+            </View>
+            <Text style={styles.menuItemMeta}>{bankAccount?.banco || "Sin configurar"}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem} onPress={onOpenMaintenance}>
@@ -146,21 +154,13 @@ export function OwnerProfileScreen({
             <Icon name="arrow-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenContract}>
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomWidth: 0 }]}
+            onPress={onOpenContract}
+          >
             <View style={styles.menuItemLeft}>
               <Icon name="document" size={20} color={colors.primary} />
               <Text style={styles.menuItemText}>Contratos de mis reservas</Text>
-            </View>
-            <Icon name="arrow-right" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuItem, { borderBottomWidth: 0 }]}
-            onPress={onOpenSupport}
-          >
-            <View style={styles.menuItemLeft}>
-              <Icon name="shield" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Soporte para Anfitriones 24/7</Text>
             </View>
             <Icon name="arrow-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>

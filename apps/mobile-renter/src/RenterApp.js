@@ -175,6 +175,7 @@ export function RenterApp() {
             onSelectCar={(car) => setSelectedCar(car)}
             onOpenMap={() => setShowMap(true)}
             onOpenFilters={() => setShowMap(true)}
+            onVerifyIdentity={() => setShowEnrolment(true)}
           />
         );
 

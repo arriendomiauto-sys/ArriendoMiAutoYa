@@ -108,18 +108,28 @@ export function RenterProfileScreen({
             <Icon name="arrow-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenPaymentMethods}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="card" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Billetera y tarjetas Webpay</Text>
-            </View>
-            <Icon name="arrow-right" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.menuItem} onPress={onOpenEnrolment}>
             <View style={styles.menuItemLeft}>
               <Icon name="document" size={20} color={colors.primary} />
               <Text style={styles.menuItemText}>Verificación de Identidad (KYC)</Text>
+            </View>
+            <Text style={styles.menuItemMeta}>
+              {user.estado_documentos === "verificado" ? "Verificado" : "Pendiente"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={onOpenSupport}>
+            <View style={styles.menuItemLeft}>
+              <Icon name="shield" size={20} color={colors.primary} />
+              <Text style={styles.menuItemText}>Centro de ayuda y soporte</Text>
+            </View>
+            <Icon name="arrow-right" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={onOpenPaymentMethods}>
+            <View style={styles.menuItemLeft}>
+              <Icon name="card" size={20} color={colors.primary} />
+              <Text style={styles.menuItemText}>Billetera y tarjetas Webpay</Text>
             </View>
             <Icon name="arrow-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
@@ -140,21 +150,13 @@ export function RenterProfileScreen({
             <Icon name="arrow-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenContract}>
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomWidth: 0 }]}
+            onPress={onOpenContract}
+          >
             <View style={styles.menuItemLeft}>
               <Icon name="document" size={20} color={colors.primary} />
               <Text style={styles.menuItemText}>Términos y contrato digital legal</Text>
-            </View>
-            <Icon name="arrow-right" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuItem, { borderBottomWidth: 0 }]}
-            onPress={onOpenSupport}
-          >
-            <View style={styles.menuItemLeft}>
-              <Icon name="shield" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Centro de ayuda y soporte</Text>
             </View>
             <Icon name="arrow-right" size={16} color={colors.textMuted} />
           </TouchableOpacity>
@@ -281,6 +283,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     fontWeight: "500",
+  },
+  menuItemMeta: {
+    fontSize: 14,
+    color: colors.textMuted,
   },
   logoutBtn: {
     height: 52,

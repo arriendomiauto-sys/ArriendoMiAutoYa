@@ -9,13 +9,14 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, VerifyIdentityBanner } from "@rentacar/mobile-shared";
 import { CarCard } from "../components/CarCard";
 
 const CATEGORIES = ["Todos", "Económico", "Automático", "Camioneta", "SUV"];
 
-export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFilters }) {
-  const { cars } = useApp();
+export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFilters, onVerifyIdentity }) {
+  const { cars, currentUser } = useApp();
+  const identidadVerificada = currentUser?.estado_documentos === "verificado";
   const [selectedCategory, setSelectedCategory] = useState("Todos");
   const [searchQuery, setSearchQuery] = useState("Providencia · 12–16 ago");
 
@@ -108,6 +109,12 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFilters }) {
         contentContainerStyle={styles.catalogList}
         showsVerticalScrollIndicator={false}
       >
+        {!identidadVerificada && (
+          <View style={styles.bannerWrap}>
+            <VerifyIdentityBanner role="renter" onPress={onVerifyIdentity} />
+          </View>
+        )}
+
         <Text style={styles.resultsCount}>
           {filteredCars.length} autos disponibles
         </Text>
@@ -205,6 +212,9 @@ const styles = StyleSheet.create({
   catalogList: {
     padding: 20,
     paddingBottom: 32,
+  },
+  bannerWrap: {
+    marginBottom: 14,
   },
   resultsCount: {
     fontSize: 14,
