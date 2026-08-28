@@ -97,8 +97,15 @@ export class ApiClient {
     try {
       const query = new URLSearchParams(params).toString();
       return await this.request(`/autos${query ? `?${query}` : ""}`);
-    } catch {
-      return MOCK_CARS;
+    } catch (err) {
+      // Sin conexión con el backend: modo demo con autos de ejemplo. Si el
+      // servidor SÍ respondió (aunque con error), no se inventan autos — se
+      // devuelve lista vacía para no ocultar el estado real del marketplace.
+      if (String(err?.message || "").includes("No se pudo conectar")) {
+        return MOCK_CARS;
+      }
+      console.warn("[getAutos] el backend respondió con error:", err?.message);
+      return [];
     }
   }
 
