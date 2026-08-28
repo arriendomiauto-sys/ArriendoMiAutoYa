@@ -436,6 +436,25 @@ class OCRService:
             if bytes_licencia:
                 texto_licencia, _ = cls.llamar_google_vision_api(bytes_licencia)
 
+        # 3.5. Vision se pudo ejecutar (hay credenciales + se descargó la
+        # cédula) pero no reconoció NADA de texto: la foto no es legible.
+        # No se cae al mock — va a revisión manual.
+        api_key, tiene_creds = cls._credenciales_vision()
+        vision_disponible = bool(api_key or tiene_creds) and not settings.USE_OCR_MOCK
+        if vision_disponible and bytes_carnet and not (texto_carnet or texto_licencia):
+            return {
+                "rut_extraido": rut_usuario,
+                "nombre_extraido": None,
+                "confianza_ocr": 0.0,
+                "confianza_facial": None,
+                "verificacion_facial": "no_evaluado",
+                "documentos_legibles": False,
+                "coincide_rut_declarado": False,
+                "estado_recomendado": "requiere_revision_manual",
+                "motivo": "No pudimos leer la cédula en la foto. Vuelve a tomarla enfocada, sin reflejos y con buena luz.",
+                "es_mock": False,
+            }
+
         # 4. Si se ejecutó Google Cloud Vision de manera real con texto reconocido:
         if texto_carnet or texto_licencia:
             rut_ocr = cls.extraer_rut_chileno(texto_carnet or "")

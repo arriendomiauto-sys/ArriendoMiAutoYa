@@ -38,6 +38,21 @@ def db_session():
         Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(autouse=True)
+def _ocr_en_mock():
+    """
+    La suite no debe llamar a Google Cloud Vision ni salir a la red: el
+    pipeline de OCR corre en modo simulación determinista. Los casos reales
+    de Vision (RUT ilegible, control facial) se prueban aparte con imágenes
+    sintéticas, no acá.
+    """
+    from app.core.config import settings
+    original = settings.USE_OCR_MOCK
+    settings.USE_OCR_MOCK = True
+    yield
+    settings.USE_OCR_MOCK = original
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limiter():
     """
     El limiter (slowapi) vive a nivel de módulo/proceso, no por test — sin
