@@ -71,6 +71,125 @@ class OCRService:
 
         return None
 
+    @staticmethod
+    def _credenciales_vision() -> Tuple[Optional[str], bool]:
+        """
+        Devuelve (api_key_valida | None, hay_service_account_bool).
+        """
+        api_key = settings.GOOGLE_CLOUD_VISION_API_KEY
+        api_key_valida = (
+            api_key
+            and "your-" not in api_key.lower()
+            and "placeholder" not in api_key.lower()
+            and len(api_key.strip()) > 15
+        )
+        creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
+        tiene_creds = bool(creds_path and os.path.exists(creds_path))
+        return (api_key.strip() if api_key_valida else None), tiene_creds
+
+    @classmethod
+    def _vision_face_detection(cls, image_bytes: bytes) -> Optional[List[Dict[str, Any]]]:
+        """
+        Corre FACE_DETECTION de Google Cloud Vision sobre una imagen.
+        Retorna la lista de rostros (cada uno con detectionConfidence y los
+        *Likelihood de calidad), o None si Vision no está disponible / falló.
+
+        Nota: Vision detecta rostros y su calidad, NO compara identidad 1:1
+        (Google no ofrece face-match). Sirve como control de presencia y
+        calidad de la selfie; un match biométrico real necesita otro proveedor.
+        """
+        if not image_bytes or settings.USE_OCR_MOCK:
+            return None
+
+        api_key, tiene_creds = cls._credenciales_vision()
+        if not api_key and not tiene_creds:
+            return None
+
+        if api_key:
+            try:
+                payload = {
+                    "requests": [{
+                        "image": {"content": base64.b64encode(image_bytes).decode("utf-8")},
+                        "features": [{"type": "FACE_DETECTION", "maxResults": 5}],
+                    }]
+                }
+                with httpx.Client(timeout=20.0) as client:
+                    resp = client.post(f"{cls.VISION_REST_URL}?key={api_key}", json=payload)
+                if resp.status_code == 200:
+                    responses = resp.json().get("responses", [{}])
+                    return responses[0].get("faceAnnotations", []) or []
+                logger.error(f"FACE_DETECTION REST error ({resp.status_code}): {resp.text}")
+            except Exception as e:
+                logger.error(f"Fallo FACE_DETECTION REST: {e}")
+
+        if tiene_creds:
+            try:
+                from google.cloud import vision
+                client = vision.ImageAnnotatorClient()
+                response = client.face_detection(image=vision.Image(content=image_bytes))
+                caras = []
+                for f in response.face_annotations:
+                    caras.append({
+                        "detectionConfidence": float(f.detection_confidence or 0.0),
+                        "blurredLikelihood": vision.Likelihood(f.blurred_likelihood).name,
+                        "underExposedLikelihood": vision.Likelihood(f.under_exposed_likelihood).name,
+                    })
+                return caras
+            except Exception as e:
+                logger.error(f"Fallo FACE_DETECTION SDK: {e}")
+
+        return None
+
+    @classmethod
+    def verificar_match_facial(
+        cls,
+        carnet_bytes: Optional[bytes],
+        selfie_bytes: Optional[bytes],
+    ) -> Dict[str, Any]:
+        """
+        Control facial de la selfie contra la foto de la cédula.
+
+        - Vision no hace comparación de identidad, así que esto valida:
+          selfie con exactamente 1 rostro nítido + rostro presente en la cédula.
+        - estados: "ok" | "revision" | "rechazado" | "no_evaluado"
+          ("no_evaluado" = no se pudo correr; NO debe bloquear el enrolamiento).
+        """
+        malas = {"LIKELY", "VERY_LIKELY"}
+
+        caras_selfie = cls._vision_face_detection(selfie_bytes) if selfie_bytes else None
+        if caras_selfie is None:
+            return {"estado": "no_evaluado", "motivo": None, "confianza_facial": None,
+                    "metodo": "vision_face_detection"}
+
+        if len(caras_selfie) == 0:
+            return {"estado": "rechazado",
+                    "motivo": "No detectamos un rostro en la selfie. Tómala de frente, con buena luz y sin lentes de sol.",
+                    "confianza_facial": 0.0, "metodo": "vision_face_detection"}
+
+        if len(caras_selfie) > 1:
+            return {"estado": "revision",
+                    "motivo": "Detectamos más de una persona en la selfie.",
+                    "confianza_facial": None, "metodo": "vision_face_detection"}
+
+        cara = caras_selfie[0]
+        conf = float(cara.get("detectionConfidence") or 0.0)
+        borrosa = cara.get("blurredLikelihood") in malas
+        oscura = cara.get("underExposedLikelihood") in malas
+        if conf < 0.5 or borrosa or oscura:
+            return {"estado": "revision",
+                    "motivo": "La selfie salió poco nítida u oscura. Repítela con buena iluminación.",
+                    "confianza_facial": conf, "metodo": "vision_face_detection"}
+
+        # Rostro en la cédula (si tenemos la imagen del carnet)
+        caras_carnet = cls._vision_face_detection(carnet_bytes) if carnet_bytes else None
+        if caras_carnet is not None and len(caras_carnet) == 0:
+            return {"estado": "revision",
+                    "motivo": "No pudimos ubicar la foto en la cédula. Vuelve a fotografiarla completa y enfocada.",
+                    "confianza_facial": conf, "metodo": "vision_face_detection"}
+
+        return {"estado": "ok", "motivo": None, "confianza_facial": conf,
+                "metodo": "vision_face_detection"}
+
     @classmethod
     def llamar_google_vision_api(cls, image_bytes: bytes) -> Tuple[Optional[str], float]:
         """
@@ -80,18 +199,12 @@ class OCRService:
         if not image_bytes:
             return None, 0.0
 
-        api_key = settings.GOOGLE_CLOUD_VISION_API_KEY
-        creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
+        if settings.USE_OCR_MOCK:
+            logger.info("USE_OCR_MOCK=True: se omite Google Cloud Vision y se usa simulación.")
+            return None, 0.0
 
-        # Validar si hay una API Key real configurada
-        tiene_api_key_valida = (
-            api_key
-            and "your-" not in api_key.lower()
-            and "placeholder" not in api_key.lower()
-            and len(api_key.strip()) > 15
-        )
-
-        tiene_creds_validas = creds_path and os.path.exists(creds_path)
+        api_key, tiene_creds_validas = cls._credenciales_vision()
+        tiene_api_key_valida = bool(api_key)
 
         if not tiene_api_key_valida and not tiene_creds_validas:
             logger.info("Google Cloud Vision API Key / Credenciales no configuradas. Retornando modo simulado.")
@@ -277,7 +390,8 @@ class OCRService:
         carnet_frontal_url: Optional[str] = None,
         carnet_trasero_url: Optional[str] = None,
         licencia_url: Optional[str] = None,
-        rut_usuario: Optional[str] = None
+        rut_usuario: Optional[str] = None,
+        selfie_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Pipeline de verificación real de documentos de identidad y licencia de conducir con Google Cloud Vision.
@@ -308,6 +422,7 @@ class OCRService:
         # 2. Descargar y procesar imagen del carnet frontal
         texto_carnet = None
         confianza_vision = 0.0
+        bytes_carnet = None
 
         if carnet_frontal_url:
             bytes_carnet = cls.descargar_imagen_bytes(carnet_frontal_url)
@@ -323,34 +438,69 @@ class OCRService:
 
         # 4. Si se ejecutó Google Cloud Vision de manera real con texto reconocido:
         if texto_carnet or texto_licencia:
-            rut_extraido = cls.extraer_rut_chileno(texto_carnet or "") or (
-                rut_usuario if (rut_usuario and validar_rut_chileno(rut_usuario)) else "18.456.789-K"
-            )
-            nombre_extraido = cls.extraer_nombres_apellidos(texto_carnet or "") or "Juan Carlos Pérez Soto"
+            rut_ocr = cls.extraer_rut_chileno(texto_carnet or "")
+            nombre_extraido = cls.extraer_nombres_apellidos(texto_carnet or "")
             fechas_carnet = cls.extraer_fechas_documento(texto_carnet or "")
             datos_licencia = cls.extraer_datos_licencia(texto_licencia or "")
 
-            coincide_rut = True
-            if rut_usuario:
-                limpio_in = re.sub(r"[\.\-\s]", "", rut_usuario).upper()
-                limpio_ocr = re.sub(r"[\.\-\s]", "", rut_extraido).upper()
-                coincide_rut = (limpio_in == limpio_ocr)
+            motivos = []
+
+            # RUT: si Vision leyó la cédula pero no se pudo extraer un RUT
+            # válido, no se asume nada — va a revisión manual (no se inventa
+            # un RUT ni se da por bueno el declarado).
+            if not rut_ocr:
+                rut_para_guardar = rut_usuario
+                coincide_rut = False
+                motivos.append(
+                    "No pudimos leer el RUT en la foto de la cédula. Vuelve a tomarla enfocada y con buena luz."
+                )
+            else:
+                rut_para_guardar = rut_ocr
+                coincide_rut = True
+                if rut_usuario:
+                    limpio_in = re.sub(r"[\.\-\s]", "", rut_usuario).upper()
+                    limpio_ocr = re.sub(r"[\.\-\s]", "", rut_ocr).upper()
+                    coincide_rut = (limpio_in == limpio_ocr)
+                    if not coincide_rut:
+                        motivos.append("El RUT de la cédula no coincide con el que ingresaste.")
 
             confianza_final = max(confianza_vision, 0.88)
-            estado_recomendado = "verificado" if (confianza_final >= 0.80 and coincide_rut) else "requiere_revision_manual"
+            if confianza_final < 0.80:
+                motivos.append("La foto de la cédula salió poco legible.")
+
+            # Verificación facial: selfie contra la foto de la cédula.
+            bytes_selfie = cls.descargar_imagen_bytes(selfie_url) if selfie_url else None
+            facial = cls.verificar_match_facial(bytes_carnet, bytes_selfie)
+            if facial["estado"] in ("rechazado", "revision") and facial.get("motivo"):
+                motivos.append(facial["motivo"])
+
+            if facial["estado"] == "rechazado":
+                estado_recomendado = "rechazado"
+            elif (
+                not rut_ocr
+                or not coincide_rut
+                or confianza_final < 0.80
+                or facial["estado"] == "revision"
+            ):
+                estado_recomendado = "requiere_revision_manual"
+            else:
+                estado_recomendado = "verificado"
 
             return {
-                "rut_extraido": rut_extraido,
+                "rut_extraido": rut_para_guardar,
                 "nombre_extraido": nombre_extraido,
-                "fecha_nacimiento": fechas_carnet.get("fecha_nacimiento") or "1992-05-14",
-                "fecha_vencimiento_carnet": fechas_carnet.get("fecha_vencimiento") or "2029-05-14",
+                "fecha_nacimiento": fechas_carnet.get("fecha_nacimiento"),
+                "fecha_vencimiento_carnet": fechas_carnet.get("fecha_vencimiento"),
                 "licencia_clase": datos_licencia.get("licencia_clase", "B"),
-                "fecha_vencimiento_licencia": datos_licencia.get("fecha_vencimiento_licencia", "2028-11-20"),
+                "fecha_vencimiento_licencia": datos_licencia.get("fecha_vencimiento_licencia"),
                 "confianza_ocr": confianza_final,
+                "confianza_facial": facial.get("confianza_facial"),
+                "verificacion_facial": facial["estado"],
                 "documentos_legibles": True,
                 "coincide_rut_declarado": coincide_rut,
                 "estado_recomendado": estado_recomendado,
-                "es_mock": False
+                "motivo": " ".join(motivos) or None,
+                "es_mock": False,
             }
 
         # 5. Modo Fallback / Simulación inteligente para desarrollo sin API Keys
