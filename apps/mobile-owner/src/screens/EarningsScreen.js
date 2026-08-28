@@ -26,7 +26,7 @@ function formatFecha(timestamp) {
   });
 }
 
-export function EarningsScreen() {
+export function EarningsScreen({ onBack, onOpenDisputes }) {
   const { bankAccount, updateBankAccount } = useApp();
   const [bankModalVisible, setBankModalVisible] = useState(false);
   const [banco, setBanco] = useState(bankAccount?.banco || "");
@@ -140,7 +140,19 @@ export function EarningsScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Panel Financiero y Ganancias</Text>
+        <View style={styles.headerTopRow}>
+          {onBack && (
+            <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="arrow-left" size={20} color={colors.textWhite} />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.title}>Panel Financiero y Ganancias</Text>
+          {onOpenDisputes && (
+            <TouchableOpacity onPress={onOpenDisputes} style={styles.disputesLink}>
+              <Text style={styles.disputesLinkText}>Disputas</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <Text style={styles.subtitle}>
           80% neto de arriendos y 100% de compensaciones por combustible y aseo
         </Text>
@@ -360,7 +372,22 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 14,
   },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  disputesLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  disputesLinkText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.accent,
+  },
   title: {
+    flex: 1,
     fontSize: 20,
     fontWeight: "900",
     color: colors.textWhite,

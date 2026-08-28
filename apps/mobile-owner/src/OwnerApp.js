@@ -222,7 +222,15 @@ export function OwnerApp() {
       <View style={styles.screenContainer}>{renderContent()}</View>
 
       {/* Barra de Navegación Inferior Exclusiva del Dueño */}
-      {!showEnrolment && !showDeliveryFlow && !showCalendar && !showMaintenance && !showDisputes && (
+      {!showEnrolment &&
+        !showDeliveryFlow &&
+        !showCalendar &&
+        !showMaintenance &&
+        !showDisputes &&
+        !showAddCar &&
+        !showNotifications &&
+        !showSupport &&
+        !showContract && (
         <View style={styles.bottomTabBar}>
           <TouchableOpacity
             style={styles.tabItem}

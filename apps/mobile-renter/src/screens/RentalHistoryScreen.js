@@ -58,6 +58,11 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
       <StatusBar barStyle="dark-content" />
 
       <View style={styles.titleArea}>
+        {onBack && (
+          <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icon name="arrow-left" size={20} color={colors.primary} />
+          </TouchableOpacity>
+        )}
         <Text style={styles.screenTitle}>Mis reservas</Text>
       </View>
 
@@ -155,6 +160,9 @@ const styles = StyleSheet.create({
   titleArea: {
     paddingHorizontal: 20,
     paddingTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   screenTitle: {
     fontSize: 26,

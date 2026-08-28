@@ -237,7 +237,11 @@ export function RenterApp() {
     showExtendRental ||
     showRoadsideClaim ||
     showWallet ||
-    showMyQRCode;
+    showMyQRCode ||
+    showCancelModal ||
+    showNotifications ||
+    showSupport ||
+    showContract;
 
   return (
     <SafeAreaView style={styles.appContainer}>

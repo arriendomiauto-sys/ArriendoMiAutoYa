@@ -385,6 +385,14 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       {/* ========================================================================= */}
       {currentStep === "04_review" && (
         <View style={styles.reviewStepBox}>
+          <TouchableOpacity
+            onPress={() => setCurrentStep("03_facial")}
+            style={styles.reviewBackBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Icon name="arrow-left" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
           <ScrollView contentContainerStyle={styles.reviewCenter} showsVerticalScrollIndicator={false}>
             <View style={styles.clockCircle}>
               <Icon name="clock" size={38} color="#D97706" />
@@ -704,6 +712,10 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
     justifyContent: "space-between",
+  },
+  reviewBackBtn: {
+    alignSelf: "flex-start",
+    marginBottom: 8,
   },
   reviewCenter: {
     alignItems: "center",
