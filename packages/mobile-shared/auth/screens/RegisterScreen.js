@@ -15,6 +15,7 @@ import { useApp } from "../../context/AppContext";
 import { ApiClient } from "../../api/client";
 import { Icon } from "../../components/Icon";
 import { showAlert } from "../../utils/alert";
+import { traducirErrorAuth } from "../../utils/authErrors";
 
 // El rol ya no se elige aquí con un toggle "TIPO DE CUENTA": cada app
 // (mobile-owner / mobile-renter) es un binario dedicado a un solo rol, que
@@ -97,7 +98,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         onNavigate("confirm_email");
       }
     } catch (err) {
-      showAlert("No se pudo crear la cuenta", err.message);
+      showAlert("No se pudo crear la cuenta", traducirErrorAuth(err));
     } finally {
       setLoading(false);
     }

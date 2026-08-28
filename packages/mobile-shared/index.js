@@ -11,3 +11,4 @@ export { SupportScreen } from "./screens/SupportScreen";
 export { DeliveryScreen } from "./screens/DeliveryScreen";
 export { KycScreen } from "./auth/screens/KycScreen";
 export { showAlert } from "./utils/alert";
+export { traducirErrorAuth } from "./utils/authErrors";

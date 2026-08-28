@@ -14,6 +14,7 @@ import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
 import { showAlert } from "../../utils/alert";
+import { traducirErrorAuth } from "../../utils/authErrors";
 
 // El login ya no tiene un selector de rol: AppContext determina quién es el
 // usuario a partir de su token de sesión, sin importar en qué app inició.
@@ -39,7 +40,7 @@ export function LoginScreen({ onNavigate }) {
     try {
       await login(email, password);
     } catch (err) {
-      showAlert("No se pudo iniciar sesión", err.message);
+      showAlert("No se pudo iniciar sesión", traducirErrorAuth(err));
     } finally {
       setLoading(false);
     }

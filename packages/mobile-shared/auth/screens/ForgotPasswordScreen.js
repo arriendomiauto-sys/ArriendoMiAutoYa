@@ -11,226 +11,96 @@ import {
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { Icon } from "../../components/Icon";
+import { useApp } from "../../context/AppContext";
 import { showAlert } from "../../utils/alert";
+import { traducirErrorAuth } from "../../utils/authErrors";
 
+// Antes esto era un flujo de 4 pantallas totalmente simulado (código SMS
+// falso que aceptaba cualquier dígito, "actualizar contraseña" con un
+// setTimeout que no llamaba a nada) — terminaba mostrando "Contraseña
+// Actualizada" sin haber cambiado la contraseña real en Supabase Auth. Un
+// mensaje "coherente" no puede prometer algo que no pasó: esto envía el
+// correo de recuperación real de Supabase (el que de verdad permite
+// definir una nueva clave) y es honesto sobre que el resto pasa por correo.
 export function ForgotPasswordScreen({ onNavigate }) {
-  const [step, setStep] = useState(1);
-  const [emailOrRut, setEmailOrRut] = useState("carlos@arriendatuauto.cl");
-  const [otp, setOtp] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const { resetPassword } = useApp();
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [enviado, setEnviado] = useState(false);
 
-  const handleSendOtp = () => {
-    if (!emailOrRut) {
-      showAlert("Campo Requerido", "Ingresa tu email o RUT registrado.");
+  const handleEnviar = async () => {
+    if (!email.trim()) {
+      showAlert("Campo Requerido", "Ingresa el correo con el que te registraste.");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      await resetPassword(email.trim());
+      setEnviado(true);
+    } catch (err) {
+      showAlert("No se pudo enviar el correo", traducirErrorAuth(err));
+    } finally {
       setLoading(false);
-      setStep(2);
-      showAlert(
-        "Código Enviado",
-        "Hemos enviado un código SMS de 4 dígitos a tu número registrado (+56 9 **** 4321)."
-      );
-    }, 600);
-  };
-
-  const handleVerifyOtp = () => {
-    if (otp.length < 4) {
-      showAlert("Código Incompleto", "Ingresa el código de 4 dígitos.");
-      return;
     }
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setStep(3);
-    }, 500);
-  };
-
-  const handleResetPassword = () => {
-    if (!newPassword || newPassword.length < 6) {
-      showAlert("Contraseña Débil", "La nueva clave debe tener al menos 6 caracteres.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      showAlert("Error", "Las contraseñas no coinciden.");
-      return;
-    }
-
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setStep(4);
-    }, 600);
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <StatusBar barStyle="light-content" />
 
-      {/* Botón Volver */}
       <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate("login")}>
         <Text style={styles.backBtnText}>← Volver</Text>
       </TouchableOpacity>
 
       <View style={styles.headerBox}>
         <Text style={styles.title}>Recuperar Clave</Text>
-        <Text style={styles.subtitle}>
-          Restablece el acceso seguro a tu cuenta
-        </Text>
+        <Text style={styles.subtitle}>Restablece el acceso a tu cuenta</Text>
       </View>
 
-      {/* Stepper */}
-      <View style={styles.stepIndicatorRow}>
-        <View style={[styles.stepDot, step >= 1 && styles.stepDotActive]}>
-          <Text style={styles.stepDotText}>1</Text>
-        </View>
-        <View style={[styles.stepLine, step >= 2 && styles.stepLineActive]} />
-        <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]}>
-          <Text style={styles.stepDotText}>2</Text>
-        </View>
-        <View style={[styles.stepLine, step >= 3 && styles.stepLineActive]} />
-        <View style={[styles.stepDot, step >= 3 && styles.stepDotActive]}>
-          <Text style={styles.stepDotText}>3</Text>
-        </View>
-      </View>
-
-      {/* PASO 1 */}
-      {step === 1 && (
+      {!enviado ? (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Paso 1: Identificación de Cuenta</Text>
+          <Text style={styles.cardTitle}>Ingresa tu correo</Text>
           <Text style={styles.cardDesc}>
-            Ingresa el correo electrónico o RUT asociado a tu cuenta para recibir el código SMS.
+            Te enviaremos un enlace para definir una nueva contraseña.
           </Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Email o RUT Registrado</Text>
+            <Text style={styles.inputLabel}>Correo registrado</Text>
             <TextInput
               style={styles.input}
-              placeholder="ej. carlos@arriendatuauto.cl o 15.892.341-6"
+              placeholder="nombre@correo.com"
               placeholderTextColor={colors.textMuted}
-              value={emailOrRut}
-              onChangeText={setEmailOrRut}
+              value={email}
+              onChangeText={setEmail}
               autoCapitalize="none"
+              keyboardType="email-address"
             />
           </View>
 
           <TouchableOpacity
             style={[styles.primaryBtn, loading && styles.btnDisabled]}
-            onPress={handleSendOtp}
+            onPress={handleEnviar}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color={colors.dark} />
             ) : (
-              <Text style={styles.primaryBtnText}>Enviar Código SMS →</Text>
+              <Text style={styles.primaryBtnText}>Enviar Enlace de Recuperación →</Text>
             )}
           </TouchableOpacity>
         </View>
-      )}
-
-      {/* PASO 2 */}
-      {step === 2 && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Paso 2: Código de Verificación</Text>
-          <Text style={styles.cardDesc}>
-            Ingresa el código de 4 dígitos enviado por SMS a tu teléfono.
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Código SMS de 4 dígitos</Text>
-            <TextInput
-              style={[styles.input, styles.otpInput]}
-              placeholder="1 2 3 4"
-              placeholderTextColor={colors.textMuted}
-              value={otp}
-              onChangeText={setOtp}
-              keyboardType="number-pad"
-              maxLength={4}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.primaryBtn, loading && styles.btnDisabled]}
-            onPress={handleVerifyOtp}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.dark} />
-            ) : (
-              <Text style={styles.primaryBtnText}>Verificar Código →</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.resendBtn} onPress={handleSendOtp}>
-            <Text style={styles.resendText}>Reenviar código SMS</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* PASO 3 */}
-      {step === 3 && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Paso 3: Nueva Contraseña</Text>
-          <Text style={styles.cardDesc}>
-            Crea una clave segura de al menos 6 caracteres.
-          </Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Nueva Contraseña</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Mínimo 6 caracteres"
-              placeholderTextColor={colors.textMuted}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Confirmar Contraseña</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Repite la clave"
-              placeholderTextColor={colors.textMuted}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.primaryBtn, loading && styles.btnDisabled]}
-            onPress={handleResetPassword}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.dark} />
-            ) : (
-              <Text style={styles.primaryBtnText}>Guardar Nueva Clave</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* PASO 4: ÉXITO */}
-      {step === 4 && (
+      ) : (
         <View style={[styles.card, styles.successCard]}>
           <View style={styles.successIconCircle}>
-            <Icon name="check" size={24} color={colors.accent} />
+            <Icon name="chat" size={24} color={colors.accent} />
           </View>
-          <Text style={styles.successTitle}>Contraseña Actualizada</Text>
+          <Text style={styles.successTitle}>Revisa tu correo</Text>
           <Text style={styles.successDesc}>
-            Tu clave ha sido restablecida exitosamente. Ya puedes ingresar con tu nueva credencial.
+            Si {email.trim()} está registrado, te enviamos un enlace para definir una
+            nueva contraseña. Puede tardar unos minutos — revisa también spam.
           </Text>
 
-          <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => onNavigate("login")}
-          >
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => onNavigate("login")}>
             <Text style={styles.primaryBtnText}>Ir al Inicio de Sesión →</Text>
           </TouchableOpacity>
         </View>
@@ -277,40 +147,6 @@ const styles = StyleSheet.create({
     color: colors.textSilver,
     marginTop: 3,
   },
-  stepIndicatorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-  stepDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.darkCardHover,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  stepDotActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  stepDotText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: colors.dark,
-  },
-  stepLine: {
-    width: 36,
-    height: 2,
-    backgroundColor: colors.darkBorder,
-    marginHorizontal: 4,
-  },
-  stepLineActive: {
-    backgroundColor: colors.accent,
-  },
   card: {
     backgroundColor: colors.darkCard,
     borderRadius: 14,
@@ -349,12 +185,6 @@ const styles = StyleSheet.create({
     borderColor: colors.darkBorder,
     fontSize: 13,
   },
-  otpInput: {
-    textAlign: "center",
-    letterSpacing: 8,
-    fontSize: 18,
-    fontWeight: "900",
-  },
   primaryBtn: {
     backgroundColor: colors.accent,
     paddingVertical: 13,
@@ -369,15 +199,6 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: 14,
     fontWeight: "800",
-  },
-  resendBtn: {
-    marginTop: 12,
-    alignItems: "center",
-  },
-  resendText: {
-    color: colors.accent,
-    fontSize: 11,
-    fontWeight: "700",
   },
   successCard: {
     alignItems: "center",

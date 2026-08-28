@@ -92,6 +92,11 @@ export function AppProvider({ children }) {
     return data;
   };
 
+  const resetPassword = async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) throw error;
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
@@ -144,6 +149,7 @@ export function AppProvider({ children }) {
         login,
         logout,
         register,
+        resetPassword,
         completeEnrolment,
         currentUser,
         setCurrentUser,
