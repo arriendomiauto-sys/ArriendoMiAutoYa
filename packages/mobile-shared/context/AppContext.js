@@ -93,7 +93,10 @@ export function AppProvider({ children }) {
   };
 
   const resetPassword = async (email) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const webUrl = process.env.EXPO_PUBLIC_WEB_URL;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: webUrl ? `${webUrl}/restablecer-contrasena` : undefined,
+    });
     if (error) throw error;
   };
 
