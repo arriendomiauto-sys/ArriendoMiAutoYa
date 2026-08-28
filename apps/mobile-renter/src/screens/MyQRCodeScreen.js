@@ -8,11 +8,15 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
 
-// El dueño no escanea un QR real: valida el código escrito que el
-// arrendatario le muestra (ver DeliveryScreen "05_code" en mobile-shared).
-// Esta pantalla genera ese código vía la API real y lo muestra en grande.
+// El código lo genera GET /reservas/{id}/generar-codigo (real, único por
+// reserva) y POST /entrega/validar-codigo lo valida contra ese mismo hash
+// en el backend — nada de esto es simulado. Se muestra como QR escaneable
+// de verdad (react-native-qrcode-svg) y también como texto debajo, para
+// cuando escanear no es práctico (poca luz, cámara del dueño ocupada,
+// etc.) — el dueño puede validar cualquiera de los dos.
 export function MyQRCodeScreen({ reservation, onBack }) {
   const esDevolucion = reservation?.estado === "en_curso";
   const [codigo, setCodigo] = useState(null);
@@ -68,6 +72,9 @@ export function MyQRCodeScreen({ reservation, onBack }) {
 
           {!loading && !error && codigo && (
             <>
+              <View style={styles.qrWrap}>
+                <QRCode value={codigo} size={180} color={colors.primary700} backgroundColor="#FFFFFF" />
+              </View>
               <Text style={styles.codeText}>{codigo}</Text>
               <Text style={styles.codeHint}>Código único de esta reserva</Text>
             </>
@@ -136,6 +143,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
     gap: 8,
+  },
+  qrWrap: {
+    padding: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    marginBottom: 4,
   },
   codeText: {
     fontFamily: "monospace",
