@@ -3,6 +3,9 @@ node_modules/
 .pnp
 .pnp.js
 
+# Excluded apps (viven en sus propias ramas: mobile / web)
+apps/web/
+
 # Python Database & Cache
 *.db
 *.sqlite3
