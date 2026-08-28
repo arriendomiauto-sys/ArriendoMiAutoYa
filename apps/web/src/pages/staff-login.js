@@ -28,7 +28,7 @@ export default function StaffLoginPage() {
       return;
     }
 
-    const next = typeof router.query.next === "string" ? router.query.next : "/admin";
+    const next = typeof router.query.next === "string" ? router.query.next : "/manager";
     router.push(next);
   };
 

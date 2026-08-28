@@ -1,7 +1,6 @@
 # robots.txt — ArriendoMiAutoYa
 User-agent: *
 Allow: /
-Disallow: /admin
 Disallow: /manager
 Disallow: /staff-login
 Disallow: /restablecer-contrasena

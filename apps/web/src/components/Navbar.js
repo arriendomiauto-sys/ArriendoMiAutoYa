@@ -108,9 +108,6 @@ export default function Navbar() {
             <Link href="/manager" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-xs text-slate-400 hover:text-white">
               Panel Sucursal
             </Link>
-            <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-xs text-slate-400 hover:text-white">
-              Panel Admin
-            </Link>
           </div>
         </div>
       )}
