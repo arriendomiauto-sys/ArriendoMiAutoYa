@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   ScrollView,
@@ -199,7 +198,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
     currentStep === "03_facial";
 
   return (
-    <SafeAreaView
+    <View
       style={[
         styles.container,
         isDarkScreen ? styles.bgDark : styles.bgLight,
@@ -566,7 +565,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           </View>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

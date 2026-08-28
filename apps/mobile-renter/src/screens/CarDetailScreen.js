@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   StatusBar,
 } from "react-native";
 import { colors, Icon } from "@rentacar/mobile-shared";
@@ -75,7 +74,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* ========================================================================= */}
@@ -332,7 +331,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
           </View>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

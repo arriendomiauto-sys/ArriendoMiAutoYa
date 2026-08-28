@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   ActivityIndicator,
@@ -41,7 +40,7 @@ export function CancelReservationModal({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* Top Header (Pantalla 19) */}
@@ -107,7 +106,7 @@ export function CancelReservationModal({
           <Text style={styles.keepReservationText}>Mantener mi reserva</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

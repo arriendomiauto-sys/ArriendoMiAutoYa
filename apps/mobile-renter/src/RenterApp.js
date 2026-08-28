@@ -2,11 +2,10 @@ import React, { useState } from "react";
 import {
   StyleSheet,
   View,
-  SafeAreaView,
-  StatusBar,
   TouchableOpacity,
   Text,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, useApp, Icon, showAlert } from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
@@ -33,6 +32,7 @@ import {
 
 export function RenterApp() {
   const { activeReservation, setActiveReservation, currentUser } = useApp();
+  const insets = useSafeAreaInsets();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
   // Pestañas de Navegación del Arrendatario
@@ -244,15 +244,18 @@ export function RenterApp() {
     showContract;
 
   return (
-    <SafeAreaView style={styles.appContainer}>
-      <StatusBar barStyle="dark-content" />
-
+    <View style={styles.appContainer}>
       {/* Pantalla Activa */}
       <View style={styles.screenContainer}>{renderContent()}</View>
 
       {/* Barra de Navegación Inferior Exclusiva del Arrendatario */}
       {!isModalOpen && (
-        <View style={styles.bottomTabBar}>
+        <View
+          style={[
+            styles.bottomTabBar,
+            { paddingBottom: Math.max(insets.bottom, 12) },
+          ]}
+        >
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => setActiveTab("explore")}
@@ -369,32 +372,26 @@ export function RenterApp() {
           onClose={() => setShowContract(false)}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   appContainer: {
     flex: 1,
-    width: "100%",
-    maxWidth: 440,
     backgroundColor: colors.background,
-    boxShadow: "0px 10px 28px rgba(15, 61, 62, 0.14)",
-    elevation: 8,
   },
   screenContainer: {
     flex: 1,
   },
   bottomTabBar: {
-    height: 74,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingBottom: 16,
-    paddingTop: 8,
+    paddingTop: 10,
   },
   tabItem: {
     alignItems: "center",

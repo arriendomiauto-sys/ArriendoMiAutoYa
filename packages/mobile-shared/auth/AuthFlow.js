@@ -1,12 +1,5 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from "react-native";
 import { colors } from "../theme/colors";
 import { Icon } from "../components/Icon";
 import { SplashScreen } from "./screens/SplashScreen";
@@ -73,7 +66,7 @@ export function AuthFlow({ role }) {
 
   if (step === "confirm_email") {
     return (
-      <SafeAreaView style={styles.confirmContainer}>
+      <View style={styles.confirmContainer}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.confirmCenter}>
           <View style={styles.confirmIconCircle}>
@@ -92,7 +85,7 @@ export function AuthFlow({ role }) {
         >
           <Text style={styles.confirmBtnText}>Ir a Iniciar sesión</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     );
   }
 

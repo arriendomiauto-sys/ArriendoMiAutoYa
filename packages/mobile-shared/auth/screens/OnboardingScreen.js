@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { Icon } from "../../components/Icon";
@@ -56,7 +55,7 @@ export function OnboardingScreen({ onFinish }) {
   const slide = ONBOARDING_SLIDES[currentSlide];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Top Skip Button */}
       <View style={styles.topBar}>
         {currentSlide < ONBOARDING_SLIDES.length - 1 ? (
@@ -102,7 +101,7 @@ export function OnboardingScreen({ onFinish }) {
           <Text style={styles.primaryBtnText}>{slide.cta}</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

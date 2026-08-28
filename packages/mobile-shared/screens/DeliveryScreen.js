@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   TextInput,
   Image,
@@ -218,7 +217,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   };
 
   return (
-    <SafeAreaView
+    <View
       style={[
         styles.container,
         isDarkScreen ? styles.bgDark : styles.bgLight,
@@ -969,7 +968,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           </View>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

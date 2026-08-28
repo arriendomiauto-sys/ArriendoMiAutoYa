@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   Image,
@@ -31,7 +30,7 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* Background Map Simulation (Pantalla 09) */}
@@ -274,7 +273,7 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
           </View>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

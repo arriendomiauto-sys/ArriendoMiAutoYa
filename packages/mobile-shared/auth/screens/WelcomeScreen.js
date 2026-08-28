@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
 } from "react-native";
 import { colors } from "../../theme/colors";
@@ -38,7 +37,7 @@ export function WelcomeScreen({ onNavigate, role = "renter" }) {
   const copy = ROLE_COPY[role] || ROLE_COPY.renter;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* Main Content (Pantalla 03) */}
@@ -91,7 +90,7 @@ export function WelcomeScreen({ onNavigate, role = "renter" }) {
           </Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

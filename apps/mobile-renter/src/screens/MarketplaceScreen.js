@@ -6,7 +6,6 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
 } from "react-native";
 import { colors, useApp, Icon, VerifyIdentityBanner } from "@rentacar/mobile-shared";
@@ -35,7 +34,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFilters, onVer
   });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* Top Header & Search Area (Pantalla 08) */}
@@ -127,7 +126,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFilters, onVer
           />
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

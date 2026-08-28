@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
 } from "react-native";
@@ -116,7 +115,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* Header (Pantalla 04) */}
@@ -319,7 +318,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
           )}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

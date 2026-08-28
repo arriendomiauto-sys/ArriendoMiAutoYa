@@ -6,7 +6,6 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
 } from "react-native";
 import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
@@ -45,7 +44,7 @@ export function OwnerProfileScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -170,7 +169,7 @@ export function OwnerProfileScreen({
           <Text style={styles.logoutBtnText}>Cerrar Sesión</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

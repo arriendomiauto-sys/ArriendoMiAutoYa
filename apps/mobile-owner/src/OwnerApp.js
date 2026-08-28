@@ -2,11 +2,10 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
-  SafeAreaView,
-  StatusBar,
   TouchableOpacity,
   Text,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
   Icon,
@@ -34,6 +33,7 @@ import { ChatListScreen } from "./screens/ChatListScreen";
 
 export function OwnerApp() {
   const { currentUser } = useApp();
+  const insets = useSafeAreaInsets();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
   // Pestañas de Navegación del Dueño
@@ -215,9 +215,7 @@ export function OwnerApp() {
   };
 
   return (
-    <SafeAreaView style={styles.appContainer}>
-      <StatusBar barStyle="dark-content" />
-
+    <View style={styles.appContainer}>
       {/* Pantalla Activa */}
       <View style={styles.screenContainer}>{renderContent()}</View>
 
@@ -231,7 +229,12 @@ export function OwnerApp() {
         !showNotifications &&
         !showSupport &&
         !showContract && (
-        <View style={styles.bottomTabBar}>
+        <View
+          style={[
+            styles.bottomTabBar,
+            { paddingBottom: Math.max(insets.bottom, 12) },
+          ]}
+        >
           <TouchableOpacity
             style={styles.tabItem}
             onPress={() => setActiveTab("cars")}
@@ -367,32 +370,26 @@ export function OwnerApp() {
           }}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   appContainer: {
     flex: 1,
-    width: "100%",
-    maxWidth: 440,
-    backgroundColor: colors.background,
-    boxShadow: "0px 10px 28px rgba(15, 61, 62, 0.14)",
-    elevation: 8,
+    backgroundColor: colors.darkBg,
   },
   screenContainer: {
     flex: 1,
   },
   bottomTabBar: {
-    height: 74,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    paddingBottom: 16,
-    paddingTop: 8,
+    paddingTop: 10,
   },
   tabItem: {
     alignItems: "center",

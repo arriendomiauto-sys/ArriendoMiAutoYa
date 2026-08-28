@@ -149,6 +149,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     maxHeight: "90%",
     padding: 20,
+    // Espacio extra por la barra de gestos: este Modal se monta fuera del
+    // SafeAreaProvider, así que el inset no se puede leer aquí.
+    paddingBottom: 28,
   },
   headerRow: {
     flexDirection: "row",

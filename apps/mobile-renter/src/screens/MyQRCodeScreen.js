@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
@@ -44,7 +43,7 @@ export function MyQRCodeScreen({ reservation, onBack }) {
   const auto = reservation?.auto || reservation?.car || {};
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Icon name="arrow-left" size={22} color={colors.primary} />
@@ -98,7 +97,7 @@ export function MyQRCodeScreen({ reservation, onBack }) {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
