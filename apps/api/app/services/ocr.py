@@ -431,22 +431,24 @@ class OCRService:
                     "es_mock": True
                 }
 
-        # 2. Descargar y procesar imagen del carnet frontal
-        texto_carnet = None
-        confianza_vision = 0.0
-        bytes_carnet = None
+        # 2 + 3. Descargar y OCR de carnet, licencia y selfie EN PARALELO
+        # (cada una es descarga + llamada a Vision; en serie se hacía larguísimo).
+        from concurrent.futures import ThreadPoolExecutor
 
-        if carnet_frontal_url:
-            bytes_carnet = cls.descargar_imagen_bytes(carnet_frontal_url)
-            if bytes_carnet:
-                texto_carnet, confianza_vision = cls.llamar_google_vision_api(bytes_carnet)
+        def _descargar_y_ocr(url):
+            b = cls.descargar_imagen_bytes(url) if url else None
+            if not b:
+                return None, None, 0.0
+            txt, conf = cls.llamar_google_vision_api(b)
+            return b, txt, conf
 
-        # 3. Descargar y procesar licencia de conducir
-        texto_licencia = None
-        if licencia_url:
-            bytes_licencia = cls.descargar_imagen_bytes(licencia_url)
-            if bytes_licencia:
-                texto_licencia, _ = cls.llamar_google_vision_api(bytes_licencia)
+        with ThreadPoolExecutor(max_workers=3) as _ex:
+            f_carnet = _ex.submit(_descargar_y_ocr, carnet_frontal_url)
+            f_lic = _ex.submit(_descargar_y_ocr, licencia_url)
+            f_selfie = _ex.submit(cls.descargar_imagen_bytes, selfie_url) if selfie_url else None
+            bytes_carnet, texto_carnet, confianza_vision = f_carnet.result()
+            bytes_licencia, texto_licencia, _ = f_lic.result()
+            bytes_selfie_pre = f_selfie.result() if f_selfie else None
 
         # 3.5. Vision se pudo ejecutar (hay credenciales + se descargó la
         # cédula) pero no reconoció NADA de texto: la foto no es legible.
@@ -500,8 +502,7 @@ class OCRService:
                 motivos.append("La foto de la cédula salió poco legible.")
 
             # Verificación facial: selfie contra la foto de la cédula.
-            bytes_selfie = cls.descargar_imagen_bytes(selfie_url) if selfie_url else None
-            facial = cls.verificar_match_facial(bytes_carnet, bytes_selfie)
+            facial = cls.verificar_match_facial(bytes_carnet, bytes_selfie_pre)
             if facial["estado"] in ("rechazado", "revision") and facial.get("motivo"):
                 motivos.append(facial["motivo"])
 
