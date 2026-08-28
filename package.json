@@ -9,9 +9,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "test": "turbo run test",
-    "api:dev": "cd apps/api && uvicorn app.main:app --reload --port 8000",
-    "api:test": "cd apps/api && pytest"
+    "test": "turbo run test"
   },
   "devDependencies": {
     "turbo": "^1.13.0"
