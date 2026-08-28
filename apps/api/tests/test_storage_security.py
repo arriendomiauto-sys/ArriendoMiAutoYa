@@ -57,8 +57,13 @@ def test_upload_bucket_desconocido_cae_a_general(usuario_factory, auth_as, monke
     """
     from app.services.storage import StorageService
 
+    # PNG mínimo válido (1x1) para pasar la detección por magic bytes.
+    png_1x1 = bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+        "0000000a49444154789c6300010000050001a5f645400000000049454e44ae426082"
+    )
     resultado = StorageService.subir_archivo(
-        contenido_bytes=b"x",
+        contenido_bytes=png_1x1,
         nombre_original="foto.jpg",
         content_type="image/jpeg",
         bucket="bucket-inventado",

@@ -19,13 +19,35 @@ class StorageService:
     MIME_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
     TAMANO_MAXIMO_BYTES = 8 * 1024 * 1024  # 8 MB
 
+    @staticmethod
+    def _sniff_imagen(contenido: bytes):
+        """
+        Detecta el tipo real de imagen por los magic bytes, sin confiar en el
+        header content-type del cliente (React Native suele mandar
+        application/octet-stream o nada para las fotos de la cámara).
+        Retorna (content_type, extension) o None si no es una imagen soportada.
+        """
+        if not contenido or len(contenido) < 12:
+            return None
+        if contenido[:3] == b"\xff\xd8\xff":
+            return ("image/jpeg", ".jpg")
+        if contenido[:8] == b"\x89PNG\r\n\x1a\n":
+            return ("image/png", ".png")
+        if contenido[:4] == b"RIFF" and contenido[8:12] == b"WEBP":
+            return ("image/webp", ".webp")
+        # HEIC/HEIF: 'ftyp' + marca heic/heif/mif1/heix
+        if contenido[4:8] == b"ftyp" and contenido[8:12] in (b"heic", b"heix", b"heif", b"mif1"):
+            return ("image/heic", ".heic")
+        return None
+
     @classmethod
     def subir_archivo(
         cls,
         contenido_bytes: bytes,
         nombre_original: str,
         content_type: str = "image/jpeg",
-        bucket: str = "general"
+        bucket: str = "general",
+        base_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Sube un archivo binario a Supabase Storage (o al almacenamiento local de respaldo).
@@ -34,25 +56,35 @@ class StorageService:
         if bucket not in cls.BUCKETS_PERMITIDOS:
             bucket = "general"
 
-        if content_type not in cls.MIME_PERMITIDOS:
-            return {
-                "success": False,
-                "validation_error": True,
-                "error": f"Tipo de archivo no permitido ({content_type}). Solo se aceptan JPG, PNG o WebP.",
-            }
-
         if len(contenido_bytes) > cls.TAMANO_MAXIMO_BYTES:
             return {
                 "success": False,
                 "validation_error": True,
+                "bucket": bucket,
                 "error": f"El archivo excede el tamaño máximo permitido ({cls.TAMANO_MAXIMO_BYTES // (1024*1024)} MB).",
             }
 
-        # Generar nombre único seguro (ignora por completo el nombre original
-        # salvo por su extensión, para evitar path traversal / inyección de rutas)
-        extension = os.path.splitext(nombre_original)[1].lower()
-        if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
-            extension = ".jpg"
+        # El tipo se detecta por los bytes, no por el content-type que mandó
+        # el cliente (RN manda octet-stream / nada para las fotos de cámara).
+        sniff = cls._sniff_imagen(contenido_bytes)
+        if not sniff:
+            return {
+                "success": False,
+                "validation_error": True,
+                "bucket": bucket,
+                "error": "Tipo de archivo no permitido: el contenido no es una imagen JPG, PNG o WebP válida. Toma la foto de nuevo.",
+            }
+        content_type, extension = sniff
+        if content_type == "image/heic":
+            return {
+                "success": False,
+                "validation_error": True,
+                "bucket": bucket,
+                "error": "La foto está en formato HEIC. En los ajustes de la cámara del teléfono elige 'Más compatible' (JPG) y vuelve a intentarlo.",
+            }
+
+        # Nombre único seguro (ignora el nombre original salvo la extensión ya
+        # validada por sniff, para evitar path traversal / inyección de rutas).
         archivo_id = f"{uuid.uuid4().hex}{extension}"
 
         # 1. Intentar subir a Supabase Storage si está configurado
@@ -109,7 +141,10 @@ class StorageService:
             with open(ruta_local_completa, "wb") as f:
                 f.write(contenido_bytes)
 
-            url_local = f"/uploads/{bucket}/{archivo_id}"
+            # URL absoluta si conocemos el host público (para que la app la
+            # pueda mostrar y el OCR la pueda descargar); si no, ruta relativa.
+            ruta_rel = f"/uploads/{bucket}/{archivo_id}"
+            url_local = f"{base_url.rstrip('/')}{ruta_rel}" if base_url else ruta_rel
             logger.info(f"Archivo guardado localmente: {url_local}")
 
             return {
