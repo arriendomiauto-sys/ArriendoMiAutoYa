@@ -26,6 +26,22 @@ def listar_autos(
         query = query.filter(Auto.dueno_id == dueno_id)
     return query.all()
 
+@router.get("/mios", response_model=List[AutoOut], summary="Autos publicados por el dueño autenticado (cualquier estado)")
+def listar_mis_autos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    A diferencia de GET /autos (marketplace público, siempre filtrado a
+    estado=activo salvo que se indique otro), esto devuelve TODOS los autos
+    del dueño autenticado sin importar su estado — para que "Mi Flota" en
+    mobile-owner también muestre los pausados/en mantención, y solo los
+    suyos, en vez de mezclar la flota completa del marketplace.
+    Nota de rutas: debe declararse antes de /{auto_id} para que FastAPI no
+    intente interpretar "mios" como un auto_id.
+    """
+    return db.query(Auto).filter(Auto.dueno_id == current_user.id).all()
+
 @router.get("/{auto_id}", response_model=AutoOut, summary="Obtener detalle de un auto")
 def obtener_auto(auto_id: str, db: Session = Depends(get_db)):
     auto = db.query(Auto).filter(Auto.id == auto_id).first()
@@ -41,6 +57,16 @@ def crear_auto(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
+    # La cuenta se crea simple (sin RUT ni documentos); recién acá, al
+    # publicar de verdad un vehículo, se exige identidad verificada — no en
+    # el registro. El frontend debería evitar llegar hasta acá sin pasar
+    # antes por KYC, pero esto es lo que realmente lo hace cumplir.
+    if current_user.estado_documentos != "verificado":
+        raise HTTPException(
+            status_code=403,
+            detail="Debes verificar tu identidad antes de publicar un vehículo."
+        )
+
     # Verificar si la patente ya existe
     patente_existente = db.query(Auto).filter(Auto.patente == payload.patente.upper()).first()
     if patente_existente:
