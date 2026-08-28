@@ -103,12 +103,6 @@ export default function Navbar() {
               Garantías y Seguro
             </Link>
           </div>
-
-          <div className="pt-3 border-t border-white/10 space-y-1">
-            <Link href="/manager" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-xs text-slate-400 hover:text-white">
-              Panel Sucursal
-            </Link>
-          </div>
         </div>
       )}
     </header>

@@ -2,7 +2,7 @@ import { SITE_URL } from "../lib/seo";
 
 /**
  * Sitemap XML generado dinámicamente.
- * Solo incluye páginas públicas e indexables (excluye /manager, /staff-login, /404).
+ * Solo incluye páginas públicas e indexables (excluye /404).
  */
 const PAGES = [
   { path: "/", changefreq: "daily", priority: "1.0" },
