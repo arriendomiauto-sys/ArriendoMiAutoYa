@@ -340,11 +340,11 @@ export function OwnerApp() {
 
       {/* Modal de Notificaciones */}
       {showNotifications && (
-        <NotificationsScreen variant="owner" onClose={() => setShowNotifications(false)} />
+        <NotificationsScreen variant="owner" onBack={() => setShowNotifications(false)} />
       )}
 
       {/* Modal de Soporte */}
-      {showSupport && <SupportScreen variant="owner" onClose={() => setShowSupport(false)} />}
+      {showSupport && <SupportScreen variant="owner" onBack={() => setShowSupport(false)} />}
 
       {/* Modal de Contrato */}
       {showContract && (

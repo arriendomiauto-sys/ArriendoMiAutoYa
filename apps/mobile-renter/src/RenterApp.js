@@ -132,7 +132,7 @@ export function RenterApp() {
         <ExtendRentalScreen
           reservation={activeReservation}
           onBack={() => setShowExtendRental(false)}
-          onSuccess={() => setShowExtendRental(false)}
+          onComplete={() => setShowExtendRental(false)}
         />
       );
     }
@@ -348,12 +348,12 @@ export function RenterApp() {
 
       {/* Modal de Notificaciones */}
       {showNotifications && (
-        <NotificationsScreen variant="renter" onClose={() => setShowNotifications(false)} />
+        <NotificationsScreen variant="renter" onBack={() => setShowNotifications(false)} />
       )}
 
       {/* Modal de Soporte */}
       {showSupport && (
-        <SupportScreen variant="renter" onClose={() => setShowSupport(false)} />
+        <SupportScreen variant="renter" onBack={() => setShowSupport(false)} />
       )}
 
       {/* Modal de Contrato */}

@@ -40,6 +40,8 @@ export function ActiveRentalScreen({
   onBack,
   onStartDelivery,
   onStartReturn,
+  onExtendRental,
+  onRoadsideClaim,
   onCancelReservation,
   onOpenChat,
   onOpenContract,
@@ -283,6 +285,24 @@ export function ActiveRentalScreen({
                 activeOpacity={0.75}
               >
                 <Text style={styles.docMenuText}>Mi código de entrega</Text>
+                <Icon name="arrow-right" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.docMenuItem}
+                onPress={onExtendRental}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.docMenuText}>Extender arriendo</Text>
+                <Icon name="arrow-right" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.docMenuItem}
+                onPress={onRoadsideClaim}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.docMenuText}>Asistencia en ruta / reportar siniestro</Text>
                 <Icon name="arrow-right" size={18} color={colors.textMuted} />
               </TouchableOpacity>
 
