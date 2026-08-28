@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { Icon } from "../components/Icon";
 import { showAlert } from "../utils/alert";
@@ -40,6 +41,8 @@ const FAQ_ITEMS = [
 
 export function SupportScreen({ onBack, variant = "renter" }) {
   const isDriver = variant === "owner";
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 16);
 
   const [selectedFaq, setSelectedFaq] = useState(null);
   const [activeTab, setActiveTab] = useState("faq"); // 'faq' | 'bot' | 'ticket'
@@ -106,7 +109,11 @@ export function SupportScreen({ onBack, variant = "renter" }) {
 
   return (
     <View
-      style={[styles.container, isDriver ? styles.bgDriver : styles.bgPassenger]}
+      style={[
+        styles.container,
+        isDriver ? styles.bgDriver : styles.bgPassenger,
+        { paddingBottom: bottomPad },
+      ]}
     >
       {/* Botón Volver */}
       {onBack && (
@@ -170,7 +177,11 @@ export function SupportScreen({ onBack, variant = "renter" }) {
 
       {/* TAB 1: FAQ */}
       {activeTab === "faq" && (
-        <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.tabContent}
+          contentContainerStyle={styles.scrollPad}
+          showsVerticalScrollIndicator={false}
+        >
           {FAQ_ITEMS.map((item) => {
             const isOpen = selectedFaq === item.id;
             return (
@@ -291,7 +302,11 @@ export function SupportScreen({ onBack, variant = "renter" }) {
 
       {/* TAB 3: TICKET */}
       {activeTab === "ticket" && (
-        <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.tabContent}
+          contentContainerStyle={styles.scrollPad}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={[styles.ticketCard, isDriver ? styles.cardDriver : styles.cardPassenger]}>
             <Text style={[styles.ticketTitle, isDriver ? styles.textWhite : styles.textDark]}>
               Ingresar Ticket de Atención
@@ -411,6 +426,9 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     flex: 1,
+  },
+  scrollPad: {
+    paddingBottom: 16,
   },
   faqCard: {
     borderRadius: 10,

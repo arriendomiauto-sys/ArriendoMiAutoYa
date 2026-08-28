@@ -43,16 +43,39 @@ export function OwnerProfileScreen({
     ]);
   };
 
+  const MENU = [
+    { icon: "car", label: "Mis vehículos y tarifas", meta: `${cars?.length || 0} autos`, onPress: onOpenMyCars },
+    {
+      icon: "document",
+      label: "Verificación de Identidad (KYC)",
+      meta: user.estado_documentos === "verificado" ? "Verificado" : "Pendiente",
+      onPress: onOpenEnrolment,
+    },
+    { icon: "shield", label: "Soporte para Anfitriones 24/7", onPress: onOpenSupport },
+    {
+      icon: "card",
+      label: "Datos de transferencia bancaria",
+      meta: bankAccount?.banco || "Sin configurar",
+      onPress: onOpenEarnings,
+    },
+    { icon: "document", label: "Registro de mantenciones", onPress: onOpenMaintenance },
+    { icon: "shield", label: "Centro de garantías y reclamos", onPress: onOpenDisputes },
+    { icon: "chat", label: "Mensajes con arrendatarios", onPress: onOpenChat },
+    { icon: "document", label: "Contratos de mis reservas", onPress: onOpenContract },
+  ];
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <Text style={styles.screenTitle}>Perfil de Dueño</Text>
           {user.estado_documentos === "verificado" && (
             <View style={styles.badgeAnfitrion}>
-              <Text style={styles.badgeAnfitrionText}>Anfitrión Verificado</Text>
+              <Text style={styles.badgeAnfitrionText} numberOfLines={1}>
+                Anfitrión Verificado
+              </Text>
             </View>
           )}
         </View>
@@ -63,11 +86,13 @@ export function OwnerProfileScreen({
             <Image source={{ uri: user.foto_perfil_verificada_url }} style={styles.avatarImg} />
           ) : (
             <View style={[styles.avatarImg, styles.avatarPlaceholder]}>
-              <Icon name="user" size={26} color={colors.textMuted} />
+              <Icon name="user" size={26} color={colors.textSilver} />
             </View>
           )}
           <View style={{ flex: 1, gap: 3 }}>
-            <Text style={styles.userName}>{user.nombre || user.email || "Mi cuenta"}</Text>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user.nombre || user.email || "Mi cuenta"}
+            </Text>
             <View style={styles.ratingRow}>
               <Icon name="star" size={14} color={colors.accent} style={{ marginRight: 5 }} />
               <Text style={styles.ratingText}>
@@ -94,78 +119,28 @@ export function OwnerProfileScreen({
 
         {/* Menú de Gestión del Dueño */}
         <View style={styles.menuCard}>
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenMyCars}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="car" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Mis vehículos y tarifas</Text>
-            </View>
-            <Text style={styles.menuItemMeta}>{cars?.length || 0} autos</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenEnrolment}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="document" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Verificación de Identidad (KYC)</Text>
-            </View>
-            <Text style={styles.menuItemMeta}>
-              {user.estado_documentos === "verificado" ? "Verificado" : "Pendiente"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenSupport}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="shield" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Soporte para Anfitriones 24/7</Text>
-            </View>
-            <Icon name="arrow-right" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenEarnings}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="card" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Datos de transferencia bancaria</Text>
-            </View>
-            <Text style={styles.menuItemMeta}>{bankAccount?.banco || "Sin configurar"}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenMaintenance}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="document" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Registro de mantenciones</Text>
-            </View>
-            <Icon name="arrow-right" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenDisputes}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="shield" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Centro de garantías y reclamos</Text>
-            </View>
-            <Icon name="arrow-right" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem} onPress={onOpenChat}>
-            <View style={styles.menuItemLeft}>
-              <Icon name="chat" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Mensajes con arrendatarios</Text>
-            </View>
-            <Icon name="arrow-right" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuItem, { borderBottomWidth: 0 }]}
-            onPress={onOpenContract}
-          >
-            <View style={styles.menuItemLeft}>
-              <Icon name="document" size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Contratos de mis reservas</Text>
-            </View>
-            <Icon name="arrow-right" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
+          {MENU.map((item, i) => (
+            <TouchableOpacity
+              key={item.label}
+              style={[styles.menuItem, i === MENU.length - 1 && styles.menuItemLast]}
+              onPress={item.onPress}
+              activeOpacity={0.7}
+            >
+              <View style={styles.menuItemLeft}>
+                <Icon name={item.icon} size={20} color={colors.accent} />
+                <Text style={styles.menuItemText}>{item.label}</Text>
+              </View>
+              {item.meta ? (
+                <Text style={styles.menuItemMeta}>{item.meta}</Text>
+              ) : (
+                <Icon name="arrow-right" size={16} color={colors.textSilver} />
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Cerrar Sesión */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
           <Text style={styles.logoutBtnText}>Cerrar Sesión</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -176,41 +151,46 @@ export function OwnerProfileScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.darkBg,
   },
   content: {
     padding: 20,
-    gap: 18,
+    gap: 16,
     paddingBottom: 40,
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 12,
   },
   screenTitle: {
-    fontSize: 26,
-    fontWeight: "600",
+    flexShrink: 1,
+    fontSize: 24,
+    fontWeight: "800",
     letterSpacing: -0.4,
-    color: colors.text,
+    color: colors.textWhite,
   },
   badgeAnfitrion: {
-    backgroundColor: colors.accent100,
+    flexShrink: 0,
+    backgroundColor: "rgba(47, 191, 155, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(47, 191, 155, 0.35)",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
   },
   badgeAnfitrionText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.accent800,
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.accent,
   },
   profileCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.darkCard,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.darkBorder,
     borderRadius: 16,
-    padding: 18,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
@@ -221,27 +201,28 @@ const styles = StyleSheet.create({
     borderRadius: 28,
   },
   avatarPlaceholder: {
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: colors.darkCardHover,
     alignItems: "center",
     justifyContent: "center",
   },
   userName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.text,
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.textWhite,
   },
   ratingRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   ratingText: {
-    fontSize: 14,
-    color: colors.textMuted,
+    flex: 1,
+    fontSize: 12,
+    color: colors.textSilver,
   },
   statsCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.darkCard,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.darkBorder,
     borderRadius: 16,
     padding: 16,
     flexDirection: "row",
@@ -253,59 +234,69 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statNumber: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.primary,
+    fontSize: 22,
+    fontWeight: "900",
+    color: colors.accent,
   },
   statLabel: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: colors.textSilver,
   },
   statDivider: {
     width: 1,
     height: 32,
-    backgroundColor: colors.border,
+    backgroundColor: colors.darkBorder,
   },
   menuCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.darkCard,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.darkBorder,
     borderRadius: 16,
     overflow: "hidden",
   },
   menuItem: {
-    padding: 16,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.darkBorder,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 10,
+  },
+  menuItemLast: {
+    borderBottomWidth: 0,
   },
   menuItemLeft: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   menuItemText: {
-    fontSize: 15,
-    color: colors.text,
+    flexShrink: 1,
+    fontSize: 14,
+    color: colors.textWhite,
     fontWeight: "500",
   },
   menuItemMeta: {
-    fontSize: 14,
-    color: colors.textMuted,
+    flexShrink: 0,
+    fontSize: 13,
+    color: colors.textSilver,
   },
   logoutBtn: {
     height: 52,
     borderRadius: 12,
-    backgroundColor: colors.dangerBg,
+    backgroundColor: "rgba(220, 38, 38, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(220, 38, 38, 0.32)",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
   },
   logoutBtnText: {
-    color: colors.dangerText,
+    color: "#F98080",
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

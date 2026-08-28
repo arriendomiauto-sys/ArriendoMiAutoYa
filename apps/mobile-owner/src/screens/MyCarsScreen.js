@@ -69,14 +69,20 @@ export function MyCarsScreen({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.title}>Mis Vehículos Publicados</Text>
           <Text style={styles.subtitle}>
             Administra tarifas, calendarios y mantenciones en Los Ángeles
           </Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={onAddNewCar}>
-          <Text style={styles.addBtnText}>+ Publicar Auto</Text>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={onAddNewCar}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.addBtnText} numberOfLines={1}>
+            + Publicar
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -255,8 +261,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
+    gap: 12,
     marginBottom: 14,
+  },
+  headerText: {
+    flex: 1,
   },
   title: {
     fontSize: 18,
@@ -266,18 +276,19 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 11,
     color: colors.textSilver,
-    marginTop: 1,
+    marginTop: 2,
   },
   addBtn: {
+    flexShrink: 0,
     backgroundColor: colors.accent,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
   },
   addBtnText: {
     color: colors.dark,
     fontWeight: "800",
-    fontSize: 11,
+    fontSize: 13,
   },
   listContent: {
     paddingBottom: 40,
