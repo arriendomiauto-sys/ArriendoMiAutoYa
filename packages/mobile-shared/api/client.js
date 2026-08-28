@@ -59,7 +59,17 @@ export class ApiClient {
     if (!isFormData) headers["Content-Type"] = "application/json";
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const response = await fetch(url, { ...options, headers });
+    let response;
+    try {
+      response = await fetch(url, { ...options, headers });
+    } catch (netErr) {
+      // fetch solo tira cuando no se pudo ni contactar al servidor: URL mal
+      // configurada, backend caído, o el teléfono no alcanza esa dirección.
+      throw new Error(
+        `No se pudo conectar con el servidor (${API_BASE_URL}). ` +
+          "Revisa tu conexión y que la app apunte a una URL accesible desde el teléfono."
+      );
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
