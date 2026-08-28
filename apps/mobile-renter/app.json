@@ -14,7 +14,8 @@
     },
     "web": { "favicon": "./assets/favicon.png", "bundler": "metro" },
     "plugins": [
-      ["expo-image-picker", { "photosPermission": "Arrienda Tu Auto necesita acceso a tus fotos para verificar tu identidad y tu licencia." }]
+      ["expo-image-picker", { "photosPermission": "Arrienda Tu Auto necesita acceso a tus fotos para verificar tu identidad y tu licencia." }],
+      ["expo-camera", { "cameraPermission": "Arrienda Tu Auto necesita tu cámara para fotografiar tu cédula, tu licencia y tomar la selfie de verificación de identidad." }]
     ]
   }
 }
