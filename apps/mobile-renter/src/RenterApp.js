@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Text,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { colors, useApp, Icon, showAlert } from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
@@ -32,7 +32,8 @@ import {
 } from "@rentacar/mobile-shared";
 
 export function RenterApp() {
-  const { activeReservation, setActiveReservation } = useApp();
+  const { activeReservation, setActiveReservation, currentUser } = useApp();
+  const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
   // Pestañas de Navegación del Arrendatario
   const [activeTab, setActiveTab] = useState("explore"); // 'explore' | 'rentals' | 'chat' | 'profile'
@@ -106,6 +107,17 @@ export function RenterApp() {
           car={selectedCar}
           onBack={() => setSelectedCar(null)}
           onProceedToPayment={(car, draft) => {
+            if (!identidadVerificada) {
+              showAlert(
+                "Verifica tu identidad",
+                "Antes de reservar necesitamos confirmar quién eres: sube tu carnet y una selfie. Toma un par de minutos.",
+                [
+                  { text: "Ahora no", style: "cancel" },
+                  { text: "Validar identidad", onPress: () => setShowEnrolment(true) },
+                ]
+              );
+              return;
+            }
             setSelectedCar(car);
             setBookingDraft(draft);
             setShowPayment(true);

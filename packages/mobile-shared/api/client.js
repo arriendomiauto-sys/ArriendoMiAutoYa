@@ -75,6 +75,13 @@ export class ApiClient {
     return this.request("/usuarios/me");
   }
 
+  static async actualizarPerfilBasico(data) {
+    return this.request("/usuarios/me/perfil-basico", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
   // Autos / Marketplace
   static async getAutos(params = {}) {
     try {
@@ -87,6 +94,10 @@ export class ApiClient {
 
   static async getAuto(autoId) {
     return this.request(`/autos/${autoId}`);
+  }
+
+  static async getMisAutos() {
+    return this.request("/autos/mios");
   }
 
   static async crearAuto(autoData) {

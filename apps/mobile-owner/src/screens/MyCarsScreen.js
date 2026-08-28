@@ -10,10 +10,12 @@ import {
   Modal,
   TextInput,
 } from "react-native";
-import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
-export function MyCarsScreen({ onAddNewCar, onOpenCalendar, onOpenMaintenance }) {
-  const { cars, setCars } = useApp();
+// `cars`/`setCars` vienen como props (la flota real del dueño, desde
+// OwnerApp) — no del contexto global, que es el marketplace público
+// completo y mostraría autos de otros dueños.
+export function MyCarsScreen({ cars, setCars, onAddNewCar, onOpenCalendar, onOpenMaintenance }) {
   const [editingCar, setEditingCar] = useState(null);
   const [newTarifa, setNewTarifa] = useState("");
   const [saving, setSaving] = useState(false);

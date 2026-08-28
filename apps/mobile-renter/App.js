@@ -4,18 +4,19 @@ import { AppProvider, useApp, colors, AuthFlow } from "@rentacar/mobile-shared";
 import { RenterApp } from "./src/RenterApp";
 
 function Root() {
-  const { isLoggedIn, authLoading, currentUser } = useApp();
+  const { isLoggedIn, authLoading } = useApp();
 
   if (authLoading) return null;
 
-  const enrolmentComplete =
-    !!currentUser && !!currentUser.rut && currentUser.estado_documentos !== "pendiente";
-
+  // La cuenta se crea simple: basta con estar logueado para entrar a la
+  // app. La verificación de identidad (KYC) ya no bloquea el acceso — se
+  // pide recién cuando el arrendatario intenta reservar un auto de verdad
+  // (RenterApp gatilla el flujo de KYC en ese momento puntual).
   return (
     <SafeAreaView style={styles.appContainer}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.bodyContainer}>
-        {isLoggedIn && enrolmentComplete ? <RenterApp /> : <AuthFlow role="renter" />}
+        {isLoggedIn ? <RenterApp /> : <AuthFlow role="renter" />}
       </View>
     </SafeAreaView>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -11,11 +11,14 @@ import {
   colors,
   Icon,
   useApp,
+  ApiClient,
+  showAlert,
   RentalChatScreen,
   NotificationsScreen,
   SupportScreen,
   ContractModal,
   DeliveryScreen,
+  KycScreen,
 } from "@rentacar/mobile-shared";
 
 // Screens del Dueño
@@ -30,13 +33,30 @@ import { OwnerProfileScreen } from "./screens/OwnerProfileScreen";
 import { ChatListScreen } from "./screens/ChatListScreen";
 
 export function OwnerApp() {
-  const { cars } = useApp();
+  const { currentUser } = useApp();
+  const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
   // Pestañas de Navegación del Dueño
   const [activeTab, setActiveTab] = useState("cars"); // 'cars' | 'bookings' | 'earnings' | 'chat' | 'profile'
 
+  // Flota real del dueño autenticado (cualquier estado, no solo activos) —
+  // separada del listado público del marketplace.
+  const [misAutos, setMisAutos] = useState([]);
+  const cargarMisAutos = useCallback(async () => {
+    try {
+      const data = await ApiClient.getMisAutos();
+      setMisAutos(data);
+    } catch (err) {
+      console.warn("[OwnerApp] No se pudo cargar la flota:", err.message);
+    }
+  }, []);
+  useEffect(() => {
+    cargarMisAutos();
+  }, [cargarMisAutos]);
+
   // Modales y Flujos Secundarios
   const [showAddCar, setShowAddCar] = useState(false);
+  const [showEnrolment, setShowEnrolment] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showMaintenance, setShowMaintenance] = useState(false);
   const [showDeliveryFlow, setShowDeliveryFlow] = useState(false);
@@ -49,8 +69,34 @@ export function OwnerApp() {
   const [selectedReservaForChat, setSelectedReservaForChat] = useState(null);
   const [selectedReservaForContract, setSelectedReservaForContract] = useState(null);
 
+  const handleAddNewCar = () => {
+    if (!identidadVerificada) {
+      showAlert(
+        "Verifica tu identidad",
+        "Antes de publicar un vehículo necesitamos confirmar quién eres: sube tu carnet y una selfie. Toma un par de minutos.",
+        [
+          { text: "Ahora no", style: "cancel" },
+          { text: "Validar identidad", onPress: () => setShowEnrolment(true) },
+        ]
+      );
+      return;
+    }
+    setShowAddCar(true);
+  };
+
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
+    // Verificación de Identidad KYC (mismo componente que usa el registro)
+    if (showEnrolment) {
+      return (
+        <KycScreen
+          role="owner"
+          onBack={() => setShowEnrolment(false)}
+          onComplete={() => setShowEnrolment(false)}
+        />
+      );
+    }
+
     // Flujo Crítico de Entrega y Devolución 360°
     if (showDeliveryFlow) {
       return (
@@ -94,7 +140,9 @@ export function OwnerApp() {
       case "cars":
         return (
           <MyCarsScreen
-            onAddNewCar={() => setShowAddCar(true)}
+            cars={misAutos}
+            setCars={setMisAutos}
+            onAddNewCar={handleAddNewCar}
             onOpenCalendar={(car) => {
               setSelectedCarForModal(car);
               setShowCalendar(true);
@@ -143,10 +191,11 @@ export function OwnerApp() {
       case "profile":
         return (
           <OwnerProfileScreen
+            cars={misAutos}
             onOpenMyCars={() => setActiveTab("cars")}
             onOpenEarnings={() => setActiveTab("earnings")}
             onOpenMaintenance={() => {
-              if (cars?.[0]) setSelectedCarForModal(cars[0]);
+              if (misAutos?.[0]) setSelectedCarForModal(misAutos[0]);
               setShowMaintenance(true);
             }}
             onOpenDisputes={() => setShowDisputes(true)}
@@ -154,6 +203,7 @@ export function OwnerApp() {
             onOpenSupport={() => setShowSupport(true)}
             onOpenContract={() => setActiveTab("bookings")}
             onOpenChat={() => setActiveTab("chat")}
+            onOpenEnrolment={() => setShowEnrolment(true)}
           />
         );
 
@@ -170,7 +220,7 @@ export function OwnerApp() {
       <View style={styles.screenContainer}>{renderContent()}</View>
 
       {/* Barra de Navegación Inferior Exclusiva del Dueño */}
-      {!showDeliveryFlow && !showCalendar && !showMaintenance && !showDisputes && (
+      {!showEnrolment && !showDeliveryFlow && !showCalendar && !showMaintenance && !showDisputes && (
         <View style={styles.bottomTabBar}>
           <TouchableOpacity
             style={styles.tabItem}
@@ -278,7 +328,15 @@ export function OwnerApp() {
       )}
 
       {/* Modal Agregar / Editar Auto */}
-      {showAddCar && <AddEditCarScreen onBack={() => setShowAddCar(false)} />}
+      {showAddCar && (
+        <AddEditCarScreen
+          onBack={() => setShowAddCar(false)}
+          onComplete={() => {
+            setShowAddCar(false);
+            cargarMisAutos();
+          }}
+        />
+      )}
 
       {/* Modal de Notificaciones */}
       {showNotifications && (

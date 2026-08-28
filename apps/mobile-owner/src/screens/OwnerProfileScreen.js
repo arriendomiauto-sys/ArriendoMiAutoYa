@@ -12,6 +12,7 @@ import {
 import { colors, useApp, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function OwnerProfileScreen({
+  cars,
   onOpenMyCars,
   onOpenEarnings,
   onOpenMaintenance,
@@ -20,8 +21,9 @@ export function OwnerProfileScreen({
   onOpenSupport,
   onOpenContract,
   onOpenChat,
+  onOpenEnrolment,
 }) {
-  const { currentUser, bankAccount, cars, logout } = useApp();
+  const { currentUser, bankAccount, logout } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
 
   useEffect(() => {
@@ -108,6 +110,16 @@ export function OwnerProfileScreen({
               <Text style={styles.menuItemText}>Datos de transferencia bancaria</Text>
             </View>
             <Text style={styles.menuItemMeta}>{bankAccount?.banco || "Sin configurar"}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={onOpenEnrolment}>
+            <View style={styles.menuItemLeft}>
+              <Icon name="document" size={20} color={colors.primary} />
+              <Text style={styles.menuItemText}>Verificación de Identidad (KYC)</Text>
+            </View>
+            <Text style={styles.menuItemMeta}>
+              {user.estado_documentos === "verificado" ? "Verificado" : "Pendiente"}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem} onPress={onOpenMaintenance}>

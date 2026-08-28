@@ -4,18 +4,19 @@ import { AppProvider, useApp, colors, AuthFlow } from "@rentacar/mobile-shared";
 import { OwnerApp } from "./src/OwnerApp";
 
 function Root() {
-  const { isLoggedIn, authLoading, currentUser } = useApp();
+  const { isLoggedIn, authLoading } = useApp();
 
   if (authLoading) return null;
 
-  const enrolmentComplete =
-    !!currentUser && !!currentUser.rut && currentUser.estado_documentos !== "pendiente";
-
+  // La cuenta se crea simple: basta con estar logueado para entrar a la
+  // app. La verificación de identidad (KYC) ya no bloquea el acceso — se
+  // pide recién cuando el dueño intenta publicar un auto de verdad
+  // (OwnerApp gatilla el flujo de KYC en ese momento puntual).
   return (
     <SafeAreaView style={styles.appContainer}>
       <StatusBar barStyle="light-content" />
       <View style={styles.bodyContainer}>
-        {isLoggedIn && enrolmentComplete ? <OwnerApp /> : <AuthFlow role="owner" />}
+        {isLoggedIn ? <OwnerApp /> : <AuthFlow role="owner" />}
       </View>
     </SafeAreaView>
   );

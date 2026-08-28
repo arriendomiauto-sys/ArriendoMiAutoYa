@@ -10,10 +10,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { colors, Icon, useApp, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 export function AddEditCarScreen({ onBack, onComplete }) {
-  const { addCar, currentUser } = useApp();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -101,7 +100,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         equipamiento: form.equipamiento,
       };
 
-      await addCar(nuevoAuto);
+      await ApiClient.crearAuto(nuevoAuto);
 
       showAlert(
         "Vehículo Publicado",

@@ -12,26 +12,29 @@ import {
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
+import { ApiClient } from "../../api/client";
 import { Icon } from "../../components/Icon";
 import { showAlert } from "../../utils/alert";
 
 // El rol ya no se elige aquí con un toggle "TIPO DE CUENTA": cada app
 // (mobile-owner / mobile-renter) es un binario dedicado a un solo rol, que
 // AuthFlow pasa como prop fija.
+//
+// La cuenta se crea "simple": solo nombre, correo, teléfono y contraseña.
+// El RUT (y, para dueños, la cuenta bancaria) son datos de identidad/pago
+// que se piden recién cuando el usuario intenta reservar o publicar un
+// auto de verdad — no hace falta completarlos para poder entrar a mirar
+// la app.
 export function RegisterScreen({ onNavigate, role = "renter" }) {
   const { register } = useApp();
   const isDriver = role === "owner";
 
   const [form, setForm] = useState({
     nombre: "",
-    rut: "",
     email: "",
     telefono: "",
     password: "",
     confirmPassword: "",
-    banco: "",
-    tipo_cuenta: "",
-    numero_cuenta: "",
   });
 
   const [focusedField, setFocusedField] = useState(null);
@@ -43,10 +46,6 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
   const handleRegister = async () => {
     if (!form.nombre.trim()) {
       showAlert("Campo requerido", "Por favor ingresa tu nombre completo.");
-      return;
-    }
-    if (!form.rut.trim()) {
-      showAlert("Campo requerido", "Por favor ingresa tu RUT chileno.");
       return;
     }
     if (!form.email.trim()) {
@@ -77,26 +76,25 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
     try {
       const data = await register(form.email, form.password);
 
-      const prefillData = {
-        nombre: form.nombre,
-        rut: form.rut,
-        telefono: `+56 9 ${form.telefono}`,
-        ...(isDriver
-          ? {
-              banco: form.banco,
-              tipo_cuenta: form.tipo_cuenta,
-              numero_cuenta: form.numero_cuenta,
-            }
-          : {}),
-      };
-
       if (data?.session) {
-        // El proyecto Supabase no exige confirmación de correo: la sesión ya
-        // quedó activa, así que se puede continuar directo a KYC.
-        onNavigate("kyc", prefillData);
+        // El proyecto Supabase no exige confirmación de correo: la sesión
+        // ya quedó activa. Guardamos nombre/teléfono (no son datos de
+        // identidad, no requieren KYC) y dejamos que el componente padre
+        // deje de mostrar <AuthFlow /> apenas useApp() refleje la sesión —
+        // no hace falta forzar ningún paso más acá.
+        try {
+          await ApiClient.actualizarPerfilBasico({
+            nombre: form.nombre,
+            telefono: `+56 9 ${form.telefono}`,
+          });
+        } catch (err) {
+          // No bloquea la creación de cuenta: el usuario puede completar
+          // su nombre/teléfono después desde el perfil si esto falla.
+          console.warn("[RegisterScreen] No se pudo guardar el perfil básico:", err.message);
+        }
       } else {
         // Supabase exige confirmar el correo antes de iniciar sesión.
-        onNavigate("confirm_email", prefillData);
+        onNavigate("confirm_email");
       }
     } catch (err) {
       showAlert("No se pudo crear la cuenta", err.message);
@@ -166,28 +164,6 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
               autoCapitalize="words"
             />
           </View>
-        </View>
-
-        {/* Field: RUT chileno */}
-        <View style={styles.formGroup}>
-          <Text style={styles.fieldLabel}>RUT CHILENO</Text>
-          <View
-            style={[
-              styles.inputBox,
-              focusedField === "rut" && styles.inputBoxFocused,
-            ]}
-          >
-            <TextInput
-              style={styles.textInput}
-              value={form.rut}
-              onChangeText={(text) => setForm({ ...form, rut: text })}
-              onFocus={() => setFocusedField("rut")}
-              placeholder="Ej. 14.234.567-8"
-              placeholderTextColor={colors.textPlaceholder}
-              autoCapitalize="characters"
-            />
-          </View>
-          <Text style={styles.helperText}>Formato con puntos y guion verificador.</Text>
         </View>
 
         {/* Field: Correo */}
@@ -293,58 +269,6 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Campos Específicos para DUEÑO: Datos Bancarios de Liquidación */}
-        {isDriver && (
-          <View style={styles.ownerBankCard}>
-            <Text style={styles.ownerBankTitle}>
-              CUENTA BANCARIA PARA TRANSFERENCIAS
-            </Text>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.fieldLabel}>BANCO</Text>
-              <View style={styles.inputBox}>
-                <TextInput
-                  style={styles.textInput}
-                  value={form.banco}
-                  onChangeText={(text) => setForm({ ...form, banco: text })}
-                  placeholder="Banco Estado / Santander / Chile"
-                  placeholderTextColor={colors.textPlaceholder}
-                />
-              </View>
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.fieldLabel}>TIPO DE CUENTA</Text>
-              <View style={styles.inputBox}>
-                <TextInput
-                  style={styles.textInput}
-                  value={form.tipo_cuenta}
-                  onChangeText={(text) => setForm({ ...form, tipo_cuenta: text })}
-                  placeholder="CuentaRUT / Cuenta Corriente"
-                  placeholderTextColor={colors.textPlaceholder}
-                />
-              </View>
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.fieldLabel}>NÚMERO DE CUENTA</Text>
-              <View style={styles.inputBox}>
-                <TextInput
-                  style={styles.textInput}
-                  value={form.numero_cuenta}
-                  onChangeText={(text) => setForm({ ...form, numero_cuenta: text })}
-                  placeholder="14234567"
-                  placeholderTextColor={colors.textPlaceholder}
-                  keyboardType="numeric"
-                />
-              </View>
-              <Text style={styles.helperText}>
-                Tus ganancias se liquidan y transfieren automáticamente aquí.
-              </Text>
-            </View>
-          </View>
-        )}
 
         {/* Terms Checkbox */}
         <TouchableOpacity
@@ -510,21 +434,6 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 14,
     color: colors.textMuted,
-  },
-  ownerBankCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-  },
-  ownerBankTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.8,
-    color: colors.primary,
-    textTransform: "uppercase",
   },
   checkboxRow: {
     flexDirection: "row",

@@ -110,12 +110,6 @@ export function AppProvider({ children }) {
     return profile;
   };
 
-  const addCar = async (carData) => {
-    const created = await ApiClient.crearAuto(carData);
-    setCars((prev) => [created, ...prev]);
-    return created;
-  };
-
   const addReservation = (newRes) => {
     setReservations((prev) => [newRes, ...prev]);
     setActiveReservation(newRes);
@@ -156,7 +150,6 @@ export function AppProvider({ children }) {
         syncProfile,
         cars,
         setCars,
-        addCar,
         reservations,
         setReservations,
         activeReservation,
