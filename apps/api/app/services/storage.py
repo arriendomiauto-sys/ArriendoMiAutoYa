@@ -83,6 +83,18 @@ class StorageService:
                 "error": "La foto está en formato HEIC. En los ajustes de la cámara del teléfono elige 'Más compatible' (JPG) y vuelve a intentarlo.",
             }
 
+        # Fotos de vehículos publicados: tapar las placas patentes antes de
+        # guardar (privacidad del dueño). Best-effort; si falla, no bloquea.
+        if bucket == "autos":
+            try:
+                from app.services.image_privacy import ImagePrivacy
+                censurada = ImagePrivacy.censurar_patentes(contenido_bytes)
+                if censurada and censurada is not contenido_bytes:
+                    contenido_bytes = censurada
+                    content_type, extension = "image/jpeg", ".jpg"
+            except Exception as e:
+                logger.error(f"Censura de patente omitida: {e}")
+
         # Nombre único seguro (ignora el nombre original salvo la extensión ya
         # validada por sniff, para evitar path traversal / inyección de rutas).
         archivo_id = f"{uuid.uuid4().hex}{extension}"
