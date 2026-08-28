@@ -28,7 +28,8 @@ async def subir_archivo(
         contenido_bytes=contenido,
         nombre_original=file.filename or "archivo.jpg",
         content_type=file.content_type or "image/jpeg",
-        bucket=bucket
+        bucket=bucket,
+        base_url=str(request.base_url),
     )
 
     if not resultado.get("success"):

@@ -60,7 +60,19 @@ class OCRService:
                 logger.error(f"Error al descargar imagen desde URL ({url_o_path}): {e}")
                 return None
 
-        # 3. Archivo en sistema local
+        # 3. Ruta relativa del fallback local (/uploads/<bucket>/<archivo>):
+        # el archivo está en STORAGE_LOCAL_DIR, en este mismo host.
+        if url_o_path.startswith("/uploads/"):
+            local = os.path.join(settings.STORAGE_LOCAL_DIR, url_o_path[len("/uploads/"):])
+            if os.path.isfile(local):
+                try:
+                    with open(local, "rb") as f:
+                        return f.read()
+                except Exception as e:
+                    logger.error(f"Error al leer archivo local ({local}): {e}")
+            return None
+
+        # 4. Archivo en sistema local (ruta absoluta)
         if os.path.isfile(url_o_path):
             try:
                 with open(url_o_path, "rb") as f:
