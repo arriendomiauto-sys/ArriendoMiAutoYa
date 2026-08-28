@@ -47,6 +47,20 @@ def completar_enrolamiento(
             detail="RUT chileno inválido (falla verificación de dígito verificador Módulo 11)."
         )
 
+    # Sin este chequeo, un RUT repetido revienta recién en el commit() de
+    # más abajo con un IntegrityError crudo de SQLite/Postgres (mensaje
+    # técnico en inglés, no algo que se le pueda mostrar a un usuario).
+    rut_en_uso = (
+        db.query(Usuario)
+        .filter(Usuario.rut == payload.rut, Usuario.id != current_user.id)
+        .first()
+    )
+    if rut_en_uso:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este RUT ya está registrado en otra cuenta."
+        )
+
     # Procesar documentos para calcular confianza
     resultado_ocr = OCRService.procesar_documentos_enrolamiento(
         carnet_frontal_url=payload.carnet_frontal_url,
