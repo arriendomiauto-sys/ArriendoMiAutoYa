@@ -60,14 +60,13 @@ export function OwnerProfileScreen({
 
         {/* User Card */}
         <View style={styles.profileCard}>
-          <Image
-            source={{
-              uri:
-                user.foto_perfil_url ||
-                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-            }}
-            style={styles.avatarImg}
-          />
+          {user.foto_perfil_verificada_url ? (
+            <Image source={{ uri: user.foto_perfil_verificada_url }} style={styles.avatarImg} />
+          ) : (
+            <View style={[styles.avatarImg, styles.avatarPlaceholder]}>
+              <Icon name="user" size={26} color={colors.textMuted} />
+            </View>
+          )}
           <View style={{ flex: 1, gap: 3 }}>
             <Text style={styles.userName}>{user.nombre || user.email || "Mi cuenta"}</Text>
             <View style={styles.ratingRow}>
@@ -221,6 +220,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
+  },
+  avatarPlaceholder: {
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   userName: {
     fontSize: 18,
