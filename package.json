@@ -11,6 +11,10 @@
     "build": "turbo run build",
     "test": "turbo run test"
   },
+  "dependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
   "devDependencies": {
     "turbo": "^1.13.0"
   },
