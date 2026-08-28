@@ -2,13 +2,30 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.entities import Usuario
-from app.schemas.schemas import UserOut, CuentaBancariaUpdate
+from app.schemas.schemas import UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate
 from app.services.auth import get_current_user
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
 @router.get("/me", response_model=UserOut, summary="Obtener el perfil del usuario autenticado")
 async def get_me(current_user: Usuario = Depends(get_current_user)):
+    return current_user
+
+@router.put(
+    "/me/perfil-basico",
+    response_model=UserOut,
+    summary="Actualizar nombre/teléfono de una cuenta simple (sin pasar por KYC)",
+)
+def actualizar_perfil_basico(
+    payload: PerfilBasicoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    current_user.nombre = payload.nombre
+    if payload.telefono is not None:
+        current_user.telefono = payload.telefono
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 @router.put(

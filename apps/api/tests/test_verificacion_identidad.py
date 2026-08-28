@@ -83,3 +83,18 @@ def test_mis_autos_solo_devuelve_los_propios_y_todo_estado(usuario_factory, auth
 def test_mis_autos_sin_auth_da_401(client):
     resp = client.get("/api/v1/autos/mios")
     assert resp.status_code == 401
+
+
+def test_actualizar_perfil_basico_no_requiere_kyc_previo(usuario_factory, auth_as):
+    usuario = usuario_factory(roles_activos=["cliente"], estado_documentos="pendiente", rut=None)
+    resp = auth_as(usuario).put(
+        "/api/v1/usuarios/me/perfil-basico",
+        json={"nombre": "Juan Cuenta Simple", "telefono": "+56911112222"},
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["nombre"] == "Juan Cuenta Simple"
+    assert data["telefono"] == "+56911112222"
+    # No toca nada relacionado a identidad/KYC.
+    assert data["rut"] is None
+    assert data["estado_documentos"] == "pendiente"

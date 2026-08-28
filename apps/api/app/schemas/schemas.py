@@ -60,6 +60,15 @@ class CuentaBancariaUpdate(BaseModel):
             raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
         return v
 
+class PerfilBasicoUpdate(BaseModel):
+    """
+    Datos de perfil que NO son de identidad (no pasan por OCR/Módulo-11) —
+    los puede actualizar una cuenta "simple" recién creada, sin haber hecho
+    el enrolamiento KYC todavía.
+    """
+    nombre: str
+    telefono: Optional[str] = None
+
 class DocumentReviewRequest(BaseModel):
     accion: Literal["aprobar", "rechazar"]
     notas: str
