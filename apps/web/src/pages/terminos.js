@@ -1,5 +1,5 @@
 import React from "react";
-import Head from "next/head";
+import Seo from "../components/Seo";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -8,18 +8,12 @@ import { ShieldCheck, FileText, Lock, Clock, AlertCircle } from "lucide-react";
 export default function TerminosPage() {
   return (
     <>
-      <Head>
-        <title>Términos y Condiciones del Servicio | ArriendoMiAutoYa</title>
-        <meta
-          name="description"
-          content="Términos y condiciones legales de la plataforma de arriendo de vehículos ArriendoMiAutoYa en Los Ángeles, Región del Biobío."
-        />
-        <meta property="og:title" content="Términos y Condiciones | ArriendoMiAutoYa" />
-        <meta
-          property="og:description"
-          content="Cláusulas de arriendo, seguro 15 UF (50/50), hold de garantía y checklist de 9 fotos."
-        />
-      </Head>
+      <Seo
+        title="Términos y Condiciones del Servicio"
+        description="Términos y condiciones legales de la plataforma de arriendo de vehículos ArriendoMiAutoYa en Los Ángeles, Región del Biobío."
+        path="/terminos"
+        ogType="article"
+      />
 
       <Navbar />
 

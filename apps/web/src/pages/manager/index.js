@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import Head from "next/head";
+import Seo from "../../components/Seo";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { Button } from "../../components/ui/button";
@@ -79,10 +79,12 @@ export default function ManagerPage() {
 
   return (
     <>
-      <Head>
-        <title>Panel de Sucursal — ArriendoMiAutoYa</title>
-        <meta name="description" content="Consola de gestión local: monitoreo de flota, coordinación de entregas y soporte en terreno." />
-      </Head>
+      <Seo
+        title="Panel de Sucursal Los Ángeles"
+        description="Consola de gestión local para sucursal Los Ángeles: monitoreo de flota, coordinación de entregas y soporte en terreno."
+        path="/manager"
+        noindex
+      />
 
       <Navbar />
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import Head from "next/head";
+import Seo from "../components/Seo";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import Navbar from "../components/Navbar";
@@ -233,15 +233,11 @@ export default function CotizadorPage() {
 
   return (
     <>
-      <Head>
-        <title>Cotizador Interactivo de Arriendo - ArriendoMiAutoYa</title>
-        <meta
-          name="description"
-          content="Calcula en tiempo real el valor total de tu arriendo con seguro 15 UF (50/50), kilometraje libre y hold de garantía en Los Ángeles."
-        />
-        <meta property="og:title" content="Cotizador de Arriendo - ArriendoMiAutoYa Los Ángeles" />
-        <meta property="og:description" content="Calcula tarifas en tiempo real sin costos ocultos con seguro 15 UF incluido." />
-      </Head>
+      <Seo
+        title="Cotizador Interactivo de Arriendo de Autos"
+        description="Calcula en tiempo real el valor total de tu arriendo con seguro 15 UF (50/50), kilometraje libre y hold de garantía en Los Ángeles, Biobío."
+        path="/cotizador"
+      />
 
       <Navbar />
 

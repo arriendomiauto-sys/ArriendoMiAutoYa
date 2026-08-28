@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import Head from "next/head";
 import { KeyRound, CheckCircle2, AlertTriangle } from "lucide-react";
+import Seo from "../components/Seo";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -79,9 +79,7 @@ export default function RestablecerContrasenaPage() {
 
   return (
     <>
-      <Head>
-        <title>Restablecer Contraseña - ArriendoMiAutoYa</title>
-      </Head>
+      <Seo title="Restablecer Contraseña" path="/restablecer-contrasena" noindex />
 
       <main className="min-h-screen flex items-center justify-center bg-[#061E1F] px-4">
         <div className="w-full max-w-md rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-8 shadow-2xl space-y-6">
