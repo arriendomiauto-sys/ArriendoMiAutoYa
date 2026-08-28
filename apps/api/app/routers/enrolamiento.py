@@ -22,7 +22,8 @@ def procesar_documentos_ocr(payload: UserEnrolamiento):
         carnet_frontal_url=payload.carnet_frontal_url,
         carnet_trasero_url=payload.carnet_trasero_url,
         licencia_url=payload.licencia_url,
-        rut_usuario=payload.rut
+        rut_usuario=payload.rut,
+        selfie_url=payload.foto_perfil_verificada_url,
     )
     return {
         "mensaje": "Documentos procesados exitosamente",
@@ -66,7 +67,8 @@ def completar_enrolamiento(
         carnet_frontal_url=payload.carnet_frontal_url,
         carnet_trasero_url=payload.carnet_trasero_url,
         licencia_url=payload.licencia_url,
-        rut_usuario=payload.rut
+        rut_usuario=payload.rut,
+        selfie_url=payload.foto_perfil_verificada_url,
     )
 
     # Un rechazo del OCR bloquea el enrolamiento de verdad: no se otorga el
