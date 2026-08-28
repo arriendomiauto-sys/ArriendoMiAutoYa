@@ -23,6 +23,15 @@ def crear_reserva(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
+    # La cuenta se crea simple (sin RUT ni documentos); recién acá, al
+    # reservar de verdad un vehículo, se exige identidad verificada — no en
+    # el registro.
+    if current_user.estado_documentos != "verificado":
+        raise HTTPException(
+            status_code=403,
+            detail="Debes verificar tu identidad antes de reservar un vehículo."
+        )
+
     auto = db.query(Auto).filter(Auto.id == payload.auto_id).first()
     if not auto:
         raise HTTPException(status_code=404, detail="Auto no encontrado")
