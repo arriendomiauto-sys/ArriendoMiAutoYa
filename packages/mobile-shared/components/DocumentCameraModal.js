@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImageManipulator from "expo-image-manipulator";
 import { colors } from "../theme/colors";
 import { Icon } from "./Icon";
 
@@ -62,8 +63,8 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", onClos
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null); // uri de la foto tomada, pendiente de confirmar
 
-  const { width } = Dimensions.get("window");
-  const frameW = Math.min(width - 48, 420);
+  const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+  const frameW = Math.min(SCREEN_W - 48, 420);
   const frameH = cfg.shape === "face" ? frameW * 1.25 : frameW / ID1_RATIO;
 
   const cerrar = () => {
@@ -71,15 +72,49 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", onClos
     onClose && onClose();
   };
 
+  // Recorta la foto a la ventana guía. `takePictureAsync` captura TODO el
+  // sensor, no solo el recuadro, así que sin esto el documento queda chico
+  // en el centro y el OCR del backend no lo lee.
+  const recortarAlMarco = async (uri, pw, ph) => {
+    if (!pw || !ph || ph < pw) return uri; // orientación rara: subir sin recortar
+    try {
+      const s = Math.max(SCREEN_W / pw, SCREEN_H / ph); // preview en modo "cover"
+      const offX = (SCREEN_W - pw * s) / 2;
+      const offY = (SCREEN_H - ph * s) / 2;
+      const mx = cfg.shape === "face" ? frameW * 0.22 : frameW * 0.06;
+      const my = cfg.shape === "face" ? frameH * 0.22 : frameH * 0.1;
+      const cx = ((SCREEN_W - frameW) / 2 - mx - offX) / s;
+      const cy = ((SCREEN_H - frameH) / 2 - my - offY) / s;
+      const cw = (frameW + mx * 2) / s;
+      const ch = (frameH + my * 2) / s;
+      const originX = Math.max(0, Math.round(cx));
+      const originY = Math.max(0, Math.round(cy));
+      const width = Math.round(Math.min(cw, pw - originX));
+      const height = Math.round(Math.min(ch, ph - originY));
+      if (width < 48 || height < 48) return uri;
+      const out = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ crop: { originX, originY, width, height } }],
+        { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      return out?.uri || uri;
+    } catch {
+      return uri;
+    }
+  };
+
   const tomarFoto = async () => {
     if (!cameraRef.current || busy) return;
     setBusy(true);
     try {
       const foto = await cameraRef.current.takePictureAsync({
-        quality: 0.65,
+        quality: 0.85,
         skipProcessing: false,
       });
-      if (foto?.uri) setPreview(foto.uri);
+      if (foto?.uri) {
+        const uri = await recortarAlMarco(foto.uri, foto.width, foto.height);
+        setPreview(uri);
+      }
     } catch (e) {
       // Silencioso: el usuario puede reintentar con el botón.
     } finally {

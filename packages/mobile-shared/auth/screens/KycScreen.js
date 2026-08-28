@@ -135,14 +135,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
     try {
       // El Dueño completa el mismo enrolamiento (nombre/RUT/carnet) que el
       // Arrendatario — el backend le otorga el rol "dueno" automáticamente
-      // la primera vez que publique un auto, así que no se envía un campo
-      // de rol aquí.
+      // la primera vez que publique un auto.
       //
-      // El backend corre el OCR real acá (con todos los datos juntos) y
-      // devuelve 400 si rechaza los documentos — eso deja al usuario en
-      // este mismo paso para que vuelva a intentarlo, no lo deja avanzar
-      // igual como pasaba antes.
-      await completeEnrolment({
+      // El backend corre el OCR + control facial reales acá. Puede devolver:
+      //  - 200 estado_documentos="verificado"           -> aprobado
+      //  - 200 estado_documentos="requiere_revision_manual" -> queda en revisión
+      //  - 400 (rechazado)                              -> vuelve a intentar
+      const profile = await completeEnrolment({
         nombre,
         rut,
         email: currentUser?.email,
@@ -152,9 +151,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         licencia_url: role === "renter" ? licenciaUrl : undefined,
         foto_perfil_verificada_url: selfieUrl,
       });
-      setCurrentStep("05_approved");
+      setCurrentStep(profile?.estado_documentos === "verificado" ? "05_approved" : "06_revision");
     } catch (err) {
-      showAlert("No se pudo verificar tu identidad", err.message);
+      showAlert(
+        "No pudimos verificar tus documentos",
+        (err.message || "") +
+          "\n\nVuelve a tomar las fotos: documento completo dentro del marco, enfocado, sin reflejos y con buena luz."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -528,6 +531,63 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             >
               <Text style={styles.approvedPrimaryBtnText}>
                 {isDriver ? "Ir a mi Panel de Dueño" : "Explorar Autos Disponibles"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 06: DOCUMENTOS EN REVISIÓN MANUAL */}
+      {/* ========================================================================= */}
+      {currentStep === "06_revision" && (
+        <View style={styles.reviewStepBox}>
+          <View style={styles.reviewCenter}>
+            <View style={styles.clockCircle}>
+              <Icon name="clock" size={38} color="#D97706" />
+            </View>
+
+            <View style={styles.reviewTextBox}>
+              <Text style={styles.reviewTitle}>Estamos revisando tus documentos</Text>
+              <Text style={styles.reviewSub}>
+                Recibimos tus fotos pero no pudimos validarlas de forma automática.
+                Un ejecutivo las revisa a mano — te avisamos apenas quede lista tu cuenta
+                (normalmente dentro de unas horas).
+              </Text>
+            </View>
+
+            <View style={styles.badgeCard}>
+              <View style={styles.shieldIconWrapper}>
+                <Icon name="camera" size={26} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.badgeCardTitle}>¿Quieres acelerar la revisión?</Text>
+                <Text style={styles.badgeCardDesc}>
+                  Vuelve a tomar las fotos con el documento completo dentro del marco,
+                  enfocado, sin reflejos y con buena luz.
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.reviewBottomBar}>
+            <TouchableOpacity
+              style={[styles.approvedPrimaryBtn, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setCarnetFrontalUrl(null);
+                setCarnetTraseroUrl(null);
+                setLicenciaUrl(null);
+                setSelfieUrl(null);
+                setCedulaSide("front");
+                setCurrentStep("01_cedula");
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.approvedPrimaryBtnText}>Volver a tomar las fotos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onComplete()} style={{ paddingVertical: 12 }}>
+              <Text style={[styles.reviewSub, { fontSize: 13 }]}>
+                Continuar y esperar la revisión
               </Text>
             </TouchableOpacity>
           </View>
