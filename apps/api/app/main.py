@@ -7,6 +7,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
+from app.core.schema_sync import sync_missing_columns
 from app.core.seed import seed_demo_data
 from app.core.limiter import limiter
 
@@ -37,6 +38,10 @@ async def lifespan(app: FastAPI):
     # y todo lo que use TestClient (tests, uvicorn --reload) fallará con
     # "no such column" al chocar contra el schema viejo en disco.
     Base.metadata.create_all(bind=engine)
+    # create_all() no altera tablas ya existentes: esto agrega las columnas
+    # que se hayan sumado a los modelos (Postgres no se puede "regenerar
+    # borrando el archivo" como el SQLite local).
+    sync_missing_columns()
     os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
     db = SessionLocal()
     try:
