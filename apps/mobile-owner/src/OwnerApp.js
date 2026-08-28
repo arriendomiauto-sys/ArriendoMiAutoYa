@@ -136,6 +136,27 @@ export function OwnerApp() {
       return <DisputesScreen onBack={() => setShowDisputes(false)} />;
     }
 
+    // Publicar / editar auto
+    if (showAddCar) {
+      return (
+        <AddEditCarScreen
+          onBack={() => setShowAddCar(false)}
+          onComplete={() => {
+            setShowAddCar(false);
+            cargarMisAutos();
+          }}
+        />
+      );
+    }
+
+    if (showNotifications) {
+      return <NotificationsScreen variant="owner" onBack={() => setShowNotifications(false)} />;
+    }
+
+    if (showSupport) {
+      return <SupportScreen variant="owner" onBack={() => setShowSupport(false)} />;
+    }
+
     switch (activeTab) {
       case "cars":
         return (
@@ -340,26 +361,7 @@ export function OwnerApp() {
         </View>
       )}
 
-      {/* Modal Agregar / Editar Auto */}
-      {showAddCar && (
-        <AddEditCarScreen
-          onBack={() => setShowAddCar(false)}
-          onComplete={() => {
-            setShowAddCar(false);
-            cargarMisAutos();
-          }}
-        />
-      )}
-
-      {/* Modal de Notificaciones */}
-      {showNotifications && (
-        <NotificationsScreen variant="owner" onBack={() => setShowNotifications(false)} />
-      )}
-
-      {/* Modal de Soporte */}
-      {showSupport && <SupportScreen variant="owner" onBack={() => setShowSupport(false)} />}
-
-      {/* Modal de Contrato */}
+      {/* Modal de Contrato (RN Modal: se monta en su propia capa) */}
       {showContract && (
         <ContractModal
           visible={showContract}

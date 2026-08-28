@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 // Marcas con presencia real en Chile (para el autocompletado de "Marca").
@@ -81,6 +82,7 @@ function MarcaInput({ value, onChange, onFocus }) {
 }
 
 export function AddEditCarScreen({ onBack, onComplete }) {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -234,7 +236,10 @@ export function AddEditCarScreen({ onBack, onComplete }) {
       <ScrollView
         ref={scrollRef}
         style={styles.container}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(insets.bottom + 24, 40) },
+        ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
@@ -448,7 +453,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.darkBg },
-  content: { padding: 16, paddingTop: 20, paddingBottom: 120 },
+  content: { padding: 16, paddingTop: 20 },
   backBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,

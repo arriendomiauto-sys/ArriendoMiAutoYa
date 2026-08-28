@@ -167,7 +167,28 @@ export function RenterApp() {
       );
     }
 
-    // 8. Contenido de las Pestañas Principales
+    // 8. Cancelar reserva / Notificaciones / Soporte (pantalla completa)
+    if (showCancelModal) {
+      return (
+        <CancelReservationModal
+          reservation={activeReservation}
+          onClose={() => setShowCancelModal(false)}
+          onConfirmCancel={() => {
+            setShowCancelModal(false);
+            setActiveReservation(null);
+            setActiveTab("rentals");
+          }}
+        />
+      );
+    }
+    if (showNotifications) {
+      return <NotificationsScreen variant="renter" onBack={() => setShowNotifications(false)} />;
+    }
+    if (showSupport) {
+      return <SupportScreen variant="renter" onBack={() => setShowSupport(false)} />;
+    }
+
+    // 9. Contenido de las Pestañas Principales
     switch (activeTab) {
       case "explore":
         return (
@@ -341,30 +362,7 @@ export function RenterApp() {
         </View>
       )}
 
-      {/* Modal Cancelar Reserva */}
-      {showCancelModal && (
-        <CancelReservationModal
-          reservation={activeReservation}
-          onClose={() => setShowCancelModal(false)}
-          onConfirmCancel={() => {
-            setShowCancelModal(false);
-            setActiveReservation(null);
-            setActiveTab("rentals");
-          }}
-        />
-      )}
-
-      {/* Modal de Notificaciones */}
-      {showNotifications && (
-        <NotificationsScreen variant="renter" onBack={() => setShowNotifications(false)} />
-      )}
-
-      {/* Modal de Soporte */}
-      {showSupport && (
-        <SupportScreen variant="renter" onBack={() => setShowSupport(false)} />
-      )}
-
-      {/* Modal de Contrato */}
+      {/* Modal de Contrato (RN Modal: se monta en su propia capa) */}
       {showContract && (
         <ContractModal
           visible={showContract}
