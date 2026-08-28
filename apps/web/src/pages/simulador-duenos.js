@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Head from "next/head";
+import Seo from "../components/Seo";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -36,13 +36,11 @@ export default function SimuladorDuenosPage() {
 
   return (
     <>
-      <Head>
-        <title>Simulador de Ingresos para Dueños de Autos - ArriendoMiAutoYa</title>
-        <meta
-          name="description"
-          content="Calcula cuánto dinero puedes ganar al mes arrendando tu auto en Los Ángeles. Simulación en tiempo real con comisiones transparentes y seguro protegido."
-        />
-      </Head>
+      <Seo
+        title="Simulador de Ingresos para Dueños de Autos"
+        description="Calcula cuánto dinero puedes ganar al mes arrendando tu auto en Los Ángeles. Simulación en tiempo real con comisiones transparentes y seguro protegido."
+        path="/simulador-duenos"
+      />
 
       <Navbar />
 

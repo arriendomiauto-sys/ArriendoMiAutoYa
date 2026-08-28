@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import Head from "next/head";
+import Seo from "../../components/Seo";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { Button } from "../../components/ui/button";
@@ -158,9 +158,12 @@ export default function AdminPortal() {
 
   return (
     <>
-      <Head>
-        <title>Panel Administrador General - ArriendoMiAutoYa</title>
-      </Head>
+      <Seo
+        title="Panel Administrador General"
+        description="Consola interna de administración de ArriendoMiAutoYa."
+        path="/admin"
+        noindex
+      />
 
       <Navbar />
 

@@ -1,5 +1,5 @@
 import React from "react";
-import Head from "next/head";
+import Seo from "../components/Seo";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Lock, Shield, Eye, FileCheck } from "lucide-react";
@@ -7,18 +7,12 @@ import { Lock, Shield, Eye, FileCheck } from "lucide-react";
 export default function PrivacidadPage() {
   return (
     <>
-      <Head>
-        <title>Política de Privacidad y Datos | ArriendoMiAutoYa</title>
-        <meta
-          name="description"
-          content="Conoce cómo protegemos tus datos personales y documentos en ArriendoMiAutoYa conforme a la Ley 19.628 de Chile."
-        />
-        <meta property="og:title" content="Política de Privacidad | ArriendoMiAutoYa" />
-        <meta
-          property="og:description"
-          content="Protección de datos, encriptación y tratamiento confidencial de documentos en ArriendoMiAutoYa."
-        />
-      </Head>
+      <Seo
+        title="Política de Privacidad y Datos"
+        description="Conoce cómo protegemos tus datos personales y documentos en ArriendoMiAutoYa conforme a la Ley 19.628 de Chile."
+        path="/privacidad"
+        ogType="article"
+      />
 
       <Navbar />
 

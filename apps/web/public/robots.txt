@@ -1,0 +1,8 @@
+# robots.txt — ArriendoMiAutoYa
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /manager
+Disallow: /api/
+
+Sitemap: https://arriendomiautoya.cl/sitemap.xml

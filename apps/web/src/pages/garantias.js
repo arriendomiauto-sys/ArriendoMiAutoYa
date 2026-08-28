@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Head from "next/head";
+import Seo from "../components/Seo";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -35,13 +35,11 @@ export default function GarantiasPage() {
 
   return (
     <>
-      <Head>
-        <title>Centro de Garantías y Seguro 15 UF - ArriendoMiAutoYa</title>
-        <meta
-          name="description"
-          content="Conoce en detalle el seguro con deducible 15 UF (50/50), la garantía protegida de $800.000 y el checklist inmutable de 9 fotos."
-        />
-      </Head>
+      <Seo
+        title="Centro de Garantías y Seguro 15 UF"
+        description="Conoce en detalle el seguro con deducible 15 UF (50/50), la garantía protegida de $800.000 y el checklist inmutable de 9 fotos."
+        path="/garantias"
+      />
 
       <Navbar />
 

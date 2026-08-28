@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import Head from "next/head";
 import Link from "next/link";
+import Seo from "../components/Seo";
 import { useRouter } from "next/router";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -126,13 +126,24 @@ export default function Home() {
     { q: "¿Cómo es la entrega del vehículo?", a: "Te reúnes con el dueño en el punto pactado en Los Ángeles, revisan juntos el checklist de 9 fotos y escanean el código QR en la app para transferir las llaves." },
   ];
 
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+
   return (
     <>
-      <Head>
-        <title>ArriendoMiAutoYa — Arriendo de autos entre personas en Los Ángeles</title>
-        <meta name="description" content="Arrienda autos directamente de sus dueños en Los Ángeles, Biobío con ArriendoMiAutoYa. Seguro 15 UF, validación digital en 1 minuto y entrega segura con código QR." />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
-      </Head>
+      <Seo
+        title="ArriendoMiAutoYa — Arriendo de autos entre personas en Los Ángeles"
+        description="Arrienda autos directamente de sus dueños en Los Ángeles, Biobío con ArriendoMiAutoYa. Seguro 15 UF, validación digital en 1 minuto y entrega segura con código QR."
+        path="/"
+        jsonLd={faqJsonLd}
+      />
 
       <Navbar />
 
@@ -200,8 +211,11 @@ export default function Home() {
                 <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-black/80 border border-[#2FBF9B]/20">
                   <img
                     src="/hero-bg-BtEUgRp2.jpg"
-                    alt="Auto en carretera"
+                    alt="Auto de arriendo recorriendo una carretera cerca de Los Ángeles, Biobío"
                     className="w-full h-[390px] object-cover"
+                    width={720}
+                    height={390}
+                    fetchPriority="high"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#061E1F]/80 via-transparent to-transparent" />
                 </div>
@@ -285,8 +299,10 @@ export default function Home() {
                   <div className="relative h-52 overflow-hidden bg-slate-900">
                     <img
                       src={auto.foto || auto.fotos?.[0]}
-                      alt={`${auto.marca} ${auto.modelo}`}
+                      alt={`Arriendo de ${auto.marca} ${auto.modelo} ${auto.anio} en Los Ángeles, Biobío`}
                       className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <span className="absolute top-3 right-3 bg-[#061E1F]/90 text-[#92E3CB] text-[10px] font-bold uppercase px-2.5 py-1 rounded-md border border-[#2FBF9B]/30 tracking-wide backdrop-blur-sm">
                       {auto.badge || "VERIFICADO"}
