@@ -20,7 +20,7 @@ export function RenterProfileScreen({
   onOpenContract,
   onOpenChat,
 }) {
-  const { currentUser, reservations, paymentMethods, logout } = useApp();
+  const { currentUser, reservations, paymentMethods, logout, setMode } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
 
   useEffect(() => {
@@ -160,6 +160,22 @@ export function RenterProfileScreen({
           </TouchableOpacity>
         </View>
 
+        {/* Cambiar a Modo Dueño (misma cuenta, otra experiencia) */}
+        <TouchableOpacity
+          style={styles.switchModeBtn}
+          onPress={() => setMode("owner")}
+          activeOpacity={0.85}
+        >
+          <Icon name="car" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.switchModeTitle}>Cambiar a Modo Dueño</Text>
+            <Text style={styles.switchModeDesc}>
+              Publica tu auto y recibe pagos por arriendo.
+            </Text>
+          </View>
+          <Icon name="arrow-right" size={16} color={colors.textMuted} />
+        </TouchableOpacity>
+
         {/* Cerrar Sesión */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={styles.logoutBtnText}>Cerrar Sesión</Text>
@@ -290,6 +306,26 @@ const styles = StyleSheet.create({
   menuItemMeta: {
     fontSize: 14,
     color: colors.textMuted,
+  },
+  switchModeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: colors.primary100,
+    borderWidth: 1,
+    borderColor: colors.primary200,
+  },
+  switchModeTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  switchModeDesc: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 2,
   },
   logoutBtn: {
     height: 52,

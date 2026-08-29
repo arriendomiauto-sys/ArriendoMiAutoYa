@@ -44,7 +44,7 @@ export const MOCK_CARS = [
 ];
 
 /**
- * Cliente HTTP único, compartido por las apps mobile-owner y mobile-renter.
+ * Cliente HTTP único, compartido por las experiencias de arrendatario y dueño.
  * Adjunta automáticamente el Bearer token de la sesión Supabase activa a
  * cada request. Los métodos de lectura pública (getAutos/getAuto) no
  * requieren sesión.

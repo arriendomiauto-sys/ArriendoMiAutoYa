@@ -16,9 +16,9 @@ import { Icon } from "../../components/Icon";
 import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
 
-// El rol ya no se elige aquí con un toggle "TIPO DE CUENTA": cada app
-// (mobile-owner / mobile-renter) es un binario dedicado a un solo rol, que
-// AuthFlow pasa como prop fija.
+// El rol ("renter" | "owner") viene elegido desde la bienvenida y solo
+// define el copy y el modo con el que arranca la app — no crea cuentas
+// distintas. El usuario alterna de modo después desde su perfil.
 //
 // La cuenta se crea "simple": solo nombre, correo, teléfono y contraseña.
 // El RUT (y, para dueños, la cuenta bancaria) son datos de identidad/pago
@@ -74,7 +74,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
 
     setLoading(true);
     try {
-      const data = await register(form.email.trim(), form.password);
+      const data = await register(form.email.trim(), form.password, role);
 
       if (data?.session) {
         // El proyecto Supabase no exige confirmación de correo: la sesión

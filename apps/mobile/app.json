@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "Arrienda Tu Auto Dueño",
-    "slug": "arrienda-tu-auto-owner",
+    "name": "Arrienda Tu Auto",
+    "slug": "arrienda-tu-auto",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#0F223D" },
-    "ios": { "supportsTablet": true, "bundleIdentifier": "cl.arriendatuauto.owner" },
+    "userInterfaceStyle": "automatic",
+    "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#FAFAF9" },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "cl.arriendatuauto.app" },
     "android": {
-      "package": "cl.arriendatuauto.owner",
-      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#0F223D" }
+      "package": "cl.arriendatuauto.app",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#FAFAF9" }
     },
     "web": { "favicon": "./assets/favicon.png", "bundler": "metro" },
     "plugins": [

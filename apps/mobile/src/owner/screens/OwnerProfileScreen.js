@@ -22,7 +22,7 @@ export function OwnerProfileScreen({
   onOpenChat,
   onOpenEnrolment,
 }) {
-  const { currentUser, bankAccount, logout } = useApp();
+  const { currentUser, bankAccount, logout, setMode } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
 
   useEffect(() => {
@@ -138,6 +138,22 @@ export function OwnerProfileScreen({
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Cambiar a Modo Arrendatario (misma cuenta, otra experiencia) */}
+        <TouchableOpacity
+          style={styles.switchModeBtn}
+          onPress={() => setMode("renter")}
+          activeOpacity={0.85}
+        >
+          <Icon name="key" size={20} color={colors.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.switchModeTitle}>Cambiar a Modo Arrendatario</Text>
+            <Text style={styles.switchModeDesc}>
+              Busca y reserva autos para arrendar.
+            </Text>
+          </View>
+          <Icon name="arrow-right" size={16} color={colors.textSilver} />
+        </TouchableOpacity>
 
         {/* Cerrar Sesión */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
@@ -283,6 +299,26 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     fontSize: 13,
     color: colors.textSilver,
+  },
+  switchModeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: colors.darkCard,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+  },
+  switchModeTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.textWhite,
+  },
+  switchModeDesc: {
+    fontSize: 13,
+    color: colors.textSilver,
+    marginTop: 2,
   },
   logoutBtn: {
     height: 52,

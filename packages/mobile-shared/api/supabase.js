@@ -2,7 +2,7 @@ import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 
-// Cada app (mobile-owner, mobile-renter) provee estas variables vía su .env
+// La app provee estas variables vía su .env
 // (EXPO_PUBLIC_* se expone al bundle de cliente por convención de Expo SDK 49+).
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;

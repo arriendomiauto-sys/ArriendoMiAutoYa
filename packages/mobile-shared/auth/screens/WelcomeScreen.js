@@ -9,33 +9,24 @@ import {
 import { colors } from "../../theme/colors";
 import { Icon } from "../../components/Icon";
 
-// El rol ya no se elige en esta pantalla (cada app -mobile-owner/mobile-renter-
-// es un binario dedicado a un solo rol, fijo desde App.js). El copy reutiliza
-// el texto de la tarjeta original correspondiente a cada rol.
-const ROLE_COPY = {
-  renter: {
-    iconName: "key",
-    title: "El auto del vecino, arrendado en minutos",
-    subtitle:
-      "Necesita un auto por unos días. Reserve con garantía protegida y entrega 100% digital.",
+// La app es un solo binario con dos experiencias. Acá el usuario elige con
+// cuál partir; después alterna entre modos desde su perfil.
+const ROLE_OPTIONS = [
+  {
+    key: "renter",
     cardIcon: "key",
     cardTitle: "Quiero arrendar",
     cardDesc: "Necesito un auto por unos días. Desde $22.000 el día.",
   },
-  owner: {
-    iconName: "car",
-    title: "Su auto parado puede generar ingresos",
-    subtitle:
-      "Publique su vehículo y reciba pagos por arriendo directo en su cuenta bancaria.",
+  {
+    key: "owner",
     cardIcon: "car",
     cardTitle: "Quiero publicar mi auto",
     cardDesc: "Tengo un auto parado y quiero que genere ingresos.",
   },
-};
+];
 
-export function WelcomeScreen({ onNavigate, role = "renter" }) {
-  const copy = ROLE_COPY[role] || ROLE_COPY.renter;
-
+export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -48,24 +39,37 @@ export function WelcomeScreen({ onNavigate, role = "renter" }) {
         </View>
 
         <View style={styles.textBox}>
-          <Text style={styles.title}>{copy.title}</Text>
-          <Text style={styles.subtitle}>{copy.subtitle}</Text>
+          <Text style={styles.title}>El auto del vecino, arrendado en minutos</Text>
+          <Text style={styles.subtitle}>
+            Publica tu auto o arrienda el de otra persona, con garantía protegida
+            y entrega 100% digital. ¿Qué quieres hacer?
+          </Text>
         </View>
 
-        {/* Tarjeta única con el camino fijo del rol de esta app */}
+        {/* Selección de rol: define el modo con el que arranca la app */}
         <View style={styles.cardsContainer}>
-          <View style={[styles.optionCard, styles.optionCardSelected]}>
-            <View style={styles.cardHeader}>
-              <Icon
-                name={copy.cardIcon}
-                size={24}
-                color={colors.primary}
-                style={{ marginRight: 10 }}
-              />
-              <Text style={styles.cardTitle}>{copy.cardTitle}</Text>
-            </View>
-            <Text style={styles.cardDesc}>{copy.cardDesc}</Text>
-          </View>
+          {ROLE_OPTIONS.map((opt) => {
+            const selected = role === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.optionCard, selected && styles.optionCardSelected]}
+                onPress={() => onSelectRole?.(opt.key)}
+                activeOpacity={0.85}
+              >
+                <View style={styles.cardHeader}>
+                  <Icon
+                    name={opt.cardIcon}
+                    size={24}
+                    color={colors.primary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <Text style={styles.cardTitle}>{opt.cardTitle}</Text>
+                </View>
+                <Text style={styles.cardDesc}>{opt.cardDesc}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 

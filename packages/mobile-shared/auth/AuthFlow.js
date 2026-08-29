@@ -10,26 +10,29 @@ import { RegisterScreen } from "./screens/RegisterScreen";
 import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen";
 
 /**
- * Orquestador del flujo de autenticación, compartido por mobile-owner y
- * mobile-renter.
+ * Orquestador del flujo de autenticación de la app unificada.
  *
- * El rol ya no se elige dentro del flujo: cada app es su propio binario
- * dedicado a un solo rol ("owner" | "renter"), pasado una única vez como
- * prop fija desde el App.js de esa app. Tampoco recibe `onAuthSuccess`:
- * nada por encima de <AuthFlow /> necesita un callback, porque
- * useApp().isLoggedIn (reactivo) es lo que determina cuándo el componente
- * padre deja de renderizar este flujo.
+ * La app es un solo binario con dos experiencias (arrendatario / dueño). El
+ * rol se elige acá, en la pantalla de bienvenida, y queda como el modo con
+ * el que arranca la app; después el usuario alterna entre modos desde su
+ * perfil. No recibe `onAuthSuccess`: nada por encima de <AuthFlow /> necesita
+ * un callback, porque useApp().isLoggedIn (reactivo) es lo que determina
+ * cuándo el componente padre deja de renderizar este flujo.
  *
- * La verificación de identidad (KYC) ya NO es parte de este flujo: la
- * cuenta se crea simple y el KYC se pide más adelante, dentro de la app
- * (OwnerApp/RenterApp), justo cuando el usuario intenta publicar o
- * reservar un auto de verdad.
+ * La verificación de identidad (KYC) NO es parte de este flujo: la cuenta se
+ * crea simple y el KYC se pide más adelante, dentro de la app
+ * (OwnerApp/RenterApp), justo cuando el usuario intenta publicar o reservar
+ * un auto de verdad.
  */
-export function AuthFlow({ role }) {
+export function AuthFlow() {
   // 'splash' -> 'onboarding' -> 'welcome' -> 'login' | 'register'
   //   -> 'confirm_email' (solo si el registro no devolvió sesión activa)
   //   -> (el padre deja de mostrar AuthFlow apenas isLoggedIn sea true)
   const [step, setStep] = useState("splash");
+
+  // Rol elegido en la bienvenida: 'renter' (arrendar) | 'owner' (publicar).
+  // Solo afecta el copy del registro y el modo inicial de la app.
+  const [role, setRole] = useState("renter");
 
   if (step === "splash") {
     return <SplashScreen onFinish={() => setStep("onboarding")} />;
@@ -43,6 +46,7 @@ export function AuthFlow({ role }) {
     return (
       <WelcomeScreen
         role={role}
+        onSelectRole={setRole}
         onNavigate={(screen) => {
           if (screen === "login") setStep("login");
           else if (screen === "register") setStep("register");

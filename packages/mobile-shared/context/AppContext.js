@@ -1,19 +1,50 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiClient, MOCK_CARS } from "../api/client";
 import { supabase } from "../api/supabase";
 
 const AppContext = createContext();
 
+// Clave de persistencia del modo activo (arrendatario vs. dueño). La misma
+// cuenta puede operar en los dos roles; `mode` decide qué experiencia
+// (RenterApp / OwnerApp) se muestra y el usuario alterna entre ellas desde
+// su perfil. Se elige por primera vez en el registro.
+const MODE_STORAGE_KEY = "@rentacar/mode";
+const VALID_MODES = ["renter", "owner"];
+
 /**
- * Contexto de aplicación compartido por mobile-owner y mobile-renter.
- * La identidad de rol (dueño vs. arrendatario) ya no vive aquí: cada app
- * es su propio binario independiente, así que no hay "mode" ni
- * "toggleMode"/"onSwitchApp" — eso se eliminó al separar las apps.
+ * Contexto de aplicación compartido por toda la app.
+ *
+ * La app es un solo binario con dos experiencias: arrendatario ("renter") y
+ * dueño ("owner"). `mode` indica cuál está activa; `setMode` la cambia y la
+ * persiste. No hay cuentas distintas por rol — es la misma sesión de
+ * Supabase en ambos modos.
  */
 export function AppProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+
+  const [mode, setModeState] = useState("renter");
+
+  // Rehidrata el modo elegido en la sesión anterior antes de pintar la app.
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem(MODE_STORAGE_KEY)
+      .then((saved) => {
+        if (alive && VALID_MODES.includes(saved)) setModeState(saved);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const setMode = useCallback((next) => {
+    if (!VALID_MODES.includes(next)) return;
+    setModeState(next);
+    AsyncStorage.setItem(MODE_STORAGE_KEY, next).catch(() => {});
+  }, []);
 
   const [cars, setCars] = useState(MOCK_CARS);
   const [loading, setLoading] = useState(false);
@@ -79,9 +110,12 @@ export function AppProvider({ children }) {
     loadData();
   }, [loadData]);
 
-  const register = async (email, password) => {
+  const register = async (email, password, preferredMode) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
+
+    // El rol elegido en el registro fija el modo con el que arranca la app.
+    if (VALID_MODES.includes(preferredMode)) setMode(preferredMode);
 
     // Supabase NO devuelve error si el correo ya tiene una cuenta — por
     // diseño, para no dejar enumerar qué correos están registrados. En vez
@@ -164,6 +198,8 @@ export function AppProvider({ children }) {
       value={{
         isLoggedIn,
         authLoading,
+        mode,
+        setMode,
         login,
         logout,
         register,
