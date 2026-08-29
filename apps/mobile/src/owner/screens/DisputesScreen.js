@@ -1,66 +1,46 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-} from "react-native";
-import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, theme, Chip, Badge, Button, EmptyState, ScreenHeader, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
-const MOTIVO_LABELS = {
-  multa_tag: "Peaje / TAG",
-  multa_policia: "Multa Tránsito",
-  danio_oculto: "Daño Oculto",
-};
+const MOTIVOS = [
+  { id: "multa_tag", label: "Peaje / TAG" },
+  { id: "multa_policia", label: "Multa de tránsito" },
+  { id: "danio_oculto", label: "Daño oculto" },
+];
+const LABEL = Object.fromEntries(MOTIVOS.map((m) => [m.id, m.label]));
 
 export function DisputesScreen({ onBack }) {
-  const [activeTab, setActiveTab] = useState("activas"); // 'activas' | 'nueva'
-  const [montoReclamo, setMontoReclamo] = useState("");
+  const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState("activas");
   const [motivo, setMotivo] = useState("multa_tag");
-  const [folioMulta, setFolioMulta] = useState("");
-  const [reservaId, setReservaId] = useState("");
-  const [descripcion, setDescripcion] = useState("");
+  const [form, setForm] = useState({ monto: "", reservaId: "", folio: "", descripcion: "" });
   const [enviando, setEnviando] = useState(false);
+  const [enviados, setEnviados] = useState([]);
 
-  // No existe hoy un endpoint para que el dueño liste sus propias disputas
-  // (/disputas es solo Admin/Manager) — los reclamos ingresados quedan
-  // registrados como tickets de soporte, visibles para el equipo, hasta que
-  // se agregue esa vista.
-  const [reclamosEnviados, setReclamosEnviados] = useState([]);
+  const set = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const handleCrearDisputa = async () => {
-    if (!montoReclamo || !descripcion) {
+  const crear = async () => {
+    if (!form.monto || !form.descripcion) {
       showAlert("Campos requeridos", "Ingresa el monto del cobro y la descripción.");
       return;
     }
     setEnviando(true);
     try {
       const detalle = [
-        `Tipo de cobro: ${MOTIVO_LABELS[motivo]}`,
-        `Monto a cobrar: $${parseInt(montoReclamo, 10).toLocaleString("es-CL")} CLP`,
-        reservaId ? `Reserva: ${reservaId}` : null,
-        folioMulta ? `Folio/comprobante: ${folioMulta}` : null,
-        `Detalle: ${descripcion.trim()}`,
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      const ticket = await ApiClient.crearTicketSoporte(
-        "Reclamo de garantía (Dueño)",
-        detalle
-      );
-      setReclamosEnviados((prev) => [ticket, ...prev]);
-      setMontoReclamo("");
-      setFolioMulta("");
-      setReservaId("");
-      setDescripcion("");
+        `Tipo de cobro: ${LABEL[motivo]}`,
+        `Monto: $${parseInt(form.monto, 10).toLocaleString("es-CL")}`,
+        form.reservaId ? `Reserva: ${form.reservaId}` : null,
+        form.folio ? `Folio/comprobante: ${form.folio}` : null,
+        `Detalle: ${form.descripcion.trim()}`,
+      ].filter(Boolean).join("\n");
+      const ticket = await ApiClient.crearTicketSoporte("Reclamo de garantía (Dueño)", detalle);
+      setEnviados((p) => [ticket, ...p]);
+      setForm({ monto: "", reservaId: "", folio: "", descripcion: "" });
       showAlert(
-        "Reclamo Ingresado",
-        `Ticket #${ticket.id.slice(0, 8).toUpperCase()} creado. El equipo de soporte y mediación revisará los antecedentes contra el contrato y el checklist fotográfico.`,
-        [{ text: "Entendido", onPress: () => setActiveTab("activas") }]
+        "Reclamo ingresado",
+        `Ticket #${ticket.id.slice(0, 8).toUpperCase()} creado. Soporte y mediación revisarán los antecedentes contra el contrato y el checklist.`,
+        [{ text: "Entendido", onPress: () => setTab("activas") }]
       );
     } catch (err) {
       showAlert("No se pudo enviar el reclamo", err.message);
@@ -70,420 +50,137 @@ export function DisputesScreen({ onBack }) {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Botón Volver */}
-      <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-        <Icon name="arrow-left" size={14} color={colors.textWhite} style={{ marginRight: 4 }} />
-        <Text style={styles.backBtnText}>Volver</Text>
-      </TouchableOpacity>
+    <View style={styles.container}>
+      <ScreenHeader
+        tone="dark"
+        title="Disputas y garantías"
+        subtitle="Cobro de multas, TAG o daños contra el hold"
+        onBack={onBack}
+      />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.badgePill}>
-          <Text style={styles.badgePillText}>MEDIACIÓN Y GARANTÍAS</Text>
-        </View>
-        <Text style={styles.title}>Centro de Disputas</Text>
-        <Text style={styles.subtitle}>
-          Cobro de multas de tránsito, TAG o daños con cargo al hold de garantía
-        </Text>
+      <View style={styles.tabs}>
+        <Chip tone="dark" label={`Mis reclamos (${enviados.length})`} selected={tab === "activas"} onPress={() => setTab("activas")} />
+        <Chip tone="dark" label="Ingresar disputa" selected={tab === "nueva"} onPress={() => setTab("nueva")} />
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsRow}>
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "activas" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("activas")}
-        >
-          <Text style={[styles.tabBtnText, activeTab === "activas" && styles.tabBtnTextActive]}>
-            Mis Reclamos ({reclamosEnviados.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "nueva" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("nueva")}
-        >
-          <Text style={[styles.tabBtnText, activeTab === "nueva" && styles.tabBtnTextActive]}>
-            + Ingresar Disputa
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* TAB 1: LISTA */}
-      {activeTab === "activas" && (
-        <View>
-          {reclamosEnviados.length === 0 && (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyText}>
-                Aún no has ingresado reclamos en esta sesión. Usa "+ Ingresar Disputa" para
-                reportar un cobro pendiente.
-              </Text>
-            </View>
-          )}
-          {reclamosEnviados.map((d) => (
-            <View key={d.id} style={styles.disputeCard}>
-              <View style={styles.disputeHeader}>
-                <Text style={styles.disputeId}>Ticket #{d.id.slice(0, 8).toUpperCase()}</Text>
-                <View style={styles.statusReview}>
-                  <Text style={styles.textWarning}>
-                    {d.estado === "abierto" ? "Recibido" : d.estado}
-                  </Text>
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {tab === "activas" ? (
+          enviados.length === 0 ? (
+            <EmptyState
+              tone="dark"
+              icon="document"
+              title="Sin reclamos en esta sesión"
+              message="Usa 'Ingresar disputa' para reportar un cobro pendiente contra la garantía."
+              action="Ingresar disputa"
+              onAction={() => setTab("nueva")}
+            />
+          ) : (
+            enviados.map((d) => (
+              <View key={d.id} style={styles.card}>
+                <View style={styles.cardHead}>
+                  <Text style={styles.ticketId}>Ticket #{d.id.slice(0, 8).toUpperCase()}</Text>
+                  <Badge variant="warning" label={d.estado === "abierto" ? "Recibido" : d.estado} />
+                </View>
+                <Text style={styles.asunto}>{d.asunto}</Text>
+                <Text style={styles.fecha}>{new Date(d.timestamp).toLocaleDateString("es-CL")}</Text>
+                <View style={styles.detalle}>
+                  <Text style={styles.detalleText}>{d.descripcion}</Text>
                 </View>
               </View>
+            ))
+          )
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.formTitle}>Nuevo reclamo de garantía</Text>
 
-              <Text style={styles.disputeMotivo}>{d.asunto}</Text>
-
-              <View style={styles.disputeInfoRow}>
-                <Text style={styles.disputeDate}>
-                  {new Date(d.timestamp).toLocaleDateString("es-CL")}
-                </Text>
-              </View>
-
-              <View style={styles.resolutionBox}>
-                <Text style={styles.resolutionText}>{d.descripcion}</Text>
+            <View style={{ gap: 8 }}>
+              <SectionLabel tone="dark">Tipo de cobro</SectionLabel>
+              <View style={styles.motivos}>
+                {MOTIVOS.map((m) => (
+                  <Chip key={m.id} tone="dark" label={m.label} selected={motivo === m.id} onPress={() => setMotivo(m.id)} />
+                ))}
               </View>
             </View>
-          ))}
-        </View>
-      )}
 
-      {/* TAB 2: NUEVA DISPUTA */}
-      {activeTab === "nueva" && (
-        <View style={styles.formCard}>
-          <Text style={styles.formTitle}>Ingresar Nuevo Reclamo de Garantía</Text>
+            {[
+              { k: "monto", label: "Monto a cobrar (CLP)", ph: "25000", kb: "number-pad" },
+              { k: "reservaId", label: "ID de la reserva (opcional)", ph: "20fa33e9-…" },
+              { k: "folio", label: "Folio de citación o comprobante TAG", ph: "CIT-8921-LA" },
+            ].map((fi) => (
+              <View key={fi.k} style={{ gap: 6, marginTop: theme.spacing.md }}>
+                <Text style={styles.label}>{fi.label}</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={fi.ph}
+                  placeholderTextColor={colors.textSilver}
+                  value={form[fi.k]}
+                  onChangeText={set(fi.k)}
+                  keyboardType={fi.kb || "default"}
+                  autoCapitalize="none"
+                />
+              </View>
+            ))}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Tipo de Cobro</Text>
-            <View style={styles.motivoRow}>
-              {[
-                { id: "multa_tag", label: "Peaje / TAG" },
-                { id: "multa_policia", label: "Multa Tránsito" },
-                { id: "danio_oculto", label: "Daño Oculto" },
-              ].map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[styles.motivoBtn, motivo === m.id && styles.motivoBtnActive]}
-                  onPress={() => setMotivo(m.id)}
-                >
-                  <Text style={[styles.motivoBtnText, motivo === m.id && styles.motivoBtnTextActive]}>
-                    {m.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={{ gap: 6, marginTop: theme.spacing.md }}>
+              <Text style={styles.label}>Explicación detallada</Text>
+              <TextInput
+                style={styles.textarea}
+                placeholder="Fecha, autopista o circunstancias de la infracción…"
+                placeholderTextColor={colors.textSilver}
+                value={form.descripcion}
+                onChangeText={set("descripcion")}
+                multiline
+              />
             </View>
-          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Monto a Cobrar (CLP)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="ej. 25000"
-              placeholderTextColor={colors.textMuted}
-              value={montoReclamo}
-              onChangeText={setMontoReclamo}
-              keyboardType="number-pad"
-            />
+            <Button tone="dark" label="Enviar a mediación" onPress={crear} loading={enviando} style={{ marginTop: theme.spacing.lg }} />
           </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>ID de la Reserva (Opcional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="ej. 20fa33e9-4777-..."
-              placeholderTextColor={colors.textMuted}
-              value={reservaId}
-              onChangeText={setReservaId}
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Folio de Citación o Comprobante TAG</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="ej. CIT-8921-LA"
-              placeholderTextColor={colors.textMuted}
-              value={folioMulta}
-              onChangeText={setFolioMulta}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Explicación Detallada</Text>
-            <TextInput
-              style={styles.textArea}
-              placeholder="Detalla fecha, autopista o circunstancias de la infracción..."
-              placeholderTextColor={colors.textMuted}
-              value={descripcion}
-              onChangeText={setDescripcion}
-              multiline
-              numberOfLines={3}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.submitBtn, enviando && styles.btnDisabled]}
-            onPress={handleCrearDisputa}
-            disabled={enviando}
-          >
-            {enviando ? (
-              <ActivityIndicator color={colors.dark} />
-            ) : (
-              <Text style={styles.submitBtnText}>Enviar a Mediación Legal →</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-    </ScrollView>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.darkBg,
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  backBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    alignSelf: "flex-start",
-    marginBottom: 8,
+  container: { flex: 1, backgroundColor: colors.darkBg },
+  tabs: { flexDirection: "row", gap: theme.spacing.sm, paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.md },
+  body: { padding: theme.spacing.screen, gap: theme.spacing.md, paddingBottom: theme.spacing.xxxl },
+  card: {
     backgroundColor: colors.darkCard,
-    borderRadius: 6,
+    borderRadius: theme.radius.card,
+    padding: theme.spacing.lg,
     borderWidth: 1,
     borderColor: colors.darkBorder,
+    gap: theme.spacing.sm,
   },
-  backBtnText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.textWhite,
-  },
-  header: {
-    marginBottom: 12,
-  },
-  badgePill: {
-    backgroundColor: colors.accentMuted,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-    alignSelf: "flex-start",
-    marginBottom: 6,
-  },
-  badgePillText: {
-    color: colors.accent,
-    fontSize: 9,
-    fontWeight: "900",
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: colors.textWhite,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: colors.textSilver,
-    marginTop: 2,
-  },
-  tabsRow: {
-    flexDirection: "row",
-    marginBottom: 12,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: "center",
-    backgroundColor: colors.darkCard,
-    marginHorizontal: 3,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  tabBtnActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  tabBtnText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.textSilver,
-  },
-  tabBtnTextActive: {
-    color: colors.dark,
-    fontWeight: "800",
-  },
-  emptyBox: {
-    padding: 20,
-    backgroundColor: colors.darkCard,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  emptyText: {
-    fontSize: 12,
-    color: colors.textSilver,
-    lineHeight: 18,
-    textAlign: "center",
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-  disputeCard: {
-    backgroundColor: colors.darkCard,
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-    marginBottom: 10,
-  },
-  disputeHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  disputeId: {
-    fontSize: 10,
-    color: colors.textMuted,
-    fontWeight: "700",
-  },
-  statusBadge: {
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-  },
-  statusApproved: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  statusReview: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-  },
-  statusText: {
-    fontSize: 9,
-    fontWeight: "800",
-  },
-  textSuccess: {
-    color: colors.success,
-  },
-  textWarning: {
-    color: colors.warning,
-  },
-  disputeMotivo: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: colors.textWhite,
-    marginBottom: 6,
-  },
-  disputeInfoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  disputeAmount: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: colors.accent,
-  },
-  disputeDate: {
-    fontSize: 10,
-    color: colors.textMuted,
-  },
-  resolutionBox: {
-    backgroundColor: colors.darkCardHover,
-    padding: 8,
-    borderRadius: 6,
-  },
-  resolutionText: {
-    fontSize: 10,
-    color: colors.textSilver,
-    lineHeight: 14,
-  },
-  formCard: {
-    backgroundColor: colors.darkCard,
-    borderRadius: 10,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  formTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: colors.textWhite,
-    marginBottom: 12,
-  },
-  inputGroup: {
-    marginBottom: 10,
-  },
-  inputLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.textSilver,
-    marginBottom: 4,
-  },
-  motivoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  motivoBtn: {
-    flex: 1,
-    backgroundColor: colors.darkCardHover,
-    paddingVertical: 7,
-    borderRadius: 6,
-    alignItems: "center",
-    marginHorizontal: 2,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  motivoBtnActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentMuted,
-  },
-  motivoBtnText: {
-    fontSize: 10,
-    color: colors.textSilver,
-    fontWeight: "600",
-  },
-  motivoBtnTextActive: {
-    color: colors.accent,
-    fontWeight: "800",
-  },
+  cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  ticketId: { fontSize: 12, color: colors.darkTextMuted, fontWeight: "700" },
+  asunto: { fontSize: 14, fontWeight: "700", color: colors.textWhite },
+  fecha: { fontSize: 12, color: colors.darkTextMuted },
+  detalle: { backgroundColor: colors.darkCardSubtle, borderRadius: theme.radius.field, padding: theme.spacing.md },
+  detalleText: { fontSize: 12, color: colors.textSilver, lineHeight: 17 },
+  formTitle: { fontSize: 15, fontWeight: "700", color: colors.textWhite },
+  motivos: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
+  label: { fontSize: 12, fontWeight: "600", color: colors.textSilver, textTransform: "uppercase", letterSpacing: 0.4 },
   input: {
-    backgroundColor: colors.darkCardHover,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    height: 40,
-    fontSize: 12,
+    backgroundColor: colors.darkCardSubtle,
+    borderRadius: theme.radius.field,
+    paddingHorizontal: 14,
+    height: theme.control.heightSm,
+    fontSize: 15,
     color: colors.textWhite,
     borderWidth: 1,
     borderColor: colors.darkBorder,
   },
-  textArea: {
-    backgroundColor: colors.darkCardHover,
-    borderRadius: 6,
-    padding: 10,
-    fontSize: 11,
+  textarea: {
+    backgroundColor: colors.darkCardSubtle,
+    borderRadius: theme.radius.field,
+    padding: 14,
+    minHeight: 90,
+    fontSize: 15,
     color: colors.textWhite,
     borderWidth: 1,
     borderColor: colors.darkBorder,
-    height: 70,
     textAlignVertical: "top",
-  },
-  submitBtn: {
-    backgroundColor: colors.accent,
-    paddingVertical: 11,
-    borderRadius: 6,
-    alignItems: "center",
-    marginTop: 6,
-  },
-  submitBtnText: {
-    color: colors.dark,
-    fontWeight: "800",
-    fontSize: 12,
   },
 });
