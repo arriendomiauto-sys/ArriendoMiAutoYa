@@ -11,6 +11,10 @@ AUTO_BASE = {
     "anio": 2022,
     "tarifa_dia": 20000,
     "ubicacion_base": "Los Angeles",
+    "doc_inscripcion_url": "https://ejemplo.com/padron.jpg",
+    "doc_permiso_circulacion_url": "https://ejemplo.com/permiso.jpg",
+    "doc_soap_url": "https://ejemplo.com/soap.jpg",
+    "doc_revision_tecnica_url": "https://ejemplo.com/revtec.jpg",
 }
 
 

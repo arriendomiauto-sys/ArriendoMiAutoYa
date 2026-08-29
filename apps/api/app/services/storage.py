@@ -8,12 +8,13 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 class StorageService:
-    BUCKETS_PERMITIDOS = ["autos", "documentos-kyc", "checklists", "evidencias", "general"]
+    BUCKETS_PERMITIDOS = ["autos", "documentos-kyc", "documentos-autos", "checklists", "evidencias", "general"]
 
-    # Buckets con datos sensibles (documentos de identidad, checklists de
-    # entrega con fotos del cliente, evidencia de disputas): se sirven vía
-    # URL firmada de corta duración en vez de URL pública permanente.
-    BUCKETS_PRIVADOS = {"documentos-kyc", "checklists", "evidencias"}
+    # Buckets con datos sensibles (documentos de identidad, padrón/permiso/
+    # SOAP/revisión técnica del auto, checklists de entrega con fotos del
+    # cliente, evidencia de disputas): se sirven vía URL firmada de corta
+    # duración en vez de URL pública permanente.
+    BUCKETS_PRIVADOS = {"documentos-kyc", "documentos-autos", "checklists", "evidencias"}
     URL_FIRMADA_EXPIRA_SEGUNDOS = 60 * 60 * 24 * 7  # 7 días
 
     MIME_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}

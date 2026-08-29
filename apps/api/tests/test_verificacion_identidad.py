@@ -24,6 +24,14 @@ def test_publicar_auto_sin_identidad_verificada_da_403(usuario_factory, auth_as)
     assert "identidad" in resp.json()["detail"].lower()
 
 
+_DOCS_AUTO = {
+    "doc_inscripcion_url": "https://ejemplo.com/padron.jpg",
+    "doc_permiso_circulacion_url": "https://ejemplo.com/permiso.jpg",
+    "doc_soap_url": "https://ejemplo.com/soap.jpg",
+    "doc_revision_tecnica_url": "https://ejemplo.com/revtec.jpg",
+}
+
+
 def test_publicar_auto_con_identidad_verificada_funciona(usuario_factory, auth_as):
     dueno = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
     resp = auth_as(dueno).post(
@@ -35,9 +43,32 @@ def test_publicar_auto_con_identidad_verificada_funciona(usuario_factory, auth_a
             "patente": "VRFY-02",
             "tarifa_dia": 20000,
             "ubicacion_base": "Los Angeles",
+            **_DOCS_AUTO,
         },
     )
     assert resp.status_code == 200, resp.text
+
+
+def test_publicar_auto_sin_documentos_da_400(usuario_factory, auth_as):
+    dueno = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    resp = auth_as(dueno).post(
+        "/api/v1/autos",
+        json={
+            "marca": "Toyota",
+            "modelo": "Yaris",
+            "anio": 2022,
+            "patente": "VRFD-01",
+            "tarifa_dia": 20000,
+            "ubicacion_base": "Los Angeles",
+            "doc_inscripcion_url": "https://ejemplo.com/padron.jpg",
+            # faltan permiso, soap y revisión técnica
+        },
+    )
+    assert resp.status_code == 400
+    detalle = resp.json()["detail"].lower()
+    assert "permiso de circulaci" in detalle
+    assert "soap" in detalle
+    assert "revisi" in detalle
 
 
 def test_reservar_sin_identidad_verificada_da_403(usuario_factory, auth_as, db_session):

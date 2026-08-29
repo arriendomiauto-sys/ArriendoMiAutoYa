@@ -579,15 +579,18 @@ class OCRService:
 
             motivos = []
 
-            # 4.0b. La licencia es opcional, pero si la subieron y la foto no
-            # es una licencia de conducir, no se da por buena: se pide de
-            # nuevo vía revisión manual (no bloquea todo el enrolamiento).
+            # 4.0b. La licencia es opcional. Si la subieron y clasifica como
+            # licencia de conducir, se acepta y se extrae la clase. Si la
+            # subieron pero no se reconoce, no se descarta: se deriva a
+            # soporte (ticket automático) y el enrolamiento queda en revisión
+            # manual — no se bloquea del todo.
             licencia_no_valida = bool(texto_licencia) and cls.clasificar_documento(
                 texto_licencia
             ) != "licencia"
             if licencia_no_valida:
                 motivos.append(
-                    "La foto de la licencia no parece una licencia de conducir chilena."
+                    "No pudimos reconocer tu licencia de conducir automáticamente; "
+                    "la derivamos a un ejecutivo para revisarla."
                 )
 
             # RUT: si Vision leyó la cédula pero no se pudo extraer un RUT
@@ -647,6 +650,7 @@ class OCRService:
                 "motivo": " ".join(motivos) or None,
                 "tipo_documento_detectado": "cedula",
                 "licencia_valida": (not licencia_no_valida) if texto_licencia else None,
+                "licencia_a_soporte": bool(licencia_no_valida),
                 "es_mock": False,
             }
 
