@@ -7,217 +7,172 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  RefreshControl,
 } from "react-native";
-import { colors, useApp, Icon, VerifyIdentityBanner } from "@rentacar/mobile-shared";
+import {
+  colors,
+  theme,
+  useApp,
+  Icon,
+  Chip,
+  EmptyState,
+  VerifyIdentityBanner,
+} from "@rentacar/mobile-shared";
 import { CarCard } from "../components/CarCard";
 
-const CATEGORIES = ["Todos", "Económico", "Automático", "Camioneta", "SUV"];
+const CATEGORIES = ["Todos", "Económico", "SUV", "Camioneta", "4x4"];
 
-export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFilters, onVerifyIdentity }) {
-  const { cars, currentUser } = useApp();
+export function MarketplaceScreen({ onSelectCar, onOpenMap, onVerifyIdentity }) {
+  const { cars, currentUser, loadData, loading } = useApp();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
-  const [selectedCategory, setSelectedCategory] = useState("Todos");
-  const [searchQuery, setSearchQuery] = useState("Providencia · 12–16 ago");
+  const [category, setCategory] = useState("Todos");
+  const [query, setQuery] = useState("");
 
+  const q = query.trim().toLowerCase();
   const filteredCars = (cars || []).filter((car) => {
-    if (selectedCategory === "Todos") return true;
-    if (selectedCategory === "Camioneta")
-      return car.modelo?.toLowerCase().includes("hilux") || car.modelo?.toLowerCase().includes("ranger");
-    if (selectedCategory === "SUV")
-      return ["rav4", "tucson", "jimny"].some((m) => car.modelo?.toLowerCase().includes(m));
-    if (selectedCategory === "Económico")
-      return (car.tarifa_dia || 0) > 0 && car.tarifa_dia <= 35000;
-    // "Automático": el backend no modela transmisión hoy, no hay forma
-    // real de filtrar por esto todavía — se deja pasar todo en vez de
-    // ocultar autos por un dato inventado.
+    if (q) {
+      const hay = `${car.marca} ${car.modelo} ${car.ubicacion_base || ""} ${car.comuna || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (category === "Todos") return true;
+    if (category === "Camioneta")
+      return ["hilux", "ranger", "amarok", "l200", "frontier"].some((m) => car.modelo?.toLowerCase().includes(m));
+    if (category === "SUV")
+      return ["rav4", "tucson", "jimny", "sportage", "cr-v", "tiguan", "kicks"].some((m) =>
+        car.modelo?.toLowerCase().includes(m)
+      );
+    if (category === "4x4") return !!car.equipamiento?.doble_traccion;
+    if (category === "Económico") return (car.tarifa_dia || 0) > 0 && car.tarifa_dia <= 35000;
     return true;
   });
+
+  const primerNombre = (currentUser?.nombre || "").split(" ")[0];
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Top Header & Search Area (Pantalla 08) */}
-      <View style={styles.headerArea}>
-        <View style={styles.topRow}>
-          {/* Map Link */}
-          <TouchableOpacity
-            style={styles.mapBtn}
-            onPress={onOpenMap}
-            activeOpacity={0.8}
-          >
-            <Icon name="location" size={18} color="#197A63" style={{ marginRight: 6 }} />
+      <View style={styles.header}>
+        <View style={styles.greetRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.greetHi}>
+              {primerNombre ? `Hola, ${primerNombre}` : "Explorar autos"}
+            </Text>
+            <Text style={styles.greetSub}>¿A dónde vas esta vez?</Text>
+          </View>
+          <TouchableOpacity style={styles.mapBtn} onPress={onOpenMap} activeOpacity={0.85}>
+            <Icon name="pin" size={16} color={colors.primary} />
             <Text style={styles.mapBtnText}>Mapa</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Search Input Bar */}
         <View style={styles.searchBar}>
-          <Icon name="search" size={17} color={colors.textMuted} style={{ marginRight: 10 }} />
+          <Icon name="search" size={17} color={colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Buscar comuna, fechas..."
-            placeholderTextColor={colors.textMuted}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Marca, modelo o comuna"
+            placeholderTextColor={colors.textPlaceholder}
+            returnKeyType="search"
           />
+          {query ? (
+            <TouchableOpacity onPress={() => setQuery("")} hitSlop={theme.control.hitSlop}>
+              <Icon name="close" size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
-        {/* Filter Chips Row */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
+          contentContainerStyle={styles.chips}
         >
-          <TouchableOpacity
-            style={styles.activeFilterChip}
-            onPress={onOpenFilters}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.activeFilterChipText}>Filtros · 2</Text>
-          </TouchableOpacity>
-
-          {CATEGORIES.map((cat) => {
-            const isSelected = selectedCategory === cat;
-            return (
-              <TouchableOpacity
-                key={cat}
-                style={[
-                  styles.filterChip,
-                  isSelected && styles.filterChipSelected,
-                ]}
-                onPress={() => setSelectedCategory(cat)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    isSelected && styles.filterChipTextSelected,
-                  ]}
-                >
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          {CATEGORIES.map((cat) => (
+            <Chip key={cat} label={cat} selected={category === cat} onPress={() => setCategory(cat)} />
+          ))}
         </ScrollView>
       </View>
 
-      {/* Car Catalog List */}
       <ScrollView
-        contentContainerStyle={styles.catalogList}
+        contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={!!loading} onRefresh={loadData} tintColor={colors.primary} />
+        }
       >
         {!identidadVerificada && (
-          <View style={styles.bannerWrap}>
+          <View style={{ marginBottom: theme.spacing.lg }}>
             <VerifyIdentityBanner role="renter" onPress={onVerifyIdentity} />
           </View>
         )}
 
-        <Text style={styles.resultsCount}>
-          {filteredCars.length} autos disponibles
-        </Text>
-
-        {filteredCars.map((car) => (
-          <CarCard
-            key={car.id || car._id}
-            car={car}
-            onPress={() => onSelectCar(car)}
+        {filteredCars.length > 0 ? (
+          <>
+            <Text style={styles.count}>
+              {filteredCars.length} {filteredCars.length === 1 ? "auto disponible" : "autos disponibles"}
+            </Text>
+            {filteredCars.map((car) => (
+              <CarCard key={car.id || car._id} car={car} onPress={() => onSelectCar(car)} />
+            ))}
+          </>
+        ) : (
+          <EmptyState
+            icon="car"
+            title="No hay autos con estos filtros"
+            message={
+              q
+                ? "Prueba con otra marca o comuna, o limpia la búsqueda."
+                : "Ajusta la categoría para ver más resultados."
+            }
+            action="Limpiar filtros"
+            onAction={() => {
+              setQuery("");
+              setCategory("Todos");
+            }}
           />
-        ))}
+        )}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  headerArea: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
-    gap: 12,
+  container: { flex: 1, backgroundColor: colors.background },
+  header: {
+    paddingHorizontal: theme.spacing.screen,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    gap: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
+  greetRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  greetHi: { fontSize: 22, fontWeight: "700", color: colors.text, letterSpacing: -0.3 },
+  greetSub: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
   mapBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    gap: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: theme.radius.pill,
+    backgroundColor: colors.primary100,
   },
-  mapBtnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#197A63",
-  },
+  mapBtnText: { fontSize: 14, fontWeight: "600", color: colors.primary },
   searchBar: {
-    height: 48,
+    height: theme.control.height,
     borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: 999,
+    borderRadius: theme.radius.pill,
     backgroundColor: colors.surface,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.text,
-  },
-  chipsRow: {
-    gap: 8,
-  },
-  activeFilterChip: {
-    backgroundColor: colors.primary,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-    borderRadius: 999,
-  },
-  activeFilterChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  filterChip: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-    borderRadius: 999,
-  },
-  filterChipSelected: {
-    backgroundColor: colors.primary100,
-    borderColor: colors.primary,
-  },
-  filterChipText: {
-    fontSize: 13,
-    color: colors.text,
-  },
-  filterChipTextSelected: {
-    fontWeight: "600",
-    color: colors.primary,
-  },
-  catalogList: {
-    padding: 20,
-    paddingBottom: 32,
-  },
-  bannerWrap: {
-    marginBottom: 14,
-  },
-  resultsCount: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginBottom: 14,
-  },
+  searchInput: { flex: 1, fontSize: 15, color: colors.text },
+  chips: { gap: theme.spacing.sm, paddingRight: theme.spacing.screen },
+  list: { padding: theme.spacing.screen, paddingBottom: theme.spacing.xxxl },
+  count: { fontSize: 13, color: colors.textMuted, marginBottom: theme.spacing.md, fontWeight: "500" },
 });

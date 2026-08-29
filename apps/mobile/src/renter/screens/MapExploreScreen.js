@@ -1,415 +1,299 @@
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  ScrollView,
   Image,
+  Platform,
 } from "react-native";
-import { colors, useApp, Icon } from "@rentacar/mobile-shared";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, theme, useApp, Icon, Button } from "@rentacar/mobile-shared";
+
+// react-native-maps es un módulo nativo: no existe en web ni en Expo Go sin
+// dev build. Se carga de forma tolerante para que el bundle no se caiga y la
+// pantalla muestre una alternativa cuando el mapa no está disponible.
+let MapView = null;
+let Marker = null;
+try {
+  const maps = require("react-native-maps");
+  MapView = maps.default;
+  Marker = maps.Marker;
+} catch (e) {
+  MapView = null;
+}
+
+// Centro por defecto: Los Ángeles, Región del Biobío (donde opera la flota).
+const DEFAULT_REGION = {
+  latitude: -37.4697,
+  longitude: -72.3536,
+  latitudeDelta: 0.08,
+  longitudeDelta: 0.08,
+};
+
+// Para autos sin lat/long en el backend: posición estable y repartida
+// alrededor del centro, derivada del id (no salta entre renders).
+function fallbackCoord(car, index) {
+  const seed = String(car.id || car._id || index)
+    .split("")
+    .reduce((a, c) => a + c.charCodeAt(0), 0);
+  const angle = (seed % 360) * (Math.PI / 180);
+  const dist = 0.006 + ((seed % 7) / 7) * 0.022;
+  return {
+    latitude: DEFAULT_REGION.latitude + Math.sin(angle) * dist,
+    longitude: DEFAULT_REGION.longitude + Math.cos(angle) * dist,
+  };
+}
 
 export function MapExploreScreen({ onBack, onSelectCar }) {
   const { cars } = useApp();
-  const [selectedCar, setSelectedCar] = useState(cars[0] || null);
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const insets = useSafeAreaInsets();
+  const mapRef = useRef(null);
+  const [userCoords, setUserCoords] = useState(null);
 
-  // Filter state (Pantalla 10)
-  const [category, setCategory] = useState("Económico");
-  const [transmission, setTransmission] = useState("Automático");
+  const puntos = useMemo(
+    () =>
+      (cars || []).map((car, i) => {
+        const hasReal =
+          typeof car.latitud === "number" && typeof car.longitud === "number";
+        const coord = hasReal
+          ? { latitude: car.latitud, longitude: car.longitud }
+          : fallbackCoord(car, i);
+        return { car, coord };
+      }),
+    [cars]
+  );
 
-  const activeCar = selectedCar || cars[0] || {
-    marca: "Suzuki",
-    modelo: "Swift",
-    ano: 2023,
-    precio_diario: 38000,
-    rating_promedio: 4.8,
-    comuna: "Providencia",
-    distancia: "1,2 km",
+  const [selectedId, setSelectedId] = useState(puntos[0]?.car?.id || null);
+  const selected =
+    puntos.find((p) => (p.car.id || p.car._id) === selectedId) || puntos[0] || null;
+
+  const initialRegion = useMemo(() => {
+    if (puntos.length === 0) return DEFAULT_REGION;
+    const lats = puntos.map((p) => p.coord.latitude);
+    const lngs = puntos.map((p) => p.coord.longitude);
+    const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+    const midLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+    const spanLat = Math.max(...lats) - Math.min(...lats);
+    const spanLng = Math.max(...lngs) - Math.min(...lngs);
+    return {
+      latitude: midLat,
+      longitude: midLng,
+      latitudeDelta: Math.max(spanLat * 1.6, 0.03),
+      longitudeDelta: Math.max(spanLng * 1.6, 0.03),
+    };
+  }, [puntos]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const Location = require("expo-location");
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: 3 });
+        if (!alive) return;
+        setUserCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      } catch (e) {
+        // sin ubicación: el mapa igual funciona centrado en la flota
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const centrarEnUsuario = () => {
+    if (!userCoords || !mapRef.current) return;
+    mapRef.current.animateToRegion(
+      { ...userCoords, latitudeDelta: 0.03, longitudeDelta: 0.03 },
+      450
+    );
   };
+
+  const precio = (n) => `$${(n || 0).toLocaleString("es-CL")}`;
+
+  // --- Sin módulo de mapa (web / Expo Go): alternativa utilizable ---
+  if (!MapView || Platform.OS === "web") {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        <View style={[styles.fallback, { paddingTop: insets.top + 40 }]}>
+          <View style={styles.fallbackIcon}>
+            <Icon name="pin" size={30} color={colors.primary} />
+          </View>
+          <Text style={styles.fallbackTitle}>El mapa necesita la app instalada</Text>
+          <Text style={styles.fallbackText}>
+            La vista de mapa usa mapas nativos y no está disponible en la versión web.
+            Abre la app en tu teléfono para explorar los autos en el mapa.
+          </Text>
+          <Button label="Volver al listado" onPress={onBack} fullWidth={false} style={{ marginTop: theme.spacing.md }} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Background Map Simulation (Pantalla 09) */}
-      <View style={styles.mapCanvas}>
-        <View style={styles.mapGridLines} />
-        <View style={[styles.mapRoad, styles.mapRoad1]} />
-        <View style={[styles.mapRoad, styles.mapRoad2]} />
-
-        {/* Top Search Bar with Filter Trigger */}
-        <View style={styles.topSearchRow}>
-          <TouchableOpacity
-            style={styles.searchBubble}
-            onPress={onBack}
-            activeOpacity={0.85}
-          >
-            <Icon name="search" size={17} color={colors.textMuted} style={{ marginRight: 8 }} />
-            <Text style={styles.searchBubbleText}>Providencia · 12–16 ago</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.filterCircleBtn}
-            onPress={() => setShowFilterModal(true)}
-            activeOpacity={0.85}
-          >
-            <Icon name="gear" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Map Price Pins */}
-        <TouchableOpacity
-          style={[
-            styles.pricePin,
-            styles.pricePin1,
-            activeCar.modelo === "Swift" ? styles.pinActive : styles.pinInactive,
-          ]}
-          onPress={() => setSelectedCar(cars[0])}
-        >
-          <Text
-            style={[
-              styles.pinText,
-              activeCar.modelo === "Swift" ? styles.pinTextActive : styles.pinTextInactive,
-            ]}
-          >
-            $38.000
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.pricePin,
-            styles.pricePin2,
-            activeCar.modelo === "Sail" ? styles.pinActive : styles.pinInactive,
-          ]}
-          onPress={() => setSelectedCar(cars[1] || cars[0])}
-        >
-          <Text
-            style={[
-              styles.pinText,
-              activeCar.modelo === "Sail" ? styles.pinTextActive : styles.pinTextInactive,
-            ]}
-          >
-            $26.000
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.pricePin, styles.pricePin3, styles.pinInactive]}
-        >
-          <Text style={[styles.pinText, styles.pinTextInactive]}>$44.000</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.pricePin, styles.pricePin4, styles.pinInactive]}
-        >
-          <Text style={[styles.pinText, styles.pinTextInactive]}>$31.000</Text>
-        </TouchableOpacity>
-
-        {/* Bottom Sheet Card Preview (Pantalla 09) */}
-        <View style={styles.bottomCardSheet}>
-          <View style={styles.sheetHandle} />
-
-          <View style={styles.sheetContent}>
-            <View style={styles.sheetImageThumb}>
-              <Image
-                source={{
-                  uri:
-                    activeCar.foto_principal_url ||
-                    "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
-                }}
-                style={styles.sheetImage}
-              />
-            </View>
-
-            <View style={styles.sheetDetails}>
-              <Text style={styles.sheetTitle}>
-                {activeCar.marca} {activeCar.modelo} {activeCar.ano || 2023}
-              </Text>
-              <Text style={styles.sheetSpecs}>
-                {activeCar.transmision || "Automático"} · {activeCar.comuna || "Providencia"} · {activeCar.distancia || "1,2 km"}
-              </Text>
-
-              <View style={styles.sheetPriceRow}>
-                <View style={styles.ratingBadge}>
-                  <Icon name="star" size={14} color="#2FBF9B" style={{ marginRight: 3 }} />
-                  <Text style={styles.ratingText}>{activeCar.rating_promedio || 4.8}</Text>
-                </View>
-                <Text style={styles.sheetPrice}>
-                  ${(activeCar.precio_diario || 38000).toLocaleString("es-CL")}{" "}
-                  <Text style={styles.sheetPricePerDay}>/ día</Text>
+      <MapView
+        ref={mapRef}
+        style={StyleSheet.absoluteFill}
+        initialRegion={initialRegion}
+        showsUserLocation={!!userCoords}
+        showsMyLocationButton={false}
+        toolbarEnabled={false}
+      >
+        {puntos.map(({ car, coord }, i) => {
+          const id = car.id || car._id || i;
+          const active = id === (selected?.car?.id || selected?.car?._id);
+          return (
+            <Marker
+              key={id}
+              coordinate={coord}
+              onPress={() => setSelectedId(car.id || car._id)}
+              tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 1 }}
+            >
+              <View style={[styles.pin, active ? styles.pinActive : styles.pinIdle]}>
+                <Text style={[styles.pinText, active ? styles.pinTextActive : styles.pinTextIdle]}>
+                  {precio(car.tarifa_dia)}
                 </Text>
               </View>
-            </View>
-          </View>
+            </Marker>
+          );
+        })}
+      </MapView>
 
-          <TouchableOpacity
-            style={styles.viewCarBtn}
-            onPress={() => onSelectCar(activeCar)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.viewCarBtnText}>Ver el auto</Text>
-          </TouchableOpacity>
+      {/* Barra superior flotante */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity style={styles.roundBtn} onPress={onBack} activeOpacity={0.85}>
+          <Icon name="arrow-left" size={20} color={colors.primary} />
+        </TouchableOpacity>
+        <View style={styles.searchPill}>
+          <Icon name="search" size={16} color={colors.textMuted} />
+          <Text style={styles.searchPillText} numberOfLines={1}>
+            {puntos.length} autos en el mapa
+          </Text>
         </View>
       </View>
 
-      {/* ========================================================================= */}
-      {/* PANTALLA 10: MODAL DE FILTROS */}
-      {/* ========================================================================= */}
-      {showFilterModal && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.filterModal}>
-            <View style={styles.modalHeader}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.modalHeaderRow}>
-                <Text style={styles.modalTitle}>Filtros</Text>
-                <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-                  <Text style={styles.cleanBtnText}>Limpiar</Text>
-                </TouchableOpacity>
-              </View>
+      {/* Botón mi ubicación */}
+      {userCoords ? (
+        <TouchableOpacity
+          style={[styles.locateBtn, { bottom: (selected ? 208 : 40) + insets.bottom }]}
+          onPress={centrarEnUsuario}
+          activeOpacity={0.85}
+        >
+          <Icon name="location" size={20} color={colors.primary} />
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Tarjeta del auto seleccionado */}
+      {selected ? (
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
+          <View style={styles.sheetHandle} />
+          <TouchableOpacity
+            style={styles.sheetRow}
+            activeOpacity={0.9}
+            onPress={() => onSelectCar(selected.car)}
+          >
+            <Image
+              source={{
+                uri:
+                  selected.car.fotos?.[0] ||
+                  "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+              }}
+              style={styles.sheetThumb}
+            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.sheetTitle} numberOfLines={1}>
+                {selected.car.marca} {selected.car.modelo} {selected.car.anio || ""}
+              </Text>
+              <Text style={styles.sheetMeta} numberOfLines={1}>
+                {selected.car.ubicacion_base || "Los Ángeles"}
+              </Text>
+              <Text style={styles.sheetPrice}>
+                {precio(selected.car.tarifa_dia)} <Text style={styles.sheetPer}>/ día</Text>
+              </Text>
             </View>
-
-            <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {/* Categoría */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>CATEGORÍA</Text>
-                <View style={styles.filterChipsRow}>
-                  {["Económico", "Sedán", "SUV", "Camioneta"].map((cat) => (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[
-                        styles.modalChip,
-                        category === cat && styles.modalChipActive,
-                      ]}
-                      onPress={() => setCategory(cat)}
-                    >
-                      <Text
-                        style={[
-                          styles.modalChipText,
-                          category === cat && styles.modalChipTextActive,
-                        ]}
-                      >
-                        {cat}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Transmisión */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>TRANSMISIÓN</Text>
-                <View style={styles.transmissionRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.transBtn,
-                      transmission === "Automático" && styles.transBtnActive,
-                    ]}
-                    onPress={() => setTransmission("Automático")}
-                  >
-                    <Text
-                      style={[
-                        styles.transBtnText,
-                        transmission === "Automático" && styles.transBtnTextActive,
-                      ]}
-                    >
-                      Automático
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.transBtn,
-                      transmission === "Mecánico" && styles.transBtnActive,
-                    ]}
-                    onPress={() => setTransmission("Mecánico")}
-                  >
-                    <Text
-                      style={[
-                        styles.transBtnText,
-                        transmission === "Mecánico" && styles.transBtnTextActive,
-                      ]}
-                    >
-                      Mecánico
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Rango de Precio */}
-              <View style={styles.filterSection}>
-                <View style={styles.priceHeader}>
-                  <Text style={styles.filterLabel}>PRECIO POR DÍA</Text>
-                  <Text style={styles.priceRangeValue}>$22.000 – $45.000</Text>
-                </View>
-                <View style={styles.sliderTrack}>
-                  <View style={styles.sliderActiveTrack} />
-                  <View style={[styles.sliderThumb, { left: 0 }]} />
-                  <View style={[styles.sliderThumb, { left: "64%" }]} />
-                </View>
-              </View>
-
-              {/* Fechas */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>FECHAS</Text>
-                <View style={styles.dateSelectorBox}>
-                  <Text style={styles.dateSelectorText}>12 – 16 de agosto</Text>
-                  <Icon name="calendar" size={18} color={colors.textMuted} />
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.applyFilterBtn}
-                onPress={() => setShowFilterModal(false)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.applyFilterBtnText}>Ver 27 autos</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </TouchableOpacity>
+          <Button label="Ver el auto" onPress={() => onSelectCar(selected.car)} />
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  mapCanvas: {
-    flex: 1,
-    backgroundColor: "#E6F0F0",
-    position: "relative",
-    overflow: "hidden",
-  },
-  mapGridLines: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.5,
-  },
-  mapRoad: {
+  container: { flex: 1, backgroundColor: colors.background },
+  topBar: {
     position: "absolute",
-    backgroundColor: "#94BFBF",
-  },
-  mapRoad1: {
-    top: 180,
-    left: -40,
-    width: 300,
-    height: 26,
-    transform: [{ rotate: "-18deg" }],
-  },
-  mapRoad2: {
-    top: 430,
-    left: 60,
-    width: 420,
-    height: 22,
-    transform: [{ rotate: "9deg" }],
-  },
-  topSearchRow: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
-    zIndex: 2,
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.screen,
   },
-  searchBubble: {
-    height: 48,
-    flex: 1,
-    borderRadius: 999,
+  roundBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    shadowColor: "#0F3D3E",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  searchBubbleText: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  filterCircleBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
-    marginLeft: 10,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#0F3D3E",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
+    ...theme.shadow.md,
   },
-  pricePin: {
-    position: "absolute",
-    paddingVertical: 8,
-    paddingHorizontal: 13,
-    borderRadius: 999,
-    zIndex: 2,
-  },
-  pricePin1: {
-    top: 240,
-    left: 80,
-  },
-  pricePin2: {
-    top: 330,
-    left: 210,
-  },
-  pricePin3: {
-    top: 190,
-    left: 230,
-  },
-  pricePin4: {
-    top: 400,
-    left: 50,
-  },
-  pinActive: {
-    backgroundColor: colors.primary,
-    shadowColor: "#0F3D3E",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  pinInactive: {
+  searchPill: {
+    flex: 1,
+    height: 44,
+    borderRadius: theme.radius.pill,
     backgroundColor: colors.surface,
-    shadowColor: "#0F3D3E",
-    shadowOpacity: 0.14,
-    shadowRadius: 6,
-    elevation: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    ...theme.shadow.md,
   },
-  pinText: {
-    fontSize: 14,
-    fontWeight: "600",
+  searchPillText: { fontSize: 14, color: colors.text, fontWeight: "500", flex: 1 },
+  pin: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: theme.radius.pill,
+    borderWidth: 2,
+    ...theme.shadow.sm,
   },
-  pinTextActive: {
-    color: "#FFFFFF",
+  pinIdle: { backgroundColor: colors.surface, borderColor: colors.surface },
+  pinActive: { backgroundColor: colors.primary, borderColor: "#FFFFFF" },
+  pinText: { fontSize: 13, fontWeight: "700" },
+  pinTextIdle: { color: colors.primary },
+  pinTextActive: { color: "#FFFFFF" },
+  locateBtn: {
+    position: "absolute",
+    right: theme.spacing.screen,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    ...theme.shadow.md,
   },
-  pinTextInactive: {
-    color: colors.primary,
-  },
-  bottomCardSheet: {
+  sheet: {
     position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 3,
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 28,
-    gap: 14,
-    shadowColor: "#0F3D3E",
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 6,
+    borderTopLeftRadius: theme.radius.lg,
+    borderTopRightRadius: theme.radius.lg,
+    padding: theme.spacing.lg,
+    gap: theme.spacing.md,
+    ...theme.shadow.lg,
   },
   sheetHandle: {
     width: 40,
@@ -418,234 +302,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     alignSelf: "center",
   },
-  sheetContent: {
-    flexDirection: "row",
-    gap: 14,
-  },
-  sheetImageThumb: {
-    width: 104,
-    height: 78,
-    borderRadius: 12,
+  sheetRow: { flexDirection: "row", gap: theme.spacing.md, alignItems: "center" },
+  sheetThumb: {
+    width: 92,
+    height: 70,
+    borderRadius: theme.radius.field,
     backgroundColor: colors.primary100,
-    overflow: "hidden",
   },
-  sheetImage: {
-    width: "100%",
-    height: "100%",
-  },
-  sheetDetails: {
+  sheetTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+  sheetMeta: { fontSize: 13, color: colors.textMuted },
+  sheetPrice: { fontSize: 16, fontWeight: "700", color: colors.text, marginTop: 2 },
+  sheetPer: { fontSize: 13, fontWeight: "400", color: colors.textMuted },
+  fallback: {
     flex: 1,
-    gap: 4,
-  },
-  sheetTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  sheetSpecs: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  sheetPriceRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-    marginTop: 4,
-  },
-  ratingBadge: {
-    flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: theme.spacing.xxl,
+    gap: theme.spacing.md,
   },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  sheetPrice: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  sheetPricePerDay: {
-    fontSize: 13,
-    fontWeight: "400",
-    color: colors.textMuted,
-  },
-  viewCarBtn: {
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
+  fallbackIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primary100,
     alignItems: "center",
     justifyContent: "center",
   },
-  viewCarBtnText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(6, 30, 31, 0.4)",
-    justifyContent: "flex-end",
-    zIndex: 10,
-  },
-  filterModal: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: 620,
-  },
-  modalHeader: {
-    padding: 20,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  modalHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  cleanBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.accent700,
-  },
-  modalBody: {
-    paddingHorizontal: 20,
-    gap: 20,
-    paddingBottom: 16,
-  },
-  filterSection: {
-    gap: 10,
-  },
-  filterLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.8,
-    color: colors.textMuted,
-    textTransform: "uppercase",
-  },
-  filterChipsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  modalChip: {
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  modalChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  modalChipText: {
-    fontSize: 14,
-    color: colors.text,
-  },
-  modalChipTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  transmissionRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  transBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  transBtnActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  transBtnText: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  transBtnTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  priceHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-  },
-  priceRangeValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  sliderTrack: {
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: colors.border,
-    position: "relative",
-    marginVertical: 10,
-  },
-  sliderActiveTrack: {
-    position: "absolute",
-    left: 0,
-    right: "36%",
-    top: 0,
-    bottom: 0,
-    borderRadius: 999,
-    backgroundColor: colors.primary,
-  },
-  sliderThumb: {
-    position: "absolute",
-    top: -9,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  dateSelectorBox: {
-    height: 52,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-  },
-  dateSelectorText: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  modalFooter: {
-    padding: 20,
-    paddingBottom: 30,
-  },
-  applyFilterBtn: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  applyFilterBtnText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
-  },
+  fallbackTitle: { fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
+  fallbackText: { fontSize: 14, color: colors.textMuted, textAlign: "center", lineHeight: 20 },
 });

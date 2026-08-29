@@ -1,4 +1,13 @@
 export { colors } from "./theme/colors";
+export { theme, spacing, radius, typography, shadow, control } from "./theme/tokens";
+export {
+  Button,
+  Card,
+  ScreenHeader,
+  Chip,
+  SectionLabel,
+  EmptyState,
+} from "./components/ui";
 export { Icon } from "./components/Icon";
 export { VerifyIdentityBanner } from "./components/VerifyIdentityBanner";
 export { DocumentCameraModal } from "./components/DocumentCameraModal";

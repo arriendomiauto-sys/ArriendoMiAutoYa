@@ -7,15 +7,24 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": { "image": "./assets/splash.png", "resizeMode": "contain", "backgroundColor": "#FAFAF9" },
-    "ios": { "supportsTablet": true, "bundleIdentifier": "cl.arriendatuauto.app" },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "cl.arriendatuauto.app",
+      "config": { "usesNonExemptEncryption": false },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Arrienda Tu Auto usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa."
+      }
+    },
     "android": {
       "package": "cl.arriendatuauto.app",
-      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#FAFAF9" }
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#FAFAF9" },
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
     "web": { "favicon": "./assets/favicon.png", "bundler": "metro" },
     "plugins": [
       ["expo-image-picker", { "photosPermission": "Arrienda Tu Auto necesita acceso a tus fotos para publicar tu vehículo y verificar tus documentos." }],
-      ["expo-camera", { "cameraPermission": "Arrienda Tu Auto necesita tu cámara para fotografiar tu cédula, tu licencia y tomar la selfie de verificación de identidad." }]
+      ["expo-camera", { "cameraPermission": "Arrienda Tu Auto necesita tu cámara para fotografiar tu cédula, tu licencia y tomar la selfie de verificación de identidad." }],
+      ["expo-location", { "locationWhenInUsePermission": "Arrienda Tu Auto usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa." }]
     ]
   }
 }
