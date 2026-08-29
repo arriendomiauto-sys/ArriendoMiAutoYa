@@ -88,6 +88,13 @@ class AutoBase(BaseModel):
     fotos: List[str] = []
     equipamiento: Dict[str, bool] = {}
 
+    # Documentos del vehículo (URLs de Storage). Opcionales en la base para
+    # que AutoOut/AutoUpdate no los exijan; AutoCreate los vuelve obligatorios.
+    doc_inscripcion_url: Optional[str] = None
+    doc_permiso_circulacion_url: Optional[str] = None
+    doc_soap_url: Optional[str] = None
+    doc_revision_tecnica_url: Optional[str] = None
+
     @field_validator("patente")
     @classmethod
     def check_patente(cls, v: str) -> str:
@@ -97,6 +104,9 @@ class AutoBase(BaseModel):
 
 class AutoCreate(AutoBase):
     dueno_id: Optional[str] = None
+    # Para publicar hay que subir los 4 documentos legales del auto. Se
+    # dejan opcionales en el schema y el router devuelve un 400 legible
+    # nombrando exactamente cuáles faltan (mejor que el 422 de pydantic).
 
 class AutoUpdate(BaseModel):
     tarifa_dia: Optional[int] = None
@@ -104,6 +114,10 @@ class AutoUpdate(BaseModel):
     fotos: Optional[List[str]] = None
     ubicacion_base: Optional[str] = None
     equipamiento: Optional[Dict[str, bool]] = None
+    doc_inscripcion_url: Optional[str] = None
+    doc_permiso_circulacion_url: Optional[str] = None
+    doc_soap_url: Optional[str] = None
+    doc_revision_tecnica_url: Optional[str] = None
 
 class AutoOut(AutoBase):
     model_config = ConfigDict(from_attributes=True)
@@ -111,6 +125,7 @@ class AutoOut(AutoBase):
     id: str
     dueno_id: str
     estado: str
+    documentos_verificados: bool = False
 
 # ==============================================================================
 # RESERVAS

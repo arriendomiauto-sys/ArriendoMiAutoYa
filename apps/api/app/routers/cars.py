@@ -67,6 +67,23 @@ def crear_auto(
             detail="Debes verificar tu identidad antes de publicar un vehículo."
         )
 
+    # Documentos legales del vehículo: los 4 son obligatorios para publicar.
+    DOCS_REQUERIDOS = {
+        "doc_inscripcion_url": "Certificado de inscripción (padrón)",
+        "doc_permiso_circulacion_url": "Permiso de circulación",
+        "doc_soap_url": "Seguro Obligatorio (SOAP)",
+        "doc_revision_tecnica_url": "Revisión técnica",
+    }
+    faltantes = [
+        nombre for campo, nombre in DOCS_REQUERIDOS.items()
+        if not (getattr(payload, campo, None) or "").strip()
+    ]
+    if faltantes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Faltan documentos del vehículo: {', '.join(faltantes)}. Súbelos para publicar el auto.",
+        )
+
     # Verificar si la patente ya existe
     patente_existente = db.query(Auto).filter(Auto.patente == payload.patente.upper()).first()
     if patente_existente:
@@ -86,7 +103,11 @@ def crear_auto(
         latitud=payload.latitud,
         longitud=payload.longitud,
         fotos=payload.fotos or [],
-        equipamiento=payload.equipamiento or {}
+        equipamiento=payload.equipamiento or {},
+        doc_inscripcion_url=payload.doc_inscripcion_url,
+        doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
+        doc_soap_url=payload.doc_soap_url,
+        doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
     )
     # Asegurar que el usuario tenga el rol "dueno"
     roles = current_user.roles_activos or []
@@ -123,6 +144,17 @@ def actualizar_auto(
         auto.ubicacion_base = payload.ubicacion_base
     if payload.equipamiento is not None:
         auto.equipamiento = payload.equipamiento
+
+    # Si el dueño reemplaza algún documento, vuelve a quedar pendiente de
+    # revisión hasta que un ejecutivo lo valide de nuevo.
+    docs_cambiados = False
+    for campo in ("doc_inscripcion_url", "doc_permiso_circulacion_url", "doc_soap_url", "doc_revision_tecnica_url"):
+        valor = getattr(payload, campo, None)
+        if valor is not None:
+            setattr(auto, campo, valor)
+            docs_cambiados = True
+    if docs_cambiados:
+        auto.documentos_verificados = False
 
     db.commit()
     db.refresh(auto)

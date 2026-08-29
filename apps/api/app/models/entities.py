@@ -49,6 +49,14 @@ class Auto(Base):
     fotos = Column(JSON, default=list)
     equipamiento = Column(JSON, default=dict) # ej. {"ac": true, "bluetooth": true, "isofix": false, ...}
 
+    # Documentos legales del vehículo — obligatorios para publicar. Se
+    # guardan como URLs de Supabase Storage (bucket privado documentos-autos).
+    doc_inscripcion_url = Column(String, nullable=True)          # Certificado de inscripción / Padrón
+    doc_permiso_circulacion_url = Column(String, nullable=True)  # Permiso de circulación vigente
+    doc_soap_url = Column(String, nullable=True)                 # Seguro Obligatorio (SOAP) vigente
+    doc_revision_tecnica_url = Column(String, nullable=True)     # Revisión técnica al día
+    documentos_verificados = Column(Boolean, default=False)     # Los revisó un ejecutivo
+
     # Relaciones
     dueno = relationship("Usuario", back_populates="autos", foreign_keys=[dueno_id])
     reservas = relationship("Reserva", back_populates="auto")
