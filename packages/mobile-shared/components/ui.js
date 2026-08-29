@@ -186,6 +186,26 @@ export function Chip({ label, selected, onPress, tone = "light", iconLeft }) {
 }
 
 // ---------------------------------------------------------------------------
+// Badge — etiqueta de estado compacta
+// ---------------------------------------------------------------------------
+const BADGE_TONES = {
+  neutral: { bg: colors.neutralBadgeBg, fg: colors.neutralBadgeText },
+  success: { bg: colors.successBg, fg: colors.successText },
+  warning: { bg: colors.warningBg, fg: colors.warningText },
+  danger: { bg: colors.dangerBg, fg: colors.dangerText },
+  info: { bg: colors.primary100, fg: colors.primary },
+};
+
+export function Badge({ label, variant = "neutral", style }) {
+  const c = BADGE_TONES[variant] || BADGE_TONES.neutral;
+  return (
+    <View style={[styles.badge, { backgroundColor: c.bg }, style]}>
+      <Text style={[styles.badgeText, { color: c.fg }]}>{label}</Text>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SectionLabel — rótulo en versalitas
 // ---------------------------------------------------------------------------
 export function SectionLabel({ children, tone = "light", style }) {
@@ -337,6 +357,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
+
+  badge: {
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: theme.radius.pill,
+  },
+  badgeText: { fontSize: 12, fontWeight: "700" },
 
   statRow: {
     flexDirection: "row",

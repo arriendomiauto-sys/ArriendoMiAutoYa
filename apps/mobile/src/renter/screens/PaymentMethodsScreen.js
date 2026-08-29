@@ -1,43 +1,37 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  StatusBar,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
-import { colors, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { View, Text, StyleSheet, TextInput, StatusBar, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, theme, Icon, Button, Card, ScreenHeader, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
-export function PaymentMethodsScreen({
-  car,
-  booking,
-  onBack,
-  onPaymentSuccess,
-}) {
+function formatearNumero(v) {
+  return v.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
+}
+function formatearExp(v) {
+  const d = v.replace(/\D/g, "").slice(0, 4);
+  return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+}
+
+export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess }) {
+  const insets = useSafeAreaInsets();
+  const [numero, setNumero] = useState("");
+  const [titular, setTitular] = useState("");
+  const [exp, setExp] = useState("");
   const [cvv, setCvv] = useState("");
   const [processing, setProcessing] = useState(false);
 
-  // `booking` viene de CarDetailScreen (reserva real) — si esta pantalla se
-  // abre en modo "billetera" (sin auto/booking, desde el perfil) no hay
-  // nada que cobrar, solo se gestionan métodos de pago.
   const montoHold = booking?.montoHold ?? 0;
   const esReservaReal = !!(car?.id && booking);
+  const last4 = numero.replace(/\s/g, "").slice(-4);
 
   const handlePay = async () => {
     if (esReservaReal && cvv.length < 3) {
-      showAlert("Código de seguridad requerido", "Ingresa el CVV de tu tarjeta para continuar.");
+      showAlert("Falta el código de seguridad", "Ingresa el CVV de tu tarjeta para continuar.");
       return;
     }
-
     if (!esReservaReal) {
-      // Modo "billetera": no hay reserva que crear.
       onPaymentSuccess(null);
       return;
     }
-
     setProcessing(true);
     try {
       const reserva = await ApiClient.crearReserva({
@@ -48,10 +42,7 @@ export function PaymentMethodsScreen({
       });
       onPaymentSuccess({ ...reserva, car });
     } catch (error) {
-      showAlert(
-        "No se pudo confirmar la reserva",
-        error.message || "Intenta nuevamente en unos segundos."
-      );
+      showAlert("No se pudo confirmar la reserva", error.message || "Intenta nuevamente en unos segundos.");
     } finally {
       setProcessing(false);
     }
@@ -60,238 +51,149 @@ export function PaymentMethodsScreen({
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <ScreenHeader title={esReservaReal ? "Pago de la reserva" : "Método de pago"} onBack={onBack} />
 
-      {/* Top Nav (Pantalla 14) */}
-      <View style={styles.topNav}>
-        <TouchableOpacity onPress={onBack}>
-          <Icon name="arrow-left" size={20} color={colors.primary} />
-        </TouchableOpacity>
-        <Text style={styles.navTitle}>Pago</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Teal Credit Card (Pantalla 14) */}
-        <View style={styles.creditCardBox}>
-          <View style={styles.cardHeader}>
-            <View style={styles.chipSim} />
-            <Text style={styles.cardType}>Crédito</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={styles.creditCard}>
+          <View style={styles.ccTop}>
+            <View style={styles.chip} />
+            <Text style={styles.ccBrand}>Crédito</Text>
           </View>
-          <Text style={styles.cardNumber}>•••• •••• •••• ••••</Text>
-          <View style={styles.cardFooter}>
-            <Text style={styles.cardHolder}>SIN TARJETA GUARDADA</Text>
+          <Text style={styles.ccNumber}>
+            {numero || "•••• •••• •••• ••••"}
+          </Text>
+          <View style={styles.ccBottom}>
+            <Text style={styles.ccHolder}>{titular.toUpperCase() || "NOMBRE DEL TITULAR"}</Text>
+            <Text style={styles.ccExp}>{exp || "MM/AA"}</Text>
           </View>
         </View>
 
-        {/* CVV Input */}
-        <View style={styles.cvvGroup}>
-          <Text style={styles.fieldLabel}>CÓDIGO DE SEGURIDAD</Text>
-          <View style={styles.cvvInputBox}>
+        <View style={{ gap: theme.spacing.md }}>
+          <View style={{ gap: 6 }}>
+            <SectionLabel>Número de tarjeta</SectionLabel>
             <TextInput
-              style={styles.cvvInput}
-              value={cvv}
-              onChangeText={setCvv}
-              placeholder="•••"
-              placeholderTextColor={colors.textMuted}
+              style={styles.input}
+              value={numero}
+              onChangeText={(v) => setNumero(formatearNumero(v))}
+              placeholder="1234 5678 9012 3456"
+              placeholderTextColor={colors.textPlaceholder}
               keyboardType="number-pad"
-              maxLength={4}
-              secureTextEntry
             />
           </View>
-          <Text style={styles.fieldHelp}>
-            Solo aceptamos tarjeta de crédito, porque la garantía se retiene en el cupo.
+          <View style={{ gap: 6 }}>
+            <SectionLabel>Titular</SectionLabel>
+            <TextInput
+              style={styles.input}
+              value={titular}
+              onChangeText={setTitular}
+              placeholder="Como aparece en la tarjeta"
+              placeholderTextColor={colors.textPlaceholder}
+              autoCapitalize="characters"
+            />
+          </View>
+          <View style={styles.row}>
+            <View style={{ flex: 1, gap: 6 }}>
+              <SectionLabel>Vencimiento</SectionLabel>
+              <TextInput
+                style={styles.input}
+                value={exp}
+                onChangeText={(v) => setExp(formatearExp(v))}
+                placeholder="MM/AA"
+                placeholderTextColor={colors.textPlaceholder}
+                keyboardType="number-pad"
+              />
+            </View>
+            <View style={{ flex: 1, gap: 6 }}>
+              <SectionLabel>CVV</SectionLabel>
+              <TextInput
+                style={styles.input}
+                value={cvv}
+                onChangeText={(v) => setCvv(v.replace(/\D/g, "").slice(0, 4))}
+                placeholder="•••"
+                placeholderTextColor={colors.textPlaceholder}
+                keyboardType="number-pad"
+                secureTextEntry
+              />
+            </View>
+          </View>
+          <Text style={styles.help}>
+            Solo aceptamos tarjeta de crédito: la garantía se retiene sobre el cupo, no se cobra.
           </Text>
         </View>
 
         {esReservaReal && (
-          <View style={styles.breakdownCard}>
-            <View style={[styles.breakdownRow, styles.breakdownDivider]}>
-              <Text style={styles.chargeTodayLabel}>Se retiene hoy (hold)</Text>
-              <Text style={styles.chargeTodayVal}>${montoHold.toLocaleString("es-CL")}</Text>
-            </View>
-          </View>
+          <Card padded style={styles.holdCard}>
+            <Text style={styles.holdLabel}>Se retiene hoy (pre-autorización)</Text>
+            <Text style={styles.holdValue}>${montoHold.toLocaleString("es-CL")}</Text>
+            <Text style={styles.holdNote}>
+              No es un cobro. Se libera al devolver el auto, menos cargos justificados.
+            </Text>
+          </Card>
         )}
 
-        {/* Security / Encryption Notice */}
-        <View style={styles.securityNote}>
-          <Icon name="shield" size={18} color="#197A63" style={{ marginRight: 10 }} />
-          <Text style={styles.securityText}>
-            Pago procesado con cifrado. No guardamos su tarjeta completa.
-          </Text>
+        <View style={styles.secure}>
+          <Icon name="shield" size={16} color={colors.accent700} />
+          <Text style={styles.secureText}>Pago procesado con cifrado. No guardamos el número completo.</Text>
         </View>
       </ScrollView>
 
-      {/* Bottom Pay CTA */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={styles.payBtn}
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+        <Button
+          label={
+            esReservaReal
+              ? `Confirmar reserva · $${montoHold.toLocaleString("es-CL")}`
+              : last4
+              ? `Guardar tarjeta ····${last4}`
+              : "Guardar método de pago"
+          }
           onPress={handlePay}
-          disabled={processing}
-          activeOpacity={0.85}
-        >
-          {processing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.payBtnText}>
-              {esReservaReal ? `Confirmar reserva · $${montoHold.toLocaleString("es-CL")}` : "Guardar método de pago"}
-            </Text>
-          )}
-        </TouchableOpacity>
+          loading={processing}
+        />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "space-between",
-  },
-  topNav: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  navTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  content: {
-    padding: 20,
-    gap: 18,
-  },
-  creditCardBox: {
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
+  creditCard: {
     backgroundColor: colors.primary,
-    borderRadius: 16,
-    padding: 20,
-    gap: 22,
+    borderRadius: theme.radius.card,
+    padding: theme.spacing.xl,
+    gap: 20,
+    ...theme.shadow.md,
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  chipSim: {
-    width: 40,
-    height: 28,
-    borderRadius: 5,
-    backgroundColor: "rgba(255, 255, 255, 0.22)",
-  },
-  cardType: {
-    fontSize: 13,
-    color: "#92E3CB",
-    fontWeight: "600",
-  },
-  cardNumber: {
-    fontSize: 20,
-    fontFamily: "monospace",
-    letterSpacing: 1.5,
-    color: "#FFFFFF",
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  cardHolder: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "500",
-  },
-  cardExp: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "500",
-  },
-  cvvGroup: {
-    gap: 6,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.8,
-    color: colors.textMuted,
-    textTransform: "uppercase",
-  },
-  cvvInputBox: {
-    height: 52,
+  ccTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  chip: { width: 40, height: 28, borderRadius: 5, backgroundColor: "rgba(255,255,255,0.22)" },
+  ccBrand: { fontSize: 13, color: colors.accent300, fontWeight: "600" },
+  ccNumber: { fontSize: 19, letterSpacing: 2, color: "#FFFFFF", fontWeight: "600" },
+  ccBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
+  ccHolder: { fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: "600", flex: 1 },
+  ccExp: { fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: "600" },
+  row: { flexDirection: "row", gap: theme.spacing.md },
+  input: {
+    height: theme.control.height,
     borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 12,
+    borderColor: colors.border,
+    borderRadius: theme.radius.field,
     backgroundColor: colors.surface,
     paddingHorizontal: 16,
-    justifyContent: "center",
-  },
-  cvvInput: {
     fontSize: 16,
-    letterSpacing: 5,
     color: colors.text,
   },
-  fieldHelp: {
-    fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  breakdownCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    gap: 11,
-  },
-  breakdownRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  breakdownDivider: {
-    borderTopWidth: 0,
-    paddingTop: 0,
-  },
-  chargeTodayLabel: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  chargeTodayVal: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  securityNote: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  securityText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  bottomBar: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 30,
+  help: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
+  holdCard: { gap: 4 },
+  holdLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
+  holdValue: { fontSize: 24, fontWeight: "800", color: colors.text, letterSpacing: -0.5 },
+  holdNote: { fontSize: 12, color: colors.textMuted, lineHeight: 16, marginTop: 2 },
+  secure: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
+  secureText: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+  footer: {
+    paddingHorizontal: theme.spacing.screen,
+    paddingTop: theme.spacing.md,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-  },
-  payBtn: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  payBtnText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
   },
 });

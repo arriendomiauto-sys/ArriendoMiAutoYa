@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from "react-native";
 import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  RefreshControl,
-} from "react-native";
-import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
+  colors,
+  theme,
+  Icon,
+  Chip,
+  Badge,
+  Button,
+  EmptyState,
+  ApiClient,
+} from "@rentacar/mobile-shared";
 
 function formatearFecha(iso) {
   if (!iso) return "—";
@@ -19,22 +20,28 @@ function formatearFecha(iso) {
   }
 }
 
-// El backend confirma la reserva de inmediato al crearla (no hay un paso
-// de "aceptar/rechazar" separado hoy) — esta pantalla muestra las reservas
-// reales de los autos del dueño y desde acá se entra al flujo de
-// entrega/devolución con QR para la reserva correspondiente.
+const ESTADO_BADGE = {
+  confirmada: { variant: "info", label: "Por entregar" },
+  en_curso: { variant: "success", label: "En curso" },
+  finalizada: { variant: "neutral", label: "Finalizada" },
+  cancelada: { variant: "danger", label: "Cancelada" },
+  pendiente: { variant: "warning", label: "Pendiente" },
+};
+
+// El backend confirma la reserva de inmediato al crearla — esta pantalla
+// lista las reservas reales de los autos del dueño y da entrada al flujo de
+// entrega/devolución con QR.
 export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState("confirmada"); // 'confirmada' | 'en_curso' | 'todas'
+  const [filter, setFilter] = useState("confirmada");
 
   const cargar = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await ApiClient.getReservas("dueno");
-      setReservas(data || []);
+      setReservas((await ApiClient.getReservas("dueno")) || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,40 +53,82 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
     cargar();
   }, [cargar]);
 
-  const filtered = reservas.filter((r) => {
-    if (filter === "todas") return true;
-    return r.estado === filter;
-  });
+  const filtered = reservas.filter((r) => (filter === "todas" ? true : r.estado === filter));
+
+  const renderItem = ({ item }) => {
+    const auto = item.auto || {};
+    const nombre = [auto.marca, auto.modelo, auto.anio].filter(Boolean).join(" ") || "Auto";
+    const ganancia = Math.round((item.monto_hold || 0) * 0.8);
+    const badge = ESTADO_BADGE[item.estado] || ESTADO_BADGE.pendiente;
+    const puedeEntregar = item.estado === "confirmada";
+    const puedeDevolver = item.estado === "en_curso";
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHead}>
+          <Text style={styles.carName}>{nombre}</Text>
+          <Badge variant={badge.variant} label={badge.label} />
+        </View>
+
+        <View style={styles.detail}>
+          <View style={styles.row}>
+            <Text style={styles.label}>Fechas</Text>
+            <Text style={styles.value}>
+              {formatearFecha(item.fecha_inicio)} → {formatearFecha(item.fecha_fin)}
+            </Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Lugar de entrega</Text>
+            <Text style={styles.value} numberOfLines={1}>{item.lugar_entrega_acordado || "—"}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: colors.textWhite, fontWeight: "700" }]}>
+              Tu ganancia (80%)
+            </Text>
+            <Text style={styles.earnings}>${ganancia.toLocaleString("es-CL")}</Text>
+          </View>
+        </View>
+
+        {(puedeEntregar || puedeDevolver) && (
+          <Button
+            tone="dark"
+            label={puedeEntregar ? "Iniciar entrega con QR" : "Iniciar devolución con QR"}
+            iconRight="arrow-right"
+            onPress={() => onOpenDelivery?.(item)}
+          />
+        )}
+        <Button
+          tone="dark"
+          variant="ghost"
+          size="sm"
+          label="Ver contrato de esta reserva"
+          onPress={() => onOpenContract?.(item)}
+        />
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Reservas de mis autos</Text>
-        <Text style={styles.subtitle}>Entrega y devolución con verificación por QR</Text>
+        <Text style={styles.subtitle}>Entrega y devolución verificadas por QR</Text>
       </View>
 
-      {/* Filtros */}
-      <View style={styles.filtersRow}>
+      <View style={styles.filters}>
         {[
           { id: "confirmada", label: "Por entregar" },
           { id: "en_curso", label: "Por devolver" },
           { id: "todas", label: "Todas" },
         ].map((f) => (
-          <TouchableOpacity
-            key={f.id}
-            style={[styles.filterChip, filter === f.id && styles.filterChipActive]}
-            onPress={() => setFilter(f.id)}
-          >
-            <Text style={[styles.filterChipText, filter === f.id && styles.filterChipTextActive]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
+          <Chip key={f.id} tone="dark" label={f.label} selected={filter === f.id} onPress={() => setFilter(f.id)} />
         ))}
       </View>
 
       {error && (
         <View style={styles.errorBox}>
+          <Icon name="warning" size={15} color={colors.danger} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
@@ -90,83 +139,17 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} tintColor={colors.accent} />}
-          renderItem={({ item }) => {
-            const auto = item.auto || {};
-            const nombreAuto = [auto.marca, auto.modelo, auto.anio].filter(Boolean).join(" ");
-            const gananciaEstimada = Math.round((item.monto_hold || 0) * 0.8);
-            const listoParaEntrega = item.estado === "confirmada";
-            const listoParaDevolucion = item.estado === "en_curso";
-
-            return (
-              <View style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.carName}>{nombreAuto || "Auto"}</Text>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      listoParaEntrega ? styles.statusPending : styles.statusAccepted,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        listoParaEntrega ? styles.statusTextPending : styles.statusTextAccepted,
-                      ]}
-                    >
-                      {item.estado}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.detailsBox}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Fechas:</Text>
-                    <Text style={styles.detailVal}>
-                      {formatearFecha(item.fecha_inicio)} → {formatearFecha(item.fecha_fin)}
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Lugar de entrega:</Text>
-                    <Text style={styles.detailVal}>{item.lugar_entrega_acordado || "—"}</Text>
-                  </View>
-                  <View style={styles.divider} />
-                  <View style={styles.detailRow}>
-                    <Text style={styles.earningsLabel}>Tu ganancia estimada (80%):</Text>
-                    <Text style={styles.earningsVal}>${gananciaEstimada.toLocaleString("es-CL")} CLP</Text>
-                  </View>
-                </View>
-
-                {(listoParaEntrega || listoParaDevolucion) && (
-                  <TouchableOpacity
-                    style={styles.deliverBtn}
-                    onPress={() => onOpenDelivery && onOpenDelivery(item)}
-                  >
-                    <Text style={styles.deliverBtnText}>
-                      {listoParaEntrega ? "Iniciar entrega con QR →" : "Iniciar devolución con QR →"}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  style={styles.contractLink}
-                  onPress={() => onOpenContract && onOpenContract(item)}
-                >
-                  <Text style={styles.contractLinkText}>Ver contrato de esta reserva</Text>
-                </TouchableOpacity>
-              </View>
-            );
-          }}
+          renderItem={renderItem}
           ListEmptyComponent={
-            <View style={styles.emptyBox}>
-              <Icon name="history" size={36} color={colors.textMuted} style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyTitle}>No hay reservas {filter === "todas" ? "" : "en este estado"}</Text>
-              <Text style={styles.emptySub}>
-                Cuando alguien reserve tus autos en Los Ángeles, aparecerán aquí.
-              </Text>
-            </View>
+            <EmptyState
+              tone="dark"
+              icon="calendar"
+              title={filter === "todas" ? "Sin reservas todavía" : "Nada en este estado"}
+              message="Cuando alguien reserve tus autos, las reservas aparecerán aquí para coordinar la entrega."
+            />
           }
         />
       )}
@@ -175,176 +158,41 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.darkBg,
-    padding: 16,
-  },
-  header: {
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: colors.textWhite,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: colors.textSilver,
-    marginTop: 2,
-  },
-  filtersRow: {
+  container: { flex: 1, backgroundColor: colors.darkBg },
+  header: { paddingHorizontal: theme.spacing.screen, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.md },
+  title: { ...theme.typography.title, color: colors.textWhite },
+  subtitle: { fontSize: 13, color: colors.textSilver, marginTop: 2 },
+  filters: {
     flexDirection: "row",
-    marginBottom: 14,
-  },
-  filterChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    backgroundColor: colors.darkCard,
-    marginRight: 6,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  filterChipActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  filterChipText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.textSilver,
-  },
-  filterChipTextActive: {
-    color: colors.dark,
-    fontWeight: "900",
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.screen,
+    paddingBottom: theme.spacing.md,
   },
   errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: theme.spacing.screen,
     backgroundColor: "rgba(220,38,38,0.12)",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
+    borderRadius: theme.radius.field,
+    padding: theme.spacing.md,
   },
-  errorText: {
-    color: colors.danger,
-    fontSize: 12,
-  },
-  listContent: {
-    paddingBottom: 40,
-  },
+  errorText: { color: colors.danger, fontSize: 13, flex: 1 },
+  list: { paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.xxxl, gap: theme.spacing.lg },
   card: {
     backgroundColor: colors.darkCard,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+    borderRadius: theme.radius.card,
+    padding: theme.spacing.lg,
     borderWidth: 1,
     borderColor: colors.darkBorder,
+    gap: theme.spacing.md,
   },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 10,
-  },
-  carName: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.textWhite,
-  },
-  statusBadge: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-  },
-  statusPending: {
-    backgroundColor: colors.accentMuted,
-  },
-  statusAccepted: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-  },
-  statusText: {
-    fontSize: 9,
-    fontWeight: "800",
-  },
-  statusTextPending: {
-    color: colors.accent,
-  },
-  statusTextAccepted: {
-    color: colors.success,
-  },
-  detailsBox: {
-    backgroundColor: colors.darkCardHover,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-  },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  detailLabel: {
-    fontSize: 11,
-    color: colors.textSilver,
-  },
-  detailVal: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.textWhite,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.darkBorder,
-    marginVertical: 6,
-  },
-  earningsLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: colors.textWhite,
-  },
-  earningsVal: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: colors.accent,
-  },
-  deliverBtn: {
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 10,
-    borderRadius: 6,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.accentMuted,
-  },
-  deliverBtnText: {
-    color: colors.accent,
-    fontWeight: "800",
-    fontSize: 12,
-  },
-  contractLink: {
-    marginTop: 8,
-    alignItems: "center",
-    paddingVertical: 4,
-  },
-  contractLinkText: {
-    color: colors.textSilver,
-    fontSize: 11,
-    fontWeight: "600",
-    textDecorationLine: "underline",
-  },
-  emptyBox: {
-    alignItems: "center",
-    paddingVertical: 50,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: colors.textWhite,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: colors.textSilver,
-    marginTop: 4,
-    textAlign: "center",
-    paddingHorizontal: 20,
-  },
+  cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.sm },
+  carName: { fontSize: 16, fontWeight: "700", color: colors.textWhite, flex: 1 },
+  detail: { backgroundColor: colors.darkCardSubtle, borderRadius: theme.radius.field, padding: theme.spacing.md, gap: theme.spacing.sm },
+  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },
+  label: { fontSize: 13, color: colors.textSilver },
+  value: { fontSize: 13, fontWeight: "600", color: colors.textWhite, flexShrink: 1, textAlign: "right" },
+  divider: { height: 1, backgroundColor: colors.darkBorder, marginVertical: 2 },
+  earnings: { fontSize: 15, fontWeight: "800", color: colors.accent },
 });

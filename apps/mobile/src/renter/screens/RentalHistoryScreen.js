@@ -6,25 +6,33 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
+  Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
-import { colors, Icon, ApiClient } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient } from "@rentacar/mobile-shared";
 
-function formatearRangoFechas(inicio, fin) {
+function formatearRango(inicio, fin) {
   if (!inicio || !fin) return "—";
   const opts = { day: "numeric", month: "short" };
   return `${new Date(inicio).toLocaleDateString("es-CL", opts)} – ${new Date(fin).toLocaleDateString("es-CL", opts)}`;
 }
 
-const BADGE_POR_ESTADO = {
-  en_curso: { label: "En curso", bg: colors.primary100, color: colors.primary },
-  confirmada: { label: "Confirmada", bg: "#FFF8EC", color: "#8A5B0B" },
-  finalizada: { label: "Finalizada", bg: "#F3F4F6", color: "#4B5563" },
-  cancelada: { label: "Cancelada", bg: colors.dangerBg, color: colors.dangerText },
+const BADGE = {
+  en_curso: { variant: "info", label: "En curso" },
+  confirmada: { variant: "warning", label: "Confirmada" },
+  finalizada: { variant: "neutral", label: "Finalizada" },
+  cancelada: { variant: "danger", label: "Cancelada" },
 };
 
+const TABS = [
+  { id: "activas", label: "Activas", estados: ["en_curso"] },
+  { id: "proximas", label: "Próximas", estados: ["confirmada"] },
+  { id: "pasadas", label: "Pasadas", estados: ["finalizada", "cancelada"] },
+];
+
 export function RentalHistoryScreen({ onSelectReservation, onBack }) {
-  const [activeTab, setActiveTab] = useState("activas"); // 'activas' | 'proximas' | 'pasadas'
+  const [tab, setTab] = useState("activas");
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,8 +41,7 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await ApiClient.getReservas("cliente");
-      setReservas(data || []);
+      setReservas((await ApiClient.getReservas("cliente")) || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,39 +53,19 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
     cargar();
   }, [cargar]);
 
-  const filtradas = reservas.filter((r) => {
-    if (activeTab === "activas") return r.estado === "en_curso";
-    if (activeTab === "proximas") return r.estado === "confirmada";
-    return r.estado === "finalizada" || r.estado === "cancelada";
-  });
+  const estados = TABS.find((t) => t.id === tab)?.estados || [];
+  const filtradas = reservas.filter((r) => estados.includes(r.estado));
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+      <ScreenHeader title="Mis reservas" onBack={onBack} />
 
-      <View style={styles.titleArea}>
-        {onBack && (
-          <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Icon name="arrow-left" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        )}
-        <Text style={styles.screenTitle}>Mis reservas</Text>
-      </View>
-
-      <View style={styles.tabsRow}>
-        {[
-          { id: "activas", label: "Activas" },
-          { id: "proximas", label: "Próximas" },
-          { id: "pasadas", label: "Pasadas" },
-        ].map((t) => (
-          <TouchableOpacity
-            key={t.id}
-            style={[styles.tabBtn, activeTab === t.id && styles.tabBtnActive]}
-            onPress={() => setActiveTab(t.id)}
-          >
-            <Text style={[styles.tabText, activeTab === t.id && styles.tabTextActive]}>
-              {t.label}
-            </Text>
+      <View style={styles.tabs}>
+        {TABS.map((t) => (
+          <TouchableOpacity key={t.id} style={styles.tab} onPress={() => setTab(t.id)} activeOpacity={0.7}>
+            <Text style={[styles.tabText, tab === t.id && styles.tabTextOn]}>{t.label}</Text>
+            <View style={[styles.tabUnderline, tab === t.id && styles.tabUnderlineOn]} />
           </TouchableOpacity>
         ))}
       </View>
@@ -86,44 +73,42 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : error ? (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyTitle}>No se pudo cargar</Text>
-          <Text style={styles.emptySub}>{error}</Text>
-        </View>
+        <EmptyState icon="warning" title="No se pudo cargar" message={error} action="Reintentar" onAction={cargar} />
       ) : (
-        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} tintColor={colors.primary} />}
+        >
           {filtradas.map((r) => {
             const auto = r.auto || {};
-            const badge = BADGE_POR_ESTADO[r.estado] || BADGE_POR_ESTADO.confirmada;
-            const nombreAuto = [auto.marca, auto.modelo, auto.anio].filter(Boolean).join(" ") || "Auto";
-
+            const badge = BADGE[r.estado] || BADGE.confirmada;
+            const nombre = [auto.marca, auto.modelo, auto.anio].filter(Boolean).join(" ") || "Auto";
             return (
               <TouchableOpacity
                 key={r.id}
-                style={styles.rentalCardSimple}
+                style={styles.card}
                 onPress={() => onSelectReservation(r)}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
-                <View style={styles.thumbBox}>
-                  {auto.fotos?.[0] && (
+                <View style={styles.thumb}>
+                  {auto.fotos?.[0] ? (
+                    <Image source={{ uri: auto.fotos[0] }} style={styles.thumbImg} />
+                  ) : (
                     <Icon name="car" size={22} color={colors.primary} />
                   )}
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
-                  <View style={styles.cardHeaderRow}>
-                    <Text style={styles.carName}>{nombreAuto}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
-                      <Text style={[styles.statusBadgeText, { color: badge.color }]}>
-                        {badge.label}
-                      </Text>
-                    </View>
+                  <View style={styles.cardHead}>
+                    <Text style={styles.carName} numberOfLines={1}>{nombre}</Text>
+                    <Badge variant={badge.variant} label={badge.label} />
                   </View>
-                  <Text style={styles.carSub}>
-                    {formatearRangoFechas(r.fecha_inicio, r.fecha_fin)}
+                  <Text style={styles.meta}>
+                    {formatearRango(r.fecha_inicio, r.fecha_fin)}
                     {r.lugar_entrega_acordado ? ` · ${r.lugar_entrega_acordado}` : ""}
                   </Text>
                   {r.estado === "en_curso" && (
-                    <Text style={styles.guaranteeText}>
+                    <Text style={styles.guarantee}>
                       Garantía retenida · ${(r.monto_hold || 0).toLocaleString("es-CL")}
                     </Text>
                   )}
@@ -133,17 +118,17 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
           })}
 
           {filtradas.length === 0 && (
-            <View style={styles.emptyBox}>
-              <Icon name="calendar" size={32} color={colors.textMuted} style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyTitle}>Nada por aquí</Text>
-              <Text style={styles.emptySub}>
-                {activeTab === "activas"
+            <EmptyState
+              icon="calendar"
+              title="Nada por aquí"
+              message={
+                tab === "activas"
                   ? "No tienes arriendos en curso ahora mismo."
-                  : activeTab === "proximas"
+                  : tab === "proximas"
                   ? "No tienes reservas confirmadas próximas."
-                  : "Aún no tienes arriendos finalizados o cancelados."}
-              </Text>
-            </View>
+                  : "Aún no tienes arriendos finalizados o cancelados."
+              }
+            />
           )}
         </ScrollView>
       )}
@@ -152,110 +137,43 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  titleArea: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
+  container: { flex: 1, backgroundColor: colors.background },
+  tabs: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  screenTitle: {
-    fontSize: 26,
-    fontWeight: "600",
-    letterSpacing: -0.4,
-    color: colors.text,
-  },
-  tabsRow: {
-    flexDirection: "row",
-    gap: 24,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    gap: theme.spacing.xxl,
+    paddingHorizontal: theme.spacing.screen,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  tabBtn: {
-    paddingBottom: 10,
-  },
-  tabBtnActive: {
-    borderBottomWidth: 2.5,
-    borderBottomColor: colors.primary,
-  },
-  tabText: {
-    fontSize: 15,
-    color: colors.textMuted,
-  },
-  tabTextActive: {
-    fontWeight: "600",
-    color: colors.text,
-  },
-  listContent: {
-    padding: 20,
-    gap: 14,
-  },
-  thumbBox: {
-    width: 76,
-    height: 58,
-    borderRadius: 10,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  carName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  carSub: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  statusBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 9,
-    borderRadius: 999,
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  guaranteeText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#8A5B0B",
-  },
-  rentalCardSimple: {
+  tab: { paddingTop: theme.spacing.sm },
+  tabText: { fontSize: 15, color: colors.textMuted, paddingBottom: 10 },
+  tabTextOn: { fontWeight: "600", color: colors.text },
+  tabUnderline: { height: 2.5, borderRadius: 999, backgroundColor: "transparent" },
+  tabUnderlineOn: { backgroundColor: colors.primary },
+  list: { padding: theme.spacing.screen, gap: theme.spacing.md },
+  card: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: theme.radius.card,
+    padding: theme.spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: theme.spacing.md,
+    ...theme.shadow.sm,
   },
-  emptyBox: {
+  thumb: {
+    width: 76,
+    height: 60,
+    borderRadius: theme.radius.field,
+    backgroundColor: colors.primary100,
     alignItems: "center",
-    paddingVertical: 50,
-    paddingHorizontal: 30,
+    justifyContent: "center",
+    overflow: "hidden",
   },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  emptySub: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 4,
-    textAlign: "center",
-  },
+  thumbImg: { width: "100%", height: "100%" },
+  cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
+  carName: { fontSize: 15, fontWeight: "700", color: colors.text, flex: 1 },
+  meta: { fontSize: 13, color: colors.textMuted },
+  guarantee: { fontSize: 13, fontWeight: "600", color: colors.warningText },
 });

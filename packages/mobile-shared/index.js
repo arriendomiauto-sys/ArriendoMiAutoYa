@@ -5,6 +5,7 @@ export {
   Card,
   ScreenHeader,
   Chip,
+  Badge,
   SectionLabel,
   StatRow,
   MenuList,
