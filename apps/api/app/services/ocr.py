@@ -2,6 +2,7 @@ import os
 import re
 import base64
 import logging
+import unicodedata
 from typing import Dict, Any, Optional, List, Tuple
 import httpx
 
@@ -9,6 +10,52 @@ from app.core.config import settings
 from app.core.validators import validar_rut_chileno
 
 logger = logging.getLogger(__name__)
+
+
+def _normalizar_texto(texto: str) -> str:
+    """Mayúsculas, sin tildes y con espacios colapsados — para buscar
+    marcadores en el texto que devuelve el OCR sin pelear con acentos."""
+    if not texto:
+        return ""
+    sin_tildes = "".join(
+        c for c in unicodedata.normalize("NFKD", texto) if not unicodedata.combining(c)
+    )
+    return re.sub(r"\s+", " ", sin_tildes.upper())
+
+
+# Marcadores que SÍ o SÍ aparecen impresos en una cédula de identidad chilena
+# (formato nuevo 2013+). Con que aparezcan 2 ya es señal fuerte de que la
+# foto es realmente una cédula y no otra cosa.
+_MARCADORES_CEDULA = (
+    "CEDULA DE IDENTIDAD",
+    "IDENTITY CARD",
+    "REPUBLICA DE CHILE",
+    "REGISTRO CIVIL",
+    "SERVICIO DE REGISTRO CIVIL",
+    "APELLIDOS",
+    "NOMBRES",
+    "NACIONALIDAD",
+    "FECHA DE NACIMIENTO",
+    "DATE OF BIRTH",
+    "NUMERO DOCUMENTO",
+    "DOCUMENT NUMBER",
+    "FECHA DE EMISION",
+    "SEXO",
+    "RUN",
+)
+
+# Marcadores de una licencia de conducir municipal chilena.
+_MARCADORES_LICENCIA = (
+    "LICENCIA DE CONDUCIR",
+    "LICENCIA MUNICIPAL",
+    "DIRECCION DE TRANSITO",
+    "TRANSITO Y TRANSPORTE PUBLICO",
+    "MUNICIPALIDAD",
+    "RESTRICCIONES",
+    "CLASE",
+    "FECHA CONTROL",
+    "PROXIMO CONTROL",
+)
 
 class OCRService:
     VISION_REST_URL = "https://vision.googleapis.com/v1/images:annotate"
@@ -396,6 +443,36 @@ class OCRService:
         datos["fecha_vencimiento_licencia"] = fechas.get("fecha_vencimiento") or "2028-11-20"
         return datos
 
+    @staticmethod
+    def clasificar_documento(texto: str) -> str:
+        """
+        Decide qué tipo de documento muestra la foto a partir del texto que
+        leyó el OCR: "cedula" | "licencia" | "desconocido".
+
+        Sirve para cortar el caso "le saco una foto a cualquier cosa y me la
+        toma igual": si el texto no tiene los marcadores propios de una
+        cédula chilena, no es una cédula — por más que se le haya extraído
+        alguna palabra suelta.
+        """
+        norm = _normalizar_texto(texto)
+        if not norm or len(norm) < 12:
+            return "desconocido"
+
+        cedula_hits = sum(1 for m in _MARCADORES_CEDULA if m in norm)
+        licencia_hits = sum(1 for m in _MARCADORES_LICENCIA if m in norm)
+        tiene_rut = OCRService.extraer_rut_chileno(texto) is not None
+
+        # La licencia también trae RUN y "REPUBLICA DE CHILE"; se decide
+        # licencia solo si además tiene marcadores propios y gana a cédula.
+        if licencia_hits >= 2 and licencia_hits >= cedula_hits:
+            return "licencia"
+
+        # Cédula: 2 marcadores, o 1 marcador + un RUN válido impreso.
+        if cedula_hits >= 2 or (cedula_hits >= 1 and tiene_rut):
+            return "cedula"
+
+        return "desconocido"
+
     @classmethod
     def procesar_documentos_enrolamiento(
         cls,
@@ -471,12 +548,47 @@ class OCRService:
 
         # 4. Si se ejecutó Google Cloud Vision de manera real con texto reconocido:
         if texto_carnet or texto_licencia:
+            # 4.0. ¿La foto del "carnet" es realmente una cédula? Si Vision leyó
+            # texto pero no tiene los marcadores de una cédula chilena (le
+            # sacaron una foto a otra cosa: una tarjeta, una revista, un
+            # envase), se rechaza de plano — no pasa a revisión ni al mock.
+            if texto_carnet:
+                tipo_carnet = cls.clasificar_documento(texto_carnet)
+                if tipo_carnet != "cedula":
+                    return {
+                        "rut_extraido": rut_usuario,
+                        "nombre_extraido": None,
+                        "confianza_ocr": 0.0,
+                        "confianza_facial": None,
+                        "verificacion_facial": "no_evaluado",
+                        "documentos_legibles": False,
+                        "coincide_rut_declarado": False,
+                        "estado_recomendado": "rechazado",
+                        "motivo": (
+                            "La primera foto no corresponde a una cédula de identidad chilena. "
+                            "Fotografía el frente de tu cédula, completa y dentro del marco."
+                        ),
+                        "tipo_documento_detectado": tipo_carnet,
+                        "es_mock": False,
+                    }
+
             rut_ocr = cls.extraer_rut_chileno(texto_carnet or "")
             nombre_extraido = cls.extraer_nombres_apellidos(texto_carnet or "")
             fechas_carnet = cls.extraer_fechas_documento(texto_carnet or "")
             datos_licencia = cls.extraer_datos_licencia(texto_licencia or "")
 
             motivos = []
+
+            # 4.0b. La licencia es opcional, pero si la subieron y la foto no
+            # es una licencia de conducir, no se da por buena: se pide de
+            # nuevo vía revisión manual (no bloquea todo el enrolamiento).
+            licencia_no_valida = bool(texto_licencia) and cls.clasificar_documento(
+                texto_licencia
+            ) != "licencia"
+            if licencia_no_valida:
+                motivos.append(
+                    "La foto de la licencia no parece una licencia de conducir chilena."
+                )
 
             # RUT: si Vision leyó la cédula pero no se pudo extraer un RUT
             # válido, no se asume nada — va a revisión manual (no se inventa
@@ -513,6 +625,7 @@ class OCRService:
                 or not coincide_rut
                 or confianza_final < 0.80
                 or facial["estado"] == "revision"
+                or licencia_no_valida
             ):
                 estado_recomendado = "requiere_revision_manual"
             else:
@@ -532,10 +645,43 @@ class OCRService:
                 "coincide_rut_declarado": coincide_rut,
                 "estado_recomendado": estado_recomendado,
                 "motivo": " ".join(motivos) or None,
+                "tipo_documento_detectado": "cedula",
+                "licencia_valida": (not licencia_no_valida) if texto_licencia else None,
                 "es_mock": False,
             }
 
-        # 5. Modo Fallback / Simulación inteligente para desarrollo sin API Keys
+        # 5. Fallback. Dos caminos muy distintos:
+        #
+        #  (a) USE_OCR_MOCK=True (tests / demo local sin credenciales): mock
+        #      determinista con datos chilenos, puede auto-verificar.
+        #
+        #  (b) Vision está configurado pero NO se pudo obtener texto de la
+        #      cédula (la descarga de la imagen falló, o la foto no tiene
+        #      texto legible y no cayó en 3.5 porque no se descargó): NO se
+        #      auto-verifica. Va a revisión manual — nunca "verificado" a
+        #      ciegas sobre una imagen que el servidor no pudo leer.
+        if vision_disponible:
+            logger.warning(
+                "Vision configurado pero sin texto de cédula (descarga fallida o foto ilegible). "
+                "Enrolamiento a revisión manual."
+            )
+            return {
+                "rut_extraido": rut_usuario,
+                "nombre_extraido": None,
+                "confianza_ocr": 0.0,
+                "confianza_facial": None,
+                "verificacion_facial": "no_evaluado",
+                "documentos_legibles": False,
+                "coincide_rut_declarado": False,
+                "estado_recomendado": "requiere_revision_manual",
+                "motivo": (
+                    "No pudimos procesar la foto de tu cédula automáticamente. "
+                    "Vuelve a tomarla enfocada, sin reflejos y con buena luz, o espera la revisión manual."
+                ),
+                "tipo_documento_detectado": "desconocido",
+                "es_mock": False,
+            }
+
         logger.info("Ejecutando OCR en modo de desarrollo (Mock habilitado con validación de RUT Módulo 11).")
         rut_demo = rut_usuario if (rut_usuario and validar_rut_chileno(rut_usuario)) else "18.456.789-K"
         confianza_mock = 0.96
