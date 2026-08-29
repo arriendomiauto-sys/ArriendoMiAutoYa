@@ -9,7 +9,8 @@ import {
   TextInput,
   StatusBar,
 } from "react-native";
-import { colors, Icon } from "@rentacar/mobile-shared";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, theme, Icon, Button, Card, ScreenHeader, SectionLabel } from "@rentacar/mobile-shared";
 
 // Misma regla que app/services/pricing.py:PricingService.calcular_dias_reserva
 // (redondeo hacia arriba, mínimo 1 día) — para que el total mostrado acá
@@ -45,8 +46,11 @@ const EQUIPAMIENTO_LABELS = {
 };
 
 export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
-  // Step: '11_detail' | '12_schedule' | '13_summary'
-  const [currentStep, setCurrentStep] = useState("11_detail");
+  const insets = useSafeAreaInsets();
+  // Step: 'detail' | 'schedule' | 'summary'
+  const [step, setStep] = useState("detail");
+  const [fotoActiva, setFotoActiva] = useState(0);
+  const [heroW, setHeroW] = useState(0);
 
   const [fechaInicio, setFechaInicio] = useState(hoyISO(1));
   const [fechaFin, setFechaFin] = useState(hoyISO(4));
@@ -58,636 +62,399 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const dias = useMemo(() => calcularDias(fechaInicio, fechaFin), [fechaInicio, fechaFin]);
   const montoHold = tarifaDia * dias;
 
-  const fotoPrincipal = car?.fotos?.[0];
+  const fotos = car?.fotos?.length ? car.fotos : ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800"];
   const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
+  const dueno = car?.dueno;
   const equipamientoActivo = Object.entries(car?.equipamiento || {})
     .filter(([, activo]) => activo)
     .map(([key]) => EQUIPAMIENTO_LABELS[key] || key);
+  const precioCLP = (n) => `$${(n || 0).toLocaleString("es-CL")}`;
 
-  const handleContinuarAFechas = () => {
+  const irAResumen = () => {
     setDateError(null);
     if (dias <= 0) {
       setDateError("La fecha de devolución debe ser posterior a la de retiro.");
       return;
     }
-    setCurrentStep("13_summary");
+    setStep("summary");
   };
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-
-      {/* ========================================================================= */}
-      {/* PANTALLA 11: FICHA DEL AUTO */}
-      {/* ========================================================================= */}
-      {currentStep === "11_detail" && (
-        <View style={styles.screenWrapper}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            {/* Hero Photo */}
-            <View style={styles.heroContainer}>
-              <Image
-                source={{
-                  uri: fotoPrincipal || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
-                }}
-                style={styles.heroImage}
-                resizeMode="cover"
-              />
-              <TouchableOpacity style={styles.heroBackBtn} onPress={onBack}>
-                <Icon name="arrow-left" size={20} color={colors.primary} />
-              </TouchableOpacity>
-              {car?.fotos?.length > 1 && (
-                <View style={styles.paginationDots}>
-                  {car.fotos.map((_, i) => (
-                    <View key={i} style={[styles.dot, i === 0 ? styles.dotActive : styles.dotInactive]} />
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* Ficha Body */}
-            <View style={styles.bodyContent}>
-              <View style={styles.titleSection}>
-                <Text style={styles.carName}>{nombreAuto || "Vehículo"}</Text>
-                <Text style={styles.carSpecsSubtitle}>Patente {car?.patente || "—"}</Text>
-              </View>
-
-              {/* Pricing */}
-              <View style={styles.pricingBoxesRow}>
-                <View style={styles.pricingBox}>
-                  <Text style={styles.pricingBoxLabel}>Día</Text>
-                  <Text style={styles.pricingBoxValue}>${tarifaDia.toLocaleString("es-CL")}</Text>
-                </View>
-                <View style={styles.pricingBox}>
-                  <Text style={styles.pricingBoxLabel}>Semana (aprox.)</Text>
-                  <Text style={styles.pricingBoxValue}>${(tarifaDia * 7).toLocaleString("es-CL")}</Text>
-                </View>
-                <View style={styles.pricingBox}>
-                  <Text style={styles.pricingBoxLabel}>Mes (aprox.)</Text>
-                  <Text style={styles.pricingBoxValue}>${(tarifaDia * 30).toLocaleString("es-CL")}</Text>
-                </View>
-              </View>
-
-              {/* Location */}
-              <View style={styles.locationRow}>
-                <Icon name="location" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
-                <Text style={styles.locationText}>{car?.ubicacion_base || "Ubicación no informada"}</Text>
-              </View>
-
-              {/* Equipamiento */}
-              {equipamientoActivo.length > 0 && (
-                <View style={styles.equipSection}>
-                  <Text style={styles.sectionLabel}>EQUIPAMIENTO</Text>
-                  <View style={styles.equipGrid}>
-                    {equipamientoActivo.map((label) => (
-                      <View key={label} style={styles.equipChip}>
-                        <Icon name="check" size={12} color={colors.accent700} style={{ marginRight: 6 }} />
-                        <Text style={styles.equipChipText}>{label}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              <View style={styles.warningBoxNeutral}>
-                <Text style={styles.warningDescNeutral}>
-                  El retiro y la devolución se coordinan 100% digital: código QR y checklist fotográfico de 9 ángulos, sin mostrador.
-                </Text>
-              </View>
-            </View>
-          </ScrollView>
-
-          {/* Bottom Bar */}
-          <View style={styles.bottomActionBar}>
-            <View>
-              <Text style={styles.bottomPriceValue}>${tarifaDia.toLocaleString("es-CL")}</Text>
-              <Text style={styles.bottomPriceLabel}>por día</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => setCurrentStep("12_schedule")}
-              activeOpacity={0.85}
+  // ---------------------------------------------------------------- DETALLE
+  if (step === "detail") {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}>
+          <View style={styles.hero} onLayout={(e) => setHeroW(e.nativeEvent.layout.width)}>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEnabled={fotos.length > 1}
+              onMomentumScrollEnd={(e) =>
+                setFotoActiva(Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width))
+              }
             >
-              <Text style={styles.actionBtnText}>Elegir fechas</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* ========================================================================= */}
-      {/* PANTALLA 12: FECHAS Y HORARIOS */}
-      {/* ========================================================================= */}
-      {currentStep === "12_schedule" && (
-        <View style={styles.screenWrapper}>
-          <View style={styles.topHeaderNav}>
-            <TouchableOpacity onPress={() => setCurrentStep("11_detail")}>
+              {fotos.map((uri, i) => (
+                <Image
+                  key={uri + i}
+                  source={{ uri }}
+                  style={[styles.heroImg, heroW ? { width: heroW } : null]}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.heroBack, { top: insets.top + 8 }]}
+              onPress={onBack}
+              hitSlop={theme.control.hitSlop}
+            >
               <Icon name="arrow-left" size={20} color={colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.topHeaderNavTitle}>Fechas y horarios</Text>
+            {fotos.length > 1 && (
+              <View style={styles.dots}>
+                {fotos.map((_, i) => (
+                  <View key={i} style={[styles.dot, i === fotoActiva ? styles.dotOn : styles.dotOff]} />
+                ))}
+              </View>
+            )}
           </View>
 
-          <ScrollView contentContainerStyle={styles.scheduleBody} showsVerticalScrollIndicator={false}>
-            <View style={styles.datesRow}>
-              <View style={styles.dateGroup}>
-                <Text style={styles.timeLabel}>RETIRO</Text>
-                <TextInput
-                  style={styles.dateInput}
-                  value={fechaInicio}
-                  onChangeText={setFechaInicio}
-                  placeholder="AAAA-MM-DD"
-                  placeholderTextColor={colors.textMuted}
-                />
-                <TextInput
-                  style={[styles.dateInput, { marginTop: 8 }]}
-                  value={horaRetiro}
-                  onChangeText={setHoraRetiro}
-                  placeholder="HH:MM"
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
-              <View style={styles.dateGroup}>
-                <Text style={styles.timeLabel}>DEVOLUCIÓN</Text>
-                <TextInput
-                  style={styles.dateInput}
-                  value={fechaFin}
-                  onChangeText={setFechaFin}
-                  placeholder="AAAA-MM-DD"
-                  placeholderTextColor={colors.textMuted}
-                />
-                <TextInput
-                  style={[styles.dateInput, { marginTop: 8 }]}
-                  value={horaDevolucion}
-                  onChangeText={setHoraDevolucion}
-                  placeholder="HH:MM"
-                  placeholderTextColor={colors.textMuted}
-                />
+          <View style={styles.body}>
+            <View>
+              <Text style={styles.carName}>{nombreAuto || "Vehículo"}</Text>
+              <View style={styles.metaRow}>
+                <Icon name="location" size={14} color={colors.textMuted} />
+                <Text style={styles.metaText}>{car?.ubicacion_base || "Ubicación no informada"}</Text>
+                <Text style={styles.metaDot}>·</Text>
+                <Text style={styles.metaText}>Patente {car?.patente || "—"}</Text>
               </View>
             </View>
 
-            {dateError && (
-              <View style={styles.warningBox}>
-                <Text style={styles.warningTitle}>Fechas inválidas</Text>
-                <Text style={styles.warningDesc}>{dateError}</Text>
+            {dueno ? (
+              <Card style={styles.hostCard} padded>
+                <View style={styles.hostAvatar}>
+                  {dueno.avatar ? (
+                    <Image source={{ uri: dueno.avatar }} style={styles.hostAvatarImg} />
+                  ) : (
+                    <Icon name="user" size={20} color={colors.textMuted} />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.hostName}>{dueno.nombre}</Text>
+                  <Text style={styles.hostMeta}>
+                    {dueno.rating ? `★ ${dueno.rating}` : "Anfitrión"}
+                    {dueno.viajes ? ` · ${dueno.viajes} arriendos` : ""}
+                  </Text>
+                </View>
+                {dueno.verificado ? (
+                  <View style={styles.verifBadge}>
+                    <Icon name="shield" size={13} color={colors.accent800} />
+                    <Text style={styles.verifText}>Verificado</Text>
+                  </View>
+                ) : null}
+              </Card>
+            ) : null}
+
+            <View style={styles.priceRow}>
+              {[
+                { l: "Día", v: tarifaDia },
+                { l: "Semana", v: tarifaDia * 7 },
+                { l: "Mes", v: tarifaDia * 30 },
+              ].map((p, i) => (
+                <View key={p.l} style={[styles.priceCell, i === 0 && styles.priceCellFirst]}>
+                  <Text style={styles.priceCellLabel}>{p.l}</Text>
+                  <Text style={styles.priceCellValue}>{precioCLP(p.v)}</Text>
+                </View>
+              ))}
+            </View>
+
+            {equipamientoActivo.length > 0 && (
+              <View style={{ gap: theme.spacing.sm }}>
+                <SectionLabel>Equipamiento</SectionLabel>
+                <View style={styles.equipGrid}>
+                  {equipamientoActivo.map((label) => (
+                    <View key={label} style={styles.equipChip}>
+                      <Icon name="check" size={12} color={colors.accent700} />
+                      <Text style={styles.equipText}>{label}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             )}
 
-            {/* Subtotal Card */}
-            <View style={styles.subtotalCard}>
-              <View>
-                <Text style={styles.subtotalTitle}>{dias > 0 ? `${dias} día${dias === 1 ? "" : "s"} de arriendo` : "Selecciona fechas válidas"}</Text>
-                {dias > 0 && (
-                  <Text style={styles.subtotalRange}>
-                    {formatearFechaCorta(fechaInicio)} {horaRetiro} → {formatearFechaCorta(fechaFin)} {horaDevolucion}
-                  </Text>
-                )}
-              </View>
-              <Text style={styles.subtotalValue}>${montoHold.toLocaleString("es-CL")}</Text>
-            </View>
-          </ScrollView>
-
-          <View style={styles.footerBar}>
-            <TouchableOpacity
-              style={styles.primaryActionBtn}
-              onPress={handleContinuarAFechas}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryActionBtnText}>Ver el resumen</Text>
-            </TouchableOpacity>
+            <Card style={styles.noteCard} padded elevated={false}>
+              <Icon name="shield" size={18} color={colors.primary} />
+              <Text style={styles.noteText}>
+                Retiro y devolución 100% digital: código QR y checklist fotográfico de 9 ángulos, sin mostrador.
+                La garantía se retiene, no se cobra.
+              </Text>
+            </Card>
           </View>
+        </ScrollView>
+
+        <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+          <View>
+            <Text style={styles.barPrice}>{precioCLP(tarifaDia)}</Text>
+            <Text style={styles.barPer}>por día</Text>
+          </View>
+          <Button label="Elegir fechas" onPress={() => setStep("schedule")} fullWidth={false} style={{ flex: 1 }} />
         </View>
-      )}
+      </View>
+    );
+  }
 
-      {/* ========================================================================= */}
-      {/* PANTALLA 13: RESUMEN DE LA RESERVA */}
-      {/* ========================================================================= */}
-      {currentStep === "13_summary" && (
-        <View style={styles.screenWrapper}>
-          <View style={styles.topHeaderNav}>
-            <TouchableOpacity onPress={() => setCurrentStep("12_schedule")}>
-              <Icon name="arrow-left" size={20} color={colors.primary} />
-            </TouchableOpacity>
-            <Text style={styles.topHeaderNavTitle}>Resumen de la reserva</Text>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.summaryBody} showsVerticalScrollIndicator={false}>
-            {/* Auto Card Summary */}
-            <View style={styles.carSummaryCard}>
-              <View style={styles.carSummaryThumb}>
-                <Image
-                  source={{
-                    uri: fotoPrincipal || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
-                  }}
-                  style={styles.summaryCarImg}
+  // --------------------------------------------------------------- FECHAS
+  if (step === "schedule") {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+        <ScreenHeader title="Fechas y horarios" onBack={() => setStep("detail")} />
+        <ScrollView contentContainerStyle={styles.stepBody} showsVerticalScrollIndicator={false}>
+          <View style={styles.datesRow}>
+            {[
+              { label: "Retiro", fecha: fechaInicio, setFecha: setFechaInicio, hora: horaRetiro, setHora: setHoraRetiro },
+              { label: "Devolución", fecha: fechaFin, setFecha: setFechaFin, hora: horaDevolucion, setHora: setHoraDevolucion },
+            ].map((g) => (
+              <View key={g.label} style={{ flex: 1, gap: 6 }}>
+                <SectionLabel>{g.label}</SectionLabel>
+                <TextInput
+                  style={styles.input}
+                  value={g.fecha}
+                  onChangeText={g.setFecha}
+                  placeholder="AAAA-MM-DD"
+                  placeholderTextColor={colors.textPlaceholder}
+                />
+                <TextInput
+                  style={styles.input}
+                  value={g.hora}
+                  onChangeText={g.setHora}
+                  placeholder="HH:MM"
+                  placeholderTextColor={colors.textPlaceholder}
                 />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.summaryCarName}>{nombreAuto || "Vehículo"}</Text>
-                <Text style={styles.summaryCarTime}>
+            ))}
+          </View>
+
+          {dateError && (
+            <View style={styles.warnBox}>
+              <Text style={styles.warnTitle}>Fechas inválidas</Text>
+              <Text style={styles.warnText}>{dateError}</Text>
+            </View>
+          )}
+
+          <Card style={styles.subtotalCard} padded>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.subtotalTitle}>
+                {dias > 0 ? `${dias} ${dias === 1 ? "día" : "días"} de arriendo` : "Elige fechas válidas"}
+              </Text>
+              {dias > 0 && (
+                <Text style={styles.subtotalRange}>
                   {formatearFechaCorta(fechaInicio)} {horaRetiro} → {formatearFechaCorta(fechaFin)} {horaDevolucion}
                 </Text>
-                <Text style={styles.summaryCarLocation}>{car?.ubicacion_base}</Text>
-              </View>
+              )}
             </View>
+            <Text style={styles.subtotalValue}>{precioCLP(montoHold)}</Text>
+          </Card>
+        </ScrollView>
 
-            {/* Price Breakdown Table */}
-            <View style={styles.breakdownCard}>
-              <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownLabel}>Tarifa diaria</Text>
-                <Text style={styles.breakdownValue}>${tarifaDia.toLocaleString("es-CL")}</Text>
-              </View>
-              <View style={styles.breakdownRow}>
-                <Text style={styles.breakdownLabel}>Días de arriendo</Text>
-                <Text style={styles.breakdownValue}>{dias}</Text>
-              </View>
-              <View style={[styles.breakdownRow, styles.breakdownDivider]}>
-                <Text style={styles.breakdownTotalLabel}>Total retenido (hold)</Text>
-                <Text style={styles.breakdownTotalValue}>${montoHold.toLocaleString("es-CL")}</Text>
-              </View>
-            </View>
-
-            {/* Guarantee Hold Notice */}
-            <View style={styles.warningBox}>
-              <Text style={styles.warningTitle}>No es un cobro inmediato</Text>
-              <Text style={styles.warningDesc}>
-                Se retiene una pre-autorización de ${montoHold.toLocaleString("es-CL")} en tu tarjeta. Se libera cuando el dueño confirme el estado del auto al devolverlo, descontando solo cargos justificados (limpieza, combustible, km extra).
-              </Text>
-            </View>
-          </ScrollView>
-
-          <View style={styles.footerBar}>
-            <TouchableOpacity
-              style={styles.primaryActionBtn}
-              onPress={() =>
-                onProceedToPayment(car, {
-                  fechaInicio: `${fechaInicio}T${horaRetiro}:00`,
-                  fechaFin: `${fechaFin}T${horaDevolucion}:00`,
-                  dias,
-                  montoHold,
-                })
-              }
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryActionBtnText}>Ir a pagar</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+          <Button label="Ver el resumen" onPress={irAResumen} />
         </View>
-      )}
+      </View>
+    );
+  }
+
+  // -------------------------------------------------------------- RESUMEN
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <ScreenHeader title="Resumen de la reserva" onBack={() => setStep("schedule")} />
+      <ScrollView contentContainerStyle={styles.stepBody} showsVerticalScrollIndicator={false}>
+        <Card style={styles.sumCarCard} padded>
+          <Image source={{ uri: fotos[0] }} style={styles.sumThumb} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sumName}>{nombreAuto || "Vehículo"}</Text>
+            <Text style={styles.sumMeta}>
+              {formatearFechaCorta(fechaInicio)} {horaRetiro} → {formatearFechaCorta(fechaFin)} {horaDevolucion}
+            </Text>
+            <Text style={styles.sumMeta}>{car?.ubicacion_base}</Text>
+          </View>
+        </Card>
+
+        <Card padded style={{ gap: theme.spacing.md }}>
+          <View style={styles.bdRow}>
+            <Text style={styles.bdLabel}>Tarifa diaria</Text>
+            <Text style={styles.bdValue}>{precioCLP(tarifaDia)}</Text>
+          </View>
+          <View style={styles.bdRow}>
+            <Text style={styles.bdLabel}>Días de arriendo</Text>
+            <Text style={styles.bdValue}>{dias}</Text>
+          </View>
+          <View style={[styles.bdRow, styles.bdTotal]}>
+            <Text style={styles.bdTotalLabel}>Total retenido (hold)</Text>
+            <Text style={styles.bdTotalValue}>{precioCLP(montoHold)}</Text>
+          </View>
+        </Card>
+
+        <View style={styles.warnBox}>
+          <Text style={styles.warnTitle}>No es un cobro inmediato</Text>
+          <Text style={styles.warnText}>
+            Se retiene una pre-autorización de {precioCLP(montoHold)} en tu tarjeta. Se libera cuando el dueño
+            confirme el estado del auto al devolverlo, descontando solo cargos justificados (limpieza,
+            combustible, km extra).
+          </Text>
+        </View>
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+        <Button
+          label="Ir a pagar"
+          iconRight="arrow-right"
+          onPress={() =>
+            onProceedToPayment(car, {
+              fechaInicio: `${fechaInicio}T${horaRetiro}:00`,
+              fechaFin: `${fechaFin}T${horaDevolucion}:00`,
+              dias,
+              montoHold,
+            })
+          }
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  screenWrapper: {
-    flex: 1,
-    justifyContent: "space-between",
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  heroContainer: {
-    height: 232,
-    backgroundColor: colors.primary100,
-    position: "relative",
-  },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-  },
-  heroBackBtn: {
+  container: { flex: 1, backgroundColor: colors.background },
+
+  hero: { height: 260, backgroundColor: colors.primary100 },
+  heroImg: { width: "100%", height: "100%" },
+  heroBack: {
     position: "absolute",
-    top: 16,
-    left: 16,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    left: theme.spacing.screen,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.94)",
     alignItems: "center",
     justifyContent: "center",
+    ...theme.shadow.sm,
   },
-  paginationDots: {
-    position: "absolute",
-    bottom: 14,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
+  dots: { position: "absolute", bottom: 14, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 6 },
+  dot: { height: 6, borderRadius: 999 },
+  dotOn: { width: 20, backgroundColor: "#FFFFFF" },
+  dotOff: { width: 6, backgroundColor: "rgba(255,255,255,0.6)" },
+
+  body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
+  carName: { ...theme.typography.title, color: colors.text },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6, flexWrap: "wrap" },
+  metaText: { fontSize: 13, color: colors.textMuted },
+  metaDot: { color: colors.textMuted },
+
+  hostCard: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  hostAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    overflow: "hidden",
   },
-  dot: {
-    height: 6,
-    borderRadius: 999,
-  },
-  dotActive: {
-    width: 20,
-    backgroundColor: "#FFFFFF",
-  },
-  dotInactive: {
-    width: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
-  },
-  bodyContent: {
-    padding: 20,
-    gap: 16,
-  },
-  titleSection: {
-    gap: 6,
-  },
-  carName: {
-    fontSize: 22,
-    fontWeight: "600",
-    letterSpacing: -0.2,
-    color: colors.text,
-  },
-  carSpecsSubtitle: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  pricingBoxesRow: {
+  hostAvatarImg: { width: "100%", height: "100%" },
+  hostName: { fontSize: 15, fontWeight: "600", color: colors.text },
+  hostMeta: { fontSize: 13, color: colors.textMuted, marginTop: 1 },
+  verifBadge: {
     flexDirection: "row",
-    gap: 8,
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.accent100,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: theme.radius.pill,
   },
-  pricingBox: {
-    flex: 1,
-    backgroundColor: colors.surface,
+  verifText: { fontSize: 11, fontWeight: "700", color: colors.accent800 },
+
+  priceRow: {
+    flexDirection: "row",
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: "center",
-    gap: 2,
+    borderRadius: theme.radius.card,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
   },
-  pricingBoxLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  pricingBoxValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  locationText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    flex: 1,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.8,
-    color: colors.textMuted,
-    textTransform: "uppercase",
-  },
-  equipSection: {
-    gap: 8,
-  },
-  equipGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
+  priceCell: { flex: 1, alignItems: "center", paddingVertical: theme.spacing.md, gap: 3, borderLeftWidth: 1, borderLeftColor: colors.border },
+  priceCellFirst: { borderLeftWidth: 0 },
+  priceCellLabel: { fontSize: 12, color: colors.textMuted },
+  priceCellValue: { fontSize: 15, fontWeight: "700", color: colors.text },
+
+  equipGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
   equipChip: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
     backgroundColor: colors.accent100,
-    borderRadius: 999,
+    borderRadius: theme.radius.pill,
     paddingVertical: 6,
     paddingHorizontal: 12,
   },
-  equipChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.accent700,
-  },
-  warningBoxNeutral: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
-  },
-  warningDescNeutral: {
-    fontSize: 13,
-    color: colors.textMuted,
-    lineHeight: 19,
-  },
-  bottomActionBar: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingBottom: 26,
+  equipText: { fontSize: 12, fontWeight: "600", color: colors.accent700 },
+
+  noteCard: { flexDirection: "row", gap: theme.spacing.md, backgroundColor: colors.primary100, borderColor: colors.primary200 },
+  noteText: { flex: 1, fontSize: 13, color: colors.primary, lineHeight: 19 },
+
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.screen,
+    paddingTop: theme.spacing.md,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
   },
-  bottomPriceValue: {
-    fontSize: 19,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  bottomPriceLabel: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  actionBtn: {
-    flex: 1,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionBtnText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  topHeaderNav: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  topHeaderNavTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  scheduleBody: {
-    padding: 20,
-    gap: 18,
-  },
-  datesRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  dateGroup: {
-    flex: 1,
-  },
-  timeLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.8,
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    marginBottom: 6,
-  },
-  dateInput: {
-    height: 48,
+  barPrice: { fontSize: 18, fontWeight: "700", color: colors.text },
+  barPer: { fontSize: 12, color: colors.textMuted },
+
+  stepBody: { padding: theme.spacing.screen, gap: theme.spacing.lg },
+  datesRow: { flexDirection: "row", gap: theme.spacing.md },
+  input: {
+    height: theme.control.heightSm,
     borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: theme.radius.field,
     backgroundColor: colors.surface,
     paddingHorizontal: 14,
     fontSize: 15,
     color: colors.text,
   },
-  warningBox: {
-    backgroundColor: "#FFF8EC",
-    borderRadius: 12,
-    padding: 14,
-    gap: 4,
-  },
-  warningTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#8A5B0B",
-  },
-  warningDesc: {
-    fontSize: 14,
-    color: "#8A5B0B",
-    lineHeight: 20,
-  },
-  subtotalCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  subtotalTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  subtotalRange: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  subtotalValue: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  footerBar: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 30,
+  warnBox: { backgroundColor: colors.warningBg, borderRadius: theme.radius.field, padding: theme.spacing.lg, gap: 4 },
+  warnTitle: { fontSize: 14, fontWeight: "700", color: colors.warningText },
+  warnText: { fontSize: 13, color: colors.warningText, lineHeight: 19 },
+
+  subtotalCard: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  subtotalTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
+  subtotalRange: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  subtotalValue: { fontSize: 18, fontWeight: "700", color: colors.text },
+
+  footer: {
+    paddingHorizontal: theme.spacing.screen,
+    paddingTop: theme.spacing.md,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  primaryActionBtn: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryActionBtnText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  summaryBody: {
-    padding: 20,
-    gap: 14,
-  },
-  carSummaryCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  carSummaryThumb: {
-    width: 76,
-    height: 58,
-    borderRadius: 10,
-    backgroundColor: colors.primary100,
-    overflow: "hidden",
-  },
-  summaryCarImg: {
-    width: "100%",
-    height: "100%",
-  },
-  summaryCarName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  summaryCarTime: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  summaryCarLocation: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  breakdownCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 16,
-    gap: 11,
-  },
-  breakdownRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  breakdownDivider: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 11,
-  },
-  breakdownLabel: {
-    fontSize: 15,
-    color: colors.textMuted,
-  },
-  breakdownValue: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  breakdownTotalLabel: {
-    fontSize: 19,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  breakdownTotalValue: {
-    fontSize: 19,
-    fontWeight: "600",
-    color: colors.text,
-  },
+
+  sumCarCard: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  sumThumb: { width: 76, height: 58, borderRadius: theme.radius.field, backgroundColor: colors.primary100 },
+  sumName: { fontSize: 15, fontWeight: "700", color: colors.text },
+  sumMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+
+  bdRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  bdLabel: { fontSize: 15, color: colors.textMuted },
+  bdValue: { fontSize: 15, color: colors.text, fontWeight: "500" },
+  bdTotal: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: theme.spacing.md },
+  bdTotalLabel: { fontSize: 17, fontWeight: "700", color: colors.text },
+  bdTotalValue: { fontSize: 18, fontWeight: "700", color: colors.text },
 });

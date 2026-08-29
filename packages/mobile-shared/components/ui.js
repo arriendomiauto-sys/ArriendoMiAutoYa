@@ -194,6 +194,71 @@ export function SectionLabel({ children, tone = "light", style }) {
 }
 
 // ---------------------------------------------------------------------------
+// StatRow — fila de métricas separadas por divisores
+// ---------------------------------------------------------------------------
+export function StatRow({ items, tone = "light", style }) {
+  const p = palette(tone);
+  return (
+    <View
+      style={[
+        styles.statRow,
+        { backgroundColor: p.surface, borderColor: p.border },
+        style,
+      ]}
+    >
+      {items.map((it, i) => (
+        <React.Fragment key={it.label}>
+          {i > 0 ? <View style={[styles.statDivider, { backgroundColor: p.border }]} /> : null}
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: p.accent }]}>{it.value}</Text>
+            <Text style={[styles.statLabel, { color: p.textMuted }]}>{it.label}</Text>
+          </View>
+        </React.Fragment>
+      ))}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MenuList / MenuRow — lista de accesos con icono, opcionalmente agrupada
+// ---------------------------------------------------------------------------
+export function MenuList({ children, tone = "light", style }) {
+  const p = palette(tone);
+  const rows = React.Children.toArray(children).filter(Boolean);
+  return (
+    <View
+      style={[styles.menuList, { backgroundColor: p.surface, borderColor: p.border }, style]}
+    >
+      {rows.map((child, i) =>
+        React.cloneElement(child, { tone, _last: i === rows.length - 1 })
+      )}
+    </View>
+  );
+}
+
+export function MenuRow({ icon, label, meta, onPress, tone = "light", danger = false, _last = false }) {
+  const p = palette(tone);
+  const color = danger ? colors.danger : p.accent;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[styles.menuRow, !_last && { borderBottomWidth: 1, borderBottomColor: p.border }]}
+    >
+      <View style={styles.menuRowLeft}>
+        <Icon name={icon} size={19} color={color} />
+        <Text style={[styles.menuRowText, { color: danger ? colors.danger : p.text }]}>{label}</Text>
+      </View>
+      {meta ? (
+        <Text style={[styles.menuRowMeta, { color: p.textMuted }]}>{meta}</Text>
+      ) : (
+        <Icon name="chevron-right" size={16} color={p.textMuted} />
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // EmptyState — pantalla/lista vacía con invitación a actuar
 // ---------------------------------------------------------------------------
 export function EmptyState({ icon = "car", title, message, action, onAction, tone = "light" }) {
@@ -272,6 +337,34 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
+
+  statRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: theme.radius.card,
+    paddingVertical: theme.spacing.lg,
+  },
+  statItem: { flex: 1, alignItems: "center", gap: 3 },
+  statValue: { fontSize: 20, fontWeight: "700", letterSpacing: -0.3 },
+  statLabel: { fontSize: 12 },
+  statDivider: { width: 1, height: 30 },
+
+  menuList: {
+    borderWidth: 1,
+    borderRadius: theme.radius.card,
+    overflow: "hidden",
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 15,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  menuRowLeft: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md, flex: 1 },
+  menuRowText: { fontSize: 15, fontWeight: "500" },
+  menuRowMeta: { fontSize: 13 },
 
   empty: {
     alignItems: "center",
