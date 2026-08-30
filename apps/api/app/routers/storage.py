@@ -1,12 +1,15 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Depends
+from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, status, Depends
 from app.services.storage import StorageService
 from app.models.entities import Usuario
 from app.services.auth import get_current_user
+from app.core.limiter import limiter
 
 router = APIRouter(prefix="/storage", tags=["Almacenamiento de Archivos (Supabase / Local)"])
 
 @router.post("/upload", summary="Sube una foto o documento a Supabase Storage o servidor local")
+@limiter.limit("20/minute")
 async def subir_archivo(
+    request: Request,
     file: UploadFile = File(..., description="Archivo de imagen (JPG, PNG, WebP)"),
     bucket: str = Form("general", description="Bucket: autos, documentos-kyc, checklists, evidencias, general"),
     current_user: Usuario = Depends(get_current_user),
@@ -25,7 +28,8 @@ async def subir_archivo(
         contenido_bytes=contenido,
         nombre_original=file.filename or "archivo.jpg",
         content_type=file.content_type or "image/jpeg",
-        bucket=bucket
+        bucket=bucket,
+        base_url=str(request.base_url),
     )
 
     if not resultado.get("success"):

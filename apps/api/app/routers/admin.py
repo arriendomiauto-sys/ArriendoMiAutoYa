@@ -65,7 +65,12 @@ def obtener_deducible_info(db: Session = Depends(get_db)):
     return PricingService.calcular_deducible_seguro(db)
 
 @router.get("/panel-financiero", summary="Resumen financiero global (holds, liquidaciones, cobros)")
-def obtener_panel_financiero(db: Session = Depends(get_db)):
+def obtener_panel_financiero(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
     pagos = db.query(Pago).all()
     
     total_holds_capturados = sum(p.monto for p in pagos if "hold" in p.tipo and p.estado == "capturado")
@@ -82,7 +87,12 @@ def obtener_panel_financiero(db: Session = Depends(get_db)):
     }
 
 @router.get("/metricas-globales", summary="Métricas operativas de la plataforma")
-def obtener_metricas(db: Session = Depends(get_db)):
+def obtener_metricas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
     return {
         "total_usuarios": db.query(Usuario).count(),
         "total_autos_activos": db.query(Auto).filter(Auto.estado == "activo").count(),
@@ -90,11 +100,52 @@ def obtener_metricas(db: Session = Depends(get_db)):
         "total_disputas_abiertas": db.query(Disputa).filter(Disputa.estado == "abierta").count()
     }
 
+@router.get("/flota-sucursal", summary="Listar la flota de la sucursal del Manager (Admin/Manager)")
+def listar_flota_sucursal(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Autos cuyos dueños pertenecen a la misma sucursal del Manager autenticado,
+    con el nombre/RUT del dueño incluido (visible solo para Admin/Manager).
+    Un Admin ve la flota completa de la plataforma.
+    """
+    roles = current_user.roles_activos or []
+    if "admin" not in roles and "manager" not in roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin o Manager.")
+
+    query = db.query(Auto).join(Usuario, Auto.dueno_id == Usuario.id)
+    if "admin" not in roles:
+        query = query.filter(Usuario.sucursal_id == current_user.sucursal_id)
+
+    return [
+        {
+            "id": auto.id,
+            "marca": auto.marca,
+            "modelo": auto.modelo,
+            "anio": auto.anio,
+            "patente": auto.patente,
+            "tarifa_dia": auto.tarifa_dia,
+            "estado": auto.estado,
+            "ubicacion_base": auto.ubicacion_base,
+            "dueno_nombre": auto.dueno.nombre,
+            "dueno_rut": auto.dueno.rut,
+        }
+        for auto in query.all()
+    ]
+
 @router.get("/documentos/pendientes", response_model=List[UserOut], summary="Listar usuarios con documentos que requieren revisión manual (Admin/Manager RF-27)")
-def listar_documentos_pendientes(db: Session = Depends(get_db)):
+def listar_documentos_pendientes(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     """
     Devuelve los usuarios con score de confianza OCR bajo (< 80%) o inconsistencias para revisión humana.
+    Contiene datos personales (RUT, teléfono) — solo Admin o Manager.
     """
+    roles = current_user.roles_activos or []
+    if "admin" not in roles and "manager" not in roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin o Manager.")
     return db.query(Usuario).filter(Usuario.estado_documentos == "requiere_revision_manual").all()
 
 @router.post("/documentos/{usuario_id}/revisar", response_model=UserOut, summary="Aprobar o rechazar manualmente documentos de enrolamiento (Admin exclusivo RF-31)")

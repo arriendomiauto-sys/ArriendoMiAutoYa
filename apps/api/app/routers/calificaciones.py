@@ -22,9 +22,12 @@ def crear_calificacion(
     if reserva.estado != "finalizada":
         raise HTTPException(status_code=400, detail="Solo se pueden emitir calificaciones para arriendos finalizados.")
 
+    # autor_id siempre es el usuario autenticado: no se confía en el valor
+    # del payload (evita que alguien firme una calificación como si fuera
+    # otro usuario).
     calificacion = Calificacion(
         reserva_id=payload.reserva_id,
-        autor_id=payload.autor_id or current_user.id,
+        autor_id=current_user.id,
         autor_rol=payload.autor_rol,
         destinatario_id=payload.destinatario_id,
         puntaje=payload.puntaje,

@@ -1,10 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
+from app.core.schema_sync import sync_missing_columns
 from app.core.seed import seed_demo_data
+from app.core.limiter import limiter
 
 import os
 from fastapi.staticfiles import StaticFiles
@@ -20,13 +25,24 @@ from app.routers import (
     calificaciones,
     pagos,
     storage,
-    usuarios
+    usuarios,
+    gestion_flota,
+    mensajes,
+    notificaciones,
 )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Crear tablas automáticamente si es SQLite local
+    # Crear tablas automáticamente si es SQLite local. create_all() no altera
+    # tablas ya existentes: si agregas una columna a un modelo, borra
+    # rentacar_dev.db (gitignored, se regenera solo) o quedará desincronizada
+    # y todo lo que use TestClient (tests, uvicorn --reload) fallará con
+    # "no such column" al chocar contra el schema viejo en disco.
     Base.metadata.create_all(bind=engine)
+    # create_all() no altera tablas ya existentes: esto agrega las columnas
+    # que se hayan sumado a los modelos (Postgres no se puede "regenerar
+    # borrando el archivo" como el SQLite local).
+    sync_missing_columns()
     os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
     db = SessionLocal()
     try:
@@ -44,10 +60,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS
+# Rate limiting: límite global por IP contra abuso/fuerza bruta (además
+# protege a Supabase de quedar expuesto a un aluvión de tokens basura, ya
+# que get_current_user le hace una llamada real por cada request
+# autenticado). Endpoints puntuales de mayor riesgo (subida de archivos,
+# publicar auto, crear reserva, completar enrolamiento) tienen además su
+# propio límite más estricto, definido en cada router.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# CORS: solo orígenes conocidos (ver settings.CORS_ORIGINS). Las apps
+# mobile no envían Origin (no son navegador), así que esto solo afecta a
+# apps/web y a Expo en modo web durante desarrollo.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,6 +98,9 @@ app.include_router(calificaciones.router, prefix=api_prefix)
 app.include_router(pagos.router, prefix=api_prefix)
 app.include_router(storage.router, prefix=api_prefix)
 app.include_router(usuarios.router, prefix=api_prefix)
+app.include_router(gestion_flota.router, prefix=api_prefix)
+app.include_router(mensajes.router, prefix=api_prefix)
+app.include_router(notificaciones.router, prefix=api_prefix)
 
 @app.get("/", tags=["Health"])
 def root():

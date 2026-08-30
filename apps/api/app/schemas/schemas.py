@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict
 from datetime import datetime
 from app.core.validators import validar_rut_chileno, validar_patente_chilena
 
@@ -30,6 +30,7 @@ class UserEnrolamiento(UserBase):
     carnet_frontal_url: Optional[str] = None
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None
+    foto_perfil_verificada_url: Optional[str] = None
     tarjeta_token: Optional[str] = None
 
 class UserOut(UserBase):
@@ -43,6 +44,30 @@ class UserOut(UserBase):
     roles_activos: List[str]
     sucursal_id: Optional[str] = None
     fecha_registro: datetime
+    cuenta_bancaria: Optional[Dict[str, str]] = None
+
+class CuentaBancariaUpdate(BaseModel):
+    banco: str
+    tipo_cuenta: str
+    numero: str
+    titular: str
+    rut: str
+
+    @field_validator("rut")
+    @classmethod
+    def check_rut_titular(cls, v: str) -> str:
+        if not validar_rut_chileno(v):
+            raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
+        return v
+
+class PerfilBasicoUpdate(BaseModel):
+    """
+    Datos de perfil que NO son de identidad (no pasan por OCR/Módulo-11) —
+    los puede actualizar una cuenta "simple" recién creada, sin haber hecho
+    el enrolamiento KYC todavía.
+    """
+    nombre: str
+    telefono: Optional[str] = None
 
 class DocumentReviewRequest(BaseModel):
     accion: Literal["aprobar", "rechazar"]
@@ -61,6 +86,22 @@ class AutoBase(BaseModel):
     latitud: Optional[float] = None
     longitud: Optional[float] = None
     fotos: List[str] = []
+    equipamiento: Dict[str, bool] = {}
+
+    # Ficha técnica (opcional; se muestra en el detalle del auto).
+    transmision: Optional[Literal["automatica", "mecanica"]] = None
+    combustible: Optional[Literal["bencina", "diesel", "hibrido", "electrico"]] = None
+    asientos: Optional[int] = Field(None, ge=1, le=9)
+    puertas: Optional[int] = Field(None, ge=2, le=6)
+    categoria: Optional[Literal["economico", "sedan", "suv", "camioneta", "premium"]] = None
+    descripcion: Optional[str] = Field(None, max_length=1000)
+
+    # Documentos del vehículo (URLs de Storage). Opcionales en la base para
+    # que AutoOut/AutoUpdate no los exijan; AutoCreate los vuelve obligatorios.
+    doc_inscripcion_url: Optional[str] = None
+    doc_permiso_circulacion_url: Optional[str] = None
+    doc_soap_url: Optional[str] = None
+    doc_revision_tecnica_url: Optional[str] = None
 
     @field_validator("patente")
     @classmethod
@@ -71,12 +112,26 @@ class AutoBase(BaseModel):
 
 class AutoCreate(AutoBase):
     dueno_id: Optional[str] = None
+    # Para publicar hay que subir los 4 documentos legales del auto. Se
+    # dejan opcionales en el schema y el router devuelve un 400 legible
+    # nombrando exactamente cuáles faltan (mejor que el 422 de pydantic).
 
 class AutoUpdate(BaseModel):
     tarifa_dia: Optional[int] = None
     estado: Optional[str] = None
     fotos: Optional[List[str]] = None
     ubicacion_base: Optional[str] = None
+    equipamiento: Optional[Dict[str, bool]] = None
+    transmision: Optional[Literal["automatica", "mecanica"]] = None
+    combustible: Optional[Literal["bencina", "diesel", "hibrido", "electrico"]] = None
+    asientos: Optional[int] = Field(None, ge=1, le=9)
+    puertas: Optional[int] = Field(None, ge=2, le=6)
+    categoria: Optional[Literal["economico", "sedan", "suv", "camioneta", "premium"]] = None
+    descripcion: Optional[str] = Field(None, max_length=1000)
+    doc_inscripcion_url: Optional[str] = None
+    doc_permiso_circulacion_url: Optional[str] = None
+    doc_soap_url: Optional[str] = None
+    doc_revision_tecnica_url: Optional[str] = None
 
 class AutoOut(AutoBase):
     model_config = ConfigDict(from_attributes=True)
@@ -84,6 +139,7 @@ class AutoOut(AutoBase):
     id: str
     dueno_id: str
     estado: str
+    documentos_verificados: bool = False
 
 # ==============================================================================
 # RESERVAS
@@ -297,3 +353,79 @@ class RatingOut(BaseModel):
     puntaje: int
     comentario: Optional[str] = None
     timestamp: datetime
+
+# ==============================================================================
+# MANTENCIONES Y DOCUMENTACIÓN DEL AUTO
+# ==============================================================================
+class MaintenanceCreate(BaseModel):
+    tipo: Literal["documento_legal", "servicio_mecanico"]
+    nombre: str
+    fecha_vencimiento: Optional[datetime] = None
+    kilometraje: Optional[int] = None
+    notas: Optional[str] = None
+    documento_url: Optional[str] = None
+
+class MaintenanceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    auto_id: str
+    tipo: str
+    nombre: str
+    fecha_vencimiento: Optional[datetime] = None
+    kilometraje: Optional[int] = None
+    notas: Optional[str] = None
+    documento_url: Optional[str] = None
+    creado_en: datetime
+
+# ==============================================================================
+# CALENDARIO DE DISPONIBILIDAD DEL AUTO
+# ==============================================================================
+class CalendarBlockCreate(BaseModel):
+    fecha: datetime
+    motivo: Optional[str] = None
+
+class CalendarBlockOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    auto_id: str
+    fecha: datetime
+    motivo: Optional[str] = None
+    creado_en: datetime
+
+# ==============================================================================
+# EXTENSIÓN DE RESERVA
+# ==============================================================================
+class ExtendBookingRequest(BaseModel):
+    dias_adicionales: int = Field(..., gt=0, le=30)
+
+# ==============================================================================
+# MENSAJERÍA (CHAT POR RESERVA)
+# ==============================================================================
+class MessageCreate(BaseModel):
+    texto: str = Field(..., min_length=1, max_length=2000)
+
+class MessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    reserva_id: str
+    autor_id: str
+    texto: str
+    timestamp: datetime
+
+# ==============================================================================
+# NOTIFICACIONES
+# ==============================================================================
+class NotificacionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    tipo: str
+    titulo: str
+    mensaje: str
+    leido: bool
+    entidad_tipo: Optional[str] = None
+    entidad_id: Optional[str] = None
+    creado_en: datetime

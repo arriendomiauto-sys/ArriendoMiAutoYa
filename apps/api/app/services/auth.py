@@ -47,36 +47,6 @@ class AuthService:
 
         return True
 
-def get_current_user_placeholder(
-    x_user_id: Optional[str] = Header(None, description="ID del usuario autenticado (placeholder)"),
-    db: Session = Depends(get_db)
-) -> Usuario:
-    """
-    Dependency para obtener el usuario actual. En producción valida el JWT de Supabase Auth.
-    En modo desarrollo permite pasar el header X-User-Id o usa el primer usuario disponible.
-    """
-    if x_user_id:
-        user = db.query(Usuario).filter(Usuario.id == x_user_id).first()
-        if user:
-            return user
-    
-    # Fallback para pruebas si no se envía header
-    first_user = db.query(Usuario).first()
-    if first_user:
-        return first_user
-
-    # Crear usuario demo si la BD está vacía
-    demo_user = Usuario(
-        nombre="Usuario Demo",
-        rut="12.345.678-9",
-        email="demo@arriendatuauto.cl",
-        roles_activos=["dueno", "cliente", "manager", "admin"]
-    )
-    db.add(demo_user)
-    db.commit()
-    db.refresh(demo_user)
-    return demo_user
-
 async def get_current_user(
     authorization: str = Header(None, description="Bearer <supabase_access_token>"),
     db: Session = Depends(get_db)

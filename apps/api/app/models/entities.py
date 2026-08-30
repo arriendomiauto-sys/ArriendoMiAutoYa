@@ -25,6 +25,7 @@ class Usuario(Base):
     roles_activos = Column(JSON, default=lambda: ["cliente"]) # ["dueno", "cliente", "manager", "admin"]
     sucursal_id = Column(String, ForeignKey("sucursales.id"), nullable=True)
     fecha_registro = Column(DateTime, default=utc_now)
+    cuenta_bancaria = Column(JSON, nullable=True) # {"banco","tipo_cuenta","numero","titular","rut"} — solo dueños
 
     # Relaciones
     autos = relationship("Auto", back_populates="dueno", foreign_keys="Auto.dueno_id")
@@ -46,10 +47,29 @@ class Auto(Base):
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)
     fotos = Column(JSON, default=list)
+    equipamiento = Column(JSON, default=dict) # ej. {"ac": true, "bluetooth": true, "isofix": false, ...}
+
+    # Ficha técnica del vehículo (se muestra en el detalle público del auto).
+    transmision = Column(String, nullable=True)   # "automatica" | "mecanica"
+    combustible = Column(String, nullable=True)   # "bencina" | "diesel" | "hibrido" | "electrico"
+    asientos = Column(Integer, nullable=True)
+    puertas = Column(Integer, nullable=True)
+    categoria = Column(String, nullable=True)     # "economico" | "sedan" | "suv" | "camioneta" | "premium"
+    descripcion = Column(Text, nullable=True)
+
+    # Documentos legales del vehículo — obligatorios para publicar. Se
+    # guardan como URLs de Supabase Storage (bucket privado documentos-autos).
+    doc_inscripcion_url = Column(String, nullable=True)          # Certificado de inscripción / Padrón
+    doc_permiso_circulacion_url = Column(String, nullable=True)  # Permiso de circulación vigente
+    doc_soap_url = Column(String, nullable=True)                 # Seguro Obligatorio (SOAP) vigente
+    doc_revision_tecnica_url = Column(String, nullable=True)     # Revisión técnica al día
+    documentos_verificados = Column(Boolean, default=False)     # Los revisó un ejecutivo
 
     # Relaciones
     dueno = relationship("Usuario", back_populates="autos", foreign_keys=[dueno_id])
     reservas = relationship("Reserva", back_populates="auto")
+    mantenciones = relationship("MantencionAuto", back_populates="auto")
+    bloqueos_calendario = relationship("BloqueoCalendarioAuto", back_populates="auto")
 
 class Reserva(Base):
     __tablename__ = "reservas"
@@ -81,6 +101,7 @@ class Reserva(Base):
     pagos = relationship("Pago", back_populates="reserva")
     disputas = relationship("Disputa", back_populates="reserva")
     calificaciones = relationship("Calificacion", back_populates="reserva")
+    mensajes = relationship("Mensaje", back_populates="reserva")
 
 class VerificacionEntrega(Base):
     __tablename__ = "verificaciones_entrega"
@@ -191,6 +212,60 @@ class Sucursal(Base):
 
     # Relaciones
     tickets = relationship("TicketSoporte", back_populates="sucursal")
+
+class MantencionAuto(Base):
+    __tablename__ = "mantenciones_auto"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    auto_id = Column(String, ForeignKey("autos.id"), nullable=False)
+    tipo = Column(String, nullable=False) # documento_legal, servicio_mecanico
+    nombre = Column(String, nullable=False) # ej. "Revisión Técnica", "Cambio de aceite"
+    fecha_vencimiento = Column(DateTime, nullable=True) # solo aplica a documento_legal
+    kilometraje = Column(Integer, nullable=True) # solo aplica a servicio_mecanico
+    notas = Column(Text, nullable=True)
+    documento_url = Column(String, nullable=True)
+    creado_en = Column(DateTime, default=utc_now)
+
+    # Relaciones
+    auto = relationship("Auto", back_populates="mantenciones")
+
+class BloqueoCalendarioAuto(Base):
+    __tablename__ = "bloqueos_calendario_auto"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    auto_id = Column(String, ForeignKey("autos.id"), nullable=False)
+    fecha = Column(DateTime, nullable=False) # día bloqueado (00:00 del día)
+    motivo = Column(String, nullable=True)
+    creado_en = Column(DateTime, default=utc_now)
+
+    # Relaciones
+    auto = relationship("Auto", back_populates="bloqueos_calendario")
+
+class Mensaje(Base):
+    __tablename__ = "mensajes"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False)
+    autor_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
+    texto = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=utc_now)
+
+    # Relaciones
+    reserva = relationship("Reserva", back_populates="mensajes")
+
+class Notificacion(Base):
+    __tablename__ = "notificaciones"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
+    tipo = Column(String, nullable=False)   # reserva | pago | entrega | mensaje | kyc | soporte | sistema
+    titulo = Column(String, nullable=False)
+    mensaje = Column(Text, nullable=False)
+    leido = Column(Boolean, default=False)
+    entidad_tipo = Column(String, nullable=True)  # "reserva" | "auto" | "ticket" ...
+    entidad_id = Column(String, nullable=True)
+    creado_en = Column(DateTime, default=utc_now, index=True)
+
 
 class ConfiguracionPlataforma(Base):
     __tablename__ = "configuracion_plataforma"

@@ -2,12 +2,32 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from app.core.database import get_db
-from app.models.entities import Pago, Reserva, Usuario
+from app.models.entities import Pago, Reserva, Usuario, Auto
 from app.services.transbank import TransbankService
 from app.services.auth import get_current_user
+from app.services.notificaciones import crear_notificacion
 import uuid
 
 router = APIRouter(prefix="/pagos", tags=["Pasarela de Pagos (Webpay Plus)"])
+
+
+def _notificar_reserva_confirmada(db: Session, reserva: Reserva) -> None:
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    if not auto:
+        return
+    nombre_auto = f"{auto.marca} {auto.modelo} ({auto.patente})"
+    crear_notificacion(
+        db, usuario_id=auto.dueno_id, tipo="reserva",
+        titulo="Nueva reserva de tu auto",
+        mensaje=f"Te reservaron el {nombre_auto}. Coordina la entrega con el arrendatario.",
+        entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
+    )
+    crear_notificacion(
+        db, usuario_id=reserva.cliente_id, tipo="reserva",
+        titulo="Reserva confirmada",
+        mensaje=f"Tu reserva del {nombre_auto} quedó confirmada y la garantía retenida.",
+        entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
+    )
 
 @router.post("/webpay/iniciar", summary="Inicia una transacción Webpay Plus (Hold o Cobro)")
 def iniciar_pago_webpay(
@@ -90,6 +110,8 @@ def confirmar_pago_webpay(
             reserva = db.query(Reserva).filter(Reserva.id == pago.reserva_id).first()
             if reserva and reserva.estado == "pendiente":
                 reserva.estado = "confirmada"
+                db.flush()
+                _notificar_reserva_confirmada(db, reserva)
         db.commit()
         db.refresh(pago)
 
@@ -106,3 +128,42 @@ def confirmar_pago_webpay(
 @router.get("/webpay/estado/{token_ws}", summary="Consulta el estado de una transacción en Webpay")
 def consultar_estado_pago(token_ws: str):
     return TransbankService.consultar_estado(token_ws)
+
+@router.get("/mis-ganancias", summary="Resumen real de ganancias y liquidaciones del dueño autenticado")
+def obtener_mis_ganancias(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Se calcula directo de los Pago tipo "liquidacion_dueno" que
+    delivery.py registra al completar el checklist de devolución — no hay
+    números de ejemplo acá, si el dueño no tiene arriendos finalizados
+    todo sale en cero.
+    """
+    pagos_liquidacion = (
+        db.query(Pago)
+        .filter(Pago.usuario_id == current_user.id, Pago.tipo == "liquidacion_dueno")
+        .order_by(Pago.timestamp.desc())
+        .all()
+    )
+
+    saldo_disponible_clp = sum(p.monto for p in pagos_liquidacion if p.estado == "pendiente")
+    total_pagado_clp = sum(p.monto for p in pagos_liquidacion if p.estado == "pagado")
+
+    historial = [
+        {
+            "id": p.id,
+            "reserva_id": p.reserva_id,
+            "monto": p.monto,
+            "estado": p.estado,
+            "timestamp": p.timestamp,
+        }
+        for p in pagos_liquidacion[:30]
+    ]
+
+    return {
+        "saldo_disponible_clp": saldo_disponible_clp,
+        "total_pagado_clp": total_pagado_clp,
+        "cantidad_liquidaciones": len(pagos_liquidacion),
+        "historial": historial,
+    }

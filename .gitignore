@@ -3,6 +3,10 @@ node_modules/
 .pnp
 .pnp.js
 
+# En main conviven las 3 apps (api / mobile / web). Ninguna se ignora acá:
+# las reglas de "apps/web" o "apps/mobile" solo aplican en las ramas de
+# feature aisladas, no en la rama de integración.
+
 # Python Database & Cache
 *.db
 *.sqlite3
