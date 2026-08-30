@@ -1,6 +1,6 @@
 import React from "react";
-import Head from "next/head";
 import Link from "next/link";
+import Seo from "../components/Seo";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Button } from "../components/ui/button";
@@ -9,14 +9,12 @@ import { Car, Search, ArrowRight, ShieldCheck } from "lucide-react";
 export default function Custom404() {
   return (
     <>
-      <Head>
-        <title>404 - Página no encontrada | ArriendoMiAutoYa</title>
-        <meta name="robots" content="noindex, follow" />
-        <meta
-          name="description"
-          content="La página que estás buscando no existe. Encuentra autos verificados en Los Ángeles, Biobío en ArriendoMiAutoYa."
-        />
-      </Head>
+      <Seo
+        title="404 - Página no encontrada"
+        description="La página que estás buscando no existe. Encuentra autos verificados en Los Ángeles, Biobío en ArriendoMiAutoYa."
+        path="/404"
+        noindex
+      />
 
       <Navbar />
 
