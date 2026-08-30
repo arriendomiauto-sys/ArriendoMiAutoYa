@@ -73,3 +73,20 @@ def test_solo_veo_mis_notificaciones(usuario_factory, auth_as, db_session):
     db_session.commit()
 
     assert auth_as(yo).get("/api/v1/notificaciones").json() == []
+
+
+def test_registrar_push_token(usuario_factory, auth_as, db_session):
+    from app.models.entities import Usuario
+
+    usuario = usuario_factory(roles_activos=["cliente"])
+    c = auth_as(usuario)
+
+    r = c.put("/api/v1/usuarios/me/push-token", json={"expo_push_token": "ExponentPushToken[abc123]"})
+    assert r.status_code == 200
+    db_session.expire_all()
+    assert db_session.get(Usuario, usuario.id).expo_push_token == "ExponentPushToken[abc123]"
+
+    # token vacío lo limpia
+    c.put("/api/v1/usuarios/me/push-token", json={"expo_push_token": ""})
+    db_session.expire_all()
+    assert db_session.get(Usuario, usuario.id).expo_push_token is None
