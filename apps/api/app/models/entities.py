@@ -49,6 +49,14 @@ class Auto(Base):
     fotos = Column(JSON, default=list)
     equipamiento = Column(JSON, default=dict) # ej. {"ac": true, "bluetooth": true, "isofix": false, ...}
 
+    # Ficha técnica del vehículo (se muestra en el detalle público del auto).
+    transmision = Column(String, nullable=True)   # "automatica" | "mecanica"
+    combustible = Column(String, nullable=True)   # "bencina" | "diesel" | "hibrido" | "electrico"
+    asientos = Column(Integer, nullable=True)
+    puertas = Column(Integer, nullable=True)
+    categoria = Column(String, nullable=True)     # "economico" | "sedan" | "suv" | "camioneta" | "premium"
+    descripcion = Column(Text, nullable=True)
+
     # Documentos legales del vehículo — obligatorios para publicar. Se
     # guardan como URLs de Supabase Storage (bucket privado documentos-autos).
     doc_inscripcion_url = Column(String, nullable=True)          # Certificado de inscripción / Padrón
@@ -244,6 +252,20 @@ class Mensaje(Base):
 
     # Relaciones
     reserva = relationship("Reserva", back_populates="mensajes")
+
+class Notificacion(Base):
+    __tablename__ = "notificaciones"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
+    tipo = Column(String, nullable=False)   # reserva | pago | entrega | mensaje | kyc | soporte | sistema
+    titulo = Column(String, nullable=False)
+    mensaje = Column(Text, nullable=False)
+    leido = Column(Boolean, default=False)
+    entidad_tipo = Column(String, nullable=True)  # "reserva" | "auto" | "ticket" ...
+    entidad_id = Column(String, nullable=True)
+    creado_en = Column(DateTime, default=utc_now, index=True)
+
 
 class ConfiguracionPlataforma(Base):
     __tablename__ = "configuracion_plataforma"

@@ -54,29 +54,21 @@ def crear_reserva(
 
     # cliente_id siempre es el usuario autenticado: no se confía en el valor
     # del payload (evita crear reservas y holds a nombre de otro usuario).
+    # La reserva nace "pendiente": se confirma recién cuando el hold de
+    # garantía queda autorizado en Webpay (POST /pagos/webpay/confirmar).
+    # El pago NO se crea acá — lo crea /pagos/webpay/iniciar con el token real.
     reserva = Reserva(
         id=reserva_id,
         auto_id=payload.auto_id,
         cliente_id=current_user.id,
         fecha_inicio=payload.fecha_inicio,
         fecha_fin=payload.fecha_fin,
-        estado="confirmada", # En flujo normal pasa a confirmada tras aceptar el hold
+        estado="pendiente",
         monto_hold=monto_hold,
         lugar_entrega_acordado=payload.lugar_entrega_acordado,
         contrato_pdf_url=contrato_url
     )
     db.add(reserva)
-
-    # Registrar retención (hold) de la tarjeta
-    pago_hold = Pago(
-        reserva_id=reserva.id,
-        usuario_id=reserva.cliente_id,
-        tipo="hold_reserva",
-        monto=monto_hold,
-        estado="capturado",
-        referencia_transbank=f"TBK-RES-{uuid.uuid4().hex[:8].upper()}"
-    )
-    db.add(pago_hold)
     db.commit()
     db.refresh(reserva)
     return reserva

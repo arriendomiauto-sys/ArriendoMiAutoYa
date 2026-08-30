@@ -88,6 +88,14 @@ class AutoBase(BaseModel):
     fotos: List[str] = []
     equipamiento: Dict[str, bool] = {}
 
+    # Ficha técnica (opcional; se muestra en el detalle del auto).
+    transmision: Optional[Literal["automatica", "mecanica"]] = None
+    combustible: Optional[Literal["bencina", "diesel", "hibrido", "electrico"]] = None
+    asientos: Optional[int] = Field(None, ge=1, le=9)
+    puertas: Optional[int] = Field(None, ge=2, le=6)
+    categoria: Optional[Literal["economico", "sedan", "suv", "camioneta", "premium"]] = None
+    descripcion: Optional[str] = Field(None, max_length=1000)
+
     # Documentos del vehículo (URLs de Storage). Opcionales en la base para
     # que AutoOut/AutoUpdate no los exijan; AutoCreate los vuelve obligatorios.
     doc_inscripcion_url: Optional[str] = None
@@ -114,6 +122,12 @@ class AutoUpdate(BaseModel):
     fotos: Optional[List[str]] = None
     ubicacion_base: Optional[str] = None
     equipamiento: Optional[Dict[str, bool]] = None
+    transmision: Optional[Literal["automatica", "mecanica"]] = None
+    combustible: Optional[Literal["bencina", "diesel", "hibrido", "electrico"]] = None
+    asientos: Optional[int] = Field(None, ge=1, le=9)
+    puertas: Optional[int] = Field(None, ge=2, le=6)
+    categoria: Optional[Literal["economico", "sedan", "suv", "camioneta", "premium"]] = None
+    descripcion: Optional[str] = Field(None, max_length=1000)
     doc_inscripcion_url: Optional[str] = None
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
@@ -400,3 +414,18 @@ class MessageOut(BaseModel):
     autor_id: str
     texto: str
     timestamp: datetime
+
+# ==============================================================================
+# NOTIFICACIONES
+# ==============================================================================
+class NotificacionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    tipo: str
+    titulo: str
+    mensaje: str
+    leido: bool
+    entidad_tipo: Optional[str] = None
+    entidad_id: Optional[str] = None
+    creado_en: datetime

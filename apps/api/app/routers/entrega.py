@@ -119,7 +119,7 @@ def registrar_checklist_auto(
     """
     reserva = _obtener_reserva_o_404(reserva_id, db)
     _requerir_dueno_del_auto(reserva, current_user, db)
-    return DeliveryService.registrar_checklist(
+    resultado = DeliveryService.registrar_checklist(
         reserva_id=reserva_id,
         tipo=payload.tipo,
         fotos=payload.fotos,
@@ -130,3 +130,20 @@ def registrar_checklist_auto(
         notas=payload.notas,
         db=db
     )
+
+    from app.services.notificaciones import crear_notificacion
+    if payload.tipo == "antes":
+        crear_notificacion(
+            db, usuario_id=reserva.cliente_id, tipo="entrega",
+            titulo="Arriendo iniciado",
+            mensaje="El dueño registró la entrega. ¡Buen viaje!",
+            entidad_tipo="reserva", entidad_id=reserva_id,
+        )
+    else:
+        crear_notificacion(
+            db, usuario_id=reserva.cliente_id, tipo="entrega",
+            titulo="Devolución confirmada",
+            mensaje="El arriendo quedó cerrado. Tu garantía se libera tras la inspección.",
+            entidad_tipo="reserva", entidad_id=reserva_id,
+        )
+    return resultado

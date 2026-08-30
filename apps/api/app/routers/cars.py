@@ -104,6 +104,12 @@ def crear_auto(
         longitud=payload.longitud,
         fotos=payload.fotos or [],
         equipamiento=payload.equipamiento or {},
+        transmision=payload.transmision,
+        combustible=payload.combustible,
+        asientos=payload.asientos,
+        puertas=payload.puertas,
+        categoria=payload.categoria,
+        descripcion=payload.descripcion,
         doc_inscripcion_url=payload.doc_inscripcion_url,
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
@@ -144,6 +150,10 @@ def actualizar_auto(
         auto.ubicacion_base = payload.ubicacion_base
     if payload.equipamiento is not None:
         auto.equipamiento = payload.equipamiento
+    for campo in ("transmision", "combustible", "asientos", "puertas", "categoria", "descripcion"):
+        valor = getattr(payload, campo, None)
+        if valor is not None:
+            setattr(auto, campo, valor)
 
     # Si el dueño reemplaza algún documento, vuelve a quedar pendiente de
     # revisión hasta que un ejecutivo lo valide de nuevo.

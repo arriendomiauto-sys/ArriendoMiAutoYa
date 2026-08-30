@@ -121,4 +121,23 @@ def completar_enrolamiento(
     db.commit()
     db.refresh(current_user)
 
+    from app.services.notificaciones import crear_notificacion
+    _estado = current_user.estado_documentos
+    crear_notificacion(
+        db,
+        usuario_id=current_user.id,
+        tipo="kyc",
+        titulo=(
+            "Identidad verificada" if _estado == "verificado"
+            else "Tus documentos están en revisión"
+        ),
+        mensaje=(
+            "Ya puedes reservar y publicar autos."
+            if _estado == "verificado"
+            else "Un ejecutivo revisa tus documentos. Te avisamos apenas quede lista tu cuenta."
+        ),
+        entidad_tipo="usuario",
+        entidad_id=current_user.id,
+    )
+
     return current_user
