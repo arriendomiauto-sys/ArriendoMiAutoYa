@@ -1,8 +1,8 @@
-name: CI
+name: CI (main)
 
 on:
   push:
-    branches: [main, api, mobile]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -26,8 +26,7 @@ jobs:
           cache: pip
           cache-dependency-path: apps/api/requirements.txt
       - run: pip install -r requirements.txt
-      - name: pytest
-        run: python -m pytest -q
+      - run: python -m pytest -q
         env:
           USE_OCR_MOCK: "true"
           DATABASE_URL: "sqlite:///:memory:"
@@ -53,20 +52,26 @@ jobs:
 
   # ---------------------------------------------------------------- Mobile
   mobile:
-    name: Mobile · bundle
+    name: Mobile · test + bundle
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/mobile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-          cache-dependency-path: apps/mobile/package-lock.json
-      - run: npm ci
-      - name: expo-doctor
-        run: npx --yes expo-doctor@latest
-      - name: Metro bundle (iOS)
-        run: CI=1 npx expo export --platform ios --output-dir /tmp/export
+      # Las libs compartidas traen sus propias deps (no hay workspace en main).
+      - run: npm install --no-audit --no-fund
+        working-directory: packages/shared-schemas
+      - run: npm install --no-audit --no-fund --omit=peer
+        working-directory: packages/mobile-shared
+      - run: npm ci --no-audit --no-fund
+        working-directory: apps/mobile
+      - run: npm test -- --ci
+        working-directory: apps/mobile
+      - run: npx --yes expo-doctor@latest
+        working-directory: apps/mobile
+      - name: Metro bundle (iOS + web)
+        working-directory: apps/mobile
+        run: |
+          CI=1 npx expo export --platform ios --output-dir /tmp/e-ios
+          CI=1 npx expo export --platform web --output-dir /tmp/e-web
