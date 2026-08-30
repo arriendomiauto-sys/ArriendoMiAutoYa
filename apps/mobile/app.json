@@ -56,7 +56,8 @@
           "locationWhenInUsePermission": "Arrienda Tu Auto usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa."
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-notifications"
     ]
   }
 }

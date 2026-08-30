@@ -27,3 +27,4 @@ export { DeliveryScreen } from "./screens/DeliveryScreen";
 export { KycScreen } from "./auth/screens/KycScreen";
 export { showAlert } from "./utils/alert";
 export { traducirErrorAuth } from "./utils/authErrors";
+export { registrarPushToken } from "./utils/push";

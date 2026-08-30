@@ -127,6 +127,10 @@ export function AppProvider({ children }) {
       return;
     }
     cargarNotificaciones();
+    // Push: registra el token del dispositivo (best-effort, cachea el intento).
+    import("../utils/push")
+      .then((m) => m.registrarPushToken(ApiClient))
+      .catch(() => {});
     const t = setInterval(cargarNotificaciones, 30000);
     return () => clearInterval(t);
   }, [isLoggedIn, cargarNotificaciones]);
