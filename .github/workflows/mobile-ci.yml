@@ -1,0 +1,38 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [mobile]
+  pull_request:
+    branches: [mobile, main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Jest
+        run: npm test -- --ci
+        working-directory: apps/mobile
+      - name: expo-doctor
+        run: npx --yes expo-doctor@latest
+        working-directory: apps/mobile
+      - name: Metro bundle (iOS + web)
+        working-directory: apps/mobile
+        run: |
+          CI=1 npx expo export --platform ios --output-dir /tmp/export-ios
+          CI=1 npx expo export --platform web --output-dir /tmp/export-web

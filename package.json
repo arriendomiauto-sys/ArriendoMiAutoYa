@@ -2,9 +2,9 @@
   "name": "arrienda-tu-auto",
   "version": "1.0.0",
   "private": true,
-  "comment": "Rama de integración: las 3 apps conviven pero se instalan por separado. NO hay npm workspaces — apps/web (React 18 / Next) y apps/mobile (React 19 / Expo) no pueden compartir un árbol de node_modules. mobile-shared se consume vía 'file:' desde apps/mobile.",
+  "comment": "Rama de integración: NO hay npm workspaces. Cada parte se instala por separado (apps/web React 18/Next, apps/mobile React 19/Expo, y las libs packages/* con sus propias deps). Ver 'install:all'.",
   "scripts": {
-    "install:all": "npm --prefix apps/web install && npm --prefix apps/mobile install",
+    "install:all": "npm --prefix packages/shared-schemas install && npm --prefix packages/mobile-shared install --omit=peer && npm --prefix apps/web install && npm --prefix apps/mobile install",
     "api:dev": "cd apps/api && uvicorn app.main:app --reload --port 8000",
     "api:test": "cd apps/api && pytest",
     "web:dev": "npm --prefix apps/web run dev",
