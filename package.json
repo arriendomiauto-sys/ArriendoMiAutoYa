@@ -2,8 +2,8 @@
   "name": "arrienda-tu-auto",
   "version": "1.0.0",
   "private": true,
+  "comment": "Monorepo de integración. Solo packages/* son workspaces npm (libs compartidas). Cada app se instala aparte: apps/api con pip, apps/mobile y apps/web con su propio 'npm install' — sus versiones de React difieren (18 web / 19 mobile) y no pueden compartir un solo árbol de node_modules.",
   "workspaces": [
-    "apps/*",
     "packages/*"
   ],
   "scripts": {
@@ -11,7 +11,9 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "api:dev": "cd apps/api && uvicorn app.main:app --reload --port 8000",
-    "api:test": "cd apps/api && pytest"
+    "api:test": "cd apps/api && pytest",
+    "mobile:install": "cd apps/mobile && npm install",
+    "web:install": "cd apps/web && npm install"
   },
   "devDependencies": {
     "turbo": "^1.13.0"

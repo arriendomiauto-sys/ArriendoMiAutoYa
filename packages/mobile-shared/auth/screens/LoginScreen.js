@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,62 +6,47 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Alert,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
+import { showAlert } from "../../utils/alert";
+import { traducirErrorAuth } from "../../utils/authErrors";
 
 // El login ya no tiene un selector de rol: AppContext determina quién es el
 // usuario a partir de su token de sesión, sin importar en qué app inició.
+//
+// La cuenta se crea simple, así que un login exitoso no necesita revisar
+// si el KYC está completo: el componente padre de la app deja de mostrar
+// <AuthFlow /> apenas useApp().isLoggedIn lo refleje, sin importar el
+// estado de verificación de identidad — eso se pide recién cuando el
+// usuario intenta reservar o publicar un auto de verdad.
 export function LoginScreen({ onNavigate }) {
-  const { login, currentUser } = useApp();
+  const { login } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Tras un login exitoso esperamos a que AppContext sincronice currentUser
-  // (login() ya espera a syncProfile() internamente) y, cuando este
-  // componente reciba el valor fresco vía contexto, revisamos si falta
-  // completar el enrolamiento (KYC) para no dejar al usuario varado.
-  const [pendingProfileCheck, setPendingProfileCheck] = useState(false);
-
-  useEffect(() => {
-    if (!pendingProfileCheck) return;
-    setPendingProfileCheck(false);
-    const isIncomplete =
-      !currentUser || !currentUser.rut || currentUser.estado_documentos === "pendiente";
-    if (isIncomplete) {
-      onNavigate("kyc");
-    }
-    // Si el perfil está completo no hace falta hacer nada: el componente
-    // padre de la app deja de mostrar <AuthFlow /> automáticamente en
-    // cuanto useApp().isLoggedIn + currentUser lo reflejen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingProfileCheck, currentUser]);
-
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Campos requeridos", "Ingresa tu correo y tu contraseña.");
+      showAlert("Campos requeridos", "Ingresa tu correo y tu contraseña.");
       return;
     }
     setLoading(true);
     try {
-      await login(email, password);
-      setPendingProfileCheck(true);
+      await login(email.trim(), password);
     } catch (err) {
-      Alert.alert("No se pudo iniciar sesión", err.message);
+      showAlert("No se pudo iniciar sesión", traducirErrorAuth(err));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
       {/* Header */}
@@ -155,7 +140,7 @@ export function LoginScreen({ onNavigate }) {
           </Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

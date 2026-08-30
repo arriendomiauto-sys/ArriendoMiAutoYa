@@ -1,19 +1,50 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiClient, MOCK_CARS } from "../api/client";
 import { supabase } from "../api/supabase";
 
 const AppContext = createContext();
 
+// Clave de persistencia del modo activo (arrendatario vs. dueño). La misma
+// cuenta puede operar en los dos roles; `mode` decide qué experiencia
+// (RenterApp / OwnerApp) se muestra y el usuario alterna entre ellas desde
+// su perfil. Se elige por primera vez en el registro.
+const MODE_STORAGE_KEY = "@rentacar/mode";
+const VALID_MODES = ["renter", "owner"];
+
 /**
- * Contexto de aplicación compartido por mobile-owner y mobile-renter.
- * La identidad de rol (dueño vs. arrendatario) ya no vive aquí: cada app
- * es su propio binario independiente, así que no hay "mode" ni
- * "toggleMode"/"onSwitchApp" — eso se eliminó al separar las apps.
+ * Contexto de aplicación compartido por toda la app.
+ *
+ * La app es un solo binario con dos experiencias: arrendatario ("renter") y
+ * dueño ("owner"). `mode` indica cuál está activa; `setMode` la cambia y la
+ * persiste. No hay cuentas distintas por rol — es la misma sesión de
+ * Supabase en ambos modos.
  */
 export function AppProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+
+  const [mode, setModeState] = useState("renter");
+
+  // Rehidrata el modo elegido en la sesión anterior antes de pintar la app.
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem(MODE_STORAGE_KEY)
+      .then((saved) => {
+        if (alive && VALID_MODES.includes(saved)) setModeState(saved);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const setMode = useCallback((next) => {
+    if (!VALID_MODES.includes(next)) return;
+    setModeState(next);
+    AsyncStorage.setItem(MODE_STORAGE_KEY, next).catch(() => {});
+  }, []);
 
   const [cars, setCars] = useState(MOCK_CARS);
   const [loading, setLoading] = useState(false);
@@ -21,12 +52,10 @@ export function AppProvider({ children }) {
   const [reservations, setReservations] = useState([]);
   const [activeReservation, setActiveReservation] = useState(null);
 
-  const [driverBookings, setDriverBookings] = useState([]);
-
   const [notifications, setNotifications] = useState([]);
 
   const [paymentMethods, setPaymentMethods] = useState([]);
-  const [bankAccount, setBankAccount] = useState(null);
+  const bankAccount = currentUser?.cuenta_bancaria || null;
 
   const syncProfile = useCallback(async () => {
     try {
@@ -81,9 +110,48 @@ export function AppProvider({ children }) {
     loadData();
   }, [loadData]);
 
-  const register = async (email, password) => {
+  // Notificaciones in-app: se traen del backend al iniciar sesión y se
+  // refrescan por polling suave mientras la sesión está activa.
+  const cargarNotificaciones = useCallback(async () => {
+    try {
+      const data = await ApiClient.getNotificaciones();
+      setNotifications(Array.isArray(data) ? data : []);
+    } catch {
+      /* se reintenta en el próximo tick */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setNotifications([]);
+      return;
+    }
+    cargarNotificaciones();
+    const t = setInterval(cargarNotificaciones, 30000);
+    return () => clearInterval(t);
+  }, [isLoggedIn, cargarNotificaciones]);
+
+  const register = async (email, password, preferredMode) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
+
+    // El rol elegido en el registro fija el modo con el que arranca la app.
+    if (VALID_MODES.includes(preferredMode)) setMode(preferredMode);
+
+    // Supabase NO devuelve error si el correo ya tiene una cuenta — por
+    // diseño, para no dejar enumerar qué correos están registrados. En vez
+    // de eso responde 200 con session=null y, la señal confiable, un
+    // user.identities vacío (ver docs de Supabase Auth). Sin este chequeo
+    // el flujo caía directo a "confirma tu correo" como si la cuenta fuera
+    // nueva — dejaba "crear" la misma cuenta las veces que quisieras, sin
+    // avisar nunca que ya existía.
+    const yaExistia = !data?.session && (data?.user?.identities?.length ?? 0) === 0;
+    if (yaExistia) {
+      const err = new Error("User already registered");
+      err.code = "already_registered";
+      throw err;
+    }
+
     return data;
   };
 
@@ -92,6 +160,14 @@ export function AppProvider({ children }) {
     if (error) throw error;
     await syncProfile();
     return data;
+  };
+
+  const resetPassword = async (email) => {
+    const webUrl = process.env.EXPO_PUBLIC_WEB_URL;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: webUrl ? `${webUrl}/restablecer-contrasena` : undefined,
+    });
+    if (error) throw error;
   };
 
   const logout = async () => {
@@ -106,10 +182,10 @@ export function AppProvider({ children }) {
     return profile;
   };
 
-  const addCar = async (carData) => {
-    const created = await ApiClient.crearAuto(carData);
-    setCars((prev) => [created, ...prev]);
-    return created;
+  const updateBankAccount = async (cuentaBancaria) => {
+    const profile = await ApiClient.actualizarCuentaBancaria(cuentaBancaria);
+    setCurrentUser(profile);
+    return profile;
   };
 
   const addReservation = (newRes) => {
@@ -117,27 +193,16 @@ export function AppProvider({ children }) {
     setActiveReservation(newRes);
   };
 
-  const cancelReservation = (resId, refundAmount) => {
-    setReservations((prev) =>
-      prev.map((r) => (r.id === resId ? { ...r, status: "cancelada", refundAmount } : r))
-    );
-    if (activeReservation?.id === resId) setActiveReservation(null);
-  };
-
-  const respondBookingRequest = (bookingId, action) => {
-    setDriverBookings((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, estado: action } : b))
-    );
-  };
-
   const markNotificationAsRead = (notifId) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === notifId ? { ...n, leido: true } : n))
     );
+    ApiClient.marcarNotificacionLeida(notifId).catch(() => {});
   };
 
   const clearAllNotifications = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, leido: true })));
+    ApiClient.marcarTodasNotificacionesLeidas().catch(() => {});
   };
 
   const addPaymentMethod = (card) => {
@@ -156,32 +221,31 @@ export function AppProvider({ children }) {
       value={{
         isLoggedIn,
         authLoading,
+        mode,
+        setMode,
         login,
         logout,
         register,
+        resetPassword,
         completeEnrolment,
         currentUser,
         setCurrentUser,
         syncProfile,
         cars,
         setCars,
-        addCar,
         reservations,
         setReservations,
         activeReservation,
         setActiveReservation,
         addReservation,
-        cancelReservation,
-        driverBookings,
-        setDriverBookings,
-        respondBookingRequest,
         bankAccount,
-        setBankAccount,
+        updateBankAccount,
         paymentMethods,
         addPaymentMethod,
         removePaymentMethod,
         notifications,
         setNotifications,
+        cargarNotificaciones,
         markNotificationAsRead,
         clearAllNotifications,
         loading,

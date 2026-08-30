@@ -1,49 +1,40 @@
+import { Platform } from "react-native";
 import { getAccessToken } from "./supabase";
 
 const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
   "http://localhost:8000/api/v1";
 
+// Autos de respaldo SOLO para modo offline (backend inalcanzable). Los
+// campos siguen el mismo shape que devuelve GET /autos (AutoOut) para que
+// las pantallas no muestren datos con otra forma que la real.
 export const MOCK_CARS = [
   {
     id: "car-swift-01",
+    dueno_id: "dueno-demo",
     marca: "Suzuki",
     modelo: "Swift",
-    ano: 2023,
+    anio: 2023,
     patente: "BBFK-42",
-    transmision: "Automático",
-    combustible: "Bencina 95",
+    tarifa_dia: 38000,
+    ubicacion_base: "Providencia, Santiago",
+    estado: "activo",
+    transmision: "automatica",
+    combustible: "bencina",
     asientos: 5,
     puertas: 5,
-    tarifa_dia: 38000,
-    tarifa_semana: 228000,
-    tarifa_mes: 820000,
-    garantia_monto: 150000,
-    direccion_entrega: "Av. Providencia 2145",
-    comuna: "Providencia",
-    ciudad: "Santiago",
-    distancia: "a 400 m",
-    disponible: true,
-    foto_principal_url: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+    categoria: "economico",
+    equipamiento: { ac: true, bluetooth: true, camara_retroceso: true },
+    documentos_verificados: true,
     fotos: [
       "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
       "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800",
     ],
-    dueno: {
-      id: "dueno-rodrigo",
-      nombre: "Rodrigo Muñoz",
-      rating: 4.8,
-      viajes: 31,
-      telefono: "+56 9 7734 1208",
-      verificado: true,
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-      tiempo_respuesta: "Responde en menos de 15 min",
-    },
   },
 ];
 
 /**
- * Cliente HTTP único, compartido por las apps mobile-owner y mobile-renter.
+ * Cliente HTTP único, compartido por las experiencias de arrendatario y dueño.
  * Adjunta automáticamente el Bearer token de la sesión Supabase activa a
  * cada request. Los métodos de lectura pública (getAutos/getAuto) no
  * requieren sesión.
@@ -58,7 +49,17 @@ export class ApiClient {
     if (!isFormData) headers["Content-Type"] = "application/json";
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const response = await fetch(url, { ...options, headers });
+    let response;
+    try {
+      response = await fetch(url, { ...options, headers });
+    } catch (netErr) {
+      // fetch solo tira cuando no se pudo ni contactar al servidor: URL mal
+      // configurada, backend caído, o el teléfono no alcanza esa dirección.
+      throw new Error(
+        `No se pudo conectar con el servidor (${API_BASE_URL}). ` +
+          "Revisa tu conexión y que la app apunte a una URL accesible desde el teléfono."
+      );
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -74,18 +75,36 @@ export class ApiClient {
     return this.request("/usuarios/me");
   }
 
+  static async actualizarPerfilBasico(data) {
+    return this.request("/usuarios/me/perfil-basico", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
   // Autos / Marketplace
   static async getAutos(params = {}) {
     try {
       const query = new URLSearchParams(params).toString();
       return await this.request(`/autos${query ? `?${query}` : ""}`);
-    } catch {
-      return MOCK_CARS;
+    } catch (err) {
+      // Sin conexión con el backend: modo demo con autos de ejemplo. Si el
+      // servidor SÍ respondió (aunque con error), no se inventan autos — se
+      // devuelve lista vacía para no ocultar el estado real del marketplace.
+      if (String(err?.message || "").includes("No se pudo conectar")) {
+        return MOCK_CARS;
+      }
+      console.warn("[getAutos] el backend respondió con error:", err?.message);
+      return [];
     }
   }
 
   static async getAuto(autoId) {
     return this.request(`/autos/${autoId}`);
+  }
+
+  static async getMisAutos() {
+    return this.request("/autos/mios");
   }
 
   static async crearAuto(autoData) {
@@ -116,6 +135,47 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify(reservaData),
     });
+  }
+
+  static async actualizarEstadoReserva(reservaId, nuevoEstado) {
+    return this.request(`/reservas/${reservaId}/estado?nuevo_estado=${nuevoEstado}`, {
+      method: "PATCH",
+    });
+  }
+
+  static async extenderReserva(reservaId, diasAdicionales) {
+    return this.request(`/reservas/${reservaId}/extender`, {
+      method: "POST",
+      body: JSON.stringify({ dias_adicionales: diasAdicionales }),
+    });
+  }
+
+  // Mantenciones y documentación legal del auto
+  static async getMantenciones(autoId) {
+    return this.request(`/autos/${autoId}/mantenciones`);
+  }
+
+  static async crearMantencion(autoId, data) {
+    return this.request(`/autos/${autoId}/mantenciones`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Calendario de disponibilidad (bloqueos por uso personal)
+  static async getBloqueosCalendario(autoId) {
+    return this.request(`/autos/${autoId}/bloqueos`);
+  }
+
+  static async crearBloqueoCalendario(autoId, fecha, motivo) {
+    return this.request(`/autos/${autoId}/bloqueos`, {
+      method: "POST",
+      body: JSON.stringify({ fecha, motivo }),
+    });
+  }
+
+  static async eliminarBloqueoCalendario(bloqueoId) {
+    return this.request(`/bloqueos/${bloqueoId}`, { method: "DELETE" });
   }
 
   // Enrolamiento / KYC
@@ -159,6 +219,68 @@ export class ApiClient {
     });
   }
 
+  // Mensajería de coordinación por reserva
+  static async getMensajes(reservaId) {
+    return this.request(`/reservas/${reservaId}/mensajes`);
+  }
+
+  static async enviarMensaje(reservaId, texto) {
+    return this.request(`/reservas/${reservaId}/mensajes`, {
+      method: "POST",
+      body: JSON.stringify({ texto }),
+    });
+  }
+
+  // Calificaciones (sistema bidireccional dueño/cliente)
+  static async getCalificaciones(destinatarioId) {
+    try {
+      return await this.request(`/calificaciones?destinatario_id=${destinatarioId}`);
+    } catch {
+      return [];
+    }
+  }
+
+  static async crearCalificacion(data) {
+    return this.request("/calificaciones", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Notificaciones in-app
+  static async getNotificaciones() {
+    try {
+      return await this.request("/notificaciones");
+    } catch {
+      return [];
+    }
+  }
+
+  static async getConteoNotificacionesNoLeidas() {
+    try {
+      const { no_leidas } = await this.request("/notificaciones/conteo-no-leidas");
+      return no_leidas || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  static async marcarNotificacionLeida(id) {
+    return this.request(`/notificaciones/${id}/leida`, { method: "POST" });
+  }
+
+  static async marcarTodasNotificacionesLeidas() {
+    return this.request("/notificaciones/marcar-todas-leidas", { method: "POST" });
+  }
+
+  // Soporte (tickets)
+  static async crearTicketSoporte(asunto, descripcion) {
+    return this.request("/soporte/tickets", {
+      method: "POST",
+      body: JSON.stringify({ asunto, descripcion }),
+    });
+  }
+
   // Pasarela de Pagos Transbank Webpay Plus
   static async iniciarPagoWebpay(monto, tipo = "hold_reserva", reservaId = null, returnUrl = null) {
     return this.request("/pagos/webpay/iniciar", {
@@ -174,16 +296,38 @@ export class ApiClient {
     });
   }
 
+  static async getMisGanancias() {
+    return this.request("/pagos/mis-ganancias");
+  }
+
+  static async actualizarCuentaBancaria(cuentaBancaria) {
+    return this.request("/usuarios/me/cuenta-bancaria", {
+      method: "PUT",
+      body: JSON.stringify(cuentaBancaria),
+    });
+  }
+
   // Almacenamiento de Fotos / Documentos (Supabase Storage vía backend)
   static async subirArchivoStorage(fileUriOrBlob, filename = "foto.jpg", bucket = "general") {
     const formData = new FormData();
+
     if (typeof fileUriOrBlob === "string") {
-      // React Native: uri local del picker de imágenes
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1] === "jpg" ? "jpeg" : match[1]}` : "image/jpeg";
-      formData.append("file", { uri: fileUriOrBlob, name: filename, type });
+      if (Platform.OS === "web") {
+        // En RN-Web, expo-image-picker también devuelve un `uri` de tipo
+        // string (blob:/data:), pero el FormData del navegador es el real:
+        // el truco de RN {uri, name, type} no sirve acá — append() lo
+        // castea a "[object Object]" en vez de subir la foto. Hay que
+        // resolver el uri a un Blob real primero.
+        const blob = await fetch(fileUriOrBlob).then((r) => r.blob());
+        formData.append("file", blob, filename);
+      } else {
+        // Nativo (iOS/Android): uri local del picker de imágenes.
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1] === "jpg" ? "jpeg" : match[1]}` : "image/jpeg";
+        formData.append("file", { uri: fileUriOrBlob, name: filename, type });
+      }
     } else {
-      // Web: Blob/File
+      // Ya viene como Blob/File
       formData.append("file", fileUriOrBlob, filename);
     }
     formData.append("bucket", bucket);
@@ -193,5 +337,18 @@ export class ApiClient {
 
   static getContratoPdfUrl(reservaId) {
     return `${API_BASE_URL}/reservas/${reservaId}/contrato-pdf`;
+  }
+
+  // El PDF requiere sesión (Bearer token) — no se puede abrir como link
+  // directo, hay que pedirlo autenticado y abrir el blob resultante.
+  static async descargarContratoPdfBlob(reservaId) {
+    const token = await getAccessToken();
+    const headers = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const response = await fetch(this.getContratoPdfUrl(reservaId), { headers });
+    if (!response.ok) {
+      throw new Error(`No se pudo obtener el contrato (status ${response.status})`);
+    }
+    return response.blob();
   }
 }

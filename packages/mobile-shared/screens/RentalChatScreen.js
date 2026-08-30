@@ -1,233 +1,175 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Image,
-  Alert,
-} from "react-native";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
+import { theme } from "../theme/tokens";
 import { useApp } from "../context/AppContext";
 import { Icon } from "../components/Icon";
+import { ScreenHeader, EmptyState } from "../components/ui";
+import { ApiClient } from "../api/client";
+
+const POLL_MS = 4000;
+const QUICK = [
+  "Ya llegué al punto de encuentro",
+  "Estoy a 5 minutos",
+  "¿Me envías la ubicación exacta?",
+  "Listo para la entrega",
+];
 
 export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const { currentUser } = useApp();
-  const isDriver = variant === "owner";
+  const insets = useSafeAreaInsets();
+  const tone = variant === "owner" ? "dark" : "light";
+  const dark = tone === "dark";
 
-  const res = reservation || {
-    id: "reserva-demo-1",
-    auto: {
-      marca: "Toyota",
-      modelo: "RAV4 Limited 4x4",
-      patente: "BBCL-10",
-      ubicacion_base: "Plaza de Armas, Los Ángeles",
-    },
-    cliente_nombre: "Carlos Mendoza",
-    dueno_nombre: "Patricio Morales",
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
+
+  const auto = reservation?.auto || reservation?.car || {};
+  const interlocutor = dark ? "Arrendatario" : "Dueño del vehículo";
+
+  const cargar = useCallback(async () => {
+    if (!reservation?.id) return;
+    try {
+      setMessages((await ApiClient.getMensajes(reservation.id)) || []);
+    } catch {
+      /* el polling reintenta */
+    } finally {
+      setLoading(false);
+    }
+  }, [reservation?.id]);
+
+  useEffect(() => {
+    cargar();
+    const t = setInterval(cargar, POLL_MS);
+    return () => clearInterval(t);
+  }, [cargar]);
+
+  const handleSend = async () => {
+    const texto = input.trim();
+    if (!texto || !reservation?.id) return;
+    setSending(true);
+    setInput("");
+    try {
+      const nuevo = await ApiClient.enviarMensaje(reservation.id, texto);
+      setMessages((prev) => [...prev, nuevo]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch {
+      setInput(texto);
+    } finally {
+      setSending(false);
+    }
   };
 
-  const interlocutorName = isDriver
-    ? res.cliente_nombre || "Carlos Mendoza"
-    : res.dueno_nombre || "Patricio Morales";
-
-  const interlocutorAvatar = isDriver
-    ? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400"
-    : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400";
-
-  const [messages, setMessages] = useState([
-    {
-      id: "1",
-      sender: "them",
-      text: "Hola, ¿cómo estás? Te espero en la entrada principal de Plaza de Armas (frente a la Catedral) para la entrega.",
-      time: "10:14",
-    },
-    {
-      id: "2",
-      sender: "me",
-      text: "Excelente, voy en camino. Llegaré en 5 minutos con mi carnet y la app lista para el escaneo QR.",
-      time: "10:16",
-    },
-    {
-      id: "3",
-      sender: "them",
-      text: "Perfecto, el auto está limpio y con estanque 4/4 completo. Nos vemos aquí.",
-      time: "10:17",
-    },
-  ]);
-
-  const [inputText, setInputText] = useState("");
-
-  const handleSend = (textToSend = inputText) => {
-    if (!textToSend.trim()) return;
-    const newMsg = {
-      id: String(Date.now()),
-      sender: "me",
-      text: textToSend,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    setInputText("");
-
-    // Simulated reply after 1s
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(Date.now() + 1),
-          sender: "them",
-          text: "Recibido, gracias por confirmar.",
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
-    }, 1200);
+  const c = {
+    bg: dark ? colors.darkBg : colors.background,
+    surface: dark ? colors.darkCard : colors.surface,
+    border: dark ? colors.darkBorder : colors.border,
+    text: dark ? colors.textWhite : colors.text,
+    muted: dark ? colors.textSilver : colors.textMuted,
+    input: dark ? colors.darkCardSubtle : colors.surface,
   };
 
-  const quickReplies = [
-    "Ya llegué al punto de encuentro",
-    "Estoy a 5 minutos del lugar",
-    "¿Podrías enviarme la ubicación GPS exacta?",
-    "Listo para la entrega del vehículo",
-  ];
+  if (!reservation?.id) {
+    return (
+      <View style={[styles.container, { backgroundColor: c.bg }]}>
+        <ScreenHeader tone={tone} title="Mensajes" onBack={onBack} />
+        <EmptyState
+          tone={tone}
+          icon="chat"
+          title="No tienes una conversación activa"
+          message={
+            dark
+              ? "Elige una reserva desde tus solicitudes para chatear con el arrendatario."
+              : "Cuando tengas un arriendo activo o confirmado, podrás coordinar aquí con el dueño."
+          }
+        />
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, isDriver ? styles.bgDriver : styles.bgPassenger]}>
-      {/* Header del Chat */}
-      <View style={[styles.header, isDriver ? styles.headerDriver : styles.headerPassenger]}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <Icon name="arrow-left" size={14} color={isDriver ? colors.textWhite : colors.textDark} style={{ marginRight: 4 }} />
-          <Text style={[styles.backBtnText, isDriver ? styles.textWhite : styles.textDark]}>
-            Volver
-          </Text>
-        </TouchableOpacity>
+    <View style={[styles.container, { backgroundColor: c.bg }]}>
+      <ScreenHeader
+        tone={tone}
+        title={interlocutor}
+        subtitle={[auto.marca, auto.modelo, auto.patente].filter(Boolean).join(" · ")}
+        onBack={onBack}
+      />
 
-        <View style={styles.interlocutorRow}>
-          <Image source={{ uri: interlocutorAvatar }} style={styles.avatar} />
-          <View style={{ marginLeft: 10 }}>
-            <Text style={[styles.interlocutorName, isDriver ? styles.textWhite : styles.textDark]}>
-              {interlocutorName}
-            </Text>
-            <View style={styles.statusRow}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.statusText}>En línea • {res.auto?.marca} {res.auto?.modelo}</Text>
-            </View>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.callBtn}
-          onPress={() =>
-            Alert.alert(
-              "Llamada Segura",
-              `Conectando llamada cifrada con ${interlocutorName} vía Arrienda Tu Auto...`
-            )
-          }
-        >
-          <Icon name="key" size={14} color={colors.accent} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Mensajes */}
       <ScrollView
-        style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContent}
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.msgs}
         showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
-        <View style={styles.securityNotice}>
-          <Icon name="shield" size={12} color={colors.textMuted} style={{ marginRight: 6 }} />
-          <Text style={styles.securityText}>
-            Chat cifrado para la coordinación de la reserva {res.id?.toUpperCase() || "RES-88"}
+        <View style={[styles.notice, { backgroundColor: dark ? colors.darkCardSubtle : colors.surfaceSubtle }]}>
+          <Icon name="shield" size={12} color={c.muted} />
+          <Text style={[styles.noticeText, { color: c.muted }]}>
+            Reserva #{reservation.id.slice(0, 8).toUpperCase()}
           </Text>
         </View>
 
-        {messages.map((m) => {
-          const isMe = m.sender === "me";
-          return (
-            <View
-              key={m.id}
-              style={[
-                styles.bubbleWrapper,
-                isMe ? styles.bubbleWrapperMe : styles.bubbleWrapperThem,
-              ]}
-            >
-              <View
-                style={[
-                  styles.bubble,
-                  isMe
-                    ? isDriver
-                      ? styles.bubbleMeDriver
-                      : styles.bubbleMePassenger
-                    : isDriver
-                    ? styles.bubbleThemDriver
-                    : styles.bubbleThemPassenger,
-                ]}
-              >
-                <Text
+        {loading ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
+        ) : messages.length === 0 ? (
+          <Text style={[styles.emptyMsg, { color: c.muted }]}>Aún no hay mensajes. Escribe el primero.</Text>
+        ) : (
+          messages.map((m) => {
+            const mine = m.autor_id === currentUser?.id;
+            return (
+              <View key={m.id} style={[styles.bubbleWrap, mine ? styles.wrapMine : styles.wrapThem]}>
+                <View
                   style={[
-                    styles.msgText,
-                    isMe
-                      ? isDriver
-                        ? styles.msgTextMeDriver
-                        : styles.msgTextMePassenger
-                      : isDriver
-                      ? styles.msgTextThemDriver
-                      : styles.msgTextThemPassenger,
+                    styles.bubble,
+                    mine
+                      ? { backgroundColor: colors.primary, borderBottomRightRadius: 4 }
+                      : { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderBottomLeftRadius: 4 },
                   ]}
                 >
-                  {m.text}
-                </Text>
-                <Text
-                  style={[
-                    styles.timeText,
-                    isMe
-                      ? isDriver
-                        ? styles.timeTextMeDriver
-                        : styles.timeTextMePassenger
-                      : styles.timeTextThem,
-                  ]}
-                >
-                  {m.time}
-                </Text>
+                  <Text style={[styles.bubbleText, { color: mine ? "#FFFFFF" : c.text }]}>{m.texto}</Text>
+                  <Text style={[styles.time, { color: mine ? "rgba(255,255,255,0.7)" : c.muted }]}>
+                    {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </Text>
+                </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
       </ScrollView>
 
-      {/* Respuestas Rápidas */}
-      <View style={styles.quickRepliesContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickRepliesScroll}>
-          {quickReplies.map((q, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={[styles.quickChip, isDriver ? styles.quickChipDriver : styles.quickChipPassenger]}
-              onPress={() => handleSend(q)}
-            >
-              <Text style={[styles.quickChipText, isDriver ? styles.textSilver : styles.textSecondary]}>
-                {q}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.quickWrap, { borderTopColor: c.border }]} contentContainerStyle={styles.quickRow}>
+        {QUICK.map((q) => (
+          <TouchableOpacity
+            key={q}
+            style={[styles.quickChip, { backgroundColor: c.surface, borderColor: c.border }]}
+            onPress={() => setInput(q)}
+          >
+            <Text style={[styles.quickText, { color: c.muted }]}>{q}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-      {/* Barra de Entrada */}
-      <View style={[styles.inputBar, isDriver ? styles.inputBarDriver : styles.inputBarPassenger]}>
+      <View style={[styles.inputBar, { backgroundColor: c.surface, borderTopColor: c.border, paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
         <TextInput
-          style={[styles.textInput, isDriver ? styles.textInputDriver : styles.textInputPassenger]}
-          placeholder="Escribe un mensaje de coordinación..."
-          placeholderTextColor={colors.textMuted}
-          value={inputText}
-          onChangeText={setInputText}
-          onSubmitEditing={() => handleSend()}
+          style={[styles.input, { backgroundColor: c.input, borderColor: c.border, color: c.text }]}
+          placeholder="Escribe un mensaje…"
+          placeholderTextColor={c.muted}
+          value={input}
+          onChangeText={setInput}
+          onSubmitEditing={handleSend}
+          returnKeyType="send"
         />
         <TouchableOpacity
-          style={[styles.sendButton, isDriver ? styles.sendButtonDriver : styles.sendButtonPassenger]}
-          onPress={() => handleSend()}
+          style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.5 }]}
+          onPress={handleSend}
+          disabled={sending || !input.trim()}
         >
-          <Text style={[styles.sendButtonText, isDriver && { color: colors.dark }]}>Enviar</Text>
+          {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="arrow-right" size={18} color="#FFFFFF" />}
         </TouchableOpacity>
       </View>
     </View>
@@ -235,247 +177,53 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  bgPassenger: {
-    backgroundColor: colors.lightBg,
-  },
-  bgDriver: {
-    backgroundColor: colors.darkBg,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  headerPassenger: {
-    backgroundColor: colors.lightCard,
-    borderBottomColor: colors.lightCardBorder,
-  },
-  headerDriver: {
-    backgroundColor: colors.darkCard,
-    borderBottomColor: colors.darkBorder,
-  },
-  backBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 4,
-    paddingRight: 8,
-  },
-  backBtnText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  interlocutorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    marginLeft: 4,
-  },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  interlocutorName: {
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 1,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.success,
-    marginRight: 4,
-  },
-  statusText: {
-    fontSize: 9,
-    color: colors.textMuted,
-  },
-  callBtn: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: colors.accentMuted,
-  },
-  messagesContainer: {
-    flex: 1,
-  },
-  messagesContent: {
-    padding: 16,
-    paddingBottom: 20,
-  },
-  securityNotice: {
+  container: { flex: 1 },
+  msgs: { padding: theme.spacing.screen, paddingBottom: theme.spacing.lg },
+  notice: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.04)",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginBottom: 14,
-  },
-  securityText: {
-    fontSize: 10,
-    color: colors.textMuted,
-    fontWeight: "500",
-  },
-  bubbleWrapper: {
-    marginBottom: 10,
-    maxWidth: "80%",
-  },
-  bubbleWrapperMe: {
-    alignSelf: "flex-end",
-  },
-  bubbleWrapperThem: {
-    alignSelf: "flex-start",
-  },
-  bubble: {
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-  },
-  bubbleMePassenger: {
-    backgroundColor: colors.primary,
-    borderBottomRightRadius: 2,
-  },
-  bubbleMeDriver: {
-    backgroundColor: colors.accent,
-    borderBottomRightRadius: 2,
-  },
-  bubbleThemPassenger: {
-    backgroundColor: colors.lightCard,
-    borderWidth: 1,
-    borderColor: colors.lightCardBorder,
-    borderBottomLeftRadius: 2,
-  },
-  bubbleThemDriver: {
-    backgroundColor: colors.darkCard,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-    borderBottomLeftRadius: 2,
-  },
-  msgText: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  msgTextMePassenger: {
-    color: colors.textWhite,
-  },
-  msgTextMeDriver: {
-    color: colors.dark,
-    fontWeight: "600",
-  },
-  msgTextThemPassenger: {
-    color: colors.textDark,
-  },
-  msgTextThemDriver: {
-    color: colors.textWhite,
-  },
-  timeText: {
-    fontSize: 8,
-    marginTop: 4,
-    textAlign: "right",
-  },
-  timeTextMePassenger: {
-    color: colors.textSilver,
-  },
-  timeTextMeDriver: {
-    color: "rgba(15, 23, 42, 0.6)",
-  },
-  timeTextThem: {
-    color: colors.textMuted,
-  },
-  quickRepliesContainer: {
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderTopColor: colors.lightCardBorder,
-  },
-  quickRepliesScroll: {
-    paddingHorizontal: 16,
-  },
-  quickChip: {
+    gap: 6,
+    alignSelf: "center",
     paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    marginRight: 6,
-    borderWidth: 1,
+    paddingHorizontal: 12,
+    borderRadius: theme.radius.pill,
+    marginBottom: theme.spacing.md,
   },
-  quickChipPassenger: {
-    backgroundColor: colors.lightCard,
-    borderColor: colors.lightCardBorder,
-  },
-  quickChipDriver: {
-    backgroundColor: colors.darkCard,
-    borderColor: colors.darkBorder,
-  },
-  quickChipText: {
-    fontSize: 10,
-    fontWeight: "600",
-  },
+  noticeText: { fontSize: 11, fontWeight: "600" },
+  emptyMsg: { fontSize: 13, textAlign: "center", marginTop: 20 },
+  bubbleWrap: { marginBottom: theme.spacing.sm, maxWidth: "82%" },
+  wrapMine: { alignSelf: "flex-end" },
+  wrapThem: { alignSelf: "flex-start" },
+  bubble: { paddingVertical: 9, paddingHorizontal: 13, borderRadius: theme.radius.card },
+  bubbleText: { fontSize: 14, lineHeight: 19 },
+  time: { fontSize: 10, marginTop: 3, textAlign: "right" },
+  quickWrap: { borderTopWidth: 1, maxHeight: 46 },
+  quickRow: { paddingHorizontal: theme.spacing.screen, paddingVertical: theme.spacing.sm, gap: theme.spacing.sm },
+  quickChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: theme.radius.pill, borderWidth: 1 },
+  quickText: { fontSize: 12, fontWeight: "500" },
   inputBar: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.screen,
+    paddingTop: theme.spacing.md,
     borderTopWidth: 1,
   },
-  inputBarPassenger: {
-    backgroundColor: colors.lightCard,
-    borderTopColor: colors.lightCardBorder,
-  },
-  inputBarDriver: {
-    backgroundColor: colors.darkCard,
-    borderTopColor: colors.darkBorder,
-  },
-  textInput: {
+  input: {
     flex: 1,
-    height: 40,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    fontSize: 12,
-    borderWidth: 1,
-    marginRight: 8,
+    height: theme.control.heightSm,
+    borderRadius: theme.radius.pill,
+    borderWidth: 1.5,
+    paddingHorizontal: theme.spacing.lg,
+    fontSize: 15,
   },
-  textInputPassenger: {
-    backgroundColor: colors.lightSurface,
-    borderColor: colors.lightCardBorder,
-    color: colors.textDark,
-  },
-  textInputDriver: {
-    backgroundColor: colors.darkCardHover,
-    borderColor: colors.darkBorder,
-    color: colors.textWhite,
-  },
-  sendButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 6,
-  },
-  sendButtonPassenger: {
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sendButtonDriver: {
-    backgroundColor: colors.accent,
-  },
-  sendButtonText: {
-    color: colors.textWhite,
-    fontWeight: "800",
-    fontSize: 11,
-  },
-  textWhite: { color: colors.textWhite },
-  textDark: { color: colors.textDark },
-  textSilver: { color: colors.textSilver },
-  textSecondary: { color: colors.textSecondary },
 });

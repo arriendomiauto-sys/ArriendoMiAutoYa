@@ -1,12 +1,5 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from "react-native";
 import { colors } from "../theme/colors";
 import { Icon } from "../components/Icon";
 import { SplashScreen } from "./screens/SplashScreen";
@@ -15,25 +8,31 @@ import { WelcomeScreen } from "./screens/WelcomeScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { RegisterScreen } from "./screens/RegisterScreen";
 import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen";
-import { KycScreen } from "./screens/KycScreen";
 
 /**
- * Orquestador del flujo de autenticación, compartido por mobile-owner y
- * mobile-renter.
+ * Orquestador del flujo de autenticación de la app unificada.
  *
- * El rol ya no se elige dentro del flujo: cada app es su propio binario
- * dedicado a un solo rol ("owner" | "renter"), pasado una única vez como
- * prop fija desde el App.js de esa app. Tampoco recibe `onAuthSuccess`:
- * nada por encima de <AuthFlow /> necesita un callback, porque
- * useApp().isLoggedIn / currentUser (reactivos) son los que determinan
+ * La app es un solo binario con dos experiencias (arrendatario / dueño). El
+ * rol se elige acá, en la pantalla de bienvenida, y queda como el modo con
+ * el que arranca la app; después el usuario alterna entre modos desde su
+ * perfil. No recibe `onAuthSuccess`: nada por encima de <AuthFlow /> necesita
+ * un callback, porque useApp().isLoggedIn (reactivo) es lo que determina
  * cuándo el componente padre deja de renderizar este flujo.
+ *
+ * La verificación de identidad (KYC) NO es parte de este flujo: la cuenta se
+ * crea simple y el KYC se pide más adelante, dentro de la app
+ * (OwnerApp/RenterApp), justo cuando el usuario intenta publicar o reservar
+ * un auto de verdad.
  */
-export function AuthFlow({ role }) {
+export function AuthFlow() {
   // 'splash' -> 'onboarding' -> 'welcome' -> 'login' | 'register'
   //   -> 'confirm_email' (solo si el registro no devolvió sesión activa)
-  //   -> 'kyc' -> (el padre deja de mostrar AuthFlow)
+  //   -> (el padre deja de mostrar AuthFlow apenas isLoggedIn sea true)
   const [step, setStep] = useState("splash");
-  const [prefill, setPrefill] = useState(null);
+
+  // Rol elegido en la bienvenida: 'renter' (arrendar) | 'owner' (publicar).
+  // Solo afecta el copy del registro y el modo inicial de la app.
+  const [role, setRole] = useState("renter");
 
   if (step === "splash") {
     return <SplashScreen onFinish={() => setStep("onboarding")} />;
@@ -47,6 +46,7 @@ export function AuthFlow({ role }) {
     return (
       <WelcomeScreen
         role={role}
+        onSelectRole={setRole}
         onNavigate={(screen) => {
           if (screen === "login") setStep("login");
           else if (screen === "register") setStep("register");
@@ -59,15 +59,10 @@ export function AuthFlow({ role }) {
     return (
       <RegisterScreen
         role={role}
-        onNavigate={(screen, data) => {
+        onNavigate={(screen) => {
           if (screen === "welcome") setStep("welcome");
           else if (screen === "login") setStep("login");
-          else {
-            // 'kyc' o 'confirm_email', ambos acompañados de los datos de
-            // perfil recolectados en el formulario de registro.
-            setPrefill(data || null);
-            setStep(screen);
-          }
+          else if (screen === "confirm_email") setStep("confirm_email");
         }}
       />
     );
@@ -75,7 +70,7 @@ export function AuthFlow({ role }) {
 
   if (step === "confirm_email") {
     return (
-      <SafeAreaView style={styles.confirmContainer}>
+      <View style={styles.confirmContainer}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.confirmCenter}>
           <View style={styles.confirmIconCircle}>
@@ -94,22 +89,7 @@ export function AuthFlow({ role }) {
         >
           <Text style={styles.confirmBtnText}>Ir a Iniciar sesión</Text>
         </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  if (step === "kyc") {
-    return (
-      <KycScreen
-        role={role}
-        prefill={prefill}
-        onBack={() => setStep("register")}
-        onComplete={() => {
-          // El padre (App.js de mobile-owner / mobile-renter) deja de
-          // renderizar <AuthFlow /> en cuanto useApp().currentUser refleje
-          // el enrolamiento completo; no hace falta notificar nada aquí.
-        }}
-      />
+      </View>
     );
   }
 
@@ -120,7 +100,6 @@ export function AuthFlow({ role }) {
           if (screen === "welcome") setStep("welcome");
           else if (screen === "register") setStep("register");
           else if (screen === "forgot") setStep("forgot");
-          else if (screen === "kyc") setStep("kyc");
         }}
       />
     );

@@ -4,18 +4,17 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   ScrollView,
   TextInput,
-  Alert,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
+import { DocumentCameraModal } from "../../components/DocumentCameraModal";
 import { ApiClient } from "../../api/client";
+import { showAlert } from "../../utils/alert";
 
 // Valida un RUT chileno con el dígito verificador Módulo 11.
 function isRutValid(rutRaw) {
@@ -46,10 +45,15 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const [capturing, setCapturing] = useState(false);
   const [cedulaSide, setCedulaSide] = useState("front"); // 'front' | 'back'
 
+  // Qué documento está capturando la cámara guiada (null = cerrada).
+  // 'carnet_frente' | 'carnet_reverso' | 'licencia' | 'selfie'
+  const [cameraFor, setCameraFor] = useState(null);
+
   // URLs de Supabase Storage tras subir cada documento capturado.
   const [carnetFrontalUrl, setCarnetFrontalUrl] = useState(null);
   const [carnetTraseroUrl, setCarnetTraseroUrl] = useState(null);
   const [licenciaUrl, setLicenciaUrl] = useState(null);
+  const [selfieUrl, setSelfieUrl] = useState(null);
 
   // Datos del formulario final, prellenados desde RegisterScreen (prefill)
   // o desde el perfil ya sincronizado (currentUser) cuando existan.
@@ -62,91 +66,68 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const rutTouched = rut.trim().length > 0;
   const rutIsValid = isRutValid(rut);
 
-  const captureAndUpload = async (filenamePrefix, bucket = "documentos-kyc") => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permiso requerido",
-        "Activa el acceso a la cámara para continuar con la verificación de identidad."
-      );
-      return null;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.7,
-      allowsEditing: false,
-    });
-    if (result.canceled || !result.assets?.length) return null;
-
-    const uri = result.assets[0].uri;
+  // Sube al backend el uri local que devolvió la cámara guiada y retorna
+  // la URL almacenada (firmada, bucket privado documentos-kyc).
+  const subirDocumento = async (uri, filenamePrefix) => {
     const filename = `${filenamePrefix}_${Date.now()}.jpg`;
-    const { url } = await ApiClient.subirArchivoStorage(uri, filename, bucket);
+    const { url } = await ApiClient.subirArchivoStorage(uri, filename, "documentos-kyc");
     return url;
   };
 
-  const handleCaptureCedula = async () => {
+  // Callback único de la cámara guiada: sabe qué documento se estaba
+  // capturando por `cameraFor`, lo sube y avanza el flujo.
+  const handleFotoCapturada = async (uri) => {
+    const slot = cameraFor;
+    setCameraFor(null);
+    if (!uri || !slot) return;
+
     setCapturing(true);
     try {
-      const url = await captureAndUpload(
-        cedulaSide === "front" ? "carnet_frontal" : "carnet_trasero"
-      );
-      if (!url) return;
-
-      if (cedulaSide === "front") {
+      if (slot === "carnet_frente") {
+        const url = await subirDocumento(uri, "carnet_frontal");
         setCarnetFrontalUrl(url);
         setCedulaSide("back");
-      } else {
+      } else if (slot === "carnet_reverso") {
+        const url = await subirDocumento(uri, "carnet_trasero");
         setCarnetTraseroUrl(url);
-        // Si es Dueño, puede pasar directo a selfie facial o licencia opcional
         setCurrentStep(isDriver ? "03_facial" : "02_licencia");
+      } else if (slot === "licencia") {
+        const url = await subirDocumento(uri, "licencia_conducir");
+        setLicenciaUrl(url);
+        setCurrentStep("03_facial");
+      } else if (slot === "selfie") {
+        // La selfie queda como foto_perfil_verificada_url; el OCR + control
+        // facial reales corren en /enrolamiento/completar con todo junto.
+        const url = await subirDocumento(uri, "selfie_verificacion");
+        setSelfieUrl(url);
+        setCurrentStep("04_review");
       }
     } catch (err) {
-      Alert.alert("No se pudo subir el documento", err.message);
+      showAlert("No se pudo subir la foto", err.message || "Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setCapturing(false);
-    }
-  };
-
-  const handleCaptureLicencia = async () => {
-    setCapturing(true);
-    try {
-      const url = await captureAndUpload("licencia_conducir");
-      if (url) setLicenciaUrl(url);
-      setCurrentStep("03_facial");
-    } catch (err) {
-      Alert.alert("No se pudo subir la licencia", err.message);
-      setCurrentStep("03_facial");
-    } finally {
-      setCapturing(false);
-    }
-  };
-
-  const handleCaptureFacial = async () => {
-    setCapturing(true);
-    try {
-      // Llamada real al backend con fallback local: no bloquea al usuario si
-      // el servicio de OCR/verificación biométrica no responde.
-      await ApiClient.verifyKyc({
-        rut: rut || currentUser?.rut || "",
-        nombre: nombre || currentUser?.nombre || "",
-      });
-    } catch {
-      // Continúa con fallback sin interrumpir al usuario
-    } finally {
-      setCapturing(false);
-      setCurrentStep("04_review");
     }
   };
 
   const handleApprove = async () => {
     if (!nombre.trim() || !rut.trim()) {
-      Alert.alert("Datos incompletos", "Ingresa tu nombre completo y tu RUT para continuar.");
+      showAlert("Datos incompletos", "Ingresa tu nombre completo y tu RUT para continuar.");
       return;
     }
     if (!isRutValid(rut)) {
-      Alert.alert(
+      showAlert(
         "RUT inválido",
         "Revisa el RUT ingresado: el dígito verificador no coincide (Módulo 11)."
       );
+      return;
+    }
+
+    if (!carnetFrontalUrl) {
+      showAlert(
+        "Falta la foto de tu cédula",
+        "Debes fotografiar tu cédula de identidad con la cámara antes de continuar."
+      );
+      setCurrentStep("01_cedula");
       return;
     }
 
@@ -154,9 +135,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
     try {
       // El Dueño completa el mismo enrolamiento (nombre/RUT/carnet) que el
       // Arrendatario — el backend le otorga el rol "dueno" automáticamente
-      // la primera vez que publique un auto, así que no se envía un campo
-      // de rol aquí.
-      await completeEnrolment({
+      // la primera vez que publique un auto.
+      //
+      // El backend corre el OCR + control facial reales acá. Puede devolver:
+      //  - 200 estado_documentos="verificado"           -> aprobado
+      //  - 200 estado_documentos="requiere_revision_manual" -> queda en revisión
+      //  - 400 (rechazado)                              -> vuelve a intentar
+      const profile = await completeEnrolment({
         nombre,
         rut,
         email: currentUser?.email,
@@ -164,10 +149,15 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         carnet_frontal_url: carnetFrontalUrl,
         carnet_trasero_url: carnetTraseroUrl,
         licencia_url: role === "renter" ? licenciaUrl : undefined,
+        foto_perfil_verificada_url: selfieUrl,
       });
-      setCurrentStep("05_approved");
+      setCurrentStep(profile?.estado_documentos === "verificado" ? "05_approved" : "06_revision");
     } catch (err) {
-      Alert.alert("No se pudo completar la verificación", err.message);
+      showAlert(
+        "No pudimos verificar tus documentos",
+        (err.message || "") +
+          "\n\nVuelve a tomar las fotos: documento completo dentro del marco, enfocado, sin reflejos y con buena luz."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -179,7 +169,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
     currentStep === "03_facial";
 
   return (
-    <SafeAreaView
+    <View
       style={[
         styles.container,
         isDarkScreen ? styles.bgDark : styles.bgLight,
@@ -190,7 +180,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       />
 
       {/* ========================================================================= */}
-      {/* 01: ESCANEO DE CÉDULA DE IDENTIDAD */}
+      {/* 01: CÉDULA DE IDENTIDAD */}
       {/* ========================================================================= */}
       {currentStep === "01_cedula" && (
         <View style={styles.cameraStepBox}>
@@ -214,44 +204,42 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             {!isDriver && <View style={styles.barSegment} />}
           </View>
 
-          <View style={styles.camViewfinder}>
-            <View style={styles.idCardOutline} />
-            <Text style={styles.camMainPrompt}>
-              {cedulaSide === "front"
-                ? "Cédula por el frente (lado de la foto)"
-                : "Cédula por el reverso (código de barras)"}
-            </Text>
-            <View style={styles.camBottomTip}>
-              <Text style={styles.camBottomTipText}>
-                Encuadre el carnet dentro del recuadro con buena iluminación.
-              </Text>
-            </View>
-          </View>
+          <CaptureGuide
+            shape="card"
+            titulo={
+              cedulaSide === "front"
+                ? "Cédula — lado de la foto"
+                : "Cédula — reverso (código de barras)"
+            }
+            tips={[
+              "Los 4 bordes de la cédula dentro del marco",
+              "Buena luz, sin flash ni reflejos sobre el plástico",
+              "Cédula plana; el RUT y el nombre bien nítidos",
+            ]}
+            done={cedulaSide === "back" ? "Frente capturado ✓" : null}
+          />
 
-          <View style={styles.shutterArea}>
+          <View style={styles.ctaArea}>
             <TouchableOpacity
-              style={styles.shutterOuter}
-              onPress={handleCaptureCedula}
+              style={styles.primaryCta}
+              onPress={() => setCameraFor(cedulaSide === "front" ? "carnet_frente" : "carnet_reverso")}
               disabled={capturing}
               activeOpacity={0.85}
             >
               {capturing ? (
-                <ActivityIndicator size="small" color={colors.primary} />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <View style={styles.shutterInner} />
+                <Text style={styles.primaryCtaText}>
+                  {cedulaSide === "front" ? "Abrir cámara — frente" : "Abrir cámara — reverso"}
+                </Text>
               )}
             </TouchableOpacity>
-            <Text style={styles.shutterSub}>
-              {cedulaSide === "front"
-                ? "Toque para capturar el frente"
-                : "Toque para capturar el reverso"}
-            </Text>
           </View>
         </View>
       )}
 
       {/* ========================================================================= */}
-      {/* 02: ESCANEO DE LICENCIA DE CONDUCIR (ARRENDATARIO) */}
+      {/* 02: LICENCIA DE CONDUCIR (ARRENDATARIO) */}
       {/* ========================================================================= */}
       {currentStep === "02_licencia" && (
         <View style={styles.cameraStepBox}>
@@ -275,31 +263,32 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             <View style={styles.barSegment} />
           </View>
 
-          <View style={styles.camViewfinder}>
-            <View style={styles.idCardOutline} />
-            <Text style={styles.camMainPrompt}>Licencia de Conducir Clase B</Text>
-            <View style={styles.camBottomTip}>
-              <Text style={styles.camBottomTipText}>
-                Revisamos la vigencia y clase para habilitar arriendos seguros.
-              </Text>
-            </View>
-          </View>
+          <CaptureGuide
+            shape="card"
+            titulo="Licencia de conducir (Clase B)"
+            tips={[
+              "Licencia completa dentro del marco",
+              "Plana y sin reflejos; que se lea la clase y la vigencia",
+              "Buena luz, cámara paralela al documento",
+            ]}
+            done={licenciaUrl ? "Licencia capturada ✓" : null}
+          />
 
-          <View style={styles.shutterArea}>
+          <View style={styles.ctaArea}>
             <TouchableOpacity
-              style={styles.shutterOuter}
-              onPress={handleCaptureLicencia}
+              style={styles.primaryCta}
+              onPress={() => setCameraFor("licencia")}
               disabled={capturing}
               activeOpacity={0.85}
             >
               {capturing ? (
-                <ActivityIndicator size="small" color={colors.primary} />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <View style={styles.shutterInner} />
+                <Text style={styles.primaryCtaText}>Abrir cámara</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setCurrentStep("03_facial")}>
-              <Text style={styles.shutterSub}>
+              <Text style={styles.skipText}>
                 ¿No tienes tu licencia ahora? Puedes continuar y subirla después.
               </Text>
             </TouchableOpacity>
@@ -308,7 +297,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       )}
 
       {/* ========================================================================= */}
-      {/* 03: SELFIE Y RECONOCIMIENTO BIOMÉTRICO */}
+      {/* 03: SELFIE DE VERIFICACIÓN */}
       {/* ========================================================================= */}
       {currentStep === "03_facial" && (
         <View style={styles.cameraStepBox}>
@@ -333,27 +322,28 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             )}
           </View>
 
-          <View style={styles.camViewfinder}>
-            <View style={styles.faceCircleOutline} />
-            <Text style={styles.camMainPrompt}>Mire al frente sin lentes</Text>
-            <View style={styles.camBottomTip}>
-              <Text style={styles.camBottomTipText}>
-                Comparamos automáticamente su rostro con la foto de su carnet.
-              </Text>
-            </View>
-          </View>
+          <CaptureGuide
+            shape="face"
+            titulo="Selfie de verificación"
+            tips={[
+              "Cara centrada en el óvalo, mirando de frente",
+              "Sin lentes de sol, gorro ni mascarilla",
+              "Buena luz de frente, fondo neutro",
+            ]}
+            done={selfieUrl ? "Selfie capturada ✓" : null}
+          />
 
-          <View style={styles.facialCtaArea}>
+          <View style={styles.ctaArea}>
             <TouchableOpacity
-              style={styles.facialBtn}
-              onPress={handleCaptureFacial}
+              style={styles.primaryCta}
+              onPress={() => setCameraFor("selfie")}
               disabled={capturing}
               activeOpacity={0.85}
             >
               {capturing ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.facialBtnText}>Validar mi Identidad</Text>
+                <Text style={styles.primaryCtaText}>Abrir cámara frontal</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -365,6 +355,14 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       {/* ========================================================================= */}
       {currentStep === "04_review" && (
         <View style={styles.reviewStepBox}>
+          <TouchableOpacity
+            onPress={() => setCurrentStep("03_facial")}
+            style={styles.reviewBackBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Icon name="arrow-left" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
           <ScrollView contentContainerStyle={styles.reviewCenter} showsVerticalScrollIndicator={false}>
             <View style={styles.clockCircle}>
               <Icon name="clock" size={38} color="#D97706" />
@@ -462,10 +460,10 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
               </View>
 
               <View style={styles.checkItem}>
-                <View style={styles.checkDone}>
+                <View style={[styles.checkDone, !selfieUrl && styles.checkPending]}>
                   <Icon name="check" size={14} color="#FFFFFF" />
                 </View>
-                <Text style={styles.checkText}>Validación biométrica facial</Text>
+                <Text style={styles.checkText}>Selfie de verificación capturada</Text>
               </View>
             </View>
 
@@ -538,7 +536,120 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           </View>
         </View>
       )}
-    </SafeAreaView>
+
+      {/* ========================================================================= */}
+      {/* 06: DOCUMENTOS EN REVISIÓN MANUAL */}
+      {/* ========================================================================= */}
+      {currentStep === "06_revision" && (
+        <View style={styles.reviewStepBox}>
+          <View style={styles.reviewCenter}>
+            <View style={styles.clockCircle}>
+              <Icon name="clock" size={38} color="#D97706" />
+            </View>
+
+            <View style={styles.reviewTextBox}>
+              <Text style={styles.reviewTitle}>Estamos revisando tus documentos</Text>
+              <Text style={styles.reviewSub}>
+                Recibimos tus fotos pero no pudimos validarlas de forma automática.
+                Un ejecutivo las revisa a mano — te avisamos apenas quede lista tu cuenta
+                (normalmente dentro de unas horas).
+              </Text>
+            </View>
+
+            <View style={styles.badgeCard}>
+              <View style={styles.shieldIconWrapper}>
+                <Icon name="camera" size={26} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.badgeCardTitle}>¿Quieres acelerar la revisión?</Text>
+                <Text style={styles.badgeCardDesc}>
+                  Vuelve a tomar las fotos con el documento completo dentro del marco,
+                  enfocado, sin reflejos y con buena luz.
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.reviewBottomBar}>
+            <TouchableOpacity
+              style={[styles.approvedPrimaryBtn, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setCarnetFrontalUrl(null);
+                setCarnetTraseroUrl(null);
+                setLicenciaUrl(null);
+                setSelfieUrl(null);
+                setCedulaSide("front");
+                setCurrentStep("01_cedula");
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.approvedPrimaryBtnText}>Volver a tomar las fotos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onComplete()} style={{ paddingVertical: 12 }}>
+              <Text style={[styles.reviewSub, { fontSize: 13 }]}>
+                Continuar y esperar la revisión
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <DocumentCameraModal
+        visible={!!cameraFor}
+        variant={cameraFor || "carnet_frente"}
+        onClose={() => setCameraFor(null)}
+        onCaptured={handleFotoCapturada}
+      />
+    </View>
+  );
+}
+
+// Guía visual de encuadre: muestra la forma (tarjeta u óvalo) con esquineros
+// y un ejemplo de cómo debe quedar el documento, más los tips de captura.
+function CaptureGuide({ shape, titulo, tips, done }) {
+  const isFace = shape === "face";
+  return (
+    <View style={styles.guideWrap}>
+      <View style={styles.guideStage}>
+        <View style={[styles.guideFrame, isFace ? styles.guideFrameFace : styles.guideFrameCard]}>
+          {isFace ? (
+            <View style={styles.mockFace}>
+              <View style={styles.mockFaceHead} />
+              <View style={styles.mockFaceBody} />
+            </View>
+          ) : (
+            <View style={styles.mockCard}>
+              <View style={styles.mockPhoto} />
+              <View style={styles.mockLines}>
+                <View style={[styles.mockLine, { width: "70%" }]} />
+                <View style={[styles.mockLine, { width: "45%" }]} />
+                <View style={[styles.mockLine, { width: "60%" }]} />
+              </View>
+            </View>
+          )}
+          <View style={[styles.gCorner, styles.gTL]} />
+          <View style={[styles.gCorner, styles.gTR]} />
+          <View style={[styles.gCorner, styles.gBL]} />
+          <View style={[styles.gCorner, styles.gBR]} />
+        </View>
+        <Text style={styles.guideCaption}>Así se debe ver</Text>
+      </View>
+
+      <Text style={styles.guideTitle}>{titulo}</Text>
+      <View style={styles.tipList}>
+        {tips.map((t) => (
+          <View key={t} style={styles.tipRow}>
+            <Icon name="check" size={14} color={colors.accent500} />
+            <Text style={styles.tipText}>{t}</Text>
+          </View>
+        ))}
+      </View>
+      {done ? (
+        <View style={styles.doneChip}>
+          <Text style={styles.doneChipText}>{done}</Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -589,94 +700,149 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
-  camViewfinder: {
+  // --- Guía de encuadre (CaptureGuide) ---
+  guideWrap: {
     flex: 1,
-    backgroundColor: "#0B2E2E",
-    borderRadius: 20,
+    justifyContent: "center",
+    gap: 18,
+  },
+  guideStage: {
+    alignItems: "center",
+    gap: 8,
+  },
+  guideFrame: {
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.35)",
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    position: "relative",
-    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  idCardOutline: {
-    width: 300,
-    height: 190,
-    borderWidth: 2.5,
-    borderColor: "#FFFFFF",
-    borderRadius: 14,
+  guideFrameCard: {
+    width: 280,
+    height: 280 / (85.6 / 54),
   },
-  faceCircleOutline: {
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    borderWidth: 3,
+  guideFrameFace: {
+    width: 210,
+    height: 260,
+    borderRadius: 130,
+  },
+  guideCaption: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    color: colors.accent500,
+    textTransform: "uppercase",
+  },
+  gCorner: {
+    position: "absolute",
+    width: 22,
+    height: 22,
     borderColor: colors.accent500,
   },
-  camMainPrompt: {
-    position: "absolute",
-    top: 24,
-    left: 20,
-    right: 20,
-    textAlign: "center",
+  gTL: { top: -2, left: -2, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 8 },
+  gTR: { top: -2, right: -2, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 8 },
+  gBL: { bottom: -2, left: -2, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 8 },
+  gBR: { bottom: -2, right: -2, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 8 },
+  mockCard: {
+    width: "82%",
+    height: "72%",
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    gap: 10,
+  },
+  mockPhoto: {
+    width: "30%",
+    height: "80%",
+    backgroundColor: "#8CA3A3",
+    borderRadius: 4,
+  },
+  mockLines: {
+    flex: 1,
+    gap: 6,
+  },
+  mockLine: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#9CB0B0",
+  },
+  mockFace: {
+    alignItems: "center",
+    gap: 4,
+  },
+  mockFaceHead: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    backgroundColor: "rgba(255,255,255,0.75)",
+  },
+  mockFaceBody: {
+    width: 110,
+    height: 60,
+    borderTopLeftRadius: 55,
+    borderTopRightRadius: 55,
+    backgroundColor: "rgba(255,255,255,0.55)",
+  },
+  guideTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#FFFFFF",
-  },
-  camBottomTip: {
-    position: "absolute",
-    bottom: 24,
-    left: 20,
-    right: 20,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  camBottomTipText: {
-    fontSize: 13,
-    color: "#E2E8F0",
     textAlign: "center",
-    lineHeight: 18,
   },
-  shutterArea: {
+  tipList: {
+    gap: 8,
+    alignSelf: "center",
+  },
+  tipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  tipText: {
+    fontSize: 13,
+    color: "#CBD5E1",
+    flexShrink: 1,
+  },
+  doneChip: {
+    alignSelf: "center",
+    backgroundColor: "rgba(47,191,155,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(47,191,155,0.4)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  doneChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.accent500,
+  },
+  // --- CTA de cada paso ---
+  ctaArea: {
     alignItems: "center",
     gap: 12,
     paddingTop: 16,
   },
-  shutterOuter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
-  },
-  shutterInner: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.primary,
-  },
-  shutterSub: {
-    fontSize: 13,
-    color: "#94A3B8",
-    textAlign: "center",
-  },
-  facialCtaArea: {
-    paddingTop: 16,
-  },
-  facialBtn: {
+  primaryCta: {
+    width: "100%",
     height: 54,
     borderRadius: 12,
     backgroundColor: colors.accent500,
     alignItems: "center",
     justifyContent: "center",
   },
-  facialBtnText: {
+  primaryCtaText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  skipText: {
+    fontSize: 13,
+    color: "#94A3B8",
+    textAlign: "center",
   },
   reviewStepBox: {
     flex: 1,
@@ -684,6 +850,10 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 24,
     justifyContent: "space-between",
+  },
+  reviewBackBtn: {
+    alignSelf: "flex-start",
+    marginBottom: 8,
   },
   reviewCenter: {
     alignItems: "center",
