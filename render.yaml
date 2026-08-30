@@ -1,0 +1,65 @@
+# Blueprint de despliegue en Render (https://render.com/docs/blueprint-spec).
+# Crea 2 servicios: la API (Docker) y el sitio web (Next.js).
+# Los valores marcados sync:false se cargan a mano en el dashboard de Render.
+services:
+  # ------------------------------------------------------------------- API
+  - type: web
+    name: arrienda-api
+    runtime: docker
+    rootDir: apps/api
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    branch: main
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: USE_OCR_MOCK
+        value: "false"
+      - key: DATABASE_URL          # Postgres de Supabase (connection string)
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GOOGLE_CLOUD_VISION_API_KEY
+        sync: false
+      - key: TBK_COMMERCE_CODE
+        sync: false
+      - key: TBK_API_KEY
+        sync: false
+      - key: TBK_ENVIRONMENT
+        value: INTEGRACION
+      - key: CORS_ORIGINS          # JSON array con el dominio del sitio web
+        sync: false
+
+  # ------------------------------------------------------------------- Web
+  - type: web
+    name: arrienda-web
+    runtime: node
+    rootDir: apps/web
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    branch: main
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_URL   # https://arrienda-api.onrender.com/api/v1
+        sync: false

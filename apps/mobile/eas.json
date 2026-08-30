@@ -1,9 +1,47 @@
 {
-  "cli": { "appVersionSource": "remote" },
-  "build": {
-    "development": { "developmentClient": true, "distribution": "internal" },
-    "preview": { "distribution": "internal" },
-    "production": {}
+  "cli": {
+    "version": ">= 5.9.0",
+    "appVersionSource": "remote"
   },
-  "submit": { "production": {} }
+  "build": {
+    "base": {
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rgxiyidijtoazcrmijly.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJneGl5aWRpanRvYXpjcm1pamx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNzkyNzIsImV4cCI6MjEwMjY1NTI3Mn0.CkLZA7coBk9lvngokZNpbHik6ESGTDWvLOKq2opMVqc"
+      }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:8000/api/v1",
+        "EXPO_PUBLIC_WEB_URL": "http://localhost:3000"
+      }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "channel": "preview",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://arrienda-api.onrender.com/api/v1",
+        "EXPO_PUBLIC_WEB_URL": "https://arriendatuauto.cl"
+      }
+    },
+    "production": {
+      "extends": "base",
+      "channel": "production",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://arrienda-api.onrender.com/api/v1",
+        "EXPO_PUBLIC_WEB_URL": "https://arriendatuauto.cl"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
 }

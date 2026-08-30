@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.db
+*.sqlite3
+rentacar_dev.db
+test_temp.db
+uploads/
+.env
+.env.*
+tests/
+scripts/run_qa_e2e_live.py
+.git/
