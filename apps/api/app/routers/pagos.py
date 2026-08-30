@@ -2,12 +2,32 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from app.core.database import get_db
-from app.models.entities import Pago, Reserva, Usuario
+from app.models.entities import Pago, Reserva, Usuario, Auto
 from app.services.transbank import TransbankService
 from app.services.auth import get_current_user
+from app.services.notificaciones import crear_notificacion
 import uuid
 
 router = APIRouter(prefix="/pagos", tags=["Pasarela de Pagos (Webpay Plus)"])
+
+
+def _notificar_reserva_confirmada(db: Session, reserva: Reserva) -> None:
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    if not auto:
+        return
+    nombre_auto = f"{auto.marca} {auto.modelo} ({auto.patente})"
+    crear_notificacion(
+        db, usuario_id=auto.dueno_id, tipo="reserva",
+        titulo="Nueva reserva de tu auto",
+        mensaje=f"Te reservaron el {nombre_auto}. Coordina la entrega con el arrendatario.",
+        entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
+    )
+    crear_notificacion(
+        db, usuario_id=reserva.cliente_id, tipo="reserva",
+        titulo="Reserva confirmada",
+        mensaje=f"Tu reserva del {nombre_auto} quedó confirmada y la garantía retenida.",
+        entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
+    )
 
 @router.post("/webpay/iniciar", summary="Inicia una transacción Webpay Plus (Hold o Cobro)")
 def iniciar_pago_webpay(
@@ -90,6 +110,8 @@ def confirmar_pago_webpay(
             reserva = db.query(Reserva).filter(Reserva.id == pago.reserva_id).first()
             if reserva and reserva.estado == "pendiente":
                 reserva.estado = "confirmada"
+                db.flush()
+                _notificar_reserva_confirmada(db, reserva)
         db.commit()
         db.refresh(pago)
 

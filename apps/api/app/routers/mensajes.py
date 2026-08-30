@@ -68,4 +68,21 @@ def enviar_mensaje(
     db.add(mensaje)
     db.commit()
     db.refresh(mensaje)
+
+    # Avisar a la otra parte de la reserva (dueño <-> cliente).
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    destinatario_id = (
+        auto.dueno_id if (auto and current_user.id == reserva.cliente_id) else reserva.cliente_id
+    )
+    if destinatario_id and destinatario_id != current_user.id:
+        from app.services.notificaciones import crear_notificacion
+        crear_notificacion(
+            db,
+            usuario_id=destinatario_id,
+            tipo="mensaje",
+            titulo="Nuevo mensaje",
+            mensaje=(payload.texto[:120] + "…") if len(payload.texto) > 120 else payload.texto,
+            entidad_tipo="reserva",
+            entidad_id=reserva_id,
+        )
     return mensaje

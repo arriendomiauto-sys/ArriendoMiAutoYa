@@ -129,3 +129,47 @@ def test_actualizar_perfil_basico_no_requiere_kyc_previo(usuario_factory, auth_a
     # No toca nada relacionado a identidad/KYC.
     assert data["rut"] is None
     assert data["estado_documentos"] == "pendiente"
+
+
+def test_publicar_auto_guarda_specs_de_ficha(usuario_factory, auth_as):
+    dueno = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    resp = auth_as(dueno).post(
+        "/api/v1/autos",
+        json={
+            "marca": "Toyota", "modelo": "RAV4", "anio": 2023, "patente": "SPEC-01",
+            "tarifa_dia": 42000, "ubicacion_base": "Los Ángeles",
+            "transmision": "automatica", "combustible": "hibrido",
+            "asientos": 5, "puertas": 5, "categoria": "suv",
+            **_DOCS_AUTO,
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["transmision"] == "automatica"
+    assert data["combustible"] == "hibrido"
+    assert data["categoria"] == "suv"
+    assert data["asientos"] == 5
+
+
+def test_reserva_nace_pendiente_hasta_pagar_el_hold(usuario_factory, auth_as, db_session):
+    from app.models.entities import Auto
+    dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
+    auto = Auto(
+        dueno_id=dueno.id, marca="Kia", modelo="Rio", anio=2021,
+        patente="PEND-01", tarifa_dia=18000, estado="activo", ubicacion_base="Los Ángeles",
+    )
+    db_session.add(auto)
+    db_session.commit()
+
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    resp = auth_as(cliente).post(
+        "/api/v1/reservas",
+        json={
+            "auto_id": auto.id,
+            "fecha_inicio": "2026-10-01T10:00:00",
+            "fecha_fin": "2026-10-03T10:00:00",
+            "lugar_entrega_acordado": "Plaza de Armas",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["estado"] == "pendiente"
