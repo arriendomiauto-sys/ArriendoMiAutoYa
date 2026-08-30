@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.entities import Usuario
@@ -42,3 +43,17 @@ def actualizar_cuenta_bancaria(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.put(
+    "/me/push-token",
+    summary="Registrar el token de notificaciones push (expo-notifications) del dispositivo",
+)
+def registrar_push_token(
+    expo_push_token: Optional[str] = Body(None, embed=True),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    current_user.expo_push_token = (expo_push_token or "").strip() or None
+    db.commit()
+    return {"ok": True}
