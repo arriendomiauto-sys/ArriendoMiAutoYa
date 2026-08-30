@@ -5,41 +5,31 @@ const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
   "http://localhost:8000/api/v1";
 
+// Autos de respaldo SOLO para modo offline (backend inalcanzable). Los
+// campos siguen el mismo shape que devuelve GET /autos (AutoOut) para que
+// las pantallas no muestren datos con otra forma que la real.
 export const MOCK_CARS = [
   {
     id: "car-swift-01",
+    dueno_id: "dueno-demo",
     marca: "Suzuki",
     modelo: "Swift",
-    ano: 2023,
+    anio: 2023,
     patente: "BBFK-42",
-    transmision: "Automático",
-    combustible: "Bencina 95",
+    tarifa_dia: 38000,
+    ubicacion_base: "Providencia, Santiago",
+    estado: "activo",
+    transmision: "automatica",
+    combustible: "bencina",
     asientos: 5,
     puertas: 5,
-    tarifa_dia: 38000,
-    tarifa_semana: 228000,
-    tarifa_mes: 820000,
-    garantia_monto: 150000,
-    direccion_entrega: "Av. Providencia 2145",
-    comuna: "Providencia",
-    ciudad: "Santiago",
-    distancia: "a 400 m",
-    disponible: true,
-    foto_principal_url: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
+    categoria: "economico",
+    equipamiento: { ac: true, bluetooth: true, camara_retroceso: true },
+    documentos_verificados: true,
     fotos: [
       "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
       "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800",
     ],
-    dueno: {
-      id: "dueno-rodrigo",
-      nombre: "Rodrigo Muñoz",
-      rating: 4.8,
-      viajes: 31,
-      telefono: "+56 9 7734 1208",
-      verificado: true,
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-      tiempo_respuesta: "Responde en menos de 15 min",
-    },
   },
 ];
 
@@ -255,6 +245,32 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  // Notificaciones in-app
+  static async getNotificaciones() {
+    try {
+      return await this.request("/notificaciones");
+    } catch {
+      return [];
+    }
+  }
+
+  static async getConteoNotificacionesNoLeidas() {
+    try {
+      const { no_leidas } = await this.request("/notificaciones/conteo-no-leidas");
+      return no_leidas || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  static async marcarNotificacionLeida(id) {
+    return this.request(`/notificaciones/${id}/leida`, { method: "POST" });
+  }
+
+  static async marcarTodasNotificacionesLeidas() {
+    return this.request("/notificaciones/marcar-todas-leidas", { method: "POST" });
   }
 
   // Soporte (tickets)

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, StatusBar, ScrollView, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import {
   colors,
   theme,
@@ -12,7 +14,11 @@ import {
   SectionLabel,
   MenuList,
   MenuRow,
+  ApiClient,
+  showAlert,
 } from "@rentacar/mobile-shared";
+
+const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
 
 function fechaHora(iso, largo = false) {
   if (!iso) return "—";
@@ -48,10 +54,37 @@ export function ActiveRentalScreen({
   const [view, setView] = useState(
     res.estado === "en_curso" ? "detail" : res.estado === "confirmada" ? "confirmed" : "sent"
   );
+  const [pagando, setPagando] = useState(false);
 
   const footer = (children) => (
     <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>{children}</View>
   );
+
+  // La reserva "pendiente" sigue esperando que se autorice el hold en Webpay.
+  const reintentarPago = async () => {
+    if (!res.id) return;
+    setPagando(true);
+    try {
+      const returnUrl = WEB_URL ? `${WEB_URL}/pago/retorno` : "https://arriendatuauto.cl/pago/retorno";
+      const inicio = await ApiClient.iniciarPagoWebpay(montoHold, "hold_reserva", res.id, returnUrl);
+      if (!inicio?.url) throw new Error("La pasarela de pago no está disponible.");
+      const redirect = Linking.createURL("pago-retorno");
+      const r = await WebBrowser.openAuthSessionAsync(inicio.url, redirect);
+      if (r.type === "success" && r.url) {
+        const { queryParams } = Linking.parse(r.url);
+        const confirm = await ApiClient.confirmarPagoWebpay(queryParams?.token_ws || inicio.token);
+        if (confirm?.autorizada) {
+          setView("confirmed");
+          return;
+        }
+      }
+      showAlert("Pago no completado", "La garantía no quedó autorizada. Tu reserva sigue pendiente.");
+    } catch (e) {
+      showAlert("No se pudo abrir el pago", e.message || "Inténtalo de nuevo.");
+    } finally {
+      setPagando(false);
+    }
+  };
 
   // -------------------------------------------------------------- ENVIADA
   if (view === "sent") {
@@ -63,27 +96,27 @@ export function ActiveRentalScreen({
             <Icon name="clock" size={34} color={colors.warning} />
           </View>
           <View style={styles.centerText}>
-            <Text style={styles.bigTitle}>Solicitud enviada</Text>
+            <Text style={styles.bigTitle}>Reserva pendiente de pago</Text>
             <Text style={styles.bigSub}>
-              El dueño tiene 12 horas para responder. Te avisamos apenas conteste.
+              Falta autorizar la garantía en Webpay para confirmar tu reserva.
             </Text>
           </View>
           <Card padded style={{ width: "100%", gap: theme.spacing.md }}>
             <Row label="Auto" value={nombre} />
             <Row label="Fechas" value={`${fechaHora(res.fecha_inicio)} → ${fechaHora(res.fecha_fin)}`} />
-            <Row label="Total (hold)" value={`$${montoHold.toLocaleString("es-CL")}`} strong />
+            <Row label="Garantía (hold)" value={`$${montoHold.toLocaleString("es-CL")}`} strong />
             <View style={styles.divider} />
-            <Row label="Estado del cobro" value="Autorizado, no cobrado" warn />
+            <Row label="Estado" value="Pendiente de pago" warn />
           </Card>
           <View style={styles.noteTeal}>
             <Text style={styles.noteTealText}>
-              Si el dueño no acepta, se libera el monto completo sin ningún cargo.
+              El hold es una pre-autorización, no un cobro. Se libera al devolver el auto sin daños.
             </Text>
           </View>
         </ScrollView>
         {footer(
           <>
-            <Button variant="secondary" label="Simular aceptación del dueño" onPress={() => setView("confirmed")} />
+            <Button label="Pagar con Webpay" iconRight="arrow-right" onPress={reintentarPago} loading={pagando} />
             <Button variant="ghost" size="sm" label="Seguir mirando autos" onPress={onBack} />
           </>
         )}

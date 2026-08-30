@@ -20,7 +20,21 @@ import {
 } from "@rentacar/mobile-shared";
 import { CarCard } from "../components/CarCard";
 
-const CATEGORIES = ["Todos", "Económico", "SUV", "Camioneta", "4x4"];
+const CATEGORIES = [
+  { id: "Todos", cat: null },
+  { id: "Económico", cat: "economico" },
+  { id: "Sedán", cat: "sedan" },
+  { id: "SUV", cat: "suv" },
+  { id: "Camioneta", cat: "camioneta" },
+  { id: "Premium", cat: "premium" },
+];
+
+// Palabras clave de respaldo para autos publicados antes de que existiera
+// el campo `categoria` (o que el dueño dejó sin elegir).
+const CAT_KEYWORDS = {
+  suv: ["rav4", "tucson", "jimny", "sportage", "cr-v", "crv", "tiguan", "kicks", "seltos", "corolla cross"],
+  camioneta: ["hilux", "ranger", "amarok", "l200", "frontier", "d-max", "dmax", "colorado"],
+};
 
 export function MarketplaceScreen({ onSelectCar, onOpenMap, onVerifyIdentity }) {
   const { cars, currentUser, loadData, loading } = useApp();
@@ -29,20 +43,20 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onVerifyIdentity }) 
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
+  const catActiva = CATEGORIES.find((c) => c.id === category)?.cat || null;
   const filteredCars = (cars || []).filter((car) => {
     if (q) {
       const hay = `${car.marca} ${car.modelo} ${car.ubicacion_base || ""} ${car.comuna || ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
-    if (category === "Todos") return true;
-    if (category === "Camioneta")
-      return ["hilux", "ranger", "amarok", "l200", "frontier"].some((m) => car.modelo?.toLowerCase().includes(m));
-    if (category === "SUV")
-      return ["rav4", "tucson", "jimny", "sportage", "cr-v", "tiguan", "kicks"].some((m) =>
-        car.modelo?.toLowerCase().includes(m)
-      );
-    if (category === "4x4") return !!car.equipamiento?.doble_traccion;
-    if (category === "Económico") return (car.tarifa_dia || 0) > 0 && car.tarifa_dia <= 35000;
+    if (!catActiva) return true;
+    if (car.categoria) return car.categoria === catActiva;
+    // Respaldo para autos sin categoría: económico por tarifa, SUV/camioneta
+    // por el modelo; sedán/premium sin heurística → no se ocultan.
+    if (catActiva === "economico") return (car.tarifa_dia || 0) > 0 && car.tarifa_dia <= 35000;
+    if (CAT_KEYWORDS[catActiva]) {
+      return CAT_KEYWORDS[catActiva].some((m) => car.modelo?.toLowerCase().includes(m));
+    }
     return true;
   });
 
@@ -88,8 +102,8 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onVerifyIdentity }) 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chips}
         >
-          {CATEGORIES.map((cat) => (
-            <Chip key={cat} label={cat} selected={category === cat} onPress={() => setCategory(cat)} />
+          {CATEGORIES.map((c) => (
+            <Chip key={c.id} label={c.id} selected={category === c.id} onPress={() => setCategory(c.id)} />
           ))}
         </ScrollView>
       </View>

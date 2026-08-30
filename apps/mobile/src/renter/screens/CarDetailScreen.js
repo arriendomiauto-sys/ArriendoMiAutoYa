@@ -65,6 +65,15 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const fotos = car?.fotos?.length ? car.fotos : ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800"];
   const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
   const dueno = car?.dueno;
+  const CAT_LABEL = { economico: "Económico", sedan: "Sedán", suv: "SUV", camioneta: "Camioneta", premium: "Premium" };
+  const TRANS_LABEL = { automatica: "Automática", mecanica: "Mecánica" };
+  const FUEL_LABEL = { bencina: "Bencina", diesel: "Diésel", hibrido: "Híbrido", electrico: "Eléctrico" };
+  const specs = [
+    car?.transmision && { icon: "settings", label: TRANS_LABEL[car.transmision] || car.transmision },
+    car?.combustible && { icon: "gas", label: FUEL_LABEL[car.combustible] || car.combustible },
+    car?.asientos && { icon: "user", label: `${car.asientos} asientos` },
+    car?.puertas && { icon: "car", label: `${car.puertas} puertas` },
+  ].filter(Boolean);
   const equipamientoActivo = Object.entries(car?.equipamiento || {})
     .filter(([, activo]) => activo)
     .map(([key]) => EQUIPAMIENTO_LABELS[key] || key);
@@ -126,10 +135,26 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               <View style={styles.metaRow}>
                 <Icon name="location" size={14} color={colors.textMuted} />
                 <Text style={styles.metaText}>{car?.ubicacion_base || "Ubicación no informada"}</Text>
-                <Text style={styles.metaDot}>·</Text>
-                <Text style={styles.metaText}>Patente {car?.patente || "—"}</Text>
+                {car?.categoria ? (
+                  <>
+                    <Text style={styles.metaDot}>·</Text>
+                    <Text style={styles.metaText}>{CAT_LABEL[car.categoria] || car.categoria}</Text>
+                  </>
+                ) : null}
               </View>
             </View>
+
+            {specs.length > 0 && (
+              <View style={styles.specsRow}>
+                {specs.map((s) => (
+                  <View key={s.label} style={styles.specItem}>
+                    <Icon name={s.icon} size={15} color={colors.primary} />
+                    <Text style={styles.specText}>{s.label}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {car?.descripcion ? <Text style={styles.descripcion}>{car.descripcion}</Text> : null}
 
             {dueno ? (
               <Card style={styles.hostCard} padded>
@@ -349,6 +374,10 @@ const styles = StyleSheet.create({
   body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
   carName: { ...theme.typography.title, color: colors.text },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6, flexWrap: "wrap" },
+  specsRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.md },
+  specItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  specText: { fontSize: 13, color: colors.text, fontWeight: "500" },
+  descripcion: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
   metaText: { fontSize: 13, color: colors.textMuted },
   metaDot: { color: colors.textMuted },
 

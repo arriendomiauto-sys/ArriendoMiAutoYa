@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { useApp } from "../context/AppContext";
@@ -10,21 +10,46 @@ const FILTROS = [
   { id: "todas", label: "Todas" },
   { id: "no_leidas", label: "Sin leer" },
   { id: "reserva", label: "Reservas" },
-  { id: "pago", label: "Pagos" },
+  { id: "entrega", label: "Entregas" },
 ];
 
-const ICONO_TIPO = { pago: "wallet", reserva: "key" };
+const ICONO_TIPO = { pago: "wallet", reserva: "key", mensaje: "chat", entrega: "car", kyc: "document", soporte: "shield" };
+
+function tiempoRelativo(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const seg = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (seg < 60) return "Ahora";
+  if (seg < 3600) return `Hace ${Math.floor(seg / 60)} min`;
+  if (seg < 86400) return `Hace ${Math.floor(seg / 3600)} h`;
+  if (seg < 604800) return `Hace ${Math.floor(seg / 86400)} d`;
+  try {
+    return d.toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+  } catch {
+    return "";
+  }
+}
 
 export function NotificationsScreen({ onBack, onSelectNotification, variant = "renter" }) {
-  const { notifications, markNotificationAsRead, clearAllNotifications } = useApp();
+  const { notifications, cargarNotificaciones, markNotificationAsRead, clearAllNotifications } = useApp();
   const tone = variant === "owner" ? "dark" : "light";
   const dark = tone === "dark";
   const [filter, setFilter] = useState("todas");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await cargarNotificaciones?.();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const filtered = notifications.filter((n) => {
     if (filter === "no_leidas") return !n.leido;
-    if (filter === "reserva") return n.tipo === "reserva";
-    if (filter === "pago") return n.tipo === "pago";
+    if (filter === "reserva") return n.tipo === "reserva" || n.tipo === "pago";
+    if (filter === "entrega") return n.tipo === "entrega";
     return true;
   });
   const unread = notifications.filter((n) => !n.leido).length;
@@ -58,6 +83,13 @@ export function NotificationsScreen({ onBack, onSelectNotification, variant = "r
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={dark ? colors.accent : colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <TouchableOpacity
             style={[
@@ -84,7 +116,7 @@ export function NotificationsScreen({ onBack, onSelectNotification, variant = "r
               <Text style={[styles.cardMsg, { color: dark ? colors.textSilver : colors.textMuted }]}>
                 {item.mensaje}
               </Text>
-              <Text style={styles.cardDate}>{item.fecha}</Text>
+              <Text style={styles.cardDate}>{tiempoRelativo(item.creado_en)}</Text>
             </View>
           </TouchableOpacity>
         )}

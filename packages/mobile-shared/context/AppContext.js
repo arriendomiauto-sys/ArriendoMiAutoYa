@@ -110,6 +110,27 @@ export function AppProvider({ children }) {
     loadData();
   }, [loadData]);
 
+  // Notificaciones in-app: se traen del backend al iniciar sesión y se
+  // refrescan por polling suave mientras la sesión está activa.
+  const cargarNotificaciones = useCallback(async () => {
+    try {
+      const data = await ApiClient.getNotificaciones();
+      setNotifications(Array.isArray(data) ? data : []);
+    } catch {
+      /* se reintenta en el próximo tick */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setNotifications([]);
+      return;
+    }
+    cargarNotificaciones();
+    const t = setInterval(cargarNotificaciones, 30000);
+    return () => clearInterval(t);
+  }, [isLoggedIn, cargarNotificaciones]);
+
   const register = async (email, password, preferredMode) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
@@ -176,10 +197,12 @@ export function AppProvider({ children }) {
     setNotifications((prev) =>
       prev.map((n) => (n.id === notifId ? { ...n, leido: true } : n))
     );
+    ApiClient.marcarNotificacionLeida(notifId).catch(() => {});
   };
 
   const clearAllNotifications = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, leido: true })));
+    ApiClient.marcarTodasNotificacionesLeidas().catch(() => {});
   };
 
   const addPaymentMethod = (card) => {
@@ -222,6 +245,7 @@ export function AppProvider({ children }) {
         removePaymentMethod,
         notifications,
         setNotifications,
+        cargarNotificaciones,
         markNotificationAsRead,
         clearAllNotifications,
         loading,

@@ -18,11 +18,30 @@ import {
   theme,
   Icon,
   Button,
+  Chip,
   ScreenHeader,
   SectionLabel,
   ApiClient,
   showAlert,
 } from "@rentacar/mobile-shared";
+
+const TRANSMISIONES = [
+  { v: "automatica", label: "Automática" },
+  { v: "mecanica", label: "Mecánica" },
+];
+const COMBUSTIBLES = [
+  { v: "bencina", label: "Bencina" },
+  { v: "diesel", label: "Diésel" },
+  { v: "hibrido", label: "Híbrido" },
+  { v: "electrico", label: "Eléctrico" },
+];
+const CATEGORIAS = [
+  { v: "economico", label: "Económico" },
+  { v: "sedan", label: "Sedán" },
+  { v: "suv", label: "SUV" },
+  { v: "camioneta", label: "Camioneta" },
+  { v: "premium", label: "Premium" },
+];
 
 // Marcas con presencia real en Chile (para el autocompletado de "Marca").
 const CAR_BRANDS = [
@@ -157,6 +176,11 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     patente: "",
     tarifa_dia: "35000",
     ubicacion_base: "Plaza de Armas, Los Ángeles",
+    transmision: "automatica",
+    combustible: "bencina",
+    categoria: "sedan",
+    asientos: "5",
+    puertas: "4",
     equipamiento: { ac: true, bluetooth: true, isofix: false, doble_traccion: false, camara_retroceso: true },
     fotos: [],
     docs: {},
@@ -321,6 +345,11 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         patente: form.patente.toUpperCase(),
         tarifa_dia: tarifaNum,
         ubicacion_base: form.ubicacion_base,
+        transmision: form.transmision,
+        combustible: form.combustible,
+        categoria: form.categoria,
+        asientos: parseInt(form.asientos, 10) || undefined,
+        puertas: parseInt(form.puertas, 10) || undefined,
         fotos: form.fotos,
         equipamiento: form.equipamiento,
         ...form.docs,
@@ -444,6 +473,72 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                 <Text style={styles.profitDesc}>
                   La plataforma retiene 20% por seguro, verificación y soporte 24/7.
                 </Text>
+              </View>
+
+              <SectionLabel tone="dark" style={{ marginTop: theme.spacing.md, marginBottom: theme.spacing.sm }}>
+                Ficha técnica
+              </SectionLabel>
+              <Text style={styles.specGroupLabel}>Transmisión</Text>
+              <View style={styles.chipsRow}>
+                {TRANSMISIONES.map((o) => (
+                  <Chip
+                    key={o.v}
+                    tone="dark"
+                    label={o.label}
+                    selected={form.transmision === o.v}
+                    onPress={() => setForm((p) => ({ ...p, transmision: o.v }))}
+                  />
+                ))}
+              </View>
+              <Text style={styles.specGroupLabel}>Combustible</Text>
+              <View style={styles.chipsRow}>
+                {COMBUSTIBLES.map((o) => (
+                  <Chip
+                    key={o.v}
+                    tone="dark"
+                    label={o.label}
+                    selected={form.combustible === o.v}
+                    onPress={() => setForm((p) => ({ ...p, combustible: o.v }))}
+                  />
+                ))}
+              </View>
+              <Text style={styles.specGroupLabel}>Categoría</Text>
+              <View style={styles.chipsRow}>
+                {CATEGORIAS.map((o) => (
+                  <Chip
+                    key={o.v}
+                    tone="dark"
+                    label={o.label}
+                    selected={form.categoria === o.v}
+                    onPress={() => setForm((p) => ({ ...p, categoria: o.v }))}
+                  />
+                ))}
+              </View>
+              <View style={styles.row}>
+                <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={styles.fieldLabel}>Asientos</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={form.asientos}
+                    onChangeText={(t) => setForm((p) => ({ ...p, asientos: t }))}
+                    onFocus={handleFieldFocus}
+                    keyboardType="number-pad"
+                    placeholder="5"
+                    placeholderTextColor={colors.textSilver}
+                  />
+                </View>
+                <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={styles.fieldLabel}>Puertas</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={form.puertas}
+                    onChangeText={(t) => setForm((p) => ({ ...p, puertas: t }))}
+                    onFocus={handleFieldFocus}
+                    keyboardType="number-pad"
+                    placeholder="4"
+                    placeholderTextColor={colors.textSilver}
+                  />
+                </View>
               </View>
 
               <SectionLabel tone="dark" style={{ marginTop: theme.spacing.md, marginBottom: theme.spacing.sm }}>
@@ -601,6 +696,8 @@ const styles = StyleSheet.create({
   },
   patenteInput: { letterSpacing: 3, fontWeight: "700" },
   row: { flexDirection: "row", gap: theme.spacing.md },
+  specGroupLabel: { fontSize: 13, color: colors.textSilver, fontWeight: "600", marginTop: 4 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
   suggestBox: {
     marginTop: 4,
     backgroundColor: colors.darkCard,

@@ -1,33 +1,43 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, StatusBar, ScrollView } from "react-native";
+import { View, Text, StyleSheet, StatusBar, ScrollView, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon, Button, Card, ScreenHeader, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+import { colors, theme, Icon, Button, Card, ScreenHeader, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
-function formatearNumero(v) {
-  return v.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
-}
-function formatearExp(v) {
-  const d = v.replace(/\D/g, "").slice(0, 4);
-  return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
-}
+const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
 
 export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess }) {
   const insets = useSafeAreaInsets();
-  const [numero, setNumero] = useState("");
-  const [titular, setTitular] = useState("");
-  const [exp, setExp] = useState("");
-  const [cvv, setCvv] = useState("");
   const [processing, setProcessing] = useState(false);
 
   const montoHold = booking?.montoHold ?? 0;
+  const dias = booking?.dias ?? 0;
   const esReservaReal = !!(car?.id && booking);
-  const last4 = numero.replace(/\s/g, "").slice(-4);
+  const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
+
+  const irAWebpay = async (reservaId) => {
+    const returnUrl = WEB_URL
+      ? `${WEB_URL}/pago/retorno`
+      : "https://arriendatuauto.cl/pago/retorno";
+    const inicio = await ApiClient.iniciarPagoWebpay(montoHold, "hold_reserva", reservaId, returnUrl);
+    if (!inicio?.url) throw new Error("La pasarela de pago no está disponible en este momento.");
+
+    const redirect = Linking.createURL("pago-retorno");
+    const res = await WebBrowser.openAuthSessionAsync(inicio.url, redirect);
+
+    if (res.type !== "success" || !res.url) {
+      return { estado: "pendiente", motivo: "cancelado" };
+    }
+    const { queryParams } = Linking.parse(res.url);
+    const tokenWs = queryParams?.token_ws || inicio.token;
+    const confirm = await ApiClient.confirmarPagoWebpay(tokenWs);
+    return confirm?.autorizada
+      ? { estado: "confirmada" }
+      : { estado: "pendiente", motivo: confirm?.mensaje || "rechazado" };
+  };
 
   const handlePay = async () => {
-    if (esReservaReal && cvv.length < 3) {
-      showAlert("Falta el código de seguridad", "Ingresa el CVV de tu tarjeta para continuar.");
-      return;
-    }
     if (!esReservaReal) {
       onPaymentSuccess(null);
       return;
@@ -40,9 +50,32 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
         fecha_fin: booking.fechaFin,
         lugar_entrega_acordado: car.ubicacion_base,
       });
-      onPaymentSuccess({ ...reserva, car });
+
+      let resultado;
+      try {
+        resultado = await irAWebpay(reserva.id);
+      } catch (e) {
+        // Pasarela caída / mal configurada: la reserva queda "pendiente" y
+        // el usuario puede reintentar el pago desde Mis Arriendos.
+        showAlert(
+          "No se pudo abrir el pago",
+          `${e.message || "Inténtalo de nuevo."}\n\nTu reserva quedó pendiente de pago.`
+        );
+        onPaymentSuccess({ ...reserva, car, estado: "pendiente" });
+        return;
+      }
+
+      if (resultado.estado === "confirmada") {
+        onPaymentSuccess({ ...reserva, car, estado: "confirmada" });
+      } else {
+        showAlert(
+          resultado.motivo === "cancelado" ? "Pago no completado" : "Pago rechazado",
+          "No se autorizó la garantía en Webpay. Tu reserva quedó pendiente; puedes reintentar el pago desde Mis Arriendos."
+        );
+        onPaymentSuccess({ ...reserva, car, estado: "pendiente" });
+      }
     } catch (error) {
-      showAlert("No se pudo confirmar la reserva", error.message || "Intenta nuevamente en unos segundos.");
+      showAlert("No se pudo crear la reserva", error.message || "Intenta nuevamente en unos segundos.");
     } finally {
       setProcessing(false);
     }
@@ -51,89 +84,50 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      <ScreenHeader title={esReservaReal ? "Pago de la reserva" : "Método de pago"} onBack={onBack} />
+      <ScreenHeader title={esReservaReal ? "Confirmar y pagar" : "Método de pago"} onBack={onBack} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.creditCard}>
-          <View style={styles.ccTop}>
-            <View style={styles.chip} />
-            <Text style={styles.ccBrand}>Crédito</Text>
-          </View>
-          <Text style={styles.ccNumber}>
-            {numero || "•••• •••• •••• ••••"}
-          </Text>
-          <View style={styles.ccBottom}>
-            <Text style={styles.ccHolder}>{titular.toUpperCase() || "NOMBRE DEL TITULAR"}</Text>
-            <Text style={styles.ccExp}>{exp || "MM/AA"}</Text>
-          </View>
-        </View>
-
-        <View style={{ gap: theme.spacing.md }}>
-          <View style={{ gap: 6 }}>
-            <SectionLabel>Número de tarjeta</SectionLabel>
-            <TextInput
-              style={styles.input}
-              value={numero}
-              onChangeText={(v) => setNumero(formatearNumero(v))}
-              placeholder="1234 5678 9012 3456"
-              placeholderTextColor={colors.textPlaceholder}
-              keyboardType="number-pad"
-            />
-          </View>
-          <View style={{ gap: 6 }}>
-            <SectionLabel>Titular</SectionLabel>
-            <TextInput
-              style={styles.input}
-              value={titular}
-              onChangeText={setTitular}
-              placeholder="Como aparece en la tarjeta"
-              placeholderTextColor={colors.textPlaceholder}
-              autoCapitalize="characters"
-            />
-          </View>
-          <View style={styles.row}>
-            <View style={{ flex: 1, gap: 6 }}>
-              <SectionLabel>Vencimiento</SectionLabel>
-              <TextInput
-                style={styles.input}
-                value={exp}
-                onChangeText={(v) => setExp(formatearExp(v))}
-                placeholder="MM/AA"
-                placeholderTextColor={colors.textPlaceholder}
-                keyboardType="number-pad"
-              />
-            </View>
-            <View style={{ flex: 1, gap: 6 }}>
-              <SectionLabel>CVV</SectionLabel>
-              <TextInput
-                style={styles.input}
-                value={cvv}
-                onChangeText={(v) => setCvv(v.replace(/\D/g, "").slice(0, 4))}
-                placeholder="•••"
-                placeholderTextColor={colors.textPlaceholder}
-                keyboardType="number-pad"
-                secureTextEntry
-              />
-            </View>
-          </View>
-          <Text style={styles.help}>
-            Solo aceptamos tarjeta de crédito: la garantía se retiene sobre el cupo, no se cobra.
-          </Text>
-        </View>
-
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {esReservaReal && (
-          <Card padded style={styles.holdCard}>
-            <Text style={styles.holdLabel}>Se retiene hoy (pre-autorización)</Text>
-            <Text style={styles.holdValue}>${montoHold.toLocaleString("es-CL")}</Text>
-            <Text style={styles.holdNote}>
-              No es un cobro. Se libera al devolver el auto, menos cargos justificados.
-            </Text>
+          <Card padded style={styles.carRow}>
+            <Image
+              source={{ uri: car.fotos?.[0] || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800" }}
+              style={styles.carThumb}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.carName}>{nombreAuto || "Vehículo"}</Text>
+              <Text style={styles.carMeta}>
+                {dias} {dias === 1 ? "día" : "días"} · {car.ubicacion_base || "Los Ángeles"}
+              </Text>
+            </View>
           </Card>
         )}
 
+        <Card padded style={{ gap: theme.spacing.md }}>
+          <View style={styles.holdRow}>
+            <Text style={styles.holdLabel}>Garantía a retener (hold)</Text>
+            <Text style={styles.holdValue}>${montoHold.toLocaleString("es-CL")}</Text>
+          </View>
+          <Text style={styles.holdNote}>
+            No es un cobro. Webpay retiene una pre-autorización sobre el cupo de tu tarjeta de crédito.
+            Se libera al devolver el auto sin daños, menos cargos justificados.
+          </Text>
+        </Card>
+
+        <View style={styles.webpayRow}>
+          <View style={styles.webpayBadge}>
+            <Icon name="card" size={18} color={colors.primary} />
+          </View>
+          <Text style={styles.webpayText}>
+            El pago se procesa en <Text style={{ fontWeight: "700" }}>Webpay</Text>. Solo se acepta
+            tarjeta de crédito porque la garantía se retiene en el cupo.
+          </Text>
+        </View>
+
         <View style={styles.secure}>
           <Icon name="shield" size={16} color={colors.accent700} />
-          <Text style={styles.secureText}>Pago procesado con cifrado. No guardamos el número completo.</Text>
+          <Text style={styles.secureText}>
+            No guardamos los datos de tu tarjeta — los administra Transbank.
+          </Text>
         </View>
       </ScrollView>
 
@@ -141,11 +135,10 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
         <Button
           label={
             esReservaReal
-              ? `Confirmar reserva · $${montoHold.toLocaleString("es-CL")}`
-              : last4
-              ? `Guardar tarjeta ····${last4}`
-              : "Guardar método de pago"
+              ? `Pagar con Webpay · $${montoHold.toLocaleString("es-CL")}`
+              : "Continuar"
           }
+          iconRight="arrow-right"
           onPress={handlePay}
           loading={processing}
         />
@@ -157,36 +150,31 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  creditCard: {
-    backgroundColor: colors.primary,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.xl,
-    gap: 20,
-    ...theme.shadow.md,
-  },
-  ccTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  chip: { width: 40, height: 28, borderRadius: 5, backgroundColor: "rgba(255,255,255,0.22)" },
-  ccBrand: { fontSize: 13, color: colors.accent300, fontWeight: "600" },
-  ccNumber: { fontSize: 19, letterSpacing: 2, color: "#FFFFFF", fontWeight: "600" },
-  ccBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  ccHolder: { fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: "600", flex: 1 },
-  ccExp: { fontSize: 13, color: "rgba(255,255,255,0.9)", fontWeight: "600" },
-  row: { flexDirection: "row", gap: theme.spacing.md },
-  input: {
-    height: theme.control.height,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+  carRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  carThumb: { width: 76, height: 58, borderRadius: theme.radius.field, backgroundColor: colors.primary100 },
+  carName: { fontSize: 15, fontWeight: "700", color: colors.text },
+  carMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  holdRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  holdLabel: { fontSize: 14, color: colors.textMuted, fontWeight: "600" },
+  holdValue: { fontSize: 22, fontWeight: "800", color: colors.text, letterSpacing: -0.5 },
+  holdNote: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
+  webpayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md,
+    backgroundColor: colors.primary100,
     borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: colors.text,
+    padding: theme.spacing.lg,
   },
-  help: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
-  holdCard: { gap: 4 },
-  holdLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
-  holdValue: { fontSize: 24, fontWeight: "800", color: colors.text, letterSpacing: -0.5 },
-  holdNote: { fontSize: 12, color: colors.textMuted, lineHeight: 16, marginTop: 2 },
+  webpayBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  webpayText: { flex: 1, fontSize: 13, color: colors.primary, lineHeight: 19 },
   secure: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
   secureText: { flex: 1, fontSize: 13, color: colors.textMuted, lineHeight: 18 },
   footer: {
