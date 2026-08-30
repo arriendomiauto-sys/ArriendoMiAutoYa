@@ -7,7 +7,7 @@ from typing import Optional, List, Tuple
 import httpx
 
 from app.core.config import settings
-from app.services.ocr import OCRService
+from app.core.vision import VISION_REST_URL, credenciales_vision
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class ImagePrivacy:
     def _vision_text_annotations(cls, image_bytes: bytes) -> Optional[list]:
         if settings.USE_OCR_MOCK:
             return None
-        api_key, tiene_creds = OCRService._credenciales_vision()
+        api_key, tiene_creds = credenciales_vision()
         if not api_key and not tiene_creds:
             return None
         try:
@@ -51,7 +51,7 @@ class ImagePrivacy:
                     }]
                 }
                 with httpx.Client(timeout=20.0) as client:
-                    resp = client.post(f"{OCRService.VISION_REST_URL}?key={api_key}", json=payload)
+                    resp = client.post(f"{VISION_REST_URL}?key={api_key}", json=payload)
                 if resp.status_code == 200:
                     return resp.json().get("responses", [{}])[0].get("textAnnotations", []) or []
                 logger.warning(f"TEXT_DETECTION REST {resp.status_code}: {resp.text[:200]}")
