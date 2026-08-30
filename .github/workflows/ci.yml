@@ -59,6 +59,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # Metro observa la raíz del repo — su node_modules debe existir.
+      - run: npm install --no-audit --no-fund
       # Las libs compartidas traen sus propias deps (no hay workspace en main).
       - run: npm install --no-audit --no-fund
         working-directory: packages/shared-schemas
