@@ -11,7 +11,8 @@
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "@rentacar/mobile-shared": "*",
+    "@rentacar/mobile-shared": "file:../../packages/mobile-shared",
+    "@rentacar/shared-schemas": "file:../../packages/shared-schemas",
     "@supabase/supabase-js": "^2.112.4",
     "expo": "~54.0.0",
     "expo-camera": "~17.0.10",
