@@ -26,6 +26,7 @@ class Usuario(Base):
     sucursal_id = Column(String, ForeignKey("sucursales.id"), nullable=True)
     fecha_registro = Column(DateTime, default=utc_now)
     cuenta_bancaria = Column(JSON, nullable=True) # {"banco","tipo_cuenta","numero","titular","rut"} — solo dueños
+    expo_push_token = Column(String, nullable=True) # token de expo-notifications del dispositivo
 
     # Relaciones
     autos = relationship("Auto", back_populates="dueno", foreign_keys="Auto.dueno_id")
