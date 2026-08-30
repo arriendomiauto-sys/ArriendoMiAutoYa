@@ -273,6 +273,13 @@ export class ApiClient {
     return this.request("/notificaciones/marcar-todas-leidas", { method: "POST" });
   }
 
+  static async registrarPushToken(expoPushToken) {
+    return this.request("/usuarios/me/push-token", {
+      method: "PUT",
+      body: JSON.stringify({ expo_push_token: expoPushToken }),
+    });
+  }
+
   // Soporte (tickets)
   static async crearTicketSoporte(asunto, descripcion) {
     return this.request("/soporte/tickets", {
