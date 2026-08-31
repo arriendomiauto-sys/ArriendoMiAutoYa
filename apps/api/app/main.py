@@ -15,6 +15,7 @@ import os
 from fastapi.staticfiles import StaticFiles
 
 from app.routers import (
+    auth,
     entrega,
     enrolamiento,
     cars,
@@ -87,6 +88,7 @@ app.mount("/uploads", StaticFiles(directory=settings.STORAGE_LOCAL_DIR), name="u
 
 # Incluir routers
 api_prefix = settings.API_V1_STR
+app.include_router(auth.router, prefix=api_prefix)
 app.include_router(entrega.router, prefix=api_prefix)
 app.include_router(enrolamiento.router, prefix=api_prefix)
 app.include_router(cars.router, prefix=api_prefix)

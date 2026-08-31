@@ -1,8 +1,9 @@
 """
-Motor de OCR de documentos de identidad chilenos. Migrado íntegro del
-backend (era app/services/ocr.py::OCRService); ahora vive en su propio
-servicio. La única diferencia son los imports: `settings` y
-`validar_rut_chileno` son locales, no del monolito.
+Motor de OCR de documentos de identidad chilenos (cédula + licencia + selfie).
+
+Procesa Google Cloud Vision, clasifica cédula/licencia, extrae RUT y controla
+el match facial in-process, dentro de la propia API — no delega a un
+microservicio externo.
 """
 import os
 import re
@@ -12,8 +13,9 @@ import unicodedata
 from typing import Dict, Any, Optional, List, Tuple
 import httpx
 
-from .config import settings
-from .rut import validar_rut_chileno
+from app.core.config import settings
+from app.core.validators import validar_rut_chileno
+from app.core.vision import VISION_REST_URL, credenciales_vision
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +66,8 @@ _MARCADORES_LICENCIA = (
 )
 
 
-class OCREngine:
-    VISION_REST_URL = "https://vision.googleapis.com/v1/images:annotate"
+class OCRService:
+    VISION_REST_URL = VISION_REST_URL
 
     @staticmethod
     def validar_formato_imagen(url_o_path: Optional[str]) -> bool:
@@ -128,16 +130,7 @@ class OCREngine:
     @staticmethod
     def _credenciales_vision() -> Tuple[Optional[str], bool]:
         """Devuelve (api_key_valida | None, hay_service_account_bool)."""
-        api_key = settings.GOOGLE_CLOUD_VISION_API_KEY
-        api_key_valida = (
-            api_key
-            and "your-" not in api_key.lower()
-            and "placeholder" not in api_key.lower()
-            and len(api_key.strip()) > 15
-        )
-        creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
-        tiene_creds = bool(creds_path and os.path.exists(creds_path))
-        return (api_key.strip() if api_key_valida else None), tiene_creds
+        return credenciales_vision()
 
     @classmethod
     def _vision_face_detection(cls, image_bytes: bytes) -> Optional[List[Dict[str, Any]]]:
@@ -382,7 +375,7 @@ class OCREngine:
         elif "CLASE C" in texto_upper:
             datos["licencia_clase"] = "C"
 
-        fechas = OCREngine.extraer_fechas_documento(texto)
+        fechas = OCRService.extraer_fechas_documento(texto)
         datos["fecha_vencimiento_licencia"] = fechas.get("fecha_vencimiento") or "2028-11-20"
         return datos
 
@@ -395,7 +388,7 @@ class OCREngine:
 
         cedula_hits = sum(1 for m in _MARCADORES_CEDULA if m in norm)
         licencia_hits = sum(1 for m in _MARCADORES_LICENCIA if m in norm)
-        tiene_rut = OCREngine.extraer_rut_chileno(texto) is not None
+        tiene_rut = OCRService.extraer_rut_chileno(texto) is not None
 
         if licencia_hits >= 2 and licencia_hits >= cedula_hits:
             return "licencia"

@@ -1,11 +1,10 @@
 """
 Helpers de Google Cloud Vision compartidos por el backend.
 
-El OCR de documentos de identidad vive en su propio microservicio
-(apps/ocr), pero el backend todavía usa Vision directamente para una cosa:
-censurar patentes en las fotos de autos (app/services/image_privacy.py).
-Este módulo concentra la detección de credenciales y la URL REST para no
-duplicarla.
+Dos features lo usan: censurar patentes en las fotos de autos
+(app/services/image_privacy.py) y el OCR de documentos de identidad
+(app/features/verificacion_identidad/ocr_engine.py). Este módulo concentra
+la detección de credenciales y la URL REST para no duplicarla.
 """
 import os
 from typing import Optional, Tuple

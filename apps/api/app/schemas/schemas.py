@@ -4,6 +4,22 @@ from datetime import datetime
 from app.core.validators import validar_rut_chileno, validar_patente_chilena
 
 # ==============================================================================
+# AUTENTICACIÓN (login/refresh contra Supabase Auth, del lado del servidor)
+# ==============================================================================
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+class TokenOut(BaseModel):
+    access_token: str
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
+    token_type: str = "bearer"
+
+# ==============================================================================
 # USUARIOS & ENROLAMIENTO
 # ==============================================================================
 class UserBase(BaseModel):
