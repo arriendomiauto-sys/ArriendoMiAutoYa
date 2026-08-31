@@ -48,6 +48,12 @@ class Settings(BaseSettings):
         "http://localhost:19006",
     ]
 
+    # Origen del panel de administrador (RentACar-admin) — proyecto aparte,
+    # no vive en este repo. Separado de CORS_ORIGINS porque es un cliente
+    # administrativo distinto de las apps de cara al público y cambia por
+    # su cuenta (ej. su dominio de producción cuando se despliegue).
+    ADMIN_PANEL_ORIGIN: Optional[str] = "http://localhost:3001"
+
     # Rate limiting (slowapi/limits). "memory://" alcanza para un solo
     # proceso (dev, o un único worker uvicorn). En producción con más de un
     # worker/proceso, apuntar a Redis (ya usado por Celery) para que el

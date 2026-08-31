@@ -73,10 +73,17 @@ app.add_middleware(SlowAPIMiddleware)
 
 # CORS: solo orígenes conocidos (ver settings.CORS_ORIGINS). Las apps
 # mobile no envían Origin (no son navegador), así que esto solo afecta a
-# apps/web y a Expo en modo web durante desarrollo.
+# apps/web y a Expo en modo web durante desarrollo. El panel admin
+# (RentACar-admin, proyecto aparte) se agrega por separado vía
+# ADMIN_PANEL_ORIGIN — no vive en CORS_ORIGINS porque es un cliente
+# administrativo distinto, no una app de cara al público.
+_cors_origins = list(settings.CORS_ORIGINS)
+if settings.ADMIN_PANEL_ORIGIN:
+    _cors_origins.append(settings.ADMIN_PANEL_ORIGIN)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
