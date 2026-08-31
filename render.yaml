@@ -41,6 +41,8 @@ services:
         value: INTEGRACION
       - key: CORS_ORIGINS          # JSON array con el dominio del sitio web
         sync: false
+      - key: ADMIN_PANEL_ORIGIN    # dominio del panel admin (RentACar-admin, proyecto aparte)
+        sync: false
 
   # ------------------------------------------------------------------- Web
   - type: web
