@@ -4,7 +4,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.schemas.schemas import UserEnrolamiento, UserOut
 from app.models.entities import Usuario, Pago, TicketSoporte
-from app.services.ocr import OCRService
+from app.features.verificacion_identidad.ocr_engine import OCRService
 from app.services.auth import get_current_user
 from app.core.limiter import limiter
 import uuid

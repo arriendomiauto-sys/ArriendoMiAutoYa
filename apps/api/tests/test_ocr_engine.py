@@ -7,8 +7,8 @@ cédula se rechaza en vez de pasar.
 """
 import pytest
 
-from app.config import settings
-from app.engine import OCREngine
+from app.core.config import settings
+from app.features.verificacion_identidad.ocr_engine import OCRService
 
 TEXTO_CEDULA = """
 REPUBLICA DE CHILE
@@ -46,20 +46,20 @@ GRACIAS POR SU COMPRA
 
 
 def test_clasificar_cedula():
-    assert OCREngine.clasificar_documento(TEXTO_CEDULA) == "cedula"
+    assert OCRService.clasificar_documento(TEXTO_CEDULA) == "cedula"
 
 
 def test_clasificar_licencia():
-    assert OCREngine.clasificar_documento(TEXTO_LICENCIA) == "licencia"
+    assert OCRService.clasificar_documento(TEXTO_LICENCIA) == "licencia"
 
 
 def test_clasificar_documento_no_identidad():
-    assert OCREngine.clasificar_documento(TEXTO_CUALQUIER_COSA) == "desconocido"
+    assert OCRService.clasificar_documento(TEXTO_CUALQUIER_COSA) == "desconocido"
 
 
 def test_clasificar_texto_vacio_o_corto():
-    assert OCREngine.clasificar_documento("") == "desconocido"
-    assert OCREngine.clasificar_documento("hola") == "desconocido"
+    assert OCRService.clasificar_documento("") == "desconocido"
+    assert OCRService.clasificar_documento("hola") == "desconocido"
 
 
 @pytest.fixture
@@ -67,22 +67,22 @@ def vision_configurado(monkeypatch):
     """Simula Vision configurado (API key válida) sin salir a la red."""
     monkeypatch.setattr(settings, "USE_OCR_MOCK", False)
     monkeypatch.setattr(
-        OCREngine, "_credenciales_vision",
+        OCRService, "_credenciales_vision",
         staticmethod(lambda: ("fake-vision-key-0123456789", False)),
     )
     monkeypatch.setattr(
-        OCREngine, "_vision_face_detection",
+        OCRService, "_vision_face_detection",
         classmethod(lambda cls, b: None),  # facial -> "no_evaluado", no bloquea
     )
     monkeypatch.setattr(
-        OCREngine, "descargar_imagen_bytes",
+        OCRService, "descargar_imagen_bytes",
         staticmethod(lambda url: b"\xff\xd8\xff\xe0fake-jpeg-bytes"),
     )
 
 
 def _stub_vision_text(monkeypatch, texto):
     monkeypatch.setattr(
-        OCREngine, "llamar_google_vision_api",
+        OCRService, "llamar_google_vision_api",
         classmethod(lambda cls, image_bytes: (texto, 0.94)),
     )
 
@@ -90,7 +90,7 @@ def _stub_vision_text(monkeypatch, texto):
 def test_enrolamiento_rechaza_foto_que_no_es_cedula(vision_configurado, monkeypatch):
     _stub_vision_text(monkeypatch, TEXTO_CUALQUIER_COSA)
 
-    resultado = OCREngine.procesar_documentos_enrolamiento(
+    resultado = OCRService.procesar_documentos_enrolamiento(
         carnet_frontal_url="https://ejemplo.com/no-es-carnet.jpg",
         rut_usuario="18.456.789-K",
         selfie_url="https://ejemplo.com/selfie.jpg",
@@ -105,7 +105,7 @@ def test_enrolamiento_rechaza_foto_que_no_es_cedula(vision_configurado, monkeypa
 def test_enrolamiento_acepta_cedula_real(vision_configurado, monkeypatch):
     _stub_vision_text(monkeypatch, TEXTO_CEDULA)
 
-    resultado = OCREngine.procesar_documentos_enrolamiento(
+    resultado = OCRService.procesar_documentos_enrolamiento(
         carnet_frontal_url="https://ejemplo.com/carnet.jpg",
         rut_usuario="18.456.789-K",
         selfie_url="https://ejemplo.com/selfie.jpg",
@@ -126,12 +126,12 @@ def test_licencia_no_reconocida_marca_a_soporte(vision_configurado, monkeypatch)
         return (TEXTO_CEDULA, 0.94)
 
     monkeypatch.setattr(
-        OCREngine, "descargar_imagen_bytes",
+        OCRService, "descargar_imagen_bytes",
         staticmethod(lambda url: (url or "").encode()),
     )
-    monkeypatch.setattr(OCREngine, "llamar_google_vision_api", classmethod(fake_vision))
+    monkeypatch.setattr(OCRService, "llamar_google_vision_api", classmethod(fake_vision))
 
-    resultado = OCREngine.procesar_documentos_enrolamiento(
+    resultado = OCRService.procesar_documentos_enrolamiento(
         carnet_frontal_url="https://ejemplo.com/carnet_front.jpg",
         licencia_url="https://ejemplo.com/licencia.jpg",
         rut_usuario="18.456.789-K",
@@ -147,11 +147,11 @@ def test_enrolamiento_vision_sin_texto_no_auto_verifica(vision_configurado, monk
     """Vision configurado + foto ilegible (o descarga fallida) -> revisión
     manual, nunca 'verificado' a ciegas."""
     monkeypatch.setattr(
-        OCREngine, "llamar_google_vision_api",
+        OCRService, "llamar_google_vision_api",
         classmethod(lambda cls, image_bytes: (None, 0.0)),
     )
 
-    resultado = OCREngine.procesar_documentos_enrolamiento(
+    resultado = OCRService.procesar_documentos_enrolamiento(
         carnet_frontal_url="https://ejemplo.com/borrosa.jpg",
         rut_usuario="18.456.789-K",
     )
@@ -161,12 +161,12 @@ def test_enrolamiento_vision_sin_texto_no_auto_verifica(vision_configurado, monk
 
 
 def test_mock_sin_carnet_es_rechazado():
-    resultado = OCREngine.procesar_documentos_enrolamiento(rut_usuario="18.456.789-K")
+    resultado = OCRService.procesar_documentos_enrolamiento(rut_usuario="18.456.789-K")
     assert resultado["estado_recomendado"] == "rechazado"
 
 
 def test_mock_con_carnet_y_rut_valido_verifica():
-    resultado = OCREngine.procesar_documentos_enrolamiento(
+    resultado = OCRService.procesar_documentos_enrolamiento(
         carnet_frontal_url="https://ejemplo.com/carnet.jpg",
         rut_usuario="17.123.456-5",
     )

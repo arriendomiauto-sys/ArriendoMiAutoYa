@@ -1,14 +1,14 @@
 """
-Reacción del backend al resultado del OCR (que ahora vive en apps/ocr).
+Reacción del backend al resultado del OCR.
 
-Aquí no se prueba el pipeline de OCR en sí — eso está en apps/ocr/tests — sino
-lo que el endpoint /enrolamiento/completar hace con la respuesta:
+Aquí no se prueba el pipeline de OCR en sí — eso está en test_ocr_engine.py —
+sino lo que el endpoint /enrolamiento/completar hace con la respuesta:
 - `licencia_a_soporte: True`  -> abre un TicketSoporte y deja el KYC en revisión.
 - `estado_recomendado: rechazado` -> 400, no otorga rol ni cobra el hold.
 """
 import pytest
 
-from app.services import ocr as ocr_module
+from app.features.verificacion_identidad import ocr_engine as ocr_module
 
 
 @pytest.fixture
@@ -105,27 +105,3 @@ def test_ocr_rechazado_no_otorga_rol_ni_cobra_hold(
         .all()
     )
     assert holds == []
-
-
-def test_servicio_ocr_caido_deja_en_revision_manual(monkeypatch, usuario_factory, auth_as):
-    """Si OCR_SERVICE_URL apunta a un host inalcanzable, el enrolamiento no
-    revienta ni se auto-verifica: queda en revisión manual."""
-    from app.core.config import settings
-
-    monkeypatch.setattr(settings, "OCR_SERVICE_URL", "http://127.0.0.1:59999")
-
-    usuario = usuario_factory(
-        roles_activos=["cliente"], rut=None, nombre=None, estado_documentos="pendiente"
-    )
-    resp = auth_as(usuario).post(
-        "/api/v1/enrolamiento/completar",
-        json={
-            "nombre": "Cliente Servicio Caido",
-            "rut": "17.123.456-5",
-            "email": "svc.caido.unico@test.cl",
-            "telefono": "+56912345678",
-            "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg",
-        },
-    )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["estado_documentos"] == "requiere_revision_manual"

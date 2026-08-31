@@ -29,13 +29,6 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_VISION_API_KEY: Optional[str] = None
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
 
-    # Microservicio de OCR (apps/ocr). Si OCR_SERVICE_URL está seteada, el
-    # enrolamiento delega el procesamiento de documentos a ese servicio vía
-    # HTTP. Si queda vacía, el backend usa un mock local (dev / tests).
-    OCR_SERVICE_URL: Optional[str] = None
-    OCR_SERVICE_KEY: str = "dev-ocr-key"
-    OCR_HTTP_TIMEOUT: float = 45.0
-
     # Google Maps
     GOOGLE_MAPS_API_KEY: str = "placeholder-maps-key"
 
