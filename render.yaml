@@ -1,6 +1,5 @@
 # Blueprint de despliegue en Render (https://render.com/docs/blueprint-spec).
-# Crea 3 servicios: la API (Docker), el microservicio de OCR (Docker) y el
-# sitio web (Next.js).
+# Crea 2 servicios: la API (Docker) y el sitio web (Next.js).
 # Los valores marcados sync:false se cargan a mano en el dashboard de Render.
 services:
   # ------------------------------------------------------------------- API
@@ -41,28 +40,6 @@ services:
       - key: TBK_ENVIRONMENT
         value: INTEGRACION
       - key: CORS_ORIGINS          # JSON array con el dominio del sitio web
-        sync: false
-      - key: OCR_SERVICE_URL       # https://arrienda-ocr.onrender.com (con esquema)
-        sync: false
-      - key: OCR_SERVICE_KEY       # misma clave que el microservicio de OCR
-        sync: false
-
-  # ----------------------------------------------------------- OCR microservice
-  - type: web
-    name: arrienda-ocr
-    runtime: docker
-    rootDir: apps/ocr
-    dockerfilePath: ./Dockerfile
-    plan: starter
-    healthCheckPath: /health
-    autoDeploy: true
-    branch: main
-    envVars:
-      - key: USE_OCR_MOCK
-        value: "false"
-      - key: OCR_SERVICE_KEY        # misma clave que consume la API
-        sync: false
-      - key: GOOGLE_CLOUD_VISION_API_KEY
         sync: false
 
   # ------------------------------------------------------------------- Web
