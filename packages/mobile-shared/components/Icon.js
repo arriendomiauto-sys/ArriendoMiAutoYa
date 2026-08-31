@@ -1,5 +1,5 @@
 import React from "react";
-import { View } from "react-native";
+import { View, Image } from "react-native";
 import Svg, { Circle, Path, Rect, Polygon } from "react-native-svg";
 import { colors } from "../theme/colors";
 
@@ -45,6 +45,25 @@ export function Icon({
   );
 
   switch (name) {
+    case "logo":
+    case "brand":
+      return (
+        <Image
+          source={require("../assets/logo.png")}
+          style={[
+            {
+              width: s,
+              height: s,
+              borderRadius: Math.round(s * 0.22),
+            },
+            style,
+          ]}
+          resizeMode="contain"
+          accessibilityRole="image"
+          accessibilityLabel="Logo oficial Arriendo Mi Auto Ya"
+        />
+      );
+
     case "search":
       return renderSvg(
         <>

@@ -12,6 +12,7 @@ import {
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
+import { BrandLogo } from "../../components/BrandLogo";
 import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
 
@@ -64,7 +65,7 @@ export function LoginScreen({ onNavigate }) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Brand Icon */}
         <View style={styles.logoBox}>
-          <Icon name="key" size={44} color={colors.primary} />
+          <BrandLogo size={64} />
           <Text style={styles.logoTitle}>Arriendo Mi Auto Ya</Text>
         </View>
 

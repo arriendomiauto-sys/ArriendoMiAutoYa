@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { Icon } from "../../components/Icon";
+import { BrandLogo } from "../../components/BrandLogo";
 
 // La app es un solo binario con dos experiencias. Acá el usuario elige con
 // cuál partir; después alterna entre modos desde su perfil.
@@ -33,9 +34,9 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
 
       {/* Main Content (Pantalla 03) */}
       <View style={styles.content}>
-        {/* Brand Logo #02 */}
+        {/* Brand Logo */}
         <View style={styles.logoRow}>
-          <Icon name="key" size={48} color={colors.primary} />
+          <BrandLogo size={52} />
         </View>
 
         <View style={styles.textBox}>

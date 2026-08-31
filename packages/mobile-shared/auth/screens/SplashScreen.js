@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { Icon } from "../../components/Icon";
+import { BrandLogo } from "../../components/BrandLogo";
 
 export function SplashScreen({ onFinish }) {
   useEffect(() => {
@@ -23,9 +24,9 @@ export function SplashScreen({ onFinish }) {
 
       {/* Center Brand Identity (Pantalla 01) */}
       <View style={styles.centerContent}>
-        {/* Logo 02 del documento HTML */}
+        {/* Logo oficial */}
         <View style={styles.logoBox}>
-          <Icon name="key" size={68} color="#FFFFFF" />
+          <BrandLogo size={96} />
         </View>
 
         <View style={styles.brandTextBox}>

@@ -7,6 +7,10 @@
     "packages/*"
   ],
   "scripts": {
+    "start": "npm --prefix apps/mobile start",
+    "android": "npm --prefix apps/mobile run android",
+    "ios": "npm --prefix apps/mobile run ios",
+    "web": "npm --prefix apps/mobile run web",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test"
