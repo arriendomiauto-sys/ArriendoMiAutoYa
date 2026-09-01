@@ -3,8 +3,9 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.schemas import AutoCreate, AutoUpdate, AutoOut
-from app.models.entities import Auto, Usuario
+from app.models.entities import Auto, Usuario, TicketSoporte
 from app.services.auth import get_current_user
+from app.features.verificacion_vehiculos.car_doc_validator import CarDocValidator
 from app.core.limiter import limiter
 
 router = APIRouter(prefix="/autos", tags=["Autos y Marketplace"])
@@ -89,6 +90,16 @@ def crear_auto(
     if patente_existente:
         raise HTTPException(status_code=400, detail="Ya existe un auto registrado con esta patente")
 
+    # Validar documentos mediante el motor de OCR y extracción de folios
+    resultado_validacion = CarDocValidator.validar_documentos_vehiculo(
+        patente=payload.patente,
+        doc_inscripcion_url=payload.doc_inscripcion_url,
+        doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
+        doc_soap_url=payload.doc_soap_url,
+        doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+    )
+    doc_verificados = bool(resultado_validacion.get("verificado", False))
+
     # dueno_id siempre es el usuario autenticado: no se confía en el valor
     # que venga en el payload (evita que un cliente atribuya el auto a otro
     # usuario arbitrario).
@@ -114,7 +125,29 @@ def crear_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        documentos_verificados=doc_verificados,
     )
+
+    # Si el OCR no pudo validar automáticamente con certeza los documentos,
+    # se abre un ticket de soporte para revisión manual humana sin bloquear el registro.
+    if not doc_verificados:
+        db.add(
+            TicketSoporte(
+                usuario_id=current_user.id,
+                sucursal_id=current_user.sucursal_id,
+                asunto=f"Revisión manual de documentos de vehículo - Patente {payload.patente.upper()}",
+                descripcion=(
+                    f"El OCR no pudo validar con certeza los documentos del auto {payload.marca} {payload.modelo} "
+                    f"({payload.patente.upper()}).\n"
+                    f"Motivo: {resultado_validacion.get('motivo_soporte', 'Verificación visual requerida')}\n"
+                    f"Padrón: {payload.doc_inscripcion_url}\n"
+                    f"Permiso: {payload.doc_permiso_circulacion_url}\n"
+                    f"SOAP: {payload.doc_soap_url}\n"
+                    f"Revisión Técnica: {payload.doc_revision_tecnica_url}"
+                ),
+            )
+        )
+
     # Asegurar que el usuario tenga el rol "dueno"
     roles = current_user.roles_activos or []
     if "dueno" not in roles:
@@ -148,6 +181,10 @@ def actualizar_auto(
         auto.fotos = payload.fotos
     if payload.ubicacion_base is not None:
         auto.ubicacion_base = payload.ubicacion_base
+    if payload.latitud is not None:
+        auto.latitud = payload.latitud
+    if payload.longitud is not None:
+        auto.longitud = payload.longitud
     if payload.equipamiento is not None:
         auto.equipamiento = payload.equipamiento
     for campo in ("transmision", "combustible", "asientos", "puertas", "categoria", "descripcion"):
