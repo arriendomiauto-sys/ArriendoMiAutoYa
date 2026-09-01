@@ -43,6 +43,12 @@ def validar_rut_chileno(rut_completo: str) -> bool:
 
     return dv == dv_calculado
 
+def normalizar_rut(rut_completo: Optional[str]) -> Optional[str]:
+    """Limpia puntos, guiones y espacios del RUT para comparaciones seguras."""
+    if not rut_completo or not isinstance(rut_completo, str):
+        return None
+    return re.sub(r"[\.\-\s]", "", rut_completo).upper()
+
 def validar_patente_chilena(patente: str) -> bool:
     """
     Validador de patentes vehiculares chilenas.
