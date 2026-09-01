@@ -115,3 +115,24 @@ def test_completar_enrolamiento_sin_email_usa_sesion(usuario_factory, auth_as):
     data = resp.json()
     assert data["email"] == "sesion@test.cl"
     assert data["estado_documentos"] == "verificado"
+
+
+def test_completar_enrolamiento_usuario_ya_verificado_retorna_directo(usuario_factory, auth_as):
+    """
+    Si el usuario ya está verificado, completar enrolamiento retorna inmediatamente
+    sin volver a cobrar ni ejecutar OCR.
+    """
+    ya_verificado = usuario_factory(roles_activos=["cliente"], rut="17.123.456-5", nombre="Cliente Aprobado", estado_documentos="verificado")
+    c = auth_as(ya_verificado)
+    resp = c.post(
+        "/api/v1/enrolamiento/completar",
+        json={
+            "nombre": "Cualquier Nombre",
+            "rut": "17.123.456-5",
+            "telefono": "+56912345678",
+        }
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["estado_documentos"] == "verificado"
+    assert data["nombre"] == "Cliente Aprobado"

@@ -38,10 +38,10 @@ def completar_enrolamiento(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """
-    Registra los documentos, activa el rol 'cliente', y crea el registro de retención (hold)
-    de seguridad de $800.000 CLP separado de las reservas.
-    """
+    # Si el usuario ya está verificado, no re-ejecutar OCR ni volver a cobrar el hold
+    if current_user.estado_documentos == "verificado":
+        return current_user
+
     if not validar_rut_chileno(payload.rut):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
