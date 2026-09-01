@@ -40,19 +40,29 @@ class Settings(BaseSettings):
     # Storage Local Directory Fallback
     STORAGE_LOCAL_DIR: str = "./uploads"
 
-    # CORS: orígenes explícitos permitidos (dev: web local + Expo web).
-    # Agregar aquí el dominio de producción de apps/web cuando exista.
+    # Respaldo local de los buckets privados (documentos-kyc, checklists,
+    # evidencias, documentos-autos). Va en un árbol aparte porque
+    # STORAGE_LOCAL_DIR se publica entero como estático en /uploads: un
+    # carnet ahí queda legible por cualquiera que tenga la URL.
+    STORAGE_LOCAL_PRIVATE_DIR: str = "./uploads_privados"
+
+    # URLs de Producción de la Plataforma
+    FRONTEND_URL: str = "https://arriendatuauto.com"
+    ADMIN_PANEL_ORIGIN: Optional[str] = "https://admin.arriendatuauto.com"
+    WEBPAY_DEFAULT_RETURN_URL: str = "https://arriendatuauto.com/pago/retorno"
+
+    # CORS: orígenes explícitos y seguros permitidos en producción y desarrollo
     CORS_ORIGINS: List[str] = [
+        "https://arriendatuauto.com",
+        "https://www.arriendatuauto.com",
+        "https://app.arriendatuauto.com",
+        "https://admin.arriendatuauto.com",
+        "https://rgxiyidijtoazcrmijly.supabase.co",
         "http://localhost:3000",
         "http://localhost:8081",
         "http://localhost:19006",
+        "http://localhost:3001",
     ]
-
-    # Origen del panel de administrador (RentACar-admin) — proyecto aparte,
-    # no vive en este repo. Separado de CORS_ORIGINS porque es un cliente
-    # administrativo distinto de las apps de cara al público y cambia por
-    # su cuenta (ej. su dominio de producción cuando se despliegue).
-    ADMIN_PANEL_ORIGIN: Optional[str] = "http://localhost:3001"
 
     # Rate limiting (slowapi/limits). "memory://" alcanza para un solo
     # proceso (dev, o un único worker uvicorn). En producción con más de un

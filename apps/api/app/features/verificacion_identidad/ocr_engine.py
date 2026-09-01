@@ -16,8 +16,32 @@ import httpx
 from app.core.config import settings
 from app.core.validators import validar_rut_chileno
 from app.core.vision import VISION_REST_URL, credenciales_vision
+from app.core.url_validator import validate_safe_url
 
 logger = logging.getLogger(__name__)
+
+# Ruta que usan las URLs del respaldo local privado, ya sea absolutas
+# (http://host/api/v1/storage/local/<bucket>/<id>) o relativas.
+_PREFIJO_LOCAL_PRIVADO = "/storage/local/"
+
+
+def _ruta_local_privada(url_o_path: str) -> Optional[str]:
+    """
+    Si la URL apunta al respaldo local de un bucket privado, devuelve la ruta
+    en disco correspondiente; si no, None.
+    """
+    if not url_o_path or _PREFIJO_LOCAL_PRIVADO not in url_o_path:
+        return None
+
+    resto = url_o_path.split(_PREFIJO_LOCAL_PRIVADO, 1)[1].split("?", 1)[0].strip("/")
+    partes = resto.split("/")
+    if len(partes) != 2:
+        return None
+
+    # La validación de bucket privado y de traversal vive en StorageService.
+    from app.services.storage import StorageService
+
+    return StorageService.leer_archivo_local_privado(partes[0], partes[1])
 
 
 def _normalizar_texto(texto: str) -> str:
@@ -95,7 +119,23 @@ class OCRService:
                 logger.error(f"Error al decodificar imagen base64: {e}")
                 return None
 
+        # Respaldo local de un bucket privado. Se sirve por un endpoint que
+        # exige sesión, así que bajarlo por HTTP desde acá daría 401: se lee
+        # del disco directamente (el OCR corre en el mismo proceso).
+        ruta_privada = _ruta_local_privada(url_o_path)
+        if ruta_privada:
+            try:
+                with open(ruta_privada, "rb") as f:
+                    return f.read()
+            except Exception as e:
+                logger.error(f"Error al leer archivo local privado ({ruta_privada}): {e}")
+                return None
+
         if url_o_path.startswith("http://") or url_o_path.startswith("https://"):
+            is_dev = settings.ENVIRONMENT == "development"
+            if not validate_safe_url(url_o_path, allow_localhost_dev=is_dev):
+                logger.warning(f"[Anti-SSRF] URL rechazada por seguridad en OCR: {url_o_path}")
+                return None
             try:
                 with httpx.Client(timeout=15.0) as client:
                     response = client.get(url_o_path)

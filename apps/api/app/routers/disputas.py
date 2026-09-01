@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.limiter import limiter
+from app.core.security_audit import SecurityAudit
 from app.schemas.schemas import DisputeOut, DisputeResolveRequest, DisputeCreate
 from app.models.entities import Disputa, Reserva, Usuario
 from app.services.auth import get_current_user
@@ -35,7 +37,9 @@ def obtener_disputa(
     return disputa
 
 @router.post("/{disputa_id}/resolver", response_model=DisputeOut, summary="Resolver formalmente una disputa (Admin)")
+@limiter.limit("20/minute")
 def resolver_disputa(
+    request: Request,
     disputa_id: str,
     payload: DisputeResolveRequest,
     db: Session = Depends(get_db),

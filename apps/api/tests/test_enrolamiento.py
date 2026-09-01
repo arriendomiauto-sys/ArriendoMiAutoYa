@@ -92,3 +92,26 @@ def test_enrolamiento_rut_duplicado_da_400_no_500(usuario_factory, auth_as):
     )
     assert resp.status_code == 400
     assert "ya está registrado" in resp.json()["detail"].lower()
+
+
+def test_completar_enrolamiento_sin_email_usa_sesion(usuario_factory, auth_as):
+    """
+    Si el cliente no envía email (o envía null), el backend no debe fallar con 422
+    sino mantener el email del usuario autenticado en la sesión.
+    """
+    nuevo_usuario = usuario_factory(roles_activos=["cliente"], rut=None, nombre=None, estado_documentos="pendiente", email="sesion@test.cl")
+    c = auth_as(nuevo_usuario)
+    resp = c.post(
+        "/api/v1/enrolamiento/completar",
+        json={
+            "nombre": "Cliente Sin Email Payload",
+            "rut": "17.123.456-5",
+            "telefono": "+56912345678",
+            "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg",
+            "foto_perfil_verificada_url": "https://ejemplo.com/selfie.jpg"
+        }
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["email"] == "sesion@test.cl"
+    assert data["estado_documentos"] == "verificado"

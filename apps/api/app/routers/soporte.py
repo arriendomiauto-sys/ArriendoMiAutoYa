@@ -25,6 +25,13 @@ def crear_ticket(
     db.refresh(ticket)
     return ticket
 
+@router.get("/mis-tickets", response_model=List[TicketOut], summary="Listar los tickets creados por el usuario autenticado")
+def listar_mis_tickets(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    return db.query(TicketSoporte).filter(TicketSoporte.usuario_id == current_user.id).order_by(TicketSoporte.timestamp.desc()).all()
+
 def _requerir_admin_o_manager(current_user: Usuario):
     roles = current_user.roles_activos or []
     if "admin" not in roles and "manager" not in roles:
