@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.schemas.schemas import AutoCreate, AutoUpdate, AutoOut
+from app.schemas.schemas import AutoCreate, AutoUpdate, AutoOut, DocumentosAutoIn
 from app.models.entities import Auto, Usuario, TicketSoporte
 from app.services.auth import get_current_user
 from app.features.verificacion_vehiculos.car_doc_validator import CarDocValidator
@@ -42,6 +42,34 @@ def listar_mis_autos(
     intente interpretar "mios" como un auto_id.
     """
     return db.query(Auto).filter(Auto.dueno_id == current_user.id).all()
+
+@router.post(
+    "/validar-documentos",
+    summary="Lee los documentos legales del auto y responde si sirven para publicar",
+)
+@limiter.limit("10/minute")
+def validar_documentos_auto(
+    request: Request,
+    payload: DocumentosAutoIn,
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Pasa por OCR el padrón, el permiso de circulación, el SOAP, el seguro del
+    auto y la revisión técnica, y responde por cada uno qué documento es, de
+    qué patente y hasta cuándo vale.
+
+    Existe aparte de POST /autos para que el dueño se entere de un permiso
+    vencido o de un documento de otro auto mientras los sube, y no después de
+    llenar toda la publicación.
+    """
+    return CarDocValidator.validar_documentos_vehiculo(
+        patente=payload.patente,
+        doc_inscripcion_url=payload.doc_inscripcion_url,
+        doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
+        doc_soap_url=payload.doc_soap_url,
+        doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_seguro_url=payload.doc_seguro_url,
+    )
 
 @router.get("/{auto_id}", response_model=AutoOut, summary="Obtener detalle de un auto")
 def obtener_auto(auto_id: str, db: Session = Depends(get_db)):
@@ -97,7 +125,20 @@ def crear_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_seguro_url=payload.doc_seguro_url,
     )
+
+    # Un documento vencido, de otra patente o de otro tipo no se publica: no
+    # es algo que un ejecutivo pueda "aprobar igual". Lo dudoso (ilegible, sin
+    # fecha) sigue pasando a revisión manual más abajo.
+    bloqueantes = resultado_validacion.get("bloqueantes") or []
+    if bloqueantes:
+        raise HTTPException(
+            status_code=400,
+            detail=" ".join(b["motivo"] for b in bloqueantes if b.get("motivo"))
+            or "Los documentos del vehículo no están vigentes.",
+        )
+
     doc_verificados = bool(resultado_validacion.get("verificado", False))
 
     # dueno_id siempre es el usuario autenticado: no se confía en el valor
@@ -125,6 +166,7 @@ def crear_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_seguro_url=payload.doc_seguro_url,
         documentos_verificados=doc_verificados,
     )
 

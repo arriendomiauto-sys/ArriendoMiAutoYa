@@ -154,6 +154,7 @@ class AutoBase(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    doc_seguro_url: Optional[str] = None
 
     @field_validator("patente")
     @classmethod
@@ -186,6 +187,27 @@ class AutoUpdate(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    doc_seguro_url: Optional[str] = None
+
+class DocumentosAutoIn(BaseModel):
+    """
+    Documentos a validar contra una patente, sin crear el auto: la app los
+    revisa apenas se suben para avisar de un vencido antes de publicar.
+    """
+    patente: str
+    doc_inscripcion_url: Optional[str] = None
+    doc_permiso_circulacion_url: Optional[str] = None
+    doc_soap_url: Optional[str] = None
+    doc_revision_tecnica_url: Optional[str] = None
+    doc_seguro_url: Optional[str] = None
+
+    @field_validator("patente")
+    @classmethod
+    def check_patente_docs(cls, v: str) -> str:
+        if not validar_patente_chilena(v):
+            raise ValueError("Patente chilena inválida (ej. ABCD-12 o AB-12-34)")
+        return v.upper()
+
 
 class AutoOut(AutoBase):
     model_config = ConfigDict(from_attributes=True)
