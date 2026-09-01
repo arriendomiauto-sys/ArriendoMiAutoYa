@@ -22,6 +22,11 @@ import {
   ScreenHeader,
   SectionLabel,
   ApiClient,
+  DocumentCameraModal,
+  FOTOS_AUTO,
+  TOTAL_FOTOS_AUTO,
+  subirImagenOptimizada,
+  subirImagenesOptimizadas,
   showAlert,
 } from "@rentacar/mobile-shared";
 
@@ -150,28 +155,47 @@ function MarcaInput({ value, onChange, onFocus }) {
   );
 }
 
-// Slot de carga de un documento (foto o archivo PDF/imagen).
-function DocSlot({ doc, uri, uploading, onPick, onClear }) {
+// Tarjeta de un documento legal del auto: muestra la miniatura de lo ya
+// cargado y ofrece las dos formas de adjuntarlo a la vista, en vez del menu
+// emergente de tres opciones que habia que abrir para cada documento.
+function DocSlot({ doc, uri, uploading, onCamera, onFile, onClear }) {
   return (
-    <View style={styles.docSlot}>
-      <View style={[styles.docIcon, uri && styles.docIconDone]}>
-        <Icon name={uri ? "check" : doc.icon} size={18} color={uri ? colors.primary900 : colors.accent} />
+    <View style={[styles.docSlot, uri && styles.docSlotDone]}>
+      <View style={styles.docHeadRow}>
+        {uri ? (
+          <Image source={{ uri }} style={styles.docThumb} />
+        ) : (
+          <View style={styles.docIcon}>
+            <Icon name={doc.icon} size={18} color={colors.accent} />
+          </View>
+        )}
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.docTitle}>{doc.titulo}</Text>
+          <Text style={styles.docHelp}>{uri ? "Cargado y listo" : doc.ayuda}</Text>
+        </View>
+
+        {uploading ? (
+          <ActivityIndicator color={colors.accent} />
+        ) : uri ? (
+          <TouchableOpacity onPress={onClear} hitSlop={theme.control.hitSlop} style={styles.docAction}>
+            <Icon name="trash" size={16} color={colors.textSilver} />
+          </TouchableOpacity>
+        ) : null}
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.docTitle}>{doc.titulo}</Text>
-        <Text style={styles.docHelp}>{uri ? "Documento cargado (PDF / Foto)" : doc.ayuda}</Text>
-      </View>
-      {uploading ? (
-        <ActivityIndicator color={colors.accent} />
-      ) : uri ? (
-        <TouchableOpacity onPress={onClear} hitSlop={theme.control.hitSlop} style={styles.docAction}>
-          <Icon name="trash" size={16} color={colors.textSilver} />
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity onPress={onPick} style={styles.docAddBtn} activeOpacity={0.85}>
-          <Text style={styles.docAddText}>Subir</Text>
-        </TouchableOpacity>
-      )}
+
+      {!uri && !uploading ? (
+        <View style={styles.docActions}>
+          <TouchableOpacity style={styles.docBtn} onPress={onCamera} activeOpacity={0.85}>
+            <Icon name="camera" size={15} color={colors.accent} />
+            <Text style={styles.docBtnText}>Fotografiar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.docBtn} onPress={onFile} activeOpacity={0.85}>
+            <Icon name="document" size={15} color={colors.accent} />
+            <Text style={styles.docBtnText}>Desde galeria</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -180,6 +204,13 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  // Fotos del auto: una por casilla (ver FOTOS_AUTO). Se suben apenas se
+  // toman, no todas juntas al final, así el paso no termina en una espera
+  // larga con nueve archivos en cola.
+  const [fotosPorSlot, setFotosPorSlot] = useState({}); // { [key]: url }
+  const [slotEnSubida, setSlotEnSubida] = useState(null); // key de la foto subiendo
+  const [camaraSlot, setCamaraSlot] = useState(null); // toma con la cámara abierta
+  const [progresoGaleria, setProgresoGaleria] = useState(null); // { listas, total }
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(null); // key del doc en subida
   const [locatingGps, setLocatingGps] = useState(false);
@@ -209,6 +240,11 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   const tarifaNum = parseInt(form.tarifa_dia, 10) || 35000;
   const gananciaNeta = Math.round(tarifaNum * 0.8);
   const docsCargados = DOCS.filter((d) => form.docs[d.key]).length;
+
+  // El orden de FOTOS_AUTO es el que ve el arrendatario en la ficha: frontal
+  // primero, después laterales, interior y detalle.
+  const fotosOrdenadas = FOTOS_AUTO.map((s) => fotosPorSlot[s.key]).filter(Boolean);
+  const fotosListas = fotosOrdenadas.length;
 
   const handleUseCurrentLocation = async () => {
     setLocatingGps(true);
@@ -287,23 +323,20 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     } else if (step === 2) {
       setStep(3);
     } else if (step === 3) {
-      if (form.fotos.length < 2) {
-        showAlert("Faltan fotos", "Sube al menos 2 fotos del vehículo para continuar.");
+      const faltantes = FOTOS_AUTO.filter((slot) => !fotosPorSlot[slot.key]);
+      if (faltantes.length) {
+        showAlert(
+          "Faltan fotos del auto",
+          `Necesitamos las ${TOTAL_FOTOS_AUTO} fotos para publicar. Te falta: ${faltantes
+            .map((slot) => slot.titulo.toLowerCase())
+            .join(", ")}.`
+        );
         return;
       }
       setStep(4);
     } else {
       handleSubmit();
     }
-  };
-
-  const pickImage = async (onUri) => {
-    const opciones = [
-      { text: "Tomar foto con cámara", onPress: () => runPicker("camera", onUri) },
-      { text: "Elegir de galería / archivo", onPress: () => runPicker("library", onUri) },
-      { text: "Cancelar", style: "cancel" },
-    ];
-    showAlert("Subir archivo del auto", "¿Cómo deseas adjuntar el documento?", opciones);
   };
 
   const runPicker = async (source, onUri) => {
@@ -331,73 +364,115 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     }
   };
 
-  const handleAddPhotos = () => {
-    showAlert("Agregar fotos del auto", "¿De dónde quieres sacar las fotos?", [
-      { text: "Tomar foto", onPress: () => pickPhotos("camera") },
-      { text: "Elegir de galería", onPress: () => pickPhotos("library") },
-      { text: "Cancelar", style: "cancel" },
-    ]);
-  };
+  // Foto confirmada en la camara guiada: se optimiza y sube de inmediato, y
+  // la casilla queda lista mientras el dueno saca la siguiente.
+  const handleFotoCapturada = async (uri) => {
+    const slot = camaraSlot;
+    setCamaraSlot(null);
+    if (!uri || !slot) return;
 
-  const pickPhotos = async (source) => {
+    setSlotEnSubida(slot.key);
     try {
-      let result;
-      if (source === "camera") {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) {
-          showAlert("Permiso requerido", "Activa la cámara para tomar fotos del vehículo.");
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-      } else {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) {
-          showAlert("Permiso requerido", "Necesitamos acceso a tus fotos.");
-          return;
-        }
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ["images"],
-          allowsMultipleSelection: true,
-          selectionLimit: 8,
-          quality: 0.7,
-        });
-      }
-      if (result.canceled || !result.assets?.length) return;
-
-      setUploadingPhoto(true);
-      const nuevas = [];
-      for (const asset of result.assets) {
-        const filename = `auto_${Date.now()}_${nuevas.length}.jpg`;
-        const uploaded = await ApiClient.subirArchivoStorage(asset.uri, filename, "autos");
-        if (uploaded?.url) nuevas.push(uploaded.url);
-      }
-      if (nuevas.length) setForm((prev) => ({ ...prev, fotos: [...prev.fotos, ...nuevas] }));
+      const url = await subirImagenOptimizada(uri, {
+        filename: `auto_${slot.key}_${Date.now()}.jpg`,
+        bucket: "autos",
+      });
+      if (url) setFotosPorSlot((prev) => ({ ...prev, [slot.key]: url }));
     } catch (error) {
-      showAlert("Error al subir la foto", error.message || "Revisa tu conexión e inténtalo de nuevo.");
+      showAlert("No se pudo subir la foto", error.message || "Revisa tu conexion e intentalo de nuevo.");
     } finally {
-      setUploadingPhoto(false);
+      setSlotEnSubida(null);
     }
   };
 
-  const handlePickDoc = (docKey) => {
-    pickImage(async (uri) => {
+  // Atajo para quien ya tiene las fotos hechas: llena las casillas vacias en
+  // orden. Se suben en paralelo (de a 3) porque aca si son varias juntas.
+  const handleFotosDesdeGaleria = async () => {
+    const vacias = FOTOS_AUTO.filter((s) => !fotosPorSlot[s.key]);
+    if (!vacias.length) return;
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        showAlert("Permiso requerido", "Necesitamos acceso a tus fotos.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: vacias.length,
+        quality: 1,
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      const seleccion = result.assets.slice(0, vacias.length);
+      setUploadingPhoto(true);
+      setProgresoGaleria({ listas: 0, total: seleccion.length });
+
+      const urls = await subirImagenesOptimizadas(
+        seleccion.map((asset, i) => ({
+          uri: asset.uri,
+          filename: `auto_${vacias[i].key}_${Date.now()}_${i}.jpg`,
+        })),
+        {
+          bucket: "autos",
+          onProgreso: (listas, total) => setProgresoGaleria({ listas, total }),
+        }
+      );
+
+      setFotosPorSlot((prev) => {
+        const next = { ...prev };
+        urls.forEach((url, i) => {
+          if (url) next[vacias[i].key] = url;
+        });
+        return next;
+      });
+
+      const fallidas = urls.filter((u) => !u).length;
+      if (fallidas) {
+        showAlert(
+          "Algunas fotos no subieron",
+          `${fallidas} de ${urls.length} quedaron pendientes. Repitelas desde su casilla.`
+        );
+      }
+    } catch (error) {
+      showAlert("Error al subir las fotos", error.message || "Revisa tu conexion e intentalo de nuevo.");
+    } finally {
+      setUploadingPhoto(false);
+      setProgresoGaleria(null);
+    }
+  };
+
+  const handleQuitarFoto = (key) => {
+    setFotosPorSlot((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  // `origen`: "camera" | "library". El documento se sube en el momento, con la
+  // misma optimizacion que las fotos (un permiso de circulacion fotografiado
+  // pesa lo mismo que una foto del auto).
+  const subirDocumento = (docKey, origen) => {
+    runPicker(origen, async (uri) => {
       setUploadingDoc(docKey);
       try {
-        const filename = `${docKey}_${Date.now()}.jpg`;
-        const uploaded = await ApiClient.subirArchivoStorage(uri, filename, "documentos-autos");
-        if (uploaded?.url) {
-          setForm((prev) => ({ ...prev, docs: { ...prev.docs, [docKey]: uploaded.url } }));
+        const url = await subirImagenOptimizada(uri, {
+          filename: `${docKey}_${Date.now()}.jpg`,
+          bucket: "documentos-autos",
+          // Un documento se lee: conviene mas resolucion que en una foto del auto.
+          maxAncho: 2000,
+          calidad: 0.75,
+        });
+        if (url) {
+          setForm((prev) => ({ ...prev, docs: { ...prev.docs, [docKey]: url } }));
         }
       } catch (error) {
-        showAlert("No se pudo subir el documento", error.message || "Revisa tu conexión e inténtalo de nuevo.");
+        showAlert("No se pudo subir el documento", error.message || "Revisa tu conexion e intentalo de nuevo.");
       } finally {
         setUploadingDoc(null);
       }
     });
-  };
-
-  const handleRemovePhoto = (index) => {
-    setForm((prev) => ({ ...prev, fotos: prev.fotos.filter((_, i) => i !== index) }));
   };
 
   const handleSubmit = async () => {
@@ -425,7 +500,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         categoria: form.categoria,
         asientos: parseInt(form.asientos, 10) || undefined,
         puertas: parseInt(form.puertas, 10) || undefined,
-        fotos: form.fotos,
+        fotos: fotosOrdenadas,
         equipamiento: form.equipamiento,
         ...form.docs,
       });
@@ -733,48 +808,102 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
           {step === 3 && (
             <View style={styles.card}>
-              <Text style={styles.cardHeading}>Fotos del vehículo</Text>
+              <Text style={styles.cardHeading}>Fotos del vehiculo</Text>
               <Text style={styles.cardHelp}>
-                Al menos 2 fotos reales con buena luz: frente, lado e interior aceleran la aprobación.
+                Son {TOTAL_FOTOS_AUTO} tomas guiadas, una por casilla: cada una abre la camara con el
+                encuadre que corresponde. En el frente y la parte trasera tapamos la patente antes de
+                publicar.
               </Text>
 
-              <View style={styles.photosGrid}>
-                {form.fotos.map((f, i) => (
-                  <View key={f + i} style={styles.photoBox}>
-                    <Image source={{ uri: f }} style={styles.photoImg} />
-                    <TouchableOpacity style={styles.photoRemoveBtn} onPress={() => handleRemovePhoto(i)}>
-                      <Icon name="close" size={12} color={colors.textWhite} />
+              <View style={styles.fotosGrid}>
+                {FOTOS_AUTO.map((slot, i) => {
+                  const url = fotosPorSlot[slot.key];
+                  const subiendo = slotEnSubida === slot.key;
+                  return (
+                    <TouchableOpacity
+                      key={slot.key}
+                      style={[styles.fotoSlot, url && styles.fotoSlotDone]}
+                      onPress={() => setCamaraSlot(slot)}
+                      disabled={subiendo || uploadingPhoto}
+                      activeOpacity={0.85}
+                    >
+                      {url ? <Image source={{ uri: url }} style={styles.fotoSlotImg} /> : null}
+
+                      {!url && !subiendo ? (
+                        <View style={styles.fotoSlotVacio}>
+                          <Icon name={slot.icon} size={20} color={colors.accent} />
+                          <Text style={styles.fotoSlotAyuda} numberOfLines={2}>
+                            {slot.ayuda}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {subiendo ? (
+                        <View style={styles.fotoSlotOverlay}>
+                          <ActivityIndicator color={colors.accent} />
+                        </View>
+                      ) : null}
+
+                      {url && !subiendo ? (
+                        <TouchableOpacity
+                          style={styles.fotoQuitar}
+                          onPress={() => handleQuitarFoto(slot.key)}
+                          hitSlop={theme.control.hitSlop}
+                        >
+                          <Icon name="close" size={11} color={colors.textWhite} />
+                        </TouchableOpacity>
+                      ) : null}
+
+                      <View style={styles.fotoSlotFooter}>
+                        <Text style={styles.fotoSlotNum}>{url ? "OK" : String(i + 1)}</Text>
+                        <Text style={styles.fotoSlotTitulo} numberOfLines={1}>
+                          {slot.titulo}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
 
               <TouchableOpacity
                 style={styles.uploadBtn}
-                onPress={handleAddPhotos}
-                disabled={uploadingPhoto}
+                onPress={handleFotosDesdeGaleria}
+                disabled={uploadingPhoto || fotosListas === TOTAL_FOTOS_AUTO}
                 activeOpacity={0.85}
               >
                 {uploadingPhoto ? (
-                  <ActivityIndicator color={colors.accent} />
+                  <>
+                    <ActivityIndicator color={colors.accent} />
+                    <Text style={styles.uploadBtnText}>
+                      {progresoGaleria
+                        ? `Subiendo ${progresoGaleria.listas} de ${progresoGaleria.total}...`
+                        : "Subiendo..."}
+                    </Text>
+                  </>
                 ) : (
                   <>
                     <Icon name="camera" size={18} color={colors.accent} />
                     <Text style={styles.uploadBtnText}>
-                      {form.fotos.length ? "Agregar más fotos" : "Tomar o elegir fotos"}
+                      {fotosListas === TOTAL_FOTOS_AUTO
+                        ? "Fotos completas"
+                        : "Ya las tengo: elegir de la galeria"}
                     </Text>
                   </>
                 )}
               </TouchableOpacity>
-              <Text style={styles.count}>{form.fotos.length} de mínimo 2</Text>
+
+              <Text style={styles.count}>
+                {fotosListas} de {TOTAL_FOTOS_AUTO} fotos
+              </Text>
             </View>
           )}
 
           {step === 4 && (
             <View style={styles.card}>
-              <Text style={styles.cardHeading}>Documentos del vehículo</Text>
+              <Text style={styles.cardHeading}>Documentos del vehiculo</Text>
               <Text style={styles.cardHelp}>
-                Los 4 son obligatorios para publicar. Un ejecutivo los revisa antes de dejar el auto activo.
+                Los 4 son obligatorios para publicar. Fotografialos derechos y completos: un ejecutivo
+                los revisa antes de dejar el auto activo.
               </Text>
               <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
                 {DOCS.map((doc) => (
@@ -783,7 +912,8 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                     doc={doc}
                     uri={form.docs[doc.key]}
                     uploading={uploadingDoc === doc.key}
-                    onPick={() => handlePickDoc(doc.key)}
+                    onCamera={() => subirDocumento(doc.key, "camera")}
+                    onFile={() => subirDocumento(doc.key, "library")}
                     onClear={() =>
                       setForm((prev) => {
                         const next = { ...prev.docs };
@@ -804,10 +934,18 @@ export function AddEditCarScreen({ onBack, onComplete }) {
             iconRight={step === 4 ? undefined : "arrow-right"}
             onPress={handleNext}
             loading={loading}
-            disabled={uploadingPhoto || !!uploadingDoc}
+            disabled={uploadingPhoto || !!uploadingDoc || !!slotEnSubida}
           />
         </View>
       </ScrollView>
+
+      <DocumentCameraModal
+        visible={!!camaraSlot}
+        variant="vehiculo"
+        config={camaraSlot?.camara}
+        onClose={() => setCamaraSlot(null)}
+        onCaptured={handleFotoCapturada}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -894,20 +1032,52 @@ const styles = StyleSheet.create({
   },
   checkboxActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   equipLabel: { fontSize: 14, color: colors.textWhite, flex: 1 },
-  photosGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  photoBox: { width: "31%", aspectRatio: 1, borderRadius: theme.radius.sm, overflow: "hidden", position: "relative" },
-  photoImg: { width: "100%", height: "100%" },
-  photoRemoveBtn: {
+  fotosGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
+  fotoSlot: {
+    width: "31.5%",
+    aspectRatio: 0.86,
+    borderRadius: theme.radius.sm,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: colors.darkCardSubtle,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+  },
+  fotoSlotDone: { borderColor: colors.accent },
+  fotoSlotImg: { width: "100%", height: "100%" },
+  fotoSlotVacio: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 },
+  fotoSlotAyuda: { fontSize: 10, color: colors.darkTextMuted, textAlign: "center", lineHeight: 13 },
+  fotoSlotOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(6,30,31,0.6)",
+  },
+  fotoQuitar: {
     position: "absolute",
-    top: 5,
-    right: 5,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(0,0,0,0.62)",
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(6,30,31,0.75)",
     alignItems: "center",
     justifyContent: "center",
   },
+  fotoSlotFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 4,
+    backgroundColor: "rgba(6,30,31,0.78)",
+  },
+  fotoSlotNum: { fontSize: 9, fontWeight: "800", color: colors.accent },
+  fotoSlotTitulo: { flex: 1, fontSize: 10, fontWeight: "600", color: colors.textWhite },
   uploadBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -941,16 +1111,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   docIconDone: { backgroundColor: colors.accent },
+  docSlotDone: { borderColor: colors.accent },
+  docHeadRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  docThumb: { width: 44, height: 44, borderRadius: theme.radius.sm, backgroundColor: colors.darkCardSubtle },
+  docActions: { flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.sm },
+  docBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 40,
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: colors.darkBorderStrong,
+    backgroundColor: colors.darkCardSubtle,
+  },
+  docBtnText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
   docTitle: { fontSize: 14, fontWeight: "600", color: colors.textWhite },
   docHelp: { fontSize: 12, color: colors.darkTextMuted, marginTop: 2, lineHeight: 16 },
   docAction: { padding: 6 },
-  docAddBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: theme.radius.sm,
-    backgroundColor: "rgba(47, 191, 155, 0.16)",
-  },
-  docAddText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
   securityBanner: {
     flexDirection: "row",
     gap: theme.spacing.md,

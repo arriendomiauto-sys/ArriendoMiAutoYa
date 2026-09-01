@@ -16,6 +16,7 @@ import {
   MenuRow,
   ApiClient,
   showAlert,
+  PreCheckinModal,
 } from "@rentacar/mobile-shared";
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
@@ -46,7 +47,8 @@ export function ActiveRentalScreen({
   onOpenContract,
 }) {
   const insets = useSafeAreaInsets();
-  const res = reservation || {};
+  const [res, setRes] = useState(reservation || {});
+  const [modalPrecheck, setModalPrecheck] = useState(false);
   const car = res.car || res.auto || {};
   const montoHold = res.monto_hold || 0;
   const nombre = [car.marca, car.modelo, car.anio].filter(Boolean).join(" ") || "Auto";
@@ -138,6 +140,36 @@ export function ActiveRentalScreen({
             <Text style={styles.bigSub}>Ya puedes coordinar el retiro con el dueño.</Text>
           </View>
 
+          {/* Tarjeta de Verificación / Pre-Checkin 24h */}
+          <Card padded style={{ gap: theme.spacing.sm, backgroundColor: res.precheck_cliente_confirmado ? colors.accent100 : colors.surface }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="check" size={18} color={res.precheck_cliente_confirmado ? colors.accentDark : colors.textMuted} />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                  Verificación 24h antes
+                </Text>
+              </View>
+              <Badge
+                variant={res.precheck_cliente_confirmado ? "success" : "warning"}
+                label={res.precheck_cliente_confirmado ? "Confirmado" : "Pendiente"}
+              />
+            </View>
+            <Text style={{ fontSize: 13, color: colors.textMuted }}>
+              {res.precheck_cliente_confirmado
+                ? "Has confirmado tu viaje y asistencia para mañana."
+                : "Confirma tu asistencia y lugar de encuentro 24 horas antes del inicio."}
+            </Text>
+            {!res.precheck_cliente_confirmado && (
+              <Button
+                variant="secondary"
+                size="sm"
+                label="Completar verificación de viaje"
+                iconRight="arrow-right"
+                onPress={() => setModalPrecheck(true)}
+              />
+            )}
+          </Card>
+
           <Card padded style={{ gap: theme.spacing.md }}>
             <SectionLabel>Punto de encuentro</SectionLabel>
             <View style={styles.miniMap}>
@@ -173,11 +205,23 @@ export function ActiveRentalScreen({
             <Button variant="ghost" size="sm" label="Ver el detalle de la reserva" onPress={() => setView("detail")} />
           </>
         )}
+
+        <PreCheckinModal
+          visible={modalPrecheck}
+          reserva={res}
+          role="cliente"
+          onClose={() => setModalPrecheck(false)}
+          onConfirmed={(updated) => {
+            setRes((prev) => ({ ...prev, ...updated }));
+          }}
+        />
       </View>
     );
   }
 
   // --------------------------------------------------------------- DETALLE
+  const tieneCargosExtra = (res.cargos_adicionales_clp || 0) > 0 || (res.cargo_limpieza_clp || 0) > 0 || (res.cargo_combustible_clp || 0) > 0 || (res.cargo_atraso_clp || 0) > 0 || (res.cargo_falta_grave_clp || 0) > 0;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -208,6 +252,35 @@ export function ActiveRentalScreen({
           )}
         </Card>
 
+        {/* Desglose de penalizaciones y multas */}
+        {tieneCargosExtra && (
+          <Card padded style={{ gap: theme.spacing.sm, borderColor: colors.warning, borderWidth: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Icon name="alert-triangle" size={18} color={colors.warning} />
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Cargos y penalizaciones aplicadas
+              </Text>
+            </View>
+            {res.cargo_limpieza_clp > 0 && (
+              <Row label="Limpieza" value={`$${res.cargo_limpieza_clp.toLocaleString("es-CL")}`} />
+            )}
+            {res.cargo_combustible_clp > 0 && (
+              <Row label="Combustible faltante" value={`$${res.cargo_combustible_clp.toLocaleString("es-CL")}`} />
+            )}
+            {res.cargo_atraso_clp > 0 && (
+              <Row label="Atraso en devolución" value={`$${res.cargo_atraso_clp.toLocaleString("es-CL")}`} />
+            )}
+            {res.cargo_falta_grave_clp > 0 && (
+              <Row label="Faltas / Infracciones" value={`$${res.cargo_falta_grave_clp.toLocaleString("es-CL")}`} />
+            )}
+            {res.motivo_multas && (
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 4 }}>
+                Detalle: {res.motivo_multas}
+              </Text>
+            )}
+          </Card>
+        )}
+
         <MenuList>
           <MenuRow icon="document" label="Ver el contrato firmado" onPress={onOpenContract} />
           <MenuRow icon="pin" label="Mi código de entrega" onPress={onStartDelivery} />
@@ -222,6 +295,16 @@ export function ActiveRentalScreen({
           <Button variant="danger" size="sm" label="Cancelar la reserva" onPress={onCancelReservation} />
         </>
       )}
+
+      <PreCheckinModal
+        visible={modalPrecheck}
+        reserva={res}
+        role="cliente"
+        onClose={() => setModalPrecheck(false)}
+        onConfirmed={(updated) => {
+          setRes((prev) => ({ ...prev, ...updated }));
+        }}
+      />
     </View>
   );
 }

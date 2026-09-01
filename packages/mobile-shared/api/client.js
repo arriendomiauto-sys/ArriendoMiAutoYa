@@ -170,6 +170,24 @@ export class ApiClient {
     });
   }
 
+  static async realizarPreCheckin(reservaId, data) {
+    return this.request(`/reservas/${reservaId}/precheckin`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async obtenerPreCheckin(reservaId) {
+    return this.request(`/reservas/${reservaId}/precheckin`);
+  }
+
+  static async aplicarMultaReserva(reservaId, data) {
+    return this.request(`/reservas/${reservaId}/aplicar-multa`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   // Mantenciones y documentación legal del auto
   static async getMantenciones(autoId) {
     return this.request(`/autos/${autoId}/mantenciones`);
