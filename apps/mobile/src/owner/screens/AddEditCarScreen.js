@@ -156,8 +156,7 @@ function MarcaInput({ value, onChange, onFocus }) {
 }
 
 // Tarjeta de un documento legal del auto: muestra la miniatura de lo ya
-// cargado y ofrece las dos formas de adjuntarlo a la vista, en vez del menu
-// emergente de tres opciones que habia que abrir para cada documento.
+// cargado y ofrece las dos formas de adjuntarlo a la vista con botones bien dimensionados.
 function DocSlot({ doc, uri, uploading, onCamera, onFile, onClear }) {
   return (
     <View style={[styles.docSlot, uri && styles.docSlotDone]}>
@@ -170,16 +169,18 @@ function DocSlot({ doc, uri, uploading, onCamera, onFile, onClear }) {
           </View>
         )}
 
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingRight: 6 }}>
           <Text style={styles.docTitle}>{doc.titulo}</Text>
-          <Text style={styles.docHelp}>{uri ? "Cargado y listo" : doc.ayuda}</Text>
+          <Text style={[styles.docHelp, uri && { color: colors.accent, fontWeight: "600" }]}>
+            {uri ? "✓ Documento listo" : doc.ayuda}
+          </Text>
         </View>
 
         {uploading ? (
-          <ActivityIndicator color={colors.accent} />
+          <ActivityIndicator color={colors.accent} size="small" />
         ) : uri ? (
           <TouchableOpacity onPress={onClear} hitSlop={theme.control.hitSlop} style={styles.docAction}>
-            <Icon name="trash" size={16} color={colors.textSilver} />
+            <Icon name="trash" size={18} color="#EF4444" />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -187,12 +188,12 @@ function DocSlot({ doc, uri, uploading, onCamera, onFile, onClear }) {
       {!uri && !uploading ? (
         <View style={styles.docActions}>
           <TouchableOpacity style={styles.docBtn} onPress={onCamera} activeOpacity={0.85}>
-            <Icon name="camera" size={15} color={colors.accent} />
+            <Icon name="camera" size={16} color={colors.accent} />
             <Text style={styles.docBtnText}>Fotografiar</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.docBtn} onPress={onFile} activeOpacity={0.85}>
-            <Icon name="document" size={15} color={colors.accent} />
-            <Text style={styles.docBtnText}>Desde galeria</Text>
+            <Icon name="document" size={16} color={colors.accent} />
+            <Text style={styles.docBtnText}>Desde galería</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -1093,39 +1094,37 @@ const styles = StyleSheet.create({
   uploadBtnText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   count: { color: colors.darkTextMuted, fontSize: 12, textAlign: "center" },
   docSlot: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
     backgroundColor: colors.darkCardSubtle,
     borderRadius: theme.radius.field,
     borderWidth: 1,
     borderColor: colors.darkBorder,
     padding: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   docIcon: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 10,
     backgroundColor: "rgba(47, 191, 155, 0.14)",
     alignItems: "center",
     justifyContent: "center",
   },
   docIconDone: { backgroundColor: colors.accent },
-  docSlotDone: { borderColor: colors.accent },
-  docHeadRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  docThumb: { width: 44, height: 44, borderRadius: theme.radius.sm, backgroundColor: colors.darkCardSubtle },
-  docActions: { flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.sm },
+  docSlotDone: { borderColor: colors.accent, backgroundColor: "rgba(47, 191, 155, 0.06)" },
+  docHeadRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md, width: "100%" },
+  docThumb: { width: 44, height: 44, borderRadius: theme.radius.sm, backgroundColor: colors.darkCardSubtle, borderWidth: 1, borderColor: colors.accent },
+  docActions: { flexDirection: "row", gap: theme.spacing.sm, marginTop: 4, width: "100%" },
   docBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    height: 40,
+    height: 42,
     borderRadius: theme.radius.field,
     borderWidth: 1,
     borderColor: colors.darkBorderStrong,
-    backgroundColor: colors.darkCardSubtle,
+    backgroundColor: colors.darkCard,
   },
   docBtnText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
   docTitle: { fontSize: 14, fontWeight: "600", color: colors.textWhite },
