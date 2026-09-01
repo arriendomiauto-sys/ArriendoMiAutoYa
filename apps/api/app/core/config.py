@@ -24,7 +24,13 @@ class Settings(BaseSettings):
     VALOR_UF_CLP: int = 37500
     COMISION_PLATAFORMA_PORCENTAJE: float = 0.20
 
-    # OCR & Google Cloud Vision
+    # OCR & Verificación de Identidad / Biometría (Veridas, Google Vision, Mock)
+    KYC_PROVIDER: str = "veridas" # "veridas" | "google_vision" | "mock"
+    VERIDAS_API_URL: str = "https://api.veridas.com"
+    VERIDAS_API_KEY: Optional[str] = None
+    VERIDAS_UMBRAL_FACEMATCH: float = 0.70 # Coincidencia facial mínima requerida (0.0 a 1.0)
+    VERIDAS_UMBRAL_LIVENESS: float = 0.50 # Prueba de vida pasiva mínima (0.0 a 1.0)
+
     USE_OCR_MOCK: bool = False
     GOOGLE_CLOUD_VISION_API_KEY: Optional[str] = None
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
