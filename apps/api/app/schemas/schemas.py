@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
-from typing import List, Optional, Literal, Dict
+from typing import List, Optional, Literal, Dict, Any
 from datetime import datetime
 from app.core.validators import validar_rut_chileno, validar_patente_chilena
 from app.core.sanitizer import sanitize_text
@@ -246,13 +246,59 @@ class BookingOut(BaseModel):
     cargo_km_extra_clp: int = 0
     cargo_atraso_clp: int = 0
     cargos_adicionales_clp: int = 0
+    cargo_falta_grave_clp: int = 0
     monto_cobro_final: int = 0
     liquidacion_dueno_clp: int = 0
     codigo_qr_hash: Optional[str] = None
     lugar_entrega_acordado: str
     contrato_pdf_url: Optional[str] = None
+
+    # Pre-checkin 24h antes
+    precheck_cliente_confirmado: bool = False
+    precheck_cliente_timestamp: Optional[datetime] = None
+    precheck_dueno_confirmado: bool = False
+    precheck_dueno_timestamp: Optional[datetime] = None
+
+    # Desglose de multas
+    motivo_multas: Optional[str] = None
+    multas_detalle: List[Dict[str, Any]] = []
+
     creado_en: datetime
     auto: Optional[AutoOut] = None
+
+# ==============================================================================
+# CONTRATOS API DE PRE-CHECKIN Y MULTAS (RESERVAS)
+# ==============================================================================
+class PreCheckinRequest(BaseModel):
+    rol: Literal["cliente", "dueno"]
+    confirma_asistencia: bool = True
+    confirma_lugar_hora: bool = True
+    confirma_licencia_vigente: Optional[bool] = None
+    confirma_auto_limpio_combustible: Optional[bool] = None
+    notas: Optional[str] = None
+
+class PreCheckinResponse(BaseModel):
+    reserva_id: str
+    precheck_cliente_confirmado: bool
+    precheck_cliente_timestamp: Optional[datetime] = None
+    precheck_dueno_confirmado: bool
+    precheck_dueno_timestamp: Optional[datetime] = None
+    ambos_confirmados: bool
+    mensaje: str
+
+class AplicarMultaRequest(BaseModel):
+    tipo: Literal[
+        "fumar",
+        "lugar_no_acordado",
+        "mascotas",
+        "limpieza_estandar",
+        "limpieza_profunda",
+        "peajes_tag",
+        "otro",
+    ]
+    monto_clp: Optional[int] = None
+    motivo: str = Field(..., min_length=4, description="Justificación detallada de la falta/penalización")
+    fotos: List[str] = Field(default=[], description="Fotografías de evidencia de la falta")
 
 # ==============================================================================
 # CONTRATOS API DE ENTREGA (FLUJO CRÍTICO)

@@ -2,11 +2,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from datetime import timedelta
-from app.schemas.schemas import BookingCreate, BookingOut, ExtendBookingRequest
+from datetime import datetime, timezone, timedelta
+from app.schemas.schemas import (
+    BookingCreate,
+    BookingOut,
+    ExtendBookingRequest,
+    PreCheckinRequest,
+    PreCheckinResponse,
+    AplicarMultaRequest,
+)
 from app.models.entities import Reserva, Auto, Usuario, Pago
 from app.services.pricing import PricingService
 from app.services.contract import ContractService
+from app.services.fines import FinesService
+from app.services.notificaciones import crear_notificacion
 from app.services.auth import get_current_user
 from app.core.limiter import limiter
 import uuid
@@ -218,6 +227,179 @@ def extender_reserva(
         estado="capturado",
         referencia_transbank=f"TBK-EXT-{uuid.uuid4().hex[:8].upper()}"
     ))
+    db.commit()
+    db.refresh(reserva)
+    return reserva
+
+@router.post(
+    "/{reserva_id}/precheckin",
+    response_model=PreCheckinResponse,
+    summary="Realizar Pre-Checkin 24h antes del viaje (Cliente o Dueño)"
+)
+def realizar_precheckin(
+    reserva_id: str,
+    payload: PreCheckinRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    _verificar_acceso_reserva(reserva, current_user, db)
+
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    ahora = datetime.now(timezone.utc)
+
+    if payload.rol == "cliente":
+        if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+            raise HTTPException(status_code=403, detail="Solo el arrendatario puede confirmar el precheck del cliente.")
+        reserva.precheck_cliente_confirmado = True
+        reserva.precheck_cliente_timestamp = ahora
+
+        if auto:
+            crear_notificacion(
+                db,
+                usuario_id=auto.dueno_id,
+                tipo="reserva",
+                titulo="Arrendatario listo para mañana",
+                mensaje=f"{current_user.nombre} completó el pre-checkin para la entrega en {reserva.lugar_entrega_acordado}.",
+                entidad_tipo="reserva",
+                entidad_id=reserva.id,
+            )
+    else:
+        if (not auto or auto.dueno_id != current_user.id) and "admin" not in (current_user.roles_activos or []):
+            raise HTTPException(status_code=403, detail="Solo el dueño del vehículo puede confirmar este precheck.")
+        reserva.precheck_dueno_confirmado = True
+        reserva.precheck_dueno_timestamp = ahora
+
+        crear_notificacion(
+            db,
+            usuario_id=reserva.cliente_id,
+            tipo="reserva",
+            titulo="Vehículo preparado para entrega",
+            mensaje=f"El anfitrión confirmó que tu {auto.marca if auto else 'auto'} estará listo en {reserva.lugar_entrega_acordado}.",
+            entidad_tipo="reserva",
+            entidad_id=reserva.id,
+        )
+
+    db.commit()
+    db.refresh(reserva)
+
+    ambos = bool(reserva.precheck_cliente_confirmado and reserva.precheck_dueno_confirmado)
+    msg = (
+        "¡Pre-checkin completado! Ambas partes han confirmado la entrega de mañana."
+        if ambos
+        else f"Pre-checkin registrado para {payload.rol}. Esperando confirmación de la contraparte."
+    )
+
+    return {
+        "reserva_id": reserva.id,
+        "precheck_cliente_confirmado": reserva.precheck_cliente_confirmado or False,
+        "precheck_cliente_timestamp": reserva.precheck_cliente_timestamp,
+        "precheck_dueno_confirmado": reserva.precheck_dueno_confirmado or False,
+        "precheck_dueno_timestamp": reserva.precheck_dueno_timestamp,
+        "ambos_confirmados": ambos,
+        "mensaje": msg,
+    }
+
+@router.get(
+    "/{reserva_id}/precheckin",
+    response_model=PreCheckinResponse,
+    summary="Consultar estado del Pre-Checkin 24h antes"
+)
+def obtener_estado_precheckin(
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    _verificar_acceso_reserva(reserva, current_user, db)
+
+    ambos = bool(reserva.precheck_cliente_confirmado and reserva.precheck_dueno_confirmado)
+    return {
+        "reserva_id": reserva.id,
+        "precheck_cliente_confirmado": reserva.precheck_cliente_confirmado or False,
+        "precheck_cliente_timestamp": reserva.precheck_cliente_timestamp,
+        "precheck_dueno_confirmado": reserva.precheck_dueno_confirmado or False,
+        "precheck_dueno_timestamp": reserva.precheck_dueno_timestamp,
+        "ambos_confirmados": ambos,
+        "mensaje": "Pre-checkin completo" if ambos else "Pendiente de confirmación",
+    }
+
+@router.post(
+    "/{reserva_id}/aplicar-multa",
+    response_model=BookingOut,
+    summary="Reportar y aplicar multa o cargo por falta en arriendo (Dueño o Admin)"
+)
+def aplicar_multa_reserva(
+    reserva_id: str,
+    payload: AplicarMultaRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    es_dueno = auto and auto.dueno_id == current_user.id
+    es_admin = "admin" in (current_user.roles_activos or [])
+
+    if not es_dueno and not es_admin:
+        raise HTTPException(status_code=403, detail="Solo el anfitrión del vehículo o un administrador pueden reportar multas.")
+
+    if reserva.estado not in ("confirmada", "en_curso", "finalizada", "disputada"):
+        raise HTTPException(status_code=400, detail="Solo se pueden aplicar multas en reservas activas o finalizadas.")
+
+    item_multa = FinesService.validar_y_calcular_multa(
+        tipo=payload.tipo,
+        monto_clp=payload.monto_clp,
+        motivo=payload.motivo,
+        fotos=payload.fotos,
+    )
+
+    monto = item_multa["monto_clp"]
+
+    # Actualizar campos de multas en la reserva
+    detalles = list(reserva.multas_detalle or [])
+    detalles.append(item_multa)
+    reserva.multas_detalle = detalles
+
+    reserva.cargo_falta_grave_clp = (reserva.cargo_falta_grave_clp or 0) + monto
+    reserva.cargos_adicionales_clp = (reserva.cargos_adicionales_clp or 0) + monto
+    reserva.monto_cobro_final = (reserva.monto_cobro_final or 0) + monto
+    reserva.liquidacion_dueno_clp = (reserva.liquidacion_dueno_clp or 0) + monto
+
+    desglose_txt = f"[{item_multa['nombre']}: ${monto:,} CLP - {payload.motivo}]"
+    if reserva.motivo_multas:
+        reserva.motivo_multas += f" | {desglose_txt}"
+    else:
+        reserva.motivo_multas = desglose_txt
+
+    # Registrar cobro por la multa
+    pago_multa = Pago(
+        reserva_id=reserva.id,
+        usuario_id=reserva.cliente_id,
+        tipo=f"cargo_{payload.tipo}",
+        monto=monto,
+        estado="capturado",
+        referencia_transbank=f"TBK-FINE-{uuid.uuid4().hex[:8].upper()}"
+    )
+    db.add(pago_multa)
+
+    # Notificar al cliente con el detalle transparente
+    crear_notificacion(
+        db,
+        usuario_id=reserva.cliente_id,
+        tipo="reserva",
+        titulo="Cargo por falta / penalización",
+        mensaje=f"Se ha aplicado un cargo de ${monto:,} CLP por '{item_multa['nombre']}'. Motivo: {payload.motivo}.",
+        entidad_tipo="reserva",
+        entidad_id=reserva.id,
+    )
+
     db.commit()
     db.refresh(reserva)
     return reserva
