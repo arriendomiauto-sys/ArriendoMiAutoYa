@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, status, Depends
+from fastapi.responses import FileResponse
 from app.services.storage import StorageService
 from app.models.entities import Usuario
 from app.services.auth import get_current_user
@@ -41,6 +42,31 @@ async def subir_archivo(
         )
 
     return resultado
+
+@router.get("/local/{bucket}/{archivo_id}", summary="Sirve un archivo del respaldo local privado (requiere sesión)")
+def servir_archivo_local_privado(
+    bucket: str,
+    archivo_id: str,
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Entrega un archivo de un bucket privado que quedó en el respaldo local
+    porque Supabase Storage no estaba disponible. Existe para que ese respaldo
+    no tenga que publicarse como estático: /uploads sirve solo los buckets
+    públicos, y esto exige sesión.
+
+    Nota: el control es "hay sesión válida", el mismo alcance que tiene hoy
+    una URL firmada de Supabase o el endpoint /renovar — no verifica que el
+    documento pertenezca a quien lo pide.
+    """
+    ruta = StorageService.leer_archivo_local_privado(bucket, archivo_id)
+    if not ruta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Archivo no encontrado en el respaldo local privado.",
+        )
+    return FileResponse(ruta)
+
 
 @router.get("/{bucket}/{archivo_id}/renovar", summary="Renueva la URL firmada de un documento en un bucket privado")
 def renovar_url(

@@ -20,6 +20,42 @@ class StorageService:
     MIME_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
     TAMANO_MAXIMO_BYTES = 8 * 1024 * 1024  # 8 MB
 
+    @classmethod
+    def _raiz_local(cls, bucket: str) -> str:
+        """
+        Directorio raíz del respaldo local para un bucket. Los privados van a
+        STORAGE_LOCAL_PRIVATE_DIR, que a propósito NO se monta como estático
+        en main.py; los públicos siguen en STORAGE_LOCAL_DIR (/uploads).
+        """
+        if bucket in cls.BUCKETS_PRIVADOS:
+            return settings.STORAGE_LOCAL_PRIVATE_DIR
+        return settings.STORAGE_LOCAL_DIR
+
+    @classmethod
+    def leer_archivo_local_privado(cls, bucket: str, archivo_id: str) -> Optional[str]:
+        """
+        Ruta en disco de un archivo del respaldo local privado, o None si no
+        existe o el bucket no es privado. `archivo_id` se valida contra
+        traversal: solo se acepta el nombre de archivo, sin separadores.
+        """
+        if bucket not in cls.BUCKETS_PRIVADOS:
+            return None
+        if not archivo_id or "\x00" in archivo_id or os.path.basename(archivo_id) != archivo_id:
+            return None
+
+        # Solo caracteres seguros en nombres de archivo (hex UUID o alfanuméricos con guiones y extensiones)
+        import re
+        if not re.match(r"^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp|heic)$", archivo_id, re.IGNORECASE):
+            return None
+
+        ruta = os.path.join(settings.STORAGE_LOCAL_PRIVATE_DIR, bucket, archivo_id)
+        # basename() ya descarta separadores, pero se confirma que la ruta
+        # resuelta siga dentro del directorio del bucket.
+        raiz_bucket = os.path.realpath(os.path.join(settings.STORAGE_LOCAL_PRIVATE_DIR, bucket))
+        if os.path.commonpath([os.path.realpath(ruta), raiz_bucket]) != raiz_bucket:
+            return None
+        return ruta if os.path.isfile(ruta) else None
+
     @staticmethod
     def _sniff_imagen(contenido: bytes):
         """
@@ -115,8 +151,13 @@ class StorageService:
         if tiene_supabase_real:
             try:
                 storage_endpoint = f"{supabase_url}/storage/v1/object/{bucket}/{archivo_id}"
+                # El header `apikey` no es redundante con Authorization: las
+                # llaves nuevas de Supabase (sb_secret_…, a diferencia del JWT
+                # service_role legacy) se rechazan con 401 si solo va el
+                # Bearer. Sin esto la subida falla y cae al respaldo local.
                 headers = {
                     "Authorization": f"Bearer {service_key}",
+                    "apikey": service_key,
                     "Content-Type": content_type,
                     "x-upsert": "true"
                 }
@@ -142,12 +183,26 @@ class StorageService:
                 logger.error(f"Fallo al subir a Supabase Storage: {e}")
 
         # 2. Fallback a Almacenamiento Local en Servidor
-        # NOTA: este fallback se sirve vía StaticFiles (/uploads) sin control
-        # de acceso — a diferencia de los buckets privados en Supabase, aquí
-        # no hay forma de restringir la lectura por archivo. Solo debería
-        # activarse si Supabase Storage está mal configurado o caído.
+        #
+        # Los buckets privados NO pueden caer en el árbol que se publica vía
+        # StaticFiles (/uploads): ahí no hay control de acceso por archivo y
+        # cualquiera con la URL lee un carnet. Se guardan en un directorio
+        # aparte que no está montado, y se sirven por
+        # GET /storage/local/{bucket}/{archivo_id}, que exige sesión.
+        es_privado = bucket in cls.BUCKETS_PRIVADOS
+        if es_privado:
+            # Que un documento de identidad termine en disco local es una
+            # degradación silenciosa de la privacidad prometida (Supabase con
+            # URL firmada). Se registra como error, no como info.
+            logger.error(
+                "Supabase Storage no aceptó %s/%s: se usa respaldo local privado. "
+                "Revisar SUPABASE_SERVICE_ROLE_KEY y que el bucket exista.",
+                bucket, archivo_id,
+            )
+
         try:
-            directorio_destino = os.path.join(settings.STORAGE_LOCAL_DIR, bucket)
+            raiz = cls._raiz_local(bucket)
+            directorio_destino = os.path.join(raiz, bucket)
             os.makedirs(directorio_destino, exist_ok=True)
             ruta_local_completa = os.path.join(directorio_destino, archivo_id)
 
@@ -156,7 +211,10 @@ class StorageService:
 
             # URL absoluta si conocemos el host público (para que la app la
             # pueda mostrar y el OCR la pueda descargar); si no, ruta relativa.
-            ruta_rel = f"/uploads/{bucket}/{archivo_id}"
+            if es_privado:
+                ruta_rel = f"{settings.API_V1_STR}/storage/local/{bucket}/{archivo_id}"
+            else:
+                ruta_rel = f"/uploads/{bucket}/{archivo_id}"
             url_local = f"{base_url.rstrip('/')}{ruta_rel}" if base_url else ruta_rel
             logger.info(f"Archivo guardado localmente: {url_local}")
 
@@ -165,7 +223,7 @@ class StorageService:
                 "url": url_local,
                 "filename": archivo_id,
                 "bucket": bucket,
-                "provider": "local"
+                "provider": "local_privado" if es_privado else "local"
             }
         except Exception as e:
             logger.error(f"Error al guardar archivo en almacenamiento local: {e}")
@@ -193,6 +251,7 @@ class StorageService:
                 f"{supabase_url}/storage/v1/object/sign/{bucket}/{archivo_id}",
                 headers={
                     "Authorization": f"Bearer {service_key}",
+                    "apikey": service_key,
                     "Content-Type": "application/json",
                 },
                 json={"expiresIn": cls.URL_FIRMADA_EXPIRA_SEGUNDOS},

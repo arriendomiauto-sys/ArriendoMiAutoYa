@@ -82,7 +82,10 @@ def completar_enrolamiento(
 
     current_user.nombre = payload.nombre
     current_user.rut = payload.rut
-    current_user.telefono = payload.telefono
+    if payload.email:
+        current_user.email = payload.email
+    if payload.telefono is not None:
+        current_user.telefono = payload.telefono
     if payload.foto_perfil_verificada_url:
         current_user.foto_perfil_verificada_url = payload.foto_perfil_verificada_url
     current_user.confianza_ocr = resultado_ocr.get("confianza_ocr", 0.95)

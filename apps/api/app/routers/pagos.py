@@ -1,7 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, status, Request
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from app.core.database import get_db
+from app.core.config import settings
+from app.core.limiter import limiter
+from app.core.url_validator import validate_safe_return_url
+from app.core.security_audit import SecurityAudit
 from app.models.entities import Pago, Reserva, Usuario, Auto
 from app.services.transbank import TransbankService
 from app.services.auth import get_current_user
@@ -30,7 +34,9 @@ def _notificar_reserva_confirmada(db: Session, reserva: Reserva) -> None:
     )
 
 @router.post("/webpay/iniciar", summary="Inicia una transacción Webpay Plus (Hold o Cobro)")
+@limiter.limit("10/minute")
 def iniciar_pago_webpay(
+    request: Request,
     monto: int = Body(..., embed=True, description="Monto en CLP"),
     tipo: str = Body("hold_reserva", embed=True, description="hold_enrolamiento, hold_reserva, cobro_final"),
     reserva_id: Optional[str] = Body(None, embed=True),
@@ -41,10 +47,20 @@ def iniciar_pago_webpay(
     """
     Crea una sesión de pago en Transbank Webpay Plus Sandbox (o Producción)
     y retorna la URL oficial y el token para redireccionar al usuario.
+    Valida return_url contra Open Redirect (OWASP CWE-601).
     """
+    if return_url:
+        is_dev = settings.ENVIRONMENT == "development"
+        if not validate_safe_return_url(return_url, allow_localhost_dev=is_dev):
+            SecurityAudit.log_event("OPEN_REDIRECT_BLOCKED", user_id=current_user.id, resource=return_url, status="BLOCKED")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La URL de retorno no es válida o pertenece a un dominio no autorizado."
+            )
+
     buy_order = f"ORD-{uuid.uuid4().hex[:8].upper()}"
     session_id = f"SES-{current_user.id[:8]}"
-    url_retorno = return_url or "http://localhost:3000/pago/retorno"
+    url_retorno = return_url or settings.WEBPAY_DEFAULT_RETURN_URL
 
     resultado_tbk = TransbankService.crear_transaccion(
         buy_order=buy_order,
@@ -82,7 +98,9 @@ def iniciar_pago_webpay(
     }
 
 @router.post("/webpay/confirmar", summary="Confirma el token devuelto por Webpay tras el pago")
+@limiter.limit("20/minute")
 def confirmar_pago_webpay(
+    request: Request,
     token_ws: str = Body(..., embed=True, description="Token retornado por Transbank"),
     db: Session = Depends(get_db)
 ):

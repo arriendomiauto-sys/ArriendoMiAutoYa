@@ -1,18 +1,23 @@
-from fastapi import FastAPI
+import os
+import logging
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
-from app.core.schema_sync import sync_missing_columns
+from app.core.schema_sync import sync_missing_columns, backfill_null_defaults
 from app.core.seed import seed_demo_data
 from app.core.limiter import limiter
+from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.request_limit import RequestSizeLimitMiddleware
 
-import os
-from fastapi.staticfiles import StaticFiles
+logger = logging.getLogger(__name__)
 
 from app.routers import (
     auth,
@@ -44,6 +49,10 @@ async def lifespan(app: FastAPI):
     # que se hayan sumado a los modelos (Postgres no se puede "regenerar
     # borrando el archivo" como el SQLite local).
     sync_missing_columns()
+    # Repara los NULL que dejaron las columnas agregadas antes de que
+    # sync_missing_columns() emitiera cláusula DEFAULT (un campo Pydantic
+    # no-Optional sobre una de esas columnas responde 500).
+    backfill_null_defaults()
     os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
     db = SessionLocal()
     try:
@@ -71,6 +80,10 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+# Middlewares de Seguridad Global (Cabeceras OWASP y Límite de Tamaño Anti-DoS)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
+
 # CORS: solo orígenes conocidos (ver settings.CORS_ORIGINS). Las apps
 # mobile no envían Origin (no son navegador), así que esto solo afecta a
 # apps/web y a Expo en modo web durante desarrollo. El panel admin
@@ -89,9 +102,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servir archivos estáticos locales de respaldo (Uploads)
+# Servir archivos estáticos locales de respaldo (Uploads).
+#
+# Solo los buckets públicos. El respaldo de los buckets privados
+# (documentos-kyc, checklists, evidencias, documentos-autos) vive en
+# STORAGE_LOCAL_PRIVATE_DIR y NO se monta acá: se sirve por
+# GET /api/v1/storage/local/{bucket}/{archivo_id}, que exige sesión.
+# Montar STORAGE_LOCAL_DIR entero dejaba los carnets legibles con solo
+# conocer la URL.
 os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=settings.STORAGE_LOCAL_DIR), name="uploads")
+os.makedirs(settings.STORAGE_LOCAL_PRIVATE_DIR, exist_ok=True)
+for _bucket_publico in ("autos", "general"):
+    _dir_publico = os.path.join(settings.STORAGE_LOCAL_DIR, _bucket_publico)
+    os.makedirs(_dir_publico, exist_ok=True)
+    app.mount(
+        f"/uploads/{_bucket_publico}",
+        StaticFiles(directory=_dir_publico),
+        name=f"uploads-{_bucket_publico}",
+    )
 
 # Incluir routers
 api_prefix = settings.API_V1_STR

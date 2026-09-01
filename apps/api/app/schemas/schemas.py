@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 from typing import List, Optional, Literal, Dict
 from datetime import datetime
 from app.core.validators import validar_rut_chileno, validar_patente_chilena
+from app.core.sanitizer import sanitize_text
 
 # ==============================================================================
 # AUTENTICACIÓN (login/refresh contra Supabase Auth, del lado del servidor)
@@ -43,6 +44,7 @@ class UserCreate(UserBase):
 class UserEnrolamiento(UserBase):
     nombre: str
     rut: str
+    email: Optional[EmailStr] = None
     carnet_frontal_url: Optional[str] = None
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None
@@ -58,6 +60,19 @@ class UserOut(UserBase):
     confianza_ocr: Optional[float] = 1.0
     notas_auditoria: Optional[str] = None
     roles_activos: List[str]
+
+    # Mismo caso que AutoOut.documentos_verificados: estas dos columnas
+    # también declaran default en el modelo y son obligatorias acá, así que
+    # un NULL heredado tumbaría GET /usuarios/me con un 500.
+    @field_validator("estado_documentos", mode="before")
+    @classmethod
+    def _estado_por_defecto(cls, v):
+        return "pendiente" if v is None else v
+
+    @field_validator("roles_activos", mode="before")
+    @classmethod
+    def _roles_por_defecto(cls, v):
+        return ["cliente"] if v is None else v
     sucursal_id: Optional[str] = None
     fecha_registro: datetime
     cuenta_bancaria: Optional[Dict[str, str]] = None
@@ -85,6 +100,11 @@ class PerfilBasicoUpdate(BaseModel):
     nombre: str
     telefono: Optional[str] = None
 
+    @field_validator("nombre", "telefono")
+    @classmethod
+    def sanitize_perfil(cls, v: Optional[str]) -> Optional[str]:
+        return sanitize_text(v)
+
 class DocumentReviewRequest(BaseModel):
     accion: Literal["aprobar", "rechazar"]
     notas: str
@@ -103,6 +123,22 @@ class AutoBase(BaseModel):
     longitud: Optional[float] = None
     fotos: List[str] = []
     equipamiento: Dict[str, bool] = {}
+
+    @field_validator("marca", "modelo", "ubicacion_base", "descripcion")
+    @classmethod
+    def sanitize_auto_text(cls, v: Optional[str]) -> Optional[str]:
+        return sanitize_text(v)
+
+    # Las columnas JSON declaran `default=list`/`default=dict` en el modelo,
+    # que es un default de Python: las filas anteriores a que la columna
+    # existiera traen NULL y, al ser campos obligatorios acá, tumbaban
+    # GET /autos con un 500 (mismo caso que documentos_verificados).
+    @field_validator("fotos", "equipamiento", mode="before")
+    @classmethod
+    def _json_nulo_es_vacio(cls, v, info):
+        if v is None:
+            return [] if info.field_name == "fotos" else {}
+        return v
 
     # Ficha técnica (opcional; se muestra en el detalle del auto).
     transmision: Optional[Literal["automatica", "mecanica"]] = None
@@ -157,6 +193,17 @@ class AutoOut(AutoBase):
     estado: str
     documentos_verificados: bool = False
 
+    # Filas anteriores a que la columna existiera pueden traer NULL (ver
+    # app/core/schema_sync.py). Con el campo tipado `bool` a secas eso
+    # tumbaba GET /autos entero con un 500 de validación de respuesta.
+    # schema_sync ya rellena esos NULL al arrancar; esto es el cinturón de
+    # seguridad para que un registro suelto no vuelva a botar el catálogo,
+    # sin que la API tenga que ofrecer `null` en el contrato.
+    @field_validator("documentos_verificados", mode="before")
+    @classmethod
+    def _null_es_false(cls, v):
+        return False if v is None else v
+
 # ==============================================================================
 # RESERVAS
 # ==============================================================================
@@ -166,6 +213,11 @@ class BookingCreate(BaseModel):
     fecha_inicio: datetime
     fecha_fin: datetime
     lugar_entrega_acordado: str
+
+    @field_validator("lugar_entrega_acordado")
+    @classmethod
+    def sanitize_lugar(cls, v: str) -> str:
+        return sanitize_text(v) or v
 
     @field_validator("fecha_fin")
     @classmethod
@@ -292,9 +344,19 @@ class DisputeCreate(BaseModel):
     foto_evidencia_url: Optional[str] = None
     evidencia_fotos: List[str] = []
 
+    @field_validator("motivo")
+    @classmethod
+    def sanitize_motivo(cls, v: str) -> str:
+        return sanitize_text(v) or v
+
 class DisputeResolveRequest(BaseModel):
     resolucion: str
     accion_pago: Literal["reembolso_total", "cobro_cliente", "division_deducible_50_50", "cargo_limpieza_dueno", "sin_cobro"]
+
+    @field_validator("resolucion")
+    @classmethod
+    def sanitize_resolucion(cls, v: str) -> str:
+        return sanitize_text(v) or v
 
 class DisputeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -314,6 +376,11 @@ class TicketCreate(BaseModel):
     sucursal_id: Optional[str] = None
     asunto: str
     descripcion: str
+
+    @field_validator("asunto", "descripcion")
+    @classmethod
+    def sanitize_ticket_fields(cls, v: str) -> str:
+        return sanitize_text(v) or v
 
 class TicketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -358,6 +425,11 @@ class RatingCreate(BaseModel):
     puntaje: int = Field(..., ge=1, le=5)
     comentario: Optional[str] = None
 
+    @field_validator("comentario")
+    @classmethod
+    def sanitize_comentario(cls, v: Optional[str]) -> Optional[str]:
+        return sanitize_text(v)
+
 class RatingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -380,6 +452,11 @@ class MaintenanceCreate(BaseModel):
     kilometraje: Optional[int] = None
     notas: Optional[str] = None
     documento_url: Optional[str] = None
+
+    @field_validator("nombre", "notas")
+    @classmethod
+    def sanitize_maintenance(cls, v: Optional[str]) -> Optional[str]:
+        return sanitize_text(v)
 
 class MaintenanceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -421,6 +498,11 @@ class ExtendBookingRequest(BaseModel):
 # ==============================================================================
 class MessageCreate(BaseModel):
     texto: str = Field(..., min_length=1, max_length=2000)
+
+    @field_validator("texto")
+    @classmethod
+    def sanitize_msg(cls, v: str) -> str:
+        return sanitize_text(v) or v
 
 class MessageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

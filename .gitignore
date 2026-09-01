@@ -12,6 +12,7 @@ apps/web/
 apps/api/rentacar_dev.db
 apps/api/test_temp.db
 apps/api/uploads/
+apps/api/uploads_privados/
 
 # Docs
 docs/
