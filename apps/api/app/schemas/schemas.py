@@ -173,6 +173,8 @@ class AutoUpdate(BaseModel):
     estado: Optional[str] = None
     fotos: Optional[List[str]] = None
     ubicacion_base: Optional[str] = None
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
     equipamiento: Optional[Dict[str, bool]] = None
     transmision: Optional[Literal["automatica", "mecanica"]] = None
     combustible: Optional[Literal["bencina", "diesel", "hibrido", "electrico"]] = None
