@@ -37,7 +37,28 @@ export function OwnerProfileScreen({
   }, [currentUser?.id]);
 
   const user = currentUser || {};
-  const verificado = user.estado_documentos === "verificado";
+  const estadoDocs = user.estado_documentos;
+  const verificado = estadoDocs === "verificado";
+  const enRevision = estadoDocs === "requiere_revision_manual";
+
+  const handleKycPress = () => {
+    if (verificado) {
+      showAlert(
+        "Identidad verificada",
+        "Tus documentos de identidad ya están aprobados. Tu cuenta de dueño está 100% habilitada para publicar vehículos."
+      );
+      return;
+    }
+    if (enRevision) {
+      showAlert(
+        "Documentos en revisión",
+        "Tus documentos están siendo revisados por nuestro equipo. Te notificaremos cuando tu cuenta quede lista."
+      );
+      return;
+    }
+    onOpenEnrolment();
+  };
+
   const promedioRating =
     calificaciones.length > 0
       ? (calificaciones.reduce((sum, c) => sum + c.puntaje, 0) / calificaciones.length).toFixed(1)
@@ -78,7 +99,7 @@ export function OwnerProfileScreen({
             <View style={[styles.kycPill, verificado ? styles.kycOk : styles.kycPending]}>
               <Icon name={verificado ? "shield" : "warning"} size={12} color={verificado ? colors.accent : "#F2C879"} />
               <Text style={[styles.kycText, { color: verificado ? colors.accent : "#F2C879" }]}>
-                {verificado ? "Anfitrión verificado" : "Verificación pendiente"}
+                {verificado ? "Anfitrión verificado" : enRevision ? "En revisión manual" : "Verificación pendiente"}
               </Text>
             </View>
           </View>
@@ -99,8 +120,8 @@ export function OwnerProfileScreen({
             tone="dark"
             icon="document"
             label="Verificación de identidad"
-            meta={verificado ? "Verificado" : "Pendiente"}
-            onPress={onOpenEnrolment}
+            meta={verificado ? "Verificado" : enRevision ? "En revisión" : "Pendiente"}
+            onPress={handleKycPress}
           />
           <MenuRow tone="dark" icon="card" label="Datos de transferencia" meta={bankAccount?.banco || "Sin configurar"} onPress={onOpenEarnings} />
           <MenuRow tone="dark" icon="document" label="Registro de mantenciones" onPress={onOpenMaintenance} />

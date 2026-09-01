@@ -3,7 +3,7 @@ import { getAccessToken } from "./supabase";
 
 const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
-  "http://localhost:8000/api/v1";
+  "https://api.arriendatuauto.com/api/v1";
 
 // Autos de respaldo SOLO para modo offline (backend inalcanzable). Los
 // campos siguen el mismo shape que devuelve GET /autos (AutoOut) para que
@@ -55,15 +55,34 @@ export class ApiClient {
     } catch (netErr) {
       // fetch solo tira cuando no se pudo ni contactar al servidor: URL mal
       // configurada, backend caído, o el teléfono no alcanza esa dirección.
-      throw new Error(
+      const err = new Error(
         `No se pudo conectar con el servidor (${API_BASE_URL}). ` +
           "Revisa tu conexión y que la app apunte a una URL accesible desde el teléfono."
       );
+      // Marca explícita para distinguir "no llegué al servidor" de "el
+      // servidor respondió mal": son dos fallas distintas y las pantallas
+      // reaccionan distinto (modo demo vs. error con reintento).
+      err.esFalloDeConexion = true;
+      throw err;
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `Error en la solicitud: ${response.status}`);
+      let msg = `Error en la solicitud: ${response.status}`;
+      if (typeof errorData.detail === "string") {
+        msg = errorData.detail;
+      } else if (Array.isArray(errorData.detail)) {
+        msg = errorData.detail
+          .map((e) => (typeof e === "string" ? e : e.msg || e.message || JSON.stringify(e)))
+          .join("\n");
+      } else if (errorData.detail && typeof errorData.detail === "object") {
+        msg = errorData.detail.motivo || errorData.detail.message || JSON.stringify(errorData.detail);
+      } else if (errorData.message) {
+        msg = errorData.message;
+      }
+      const err = new Error(msg);
+      err.status = response.status;
+      throw err;
     }
 
     if (response.status === 204) return null;
@@ -88,14 +107,15 @@ export class ApiClient {
       const query = new URLSearchParams(params).toString();
       return await this.request(`/autos${query ? `?${query}` : ""}`);
     } catch (err) {
-      // Sin conexión con el backend: modo demo con autos de ejemplo. Si el
-      // servidor SÍ respondió (aunque con error), no se inventan autos — se
-      // devuelve lista vacía para no ocultar el estado real del marketplace.
-      if (String(err?.message || "").includes("No se pudo conectar")) {
-        return MOCK_CARS;
-      }
+      // Sin conexión con el backend: modo demo con autos de ejemplo.
+      if (err?.esFalloDeConexion) return MOCK_CARS;
+      // El servidor SÍ respondió, pero con error (p. ej. el 500 que devolvía
+      // GET /autos cuando una fila traía NULL en fotos/equipamiento). Antes
+      // se devolvía [] y el marketplace se veía igual que "todavía no hay
+      // autos publicados": el fallo quedaba invisible y sin forma de
+      // reintentar. Se propaga para que la pantalla lo muestre como error.
       console.warn("[getAutos] el backend respondió con error:", err?.message);
-      return [];
+      throw err;
     }
   }
 
@@ -286,6 +306,10 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify({ asunto, descripcion }),
     });
+  }
+
+  static async getMisTicketsSoporte() {
+    return this.request("/soporte/mis-tickets");
   }
 
   // Pasarela de Pagos Transbank Webpay Plus

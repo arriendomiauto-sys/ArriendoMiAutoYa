@@ -7,7 +7,7 @@ import {
   StatusBar,
 } from "react-native";
 import { colors } from "../../theme/colors";
-import { Icon } from "../../components/Icon";
+import { theme } from "../../theme/tokens";
 import { BrandLogo } from "../../components/BrandLogo";
 
 export function SplashScreen({ onFinish }) {
@@ -37,7 +37,7 @@ export function SplashScreen({ onFinish }) {
 
       {/* Bottom Spinner */}
       <View style={styles.footerBox}>
-        <ActivityIndicator size="small" color="#FFFFFF" />
+        <ActivityIndicator size="small" color={colors.textWhite} />
       </View>
     </View>
   );
@@ -46,17 +46,17 @@ export function SplashScreen({ onFinish }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0F3D3E",
+    backgroundColor: colors.primary,
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 48,
-    paddingHorizontal: 24,
+    paddingHorizontal: theme.spacing.xxl,
   },
   centerContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 28,
+    gap: theme.spacing.xxl,
   },
   logoBox: {
     width: 120,
@@ -69,15 +69,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   brandTitle: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    letterSpacing: -0.5,
+    ...theme.typography.display,
+    color: colors.textWhite,
   },
   brandTagline: {
-    fontSize: 15,
-    color: "#92E3CB",
+    ...theme.typography.bodyStrong,
     fontWeight: "400",
+    color: colors.accent300,
   },
   footerBox: {
     height: 48,

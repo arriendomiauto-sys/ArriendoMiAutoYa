@@ -14,6 +14,7 @@ import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
 import { DocumentCameraModal } from "../../components/DocumentCameraModal";
 import { ApiClient } from "../../api/client";
+import { supabase } from "../../api/supabase";
 import { showAlert } from "../../utils/alert";
 
 // Valida un RUT chileno con el dígito verificador Módulo 11.
@@ -40,8 +41,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const { currentUser, completeEnrolment } = useApp();
   const isDriver = role === "owner";
 
-  // Steps: '01_cedula' | '02_licencia' | '03_facial' | '04_review' | '05_approved'
-  const [currentStep, setCurrentStep] = useState("01_cedula");
+  const yaVerificado = currentUser?.estado_documentos === "verificado";
+  const enRevision = currentUser?.estado_documentos === "requiere_revision_manual";
+
+  // Steps: '01_cedula' | '02_licencia' | '03_facial' | '04_review' | '05_approved' | '06_revision'
+  const [currentStep, setCurrentStep] = useState(
+    yaVerificado ? "05_approved" : enRevision ? "06_revision" : "01_cedula"
+  );
   const [capturing, setCapturing] = useState(false);
   const [cedulaSide, setCedulaSide] = useState("front"); // 'front' | 'back'
 
@@ -133,6 +139,16 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
 
     setSubmitting(true);
     try {
+      let userEmail = currentUser?.email || prefill?.email;
+      if (!userEmail) {
+        try {
+          const { data: authData } = await supabase.auth.getUser();
+          userEmail = authData?.user?.email;
+        } catch {
+          /* fallback si falla getUser */
+        }
+      }
+
       // El Dueño completa el mismo enrolamiento (nombre/RUT/carnet) que el
       // Arrendatario — el backend le otorga el rol "dueno" automáticamente
       // la primera vez que publique un auto.
@@ -144,7 +160,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       const profile = await completeEnrolment({
         nombre,
         rut,
-        email: currentUser?.email,
+        email: userEmail,
         telefono,
         carnet_frontal_url: carnetFrontalUrl,
         carnet_trasero_url: carnetTraseroUrl,

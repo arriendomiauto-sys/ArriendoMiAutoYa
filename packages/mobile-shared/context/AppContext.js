@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiClient, MOCK_CARS } from "../api/client";
 import { supabase } from "../api/supabase";
@@ -11,6 +11,19 @@ const AppContext = createContext();
 // su perfil. Se elige por primera vez en el registro.
 const MODE_STORAGE_KEY = "@rentacar/mode";
 const VALID_MODES = ["renter", "owner"];
+
+// Cuánto se mantiene la pantalla de transición tapando el árbol nuevo. No es
+// una espera artificial: RenterApp y OwnerApp son árboles completos distintos
+// (tab bar, listas, mapas) y montarlos toma varios frames — sin la tapa se ve
+// el cambio de tema claro/oscuro a medio pintar.
+const SWITCH_MS = 700;
+// Tras iniciar/cerrar sesión el árbol destino también necesita un frame o dos.
+const SESSION_SWITCH_MS = 400;
+
+const TITULOS_MODO = {
+  renter: { title: "Entrando al modo arrendatario", subtitle: "Cargando tu búsqueda de autos y tus reservas." },
+  owner: { title: "Entrando al modo dueño", subtitle: "Cargando tu flota, tus ganancias y tus solicitudes." },
+};
 
 /**
  * Contexto de aplicación compartido por toda la app.
@@ -27,12 +40,29 @@ export function AppProvider({ children }) {
 
   const [mode, setModeState] = useState("renter");
 
+  // Transición activa: { mode, title, subtitle } o null. La consume la app
+  // para tapar el cambio de rol o de cuenta con <SwitchingScreen>.
+  const [transition, setTransition] = useState(null);
+  const transitionTimer = useRef(null);
+  // El modo actual también en un ref: setMode necesita compararlo sin
+  // recrearse en cada cambio (lo consumen callbacks memorizados).
+  const modeRef = useRef("renter");
+
+  const endTransition = useCallback((delay = SESSION_SWITCH_MS) => {
+    clearTimeout(transitionTimer.current);
+    transitionTimer.current = setTimeout(() => setTransition(null), delay);
+  }, []);
+
+  useEffect(() => () => clearTimeout(transitionTimer.current), []);
+
   // Rehidrata el modo elegido en la sesión anterior antes de pintar la app.
   useEffect(() => {
     let alive = true;
     AsyncStorage.getItem(MODE_STORAGE_KEY)
       .then((saved) => {
-        if (alive && VALID_MODES.includes(saved)) setModeState(saved);
+        if (!alive || !VALID_MODES.includes(saved)) return;
+        modeRef.current = saved;
+        setModeState(saved);
       })
       .catch(() => {});
     return () => {
@@ -40,14 +70,33 @@ export function AppProvider({ children }) {
     };
   }, []);
 
-  const setMode = useCallback((next) => {
-    if (!VALID_MODES.includes(next)) return;
-    setModeState(next);
-    AsyncStorage.setItem(MODE_STORAGE_KEY, next).catch(() => {});
-  }, []);
+  /**
+   * Cambia de rol. `silent` omite la pantalla de transición (registro y
+   * rehidratación, donde no hay una experiencia anterior que reemplazar).
+   */
+  const setMode = useCallback(
+    (next, { silent = false } = {}) => {
+      if (!VALID_MODES.includes(next)) return;
+      const cambia = modeRef.current !== next;
+      modeRef.current = next;
+      setModeState(next);
+      AsyncStorage.setItem(MODE_STORAGE_KEY, next).catch(() => {});
+
+      if (!cambia || silent) return;
+      // El modo se aplica ya: el árbol destino monta DEBAJO de la pantalla de
+      // transición y aparece completo cuando esta se retira.
+      setTransition({ mode: next, ...TITULOS_MODO[next] });
+      endTransition(SWITCH_MS);
+    },
+    [endTransition]
+  );
 
   const [cars, setCars] = useState(MOCK_CARS);
   const [loading, setLoading] = useState(false);
+  // Motivo por el que el catálogo no se pudo cargar (o null si todo bien).
+  // Lo consume Marketplace para mostrar un error con reintento en vez de
+  // una lista vacía que se lee como "no hay autos publicados".
+  const [carsError, setCarsError] = useState(null);
 
   const [reservations, setReservations] = useState([]);
   const [activeReservation, setActiveReservation] = useState(null);
@@ -73,9 +122,15 @@ export function AppProvider({ children }) {
     setLoading(true);
     try {
       const fetchedCars = await ApiClient.getAutos();
-      setCars(fetchedCars);
-    } catch {
-      setCars(MOCK_CARS);
+      setCars(Array.isArray(fetchedCars) ? fetchedCars : []);
+      setCarsError(null);
+    } catch (err) {
+      // getAutos solo tira cuando el servidor respondió con error (sin
+      // conexión ya devuelve los autos de demo). Mostrar MOCK_CARS acá haría
+      // creer que el catálogo está sano y llevaría a fichas de autos que no
+      // existen, así que se vacía la lista y se guarda el motivo.
+      setCars([]);
+      setCarsError(err?.message || "No pudimos cargar los autos disponibles.");
     } finally {
       setLoading(false);
     }
@@ -140,7 +195,7 @@ export function AppProvider({ children }) {
     if (error) throw error;
 
     // El rol elegido en el registro fija el modo con el que arranca la app.
-    if (VALID_MODES.includes(preferredMode)) setMode(preferredMode);
+    if (VALID_MODES.includes(preferredMode)) setMode(preferredMode, { silent: true });
 
     // Supabase NO devuelve error si el correo ya tiene una cuenta — por
     // diseño, para no dejar enumerar qué correos están registrados. En vez
@@ -162,7 +217,18 @@ export function AppProvider({ children }) {
   const login = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    await syncProfile();
+    // Credenciales OK: desde aquí la app va a cambiar de cuenta, así que la
+    // transición tapa el salto de AuthFlow a la experiencia del usuario.
+    setTransition({
+      mode: modeRef.current,
+      title: "Entrando a tu cuenta",
+      subtitle: "Cargando tu perfil y tus arriendos.",
+    });
+    try {
+      await syncProfile();
+    } finally {
+      endTransition();
+    }
     return data;
   };
 
@@ -175,9 +241,18 @@ export function AppProvider({ children }) {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    setCurrentUser(null);
-    setActiveReservation(null);
+    setTransition({
+      mode: modeRef.current,
+      title: "Cerrando sesión",
+      subtitle: "Saliendo de forma segura de tu cuenta.",
+    });
+    try {
+      await supabase.auth.signOut();
+      setCurrentUser(null);
+      setActiveReservation(null);
+    } finally {
+      endTransition();
+    }
   };
 
   const completeEnrolment = async (enrolamientoData) => {
@@ -227,6 +302,7 @@ export function AppProvider({ children }) {
         authLoading,
         mode,
         setMode,
+        transition,
         login,
         logout,
         register,
@@ -236,6 +312,7 @@ export function AppProvider({ children }) {
         setCurrentUser,
         syncProfile,
         cars,
+        carsError,
         setCars,
         reservations,
         setReservations,

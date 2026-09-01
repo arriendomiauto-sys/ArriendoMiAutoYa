@@ -25,6 +25,23 @@ import {
   showAlert,
 } from "@rentacar/mobile-shared";
 
+let MapView = null;
+let Marker = null;
+try {
+  const maps = require("react-native-maps");
+  MapView = maps.default;
+  Marker = maps.Marker;
+} catch (e) {
+  MapView = null;
+}
+
+let Location = null;
+try {
+  Location = require("expo-location");
+} catch (e) {
+  Location = null;
+}
+
 const TRANSMISIONES = [
   { v: "automatica", label: "Automática" },
   { v: "mecanica", label: "Mecánica" },
@@ -57,26 +74,26 @@ const CAR_BRANDS = [
 const DOCS = [
   {
     key: "doc_inscripcion_url",
-    titulo: "Certificado de inscripción",
-    ayuda: "El padrón del Registro Civil, a nombre del dueño de la cuenta.",
+    titulo: "Certificado de inscripción (Padrón)",
+    ayuda: "Padrón del Registro Civil con folio y patente visible.",
     icon: "document",
   },
   {
     key: "doc_permiso_circulacion_url",
     titulo: "Permiso de circulación",
-    ayuda: "Vigente para el período en curso.",
+    ayuda: "Permiso municipal al día para el período en curso.",
     icon: "receipt",
   },
   {
     key: "doc_soap_url",
     titulo: "Seguro Obligatorio (SOAP)",
-    ayuda: "Póliza al día que cubre el año en curso.",
+    ayuda: "Póliza vigente con cobertura del año en curso.",
     icon: "shield",
   },
   {
     key: "doc_revision_tecnica_url",
-    titulo: "Revisión técnica",
-    ayuda: "Certificado de planta vigente (y de gases si corresponde).",
+    titulo: "Revisión técnica o Certificado",
+    ayuda: "Certificado de planta PRT o de homologación vigente.",
     icon: "check",
   },
 ];
@@ -133,7 +150,7 @@ function MarcaInput({ value, onChange, onFocus }) {
   );
 }
 
-// Slot de carga de un documento (foto o archivo desde galería/cámara).
+// Slot de carga de un documento (foto o archivo PDF/imagen).
 function DocSlot({ doc, uri, uploading, onPick, onClear }) {
   return (
     <View style={styles.docSlot}>
@@ -142,7 +159,7 @@ function DocSlot({ doc, uri, uploading, onPick, onClear }) {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.docTitle}>{doc.titulo}</Text>
-        <Text style={styles.docHelp}>{uri ? "Documento cargado" : doc.ayuda}</Text>
+        <Text style={styles.docHelp}>{uri ? "Documento cargado (PDF / Foto)" : doc.ayuda}</Text>
       </View>
       {uploading ? (
         <ActivityIndicator color={colors.accent} />
@@ -165,6 +182,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(null); // key del doc en subida
+  const [locatingGps, setLocatingGps] = useState(false);
 
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
@@ -176,6 +194,8 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     patente: "",
     tarifa_dia: "35000",
     ubicacion_base: "Plaza de Armas, Los Ángeles",
+    latitud: -37.4697,
+    longitud: -72.3536,
     transmision: "automatica",
     combustible: "bencina",
     categoria: "sedan",
@@ -189,6 +209,59 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   const tarifaNum = parseInt(form.tarifa_dia, 10) || 35000;
   const gananciaNeta = Math.round(tarifaNum * 0.8);
   const docsCargados = DOCS.filter((d) => form.docs[d.key]).length;
+
+  const handleUseCurrentLocation = async () => {
+    setLocatingGps(true);
+    try {
+      if (!Location) {
+        showAlert("GPS no disponible", "El módulo de ubicación no está disponible en este dispositivo.");
+        return;
+      }
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        showAlert("Permiso requerido", "Activa el permiso de ubicación para obtener tus coordenadas actuales.");
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: 3 });
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+
+      let sectorLegible = `Punto GPS (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+      try {
+        const [rev] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+        if (rev) {
+          const partes = [rev.street, rev.name, rev.district || rev.subregion || rev.city].filter(Boolean);
+          if (partes.length) sectorLegible = partes.join(", ");
+        }
+      } catch {}
+
+      setForm((prev) => ({
+        ...prev,
+        latitud: lat,
+        longitud: lon,
+        ubicacion_base: sectorLegible,
+      }));
+      showAlert(
+        "Ubicación GPS capturada",
+        `Se fijó el punto de entrega:\n${sectorLegible}\n\nRecuerda preferir siempre lugares públicos concurridos.`
+      );
+    } catch (err) {
+      showAlert("No se pudo obtener la ubicación", err.message || "Toca el mapa para elegir el punto.");
+    } finally {
+      setLocatingGps(false);
+    }
+  };
+
+  const handleMapPress = (e) => {
+    const coord = e?.nativeEvent?.coordinate;
+    if (coord?.latitude && coord?.longitude) {
+      setForm((prev) => ({
+        ...prev,
+        latitud: coord.latitude,
+        longitud: coord.longitude,
+      }));
+    }
+  };
 
   const handleFieldFocus = (e) => {
     const node = e && e.target;
@@ -226,11 +299,11 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
   const pickImage = async (onUri) => {
     const opciones = [
-      { text: "Tomar foto", onPress: () => runPicker("camera", onUri) },
-      { text: "Elegir de galería", onPress: () => runPicker("library", onUri) },
+      { text: "Tomar foto con cámara", onPress: () => runPicker("camera", onUri) },
+      { text: "Elegir de galería / archivo", onPress: () => runPicker("library", onUri) },
       { text: "Cancelar", style: "cancel" },
     ];
-    showAlert("Agregar archivo", "¿De dónde lo tomamos?", opciones);
+    showAlert("Subir archivo del auto", "¿Cómo deseas adjuntar el documento?", opciones);
   };
 
   const runPicker = async (source, onUri) => {
@@ -254,7 +327,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
       if (result.canceled || !result.assets?.length) return;
       onUri(result.assets[0].uri);
     } catch (error) {
-      showAlert("No se pudo abrir la cámara", error.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo abrir la cámara o galería", error.message || "Inténtalo de nuevo.");
     }
   };
 
@@ -338,13 +411,15 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     }
     setLoading(true);
     try {
-      await ApiClient.crearAuto({
+      const res = await ApiClient.crearAuto({
         marca: form.marca,
         modelo: form.modelo,
         anio: parseInt(form.anio, 10) || 2023,
         patente: form.patente.toUpperCase(),
         tarifa_dia: tarifaNum,
         ubicacion_base: form.ubicacion_base,
+        latitud: form.latitud,
+        longitud: form.longitud,
         transmision: form.transmision,
         combustible: form.combustible,
         categoria: form.categoria,
@@ -354,11 +429,20 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         equipamiento: form.equipamiento,
         ...form.docs,
       });
-      showAlert(
-        "Auto publicado",
-        `Tu ${form.marca} ${form.modelo} (${form.patente.toUpperCase()}) ya está en el marketplace. Revisamos los documentos y te avisamos.`,
-        [{ text: "Ver mi flota", onPress: onComplete }]
-      );
+
+      if (res?.documentos_verificados) {
+        showAlert(
+          "¡Auto publicado y verificado!",
+          `Tu ${form.marca} ${form.modelo} (${form.patente.toUpperCase()}) fue verificado automáticamente con éxito y ya está activo en el mapa del marketplace.`,
+          [{ text: "Ver mi flota", onPress: onComplete }]
+        );
+      } else {
+        showAlert(
+          "Auto registrado — En revisión",
+          `Tu ${form.marca} ${form.modelo} (${form.patente.toUpperCase()}) quedó registrado. Los documentos fueron enviados a revisión por nuestro equipo de soporte. Te avisaremos apenas quede habilitado.`,
+          [{ text: "Ver mi flota", onPress: onComplete }]
+        );
+      }
     } catch (error) {
       showAlert("No se pudo publicar", error.message);
     } finally {
@@ -438,17 +522,90 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                   />
                 </View>
               </View>
+
+              {/* Banner de Recomendación de Seguridad en Puntos Públicos */}
+              <View style={styles.securityBanner}>
+                <View style={styles.securityIconBox}>
+                  <Icon name="shield" size={18} color={colors.accent} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.securityTitle}>Punto de entrega seguro</Text>
+                  <Text style={styles.securityDesc}>
+                    Por seguridad de ambas partes, te sugerimos fijar el punto de
+                    entrega en un lugar público y concurrido (cercanías de una
+                    estación de Metro, servicentro Copec/Shell, centro comercial o comisaría).
+                  </Text>
+                </View>
+              </View>
+
+              {/* Selector de Ubicación */}
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Sector de entrega</Text>
+                <View style={styles.locationHeaderRow}>
+                  <Text style={styles.fieldLabel}>Sector / Punto de entrega</Text>
+                  <TouchableOpacity
+                    style={styles.gpsBtn}
+                    onPress={handleUseCurrentLocation}
+                    disabled={locatingGps}
+                    activeOpacity={0.8}
+                  >
+                    {locatingGps ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <>
+                        <Icon name="pin" size={13} color={colors.accent} />
+                        <Text style={styles.gpsBtnText}>Mi ubicación GPS</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="ej. Plaza de Armas, Los Ángeles"
+                  placeholder="ej. Metro Tobalaba / Copec Plaza Principal"
                   placeholderTextColor={colors.textSilver}
                   value={form.ubicacion_base}
                   onChangeText={(t) => setForm((prev) => ({ ...prev, ubicacion_base: t }))}
                   onFocus={handleFieldFocus}
                 />
               </View>
+
+              {/* Mapa Interactivo de Posicionamiento */}
+              {MapView ? (
+                <View style={styles.mapContainer}>
+                  <MapView
+                    style={styles.miniMap}
+                    region={{
+                      latitude: form.latitud || -37.4697,
+                      longitude: form.longitud || -72.3536,
+                      latitudeDelta: 0.02,
+                      longitudeDelta: 0.02,
+                    }}
+                    onPress={handleMapPress}
+                  >
+                    {Marker && (
+                      <Marker
+                        coordinate={{
+                          latitude: form.latitud || -37.4697,
+                          longitude: form.longitud || -72.3536,
+                        }}
+                        draggable
+                        onDragEnd={handleMapPress}
+                        title={form.ubicacion_base || "Punto de entrega"}
+                      />
+                    )}
+                  </MapView>
+                  <View style={styles.mapHintBadge}>
+                    <Icon name="pin" size={12} color="#FFFFFF" />
+                    <Text style={styles.mapHintText}>Toca el mapa o arrastra el marcador para fijar el punto</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.noMapBox}>
+                  <Icon name="pin" size={18} color={colors.accent} />
+                  <Text style={styles.noMapText}>
+                    Coordenadas fijadas: {Number(form.latitud || 0).toFixed(4)}, {Number(form.longitud || 0).toFixed(4)}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -794,4 +951,77 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(47, 191, 155, 0.16)",
   },
   docAddText: { color: colors.accent, fontSize: 13, fontWeight: "700" },
+  securityBanner: {
+    flexDirection: "row",
+    gap: theme.spacing.md,
+    backgroundColor: "rgba(47, 191, 155, 0.08)",
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: "rgba(47, 191, 155, 0.3)",
+    padding: theme.spacing.md,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  securityIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "rgba(47, 191, 155, 0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  securityTitle: { fontSize: 13, fontWeight: "700", color: colors.accent, marginBottom: 2 },
+  securityDesc: { fontSize: 12, color: colors.textSilver, lineHeight: 17 },
+  locationHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  gpsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: theme.radius.sm,
+    backgroundColor: "rgba(47, 191, 155, 0.15)",
+  },
+  gpsBtnText: { color: colors.accent, fontSize: 12, fontWeight: "700" },
+  mapContainer: {
+    height: 180,
+    borderRadius: theme.radius.field,
+    overflow: "hidden",
+    marginTop: 6,
+    position: "relative",
+    borderWidth: 1,
+    borderColor: colors.darkBorderStrong,
+  },
+  miniMap: { width: "100%", height: "100%" },
+  mapHintBadge: {
+    position: "absolute",
+    bottom: 8,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(10, 15, 29, 0.82)",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  mapHintText: { color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
+  noMapBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.darkCardSubtle,
+    padding: theme.spacing.md,
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+    marginTop: 4,
+  },
+  noMapText: { color: colors.textSilver, fontSize: 13, fontWeight: "500" },
 });

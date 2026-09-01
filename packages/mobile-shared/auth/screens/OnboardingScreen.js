@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { colors } from "../../theme/colors";
+import { theme } from "../../theme/tokens";
 import { Icon } from "../../components/Icon";
+import { Button, BottomBar } from "../../components/ui";
 
 const ONBOARDING_SLIDES = [
   {
@@ -80,7 +82,7 @@ export function OnboardingScreen({ onFinish }) {
       </View>
 
       {/* Bottom Controls */}
-      <View style={styles.bottomControls}>
+      <BottomBar bordered={false} style={styles.bottomControls}>
         <View style={styles.dotsRow}>
           {ONBOARDING_SLIDES.map((_, idx) => (
             <View
@@ -93,14 +95,8 @@ export function OnboardingScreen({ onFinish }) {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={handleNext}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.primaryBtnText}>{slide.cta}</Text>
-        </TouchableOpacity>
-      </View>
+        <Button label={slide.cta} onPress={handleNext} />
+      </BottomBar>
     </View>
   );
 }
@@ -112,54 +108,49 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   topBar: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingHorizontal: theme.spacing.xxl,
+    paddingTop: theme.spacing.sm,
     flexDirection: "row",
     justifyContent: "flex-end",
-    height: 44,
+    height: theme.control.heightSm,
   },
   skipButton: {
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: theme.spacing.sm,
   },
   skipText: {
-    fontSize: 15,
-    fontWeight: "600",
+    ...theme.typography.bodyStrong,
     color: colors.accent700,
   },
   centerBox: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: theme.spacing.xxl,
+    paddingVertical: theme.spacing.md,
     justifyContent: "space-between",
-    gap: 24,
+    gap: theme.spacing.xxl,
   },
   visualBox: {
     flex: 1,
-    borderRadius: 20,
+    borderRadius: theme.radius.lg,
     alignItems: "center",
     justifyContent: "center",
   },
   textBox: {
-    gap: 12,
+    gap: theme.spacing.md,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "600",
-    letterSpacing: -0.4,
-    lineHeight: 33,
+    ...theme.typography.display,
     color: colors.text,
   },
   description: {
     fontSize: 16,
-    color: colors.textMuted,
     lineHeight: 25,
+    color: colors.textMuted,
   },
   bottomControls: {
-    paddingHorizontal: 24,
-    paddingBottom: 34,
-    paddingTop: 16,
-    gap: 20,
+    paddingHorizontal: theme.spacing.xxl,
+    backgroundColor: "transparent",
+    gap: theme.spacing.xl,
   },
   dotsRow: {
     flexDirection: "row",
@@ -169,7 +160,7 @@ const styles = StyleSheet.create({
   },
   dot: {
     height: 7,
-    borderRadius: 999,
+    borderRadius: theme.radius.pill,
   },
   dotActive: {
     width: 24,
@@ -178,17 +169,5 @@ const styles = StyleSheet.create({
   dotInactive: {
     width: 7,
     backgroundColor: colors.primary200,
-  },
-  primaryBtn: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryBtnText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
   },
 });

@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
   ActivityIndicator,
 } from "react-native";
 import { colors } from "../theme/colors";
@@ -297,6 +298,119 @@ export function EmptyState({ icon = "car", title, message, action, onAction, ton
   );
 }
 
+// ---------------------------------------------------------------------------
+// Field — rótulo + input + texto de ayuda. Cubre los tres casos que las
+// pantallas de auth repetían a mano: campo simple, campo con prefijo fijo
+// (+56 9) y campo de contraseña con botón Ver/Ocultar.
+// ---------------------------------------------------------------------------
+export function Field({
+  label,
+  helper,
+  error,
+  prefix,
+  secure = false,
+  tone = "light",
+  style,
+  ...inputProps
+}) {
+  const p = palette(tone);
+  const [focused, setFocused] = React.useState(false);
+  const [revealed, setRevealed] = React.useState(false);
+
+  const borderColor = error ? colors.danger : focused ? p.accent : p.border;
+
+  return (
+    <View style={[styles.field, style]}>
+      {label ? <SectionLabel tone={tone}>{label}</SectionLabel> : null}
+      <View
+        style={[
+          styles.fieldBox,
+          { backgroundColor: p.surface, borderColor },
+          focused && !error && styles.fieldBoxFocused,
+        ]}
+      >
+        {prefix ? (
+          <Text style={[styles.fieldPrefix, { color: p.textMuted }]}>{prefix}</Text>
+        ) : null}
+        <TextInput
+          {...inputProps}
+          style={[styles.fieldInput, { color: p.text }]}
+          placeholderTextColor={colors.textPlaceholder}
+          secureTextEntry={secure && !revealed}
+          onFocus={(e) => {
+            setFocused(true);
+            inputProps.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            inputProps.onBlur?.(e);
+          }}
+        />
+        {secure ? (
+          <TouchableOpacity
+            onPress={() => setRevealed((v) => !v)}
+            hitSlop={theme.control.hitSlop}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.fieldReveal, { color: p.accent }]}>
+              {revealed ? "Ocultar" : "Ver"}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      {error || helper ? (
+        <Text
+          style={[styles.fieldHelper, { color: error ? colors.danger : p.textMuted }]}
+        >
+          {error || helper}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Checkbox — casilla cuadrada con etiqueta a la derecha
+// ---------------------------------------------------------------------------
+export function Checkbox({ checked, onToggle, label, tone = "light" }) {
+  const p = palette(tone);
+  return (
+    <TouchableOpacity style={styles.checkboxRow} onPress={onToggle} activeOpacity={0.8}>
+      <View
+        style={[
+          styles.checkbox,
+          { borderColor: p.border, backgroundColor: p.surface },
+          checked && { backgroundColor: p.accent, borderColor: p.accent },
+        ]}
+      >
+        {checked ? (
+          <Icon name="check" size={14} color={p.dark ? colors.primary900 : "#FFFFFF"} />
+        ) : null}
+      </View>
+      <Text style={[styles.checkboxLabel, { color: p.textMuted }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BottomBar — barra fija inferior para el CTA principal de una pantalla
+// ---------------------------------------------------------------------------
+export function BottomBar({ children, tone = "light", bordered = true, style }) {
+  const p = palette(tone);
+  return (
+    <View
+      style={[
+        styles.bottomBar,
+        { backgroundColor: p.surface },
+        bordered && { borderTopWidth: 1, borderTopColor: p.border },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   btn: {
     height: theme.control.height,
@@ -393,6 +507,45 @@ const styles = StyleSheet.create({
   menuRowLeft: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md, flex: 1 },
   menuRowText: { fontSize: 15, fontWeight: "500" },
   menuRowMeta: { fontSize: 13 },
+
+  field: { gap: 6 },
+  fieldBox: {
+    height: theme.control.height,
+    borderWidth: 1.5,
+    borderRadius: theme.radius.field,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  fieldBoxFocused: { boxShadow: `0 0 0 4px ${colors.focusRingSoft}` },
+  fieldPrefix: { fontSize: 16 },
+  fieldInput: { flex: 1, fontSize: 16 },
+  fieldReveal: { fontSize: 15, fontWeight: "600" },
+  fieldHelper: { fontSize: 13, lineHeight: 18 },
+
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing.md,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  checkboxLabel: { flex: 1, fontSize: 14, lineHeight: 20 },
+
+  bottomBar: {
+    paddingHorizontal: theme.spacing.screen,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: 34,
+    gap: theme.spacing.md,
+  },
 
   empty: {
     alignItems: "center",

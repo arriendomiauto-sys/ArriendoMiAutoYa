@@ -1,18 +1,10 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StatusBar,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar } from "react-native";
 import { colors } from "../../theme/colors";
+import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
-import { Icon } from "../../components/Icon";
 import { BrandLogo } from "../../components/BrandLogo";
+import { Button, Field, ScreenHeader, BottomBar } from "../../components/ui";
 import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
 
@@ -28,7 +20,6 @@ export function LoginScreen({ onNavigate }) {
   const { login } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -50,86 +41,45 @@ export function LoginScreen({ onNavigate }) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => onNavigate("welcome")}
-          activeOpacity={0.7}
-        >
-          <Icon name="arrow-left" size={20} color={colors.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Iniciar sesión</Text>
-      </View>
+      <ScreenHeader title="Iniciar sesión" onBack={() => onNavigate("welcome")} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Brand Icon */}
         <View style={styles.logoBox}>
           <BrandLogo size={64} />
           <Text style={styles.logoTitle}>Arriendo Mi Auto Ya</Text>
         </View>
 
-        {/* Form Fields */}
-        <View style={styles.formGroup}>
-          <Text style={styles.fieldLabel}>CORREO</Text>
-          <View style={styles.inputBox}>
-            <TextInput
-              style={styles.textInput}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="nombre@correo.com"
-              placeholderTextColor={colors.textPlaceholder}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-        </View>
+        <Field
+          label="Correo"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="nombre@correo.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+        />
 
-        <View style={styles.formGroup}>
-          <Text style={styles.fieldLabel}>CONTRASEÑA</Text>
-          <View style={styles.passwordInputBox}>
-            <TextInput
-              style={styles.passwordInput}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••••"
-              placeholderTextColor={colors.textPlaceholder}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.showPassText}>
-                {showPassword ? "Ocultar" : "Ver"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <Field
+          label="Contraseña"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="••••••••••"
+          secure
+          autoComplete="password"
+        />
 
         <TouchableOpacity
           style={styles.forgotLink}
           onPress={() => onNavigate("forgot")}
           activeOpacity={0.7}
+          hitSlop={theme.control.hitSlop}
         >
           <Text style={styles.forgotLinkText}>¿Olvidaste tu contraseña?</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Bottom CTA */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.primaryBtn, loading && styles.btnDisabled]}
-          onPress={handleLogin}
-          activeOpacity={0.85}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.primaryBtnText}>Entrar</Text>
-          )}
-        </TouchableOpacity>
+      <BottomBar>
+        <Button label="Entrar" onPress={handleLogin} loading={loading} />
 
         <TouchableOpacity
           style={styles.registerLink}
@@ -140,7 +90,7 @@ export function LoginScreen({ onNavigate }) {
             ¿No tienes cuenta? <Text style={styles.registerLinkHighlight}>Crear cuenta</Text>
           </Text>
         </TouchableOpacity>
-      </View>
+      </BottomBar>
     </View>
   );
 }
@@ -151,124 +101,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: "space-between",
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.text,
-  },
   content: {
-    padding: 20,
-    gap: 20,
+    padding: theme.spacing.screen,
+    gap: theme.spacing.xl,
   },
   logoBox: {
     alignItems: "center",
-    gap: 10,
-    marginTop: 10,
-    marginBottom: 8,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
   },
   logoTitle: {
-    fontSize: 22,
-    fontWeight: "600",
-    letterSpacing: -0.4,
+    ...theme.typography.title,
     color: colors.primary,
-  },
-  formGroup: {
-    gap: 6,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.8,
-    color: colors.textMuted,
-    textTransform: "uppercase",
-  },
-  inputBox: {
-    height: 52,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    justifyContent: "center",
-  },
-  textInput: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  passwordInputBox: {
-    height: 52,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-  },
-  passwordInput: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-  },
-  showPassText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.accent700,
   },
   forgotLink: {
     alignSelf: "flex-start",
-    paddingVertical: 4,
+    paddingVertical: theme.spacing.xs,
   },
   forgotLinkText: {
-    fontSize: 14,
-    fontWeight: "600",
+    ...theme.typography.bodyStrong,
     color: colors.accent700,
   },
-  bottomBar: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 34,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: 12,
-  },
-  primaryBtn: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-  primaryBtnText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
-  },
   registerLink: {
-    height: 38,
+    height: theme.control.heightSm,
     alignItems: "center",
     justifyContent: "center",
   },
   registerLinkText: {
-    fontSize: 14,
+    ...theme.typography.callout,
     color: colors.textMuted,
   },
   registerLinkHighlight: {

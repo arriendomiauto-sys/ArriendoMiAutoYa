@@ -42,17 +42,26 @@ export function OwnerApp() {
   // Flota real del dueño autenticado (cualquier estado, no solo activos) —
   // separada del listado público del marketplace.
   const [misAutos, setMisAutos] = useState([]);
+  // Motivo del último fallo al traer la flota (o null). Antes solo se
+  // registraba en consola: si GET /autos/mios fallaba, "Mi flota" quedaba
+  // vacía y parecía que el dueño no tenía autos publicados.
+  const [errorFlota, setErrorFlota] = useState(null);
   const cargarMisAutos = useCallback(async () => {
     try {
       const data = await ApiClient.getMisAutos();
-      setMisAutos(data);
+      setMisAutos(Array.isArray(data) ? data : []);
+      setErrorFlota(null);
     } catch (err) {
       console.warn("[OwnerApp] No se pudo cargar la flota:", err.message);
+      setErrorFlota(err?.message || "No pudimos cargar tu flota.");
     }
   }, []);
+  // Se reintenta cuando aparece el perfil: el primer render puede ocurrir
+  // antes de que la sesión de Supabase esté disponible, y ahí la petición
+  // se iba sin token y volvía 401 dejando la flota vacía para siempre.
   useEffect(() => {
     cargarMisAutos();
-  }, [cargarMisAutos]);
+  }, [cargarMisAutos, currentUser?.id]);
 
   // Modales y Flujos Secundarios
   const [showAddCar, setShowAddCar] = useState(false);
@@ -163,6 +172,8 @@ export function OwnerApp() {
           <MyCarsScreen
             cars={misAutos}
             setCars={setMisAutos}
+            error={errorFlota}
+            onRetry={cargarMisAutos}
             onAddNewCar={handleAddNewCar}
             identidadVerificada={identidadVerificada}
             onVerifyIdentity={() => setShowEnrolment(true)}

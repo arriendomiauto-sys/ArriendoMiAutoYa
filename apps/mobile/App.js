@@ -6,7 +6,13 @@ import {
   SafeAreaView,
   initialWindowMetrics,
 } from "react-native-safe-area-context";
-import { AppProvider, useApp, colors, AuthFlow } from "@rentacar/mobile-shared";
+import {
+  AppProvider,
+  useApp,
+  colors,
+  AuthFlow,
+  SwitchingScreen,
+} from "@rentacar/mobile-shared";
 import { RenterApp } from "./src/renter/RenterApp";
 import { OwnerApp } from "./src/owner/OwnerApp";
 
@@ -18,11 +24,29 @@ import { OwnerApp } from "./src/owner/OwnerApp";
 // desde su perfil. La verificación de identidad (KYC) no bloquea el acceso:
 // se pide recién al publicar o reservar un auto de verdad.
 function Root() {
-  const { isLoggedIn, authLoading, mode } = useApp();
+  const { isLoggedIn, authLoading, mode, transition } = useApp();
 
-  if (authLoading) return null;
-  if (!isLoggedIn) return <AuthFlow />;
-  return mode === "owner" ? <OwnerApp /> : <RenterApp />;
+  // Arranque: mientras se rehidrata la sesión de Supabase se muestra la
+  // pantalla de carga (antes era `null`, es decir, un marco vacío).
+  if (authLoading) {
+    return <SwitchingScreen mode={mode} title="Cargando tu sesión" subtitle="Un segundo, estamos abriendo la app." />;
+  }
+
+  return (
+    <>
+      {isLoggedIn ? (mode === "owner" ? <OwnerApp /> : <RenterApp />) : <AuthFlow />}
+      {/* Cambio de rol o de cuenta: la experiencia destino monta debajo y la
+          transición se retira cuando ya está lista. */}
+      {transition ? (
+        <SwitchingScreen
+          overlay
+          mode={transition.mode}
+          title={transition.title}
+          subtitle={transition.subtitle}
+        />
+      ) : null}
+    </>
+  );
 }
 
 // El marco de área segura vive dentro del provider para poder teñirse según

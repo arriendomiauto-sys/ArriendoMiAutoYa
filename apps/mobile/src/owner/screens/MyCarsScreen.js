@@ -27,6 +27,8 @@ import {
 export function MyCarsScreen({
   cars,
   setCars,
+  error,
+  onRetry,
   onAddNewCar,
   onOpenCalendar,
   onOpenMaintenance,
@@ -155,7 +157,11 @@ export function MyCarsScreen({
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Mi flota</Text>
           <Text style={styles.subtitle}>
-            {cars?.length ? `${cars.length} ${cars.length === 1 ? "vehículo" : "vehículos"}` : "Publica tu primer auto"}
+            {cars?.length
+              ? `${cars.length} ${cars.length === 1 ? "vehículo" : "vehículos"}`
+              : error
+                ? "No pudimos cargar tu flota"
+                : "Publica tu primer auto"}
           </Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={onAddNewCar} activeOpacity={0.85}>
@@ -177,14 +183,26 @@ export function MyCarsScreen({
         showsVerticalScrollIndicator={false}
         renderItem={renderCar}
         ListEmptyComponent={
-          <EmptyState
-            tone="dark"
-            icon="car"
-            title="Todavía no tienes autos publicados"
-            message="Publica tu vehículo con fotos y documentos para empezar a recibir arriendos."
-            action="Publicar un auto"
-            onAction={onAddNewCar}
-          />
+          error ? (
+            // La flota no se pudo traer: no es lo mismo que no tener autos.
+            <EmptyState
+              tone="dark"
+              icon="alert"
+              title="No pudimos cargar tu flota"
+              message={`${error} Tus autos siguen publicados; vuelve a intentarlo.`}
+              action="Reintentar"
+              onAction={onRetry}
+            />
+          ) : (
+            <EmptyState
+              tone="dark"
+              icon="car"
+              title="Todavía no tienes autos publicados"
+              message="Publica tu vehículo con fotos y documentos para empezar a recibir arriendos."
+              action="Publicar un auto"
+              onAction={onAddNewCar}
+            />
+          )
         }
       />
 

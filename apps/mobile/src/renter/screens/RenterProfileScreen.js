@@ -35,7 +35,28 @@ export function RenterProfileScreen({
   }, [currentUser?.id]);
 
   const user = currentUser || {};
-  const verificado = user.estado_documentos === "verificado";
+  const estadoDocs = user.estado_documentos;
+  const verificado = estadoDocs === "verificado";
+  const enRevision = estadoDocs === "requiere_revision_manual";
+
+  const handleKycPress = () => {
+    if (verificado) {
+      showAlert(
+        "Identidad verificada",
+        "Tus documentos de identidad ya están aprobados. Tu cuenta está 100% habilitada para reservar vehículos."
+      );
+      return;
+    }
+    if (enRevision) {
+      showAlert(
+        "Documentos en revisión",
+        "Tus documentos están siendo revisados por nuestro equipo. Te notificaremos cuando tu cuenta quede lista."
+      );
+      return;
+    }
+    onOpenEnrolment();
+  };
+
   const promedioRating =
     calificaciones.length > 0
       ? (calificaciones.reduce((sum, c) => sum + c.puntaje, 0) / calificaciones.length).toFixed(1)
@@ -85,7 +106,7 @@ export function RenterProfileScreen({
                 color={verificado ? colors.accent800 : colors.warningText}
               />
               <Text style={[styles.kycText, { color: verificado ? colors.accent800 : colors.warningText }]}>
-                {verificado ? "Identidad verificada" : "Identidad pendiente"}
+                {verificado ? "Identidad verificada" : enRevision ? "En revisión manual" : "Identidad pendiente"}
               </Text>
             </View>
           </View>
@@ -104,8 +125,8 @@ export function RenterProfileScreen({
           <MenuRow
             icon="document"
             label="Verificación de identidad"
-            meta={verificado ? "Verificado" : "Pendiente"}
-            onPress={onOpenEnrolment}
+            meta={verificado ? "Verificado" : enRevision ? "En revisión" : "Pendiente"}
+            onPress={handleKycPress}
           />
           <MenuRow icon="card" label="Billetera y tarjetas Webpay" onPress={onOpenPaymentMethods} />
           <MenuRow icon="chat" label="Mensajería y coordinación" onPress={onOpenChat} />

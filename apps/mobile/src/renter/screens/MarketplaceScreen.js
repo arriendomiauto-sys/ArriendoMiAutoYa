@@ -37,7 +37,7 @@ const CAT_KEYWORDS = {
 };
 
 export function MarketplaceScreen({ onSelectCar, onOpenMap, onVerifyIdentity }) {
-  const { cars, currentUser, loadData, loading } = useApp();
+  const { cars, carsError, currentUser, loadData, loading } = useApp();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
   const [category, setCategory] = useState("Todos");
   const [query, setQuery] = useState("");
@@ -121,7 +121,16 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onVerifyIdentity }) 
           </View>
         )}
 
-        {filteredCars.length > 0 ? (
+        {carsError && !(cars || []).length ? (
+          // El backend respondió con error: distinto de "no hay autos".
+          <EmptyState
+            icon="alert"
+            title="No pudimos cargar los autos"
+            message={`${carsError} Desliza hacia abajo o toca Reintentar.`}
+            action="Reintentar"
+            onAction={loadData}
+          />
+        ) : filteredCars.length > 0 ? (
           <>
             <Text style={styles.count}>
               {filteredCars.length} {filteredCars.length === 1 ? "auto disponible" : "autos disponibles"}

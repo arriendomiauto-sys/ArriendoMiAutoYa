@@ -6,11 +6,21 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon, Button, Card, ScreenHeader, SectionLabel } from "@rentacar/mobile-shared";
+import {
+  colors,
+  theme,
+  Icon,
+  Button,
+  Card,
+  ScreenHeader,
+  SectionLabel,
+  DateTimeField,
+  formatearFechaHora,
+  aISOLocal,
+} from "@rentacar/mobile-shared";
 
 // Misma regla que app/services/pricing.py:PricingService.calcular_dias_reserva
 // (redondeo hacia arriba, mínimo 1 día) — para que el total mostrado acá
@@ -23,19 +33,19 @@ function calcularDias(fechaInicio, fechaFin) {
   return Math.max(1, Math.ceil(ms / 86400000));
 }
 
-function formatearFechaCorta(iso) {
-  try {
-    return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
-  } catch {
-    return iso;
-  }
-}
-
-function hoyISO(offsetDias = 0) {
+// Fecha por defecto: dentro de `offsetDias` días a la hora en punto pedida.
+function enDias(offsetDias, hora) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDias);
-  return d.toISOString().split("T")[0];
+  d.setHours(hora, 0, 0, 0);
+  return d;
 }
+
+// El retiro nunca puede quedar en el pasado, y la devolución tiene que ser
+// posterior al retiro: el calendario deshabilita todo lo anterior en vez de
+// dejar escribirlo y avisar después.
+const MIN_HORAS_ARRIENDO = 1;
+const masHoras = (fecha, horas) => new Date(fecha.getTime() + horas * 3600000);
 
 const EQUIPAMIENTO_LABELS = {
   ac: "Aire acondicionado",
@@ -52,11 +62,26 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const [fotoActiva, setFotoActiva] = useState(0);
   const [heroW, setHeroW] = useState(0);
 
-  const [fechaInicio, setFechaInicio] = useState(hoyISO(1));
-  const [fechaFin, setFechaFin] = useState(hoyISO(4));
-  const [horaRetiro, setHoraRetiro] = useState("10:00");
-  const [horaDevolucion, setHoraDevolucion] = useState("18:00");
+  const [fechaInicio, setFechaInicio] = useState(() => enDias(1, 10));
+  const [fechaFin, setFechaFin] = useState(() => enDias(4, 18));
   const [dateError, setDateError] = useState(null);
+  const ahora = useMemo(() => new Date(), []);
+
+  // Mover el retiro más allá de la devolución dejaría un rango imposible:
+  // se arrastra la devolución manteniendo la duración elegida.
+  const cambiarInicio = (nuevoInicio) => {
+    setDateError(null);
+    setFechaInicio(nuevoInicio);
+    if (fechaFin <= nuevoInicio) {
+      const duracionMs = Math.max(fechaFin - fechaInicio, 3 * 86400000);
+      setFechaFin(new Date(nuevoInicio.getTime() + duracionMs));
+    }
+  };
+
+  const cambiarFin = (nuevoFin) => {
+    setDateError(null);
+    setFechaFin(nuevoFin);
+  };
 
   const tarifaDia = car?.tarifa_dia || 0;
   const dias = useMemo(() => calcularDias(fechaInicio, fechaFin), [fechaInicio, fechaFin]);
@@ -81,6 +106,14 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
   const irAResumen = () => {
     setDateError(null);
+    if (fechaInicio < new Date()) {
+      setDateError("El retiro no puede quedar en el pasado. Elige una fecha y hora futura.");
+      return;
+    }
+    if (fechaFin <= masHoras(fechaInicio, MIN_HORAS_ARRIENDO)) {
+      setDateError("La devolución debe ser al menos una hora después del retiro.");
+      return;
+    }
     if (dias <= 0) {
       setDateError("La fecha de devolución debe ser posterior a la de retiro.");
       return;
@@ -208,6 +241,25 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               </View>
             )}
 
+            {/* Punto de Encuentro / Entrega */}
+            <Card style={styles.locationCard} padded>
+              <View style={styles.locationCardHeader}>
+                <View style={styles.locationIconBox}>
+                  <Icon name="location" size={18} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.locationCardTitle}>Punto de entrega y devolución</Text>
+                  <Text style={styles.locationCardAddress}>{car?.ubicacion_base || "Los Ángeles, Región del Biobío"}</Text>
+                </View>
+              </View>
+              <View style={styles.locationSecurityNotice}>
+                <Icon name="shield" size={13} color={colors.accent700} />
+                <Text style={styles.locationSecurityText}>
+                  Punto de encuentro público coordinado por seguridad de ambas partes.
+                </Text>
+              </View>
+            </Card>
+
             <Card style={styles.noteCard} padded elevated={false}>
               <Icon name="shield" size={18} color={colors.primary} />
               <Text style={styles.noteText}>
@@ -237,28 +289,18 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
         <ScreenHeader title="Fechas y horarios" onBack={() => setStep("detail")} />
         <ScrollView contentContainerStyle={styles.stepBody} showsVerticalScrollIndicator={false}>
           <View style={styles.datesRow}>
-            {[
-              { label: "Retiro", fecha: fechaInicio, setFecha: setFechaInicio, hora: horaRetiro, setHora: setHoraRetiro },
-              { label: "Devolución", fecha: fechaFin, setFecha: setFechaFin, hora: horaDevolucion, setHora: setHoraDevolucion },
-            ].map((g) => (
-              <View key={g.label} style={{ flex: 1, gap: 6 }}>
-                <SectionLabel>{g.label}</SectionLabel>
-                <TextInput
-                  style={styles.input}
-                  value={g.fecha}
-                  onChangeText={g.setFecha}
-                  placeholder="AAAA-MM-DD"
-                  placeholderTextColor={colors.textPlaceholder}
-                />
-                <TextInput
-                  style={styles.input}
-                  value={g.hora}
-                  onChangeText={g.setHora}
-                  placeholder="HH:MM"
-                  placeholderTextColor={colors.textPlaceholder}
-                />
-              </View>
-            ))}
+            <DateTimeField
+              label="Retiro"
+              value={fechaInicio}
+              onChange={cambiarInicio}
+              minimumDate={ahora}
+            />
+            <DateTimeField
+              label="Devolución"
+              value={fechaFin}
+              onChange={cambiarFin}
+              minimumDate={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
+            />
           </View>
 
           {dateError && (
@@ -275,7 +317,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               </Text>
               {dias > 0 && (
                 <Text style={styles.subtotalRange}>
-                  {formatearFechaCorta(fechaInicio)} {horaRetiro} → {formatearFechaCorta(fechaFin)} {horaDevolucion}
+                  {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
                 </Text>
               )}
             </View>
@@ -301,7 +343,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
           <View style={{ flex: 1 }}>
             <Text style={styles.sumName}>{nombreAuto || "Vehículo"}</Text>
             <Text style={styles.sumMeta}>
-              {formatearFechaCorta(fechaInicio)} {horaRetiro} → {formatearFechaCorta(fechaFin)} {horaDevolucion}
+              {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
             </Text>
             <Text style={styles.sumMeta}>{car?.ubicacion_base}</Text>
           </View>
@@ -338,8 +380,8 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
           iconRight="arrow-right"
           onPress={() =>
             onProceedToPayment(car, {
-              fechaInicio: `${fechaInicio}T${horaRetiro}:00`,
-              fechaFin: `${fechaFin}T${horaDevolucion}:00`,
+              fechaInicio: aISOLocal(fechaInicio),
+              fechaFin: aISOLocal(fechaFin),
               dias,
               montoHold,
             })
@@ -430,6 +472,30 @@ const styles = StyleSheet.create({
   },
   equipText: { fontSize: 12, fontWeight: "600", color: colors.accent700 },
 
+  locationCard: { gap: theme.spacing.sm, backgroundColor: colors.surface },
+  locationCardHeader: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  locationIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.primary100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationCardTitle: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
+  locationCardAddress: { fontSize: 15, fontWeight: "600", color: colors.text, marginTop: 2 },
+  locationSecurityNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.accent100,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: theme.radius.sm,
+    marginTop: 4,
+  },
+  locationSecurityText: { fontSize: 12, color: colors.accent800, fontWeight: "500", flex: 1 },
+
   noteCard: { flexDirection: "row", gap: theme.spacing.md, backgroundColor: colors.primary100, borderColor: colors.primary200 },
   noteText: { flex: 1, fontSize: 13, color: colors.primary, lineHeight: 19 },
 
@@ -448,16 +514,6 @@ const styles = StyleSheet.create({
 
   stepBody: { padding: theme.spacing.screen, gap: theme.spacing.lg },
   datesRow: { flexDirection: "row", gap: theme.spacing.md },
-  input: {
-    height: theme.control.heightSm,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: colors.text,
-  },
   warnBox: { backgroundColor: colors.warningBg, borderRadius: theme.radius.field, padding: theme.spacing.lg, gap: 4 },
   warnTitle: { fontSize: 14, fontWeight: "700", color: colors.warningText },
   warnText: { fontSize: 13, color: colors.warningText, lineHeight: 19 },

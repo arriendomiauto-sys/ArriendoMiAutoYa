@@ -1,14 +1,10 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from "react-native";
 import { colors } from "../../theme/colors";
+import { theme } from "../../theme/tokens";
 import { Icon } from "../../components/Icon";
 import { BrandLogo } from "../../components/BrandLogo";
+import { Button, Card, BottomBar } from "../../components/ui";
 
 // La app es un solo binario con dos experiencias. Acá el usuario elige con
 // cuál partir; después alterna entre modos desde su perfil.
@@ -32,9 +28,7 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Main Content (Pantalla 03) */}
       <View style={styles.content}>
-        {/* Brand Logo */}
         <View style={styles.logoRow}>
           <BrandLogo size={52} />
         </View>
@@ -54,35 +48,29 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
             return (
               <TouchableOpacity
                 key={opt.key}
-                style={[styles.optionCard, selected && styles.optionCardSelected]}
                 onPress={() => onSelectRole?.(opt.key)}
                 activeOpacity={0.85}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
               >
-                <View style={styles.cardHeader}>
-                  <Icon
-                    name={opt.cardIcon}
-                    size={24}
-                    color={colors.primary}
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text style={styles.cardTitle}>{opt.cardTitle}</Text>
-                </View>
-                <Text style={styles.cardDesc}>{opt.cardDesc}</Text>
+                <Card
+                  style={[styles.optionCard, selected && styles.optionCardSelected]}
+                  elevated={selected}
+                >
+                  <View style={styles.cardHeader}>
+                    <Icon name={opt.cardIcon} size={24} color={colors.primary} />
+                    <Text style={styles.cardTitle}>{opt.cardTitle}</Text>
+                  </View>
+                  <Text style={styles.cardDesc}>{opt.cardDesc}</Text>
+                </Card>
               </TouchableOpacity>
             );
           })}
         </View>
       </View>
 
-      {/* Bottom CTA */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => onNavigate("register")}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.primaryBtnText}>Crear mi cuenta</Text>
-        </TouchableOpacity>
+      <BottomBar bordered={false} style={styles.bottomBar}>
+        <Button label="Crear mi cuenta" onPress={() => onNavigate("register")} />
 
         <TouchableOpacity
           style={styles.loginLink}
@@ -90,11 +78,10 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
           activeOpacity={0.7}
         >
           <Text style={styles.loginLinkText}>
-            Ya tengo cuenta{" "}
-            <Text style={styles.loginHighlight}>Iniciar sesión</Text>
+            Ya tengo cuenta <Text style={styles.loginHighlight}>Iniciar sesión</Text>
           </Text>
         </TouchableOpacity>
-      </View>
+      </BottomBar>
     </View>
   );
 }
@@ -107,41 +94,33 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    gap: 24,
+    paddingHorizontal: theme.spacing.xxl,
+    paddingTop: theme.spacing.xxxl,
+    gap: theme.spacing.xxl,
   },
   logoRow: {
-    width: 64,
     height: 48,
     justifyContent: "center",
   },
   textBox: {
-    gap: 10,
+    gap: theme.spacing.sm,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "600",
-    letterSpacing: -0.4,
-    lineHeight: 33,
+    ...theme.typography.display,
     color: colors.text,
   },
   subtitle: {
     fontSize: 16,
-    color: colors.textMuted,
     lineHeight: 25,
+    color: colors.textMuted,
   },
   cardsContainer: {
-    gap: 14,
-    marginTop: 8,
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.sm,
   },
   optionCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 20,
-    gap: 8,
+    padding: theme.spacing.xl,
+    gap: theme.spacing.sm,
   },
   optionCardSelected: {
     borderWidth: 1.5,
@@ -150,42 +129,28 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
+    gap: theme.spacing.sm,
   },
   cardTitle: {
-    fontSize: 19,
-    fontWeight: "600",
+    ...theme.typography.heading,
     color: colors.text,
   },
   cardDesc: {
-    fontSize: 15,
+    ...theme.typography.body,
     color: colors.textMuted,
-    lineHeight: 22,
   },
   bottomBar: {
-    paddingHorizontal: 24,
-    paddingBottom: 34,
-    paddingTop: 16,
-    gap: 10,
-  },
-  primaryBtn: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryBtnText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
+    paddingHorizontal: theme.spacing.xxl,
+    backgroundColor: "transparent",
   },
   loginLink: {
-    height: 44,
+    height: theme.control.heightSm,
     alignItems: "center",
     justifyContent: "center",
   },
   loginLinkText: {
-    fontSize: 15,
+    ...theme.typography.bodyStrong,
+    fontWeight: "400",
     color: colors.textMuted,
   },
   loginHighlight: {

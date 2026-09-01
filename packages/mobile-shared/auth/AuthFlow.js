@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from "react-native";
+import { View, StyleSheet, StatusBar } from "react-native";
 import { colors } from "../theme/colors";
-import { Icon } from "../components/Icon";
+import { theme } from "../theme/tokens";
+import { Button, EmptyState } from "../components/ui";
 import { SplashScreen } from "./screens/SplashScreen";
 import { OnboardingScreen } from "./screens/OnboardingScreen";
 import { WelcomeScreen } from "./screens/WelcomeScreen";
@@ -73,22 +74,13 @@ export function AuthFlow() {
       <View style={styles.confirmContainer}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.confirmCenter}>
-          <View style={styles.confirmIconCircle}>
-            <Icon name="chat" size={30} color={colors.primary} />
-          </View>
-          <Text style={styles.confirmTitle}>Confirma tu correo</Text>
-          <Text style={styles.confirmDesc}>
-            Te enviamos un enlace de confirmación a tu correo. Ábrelo para
-            activar tu cuenta y luego vuelve a iniciar sesión.
-          </Text>
+          <EmptyState
+            icon="chat"
+            title="Confirma tu correo"
+            message="Te enviamos un enlace de confirmación a tu correo. Ábrelo para activar tu cuenta y luego vuelve a iniciar sesión."
+          />
         </View>
-        <TouchableOpacity
-          style={styles.confirmBtn}
-          onPress={() => setStep("login")}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.confirmBtnText}>Ir a Iniciar sesión</Text>
-        </TouchableOpacity>
+        <Button label="Ir a Iniciar sesión" onPress={() => setStep("login")} />
       </View>
     );
   }
@@ -117,46 +109,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     justifyContent: "space-between",
-    paddingHorizontal: 24,
+    paddingHorizontal: theme.spacing.xxl,
     paddingVertical: 34,
   },
   confirmCenter: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 16,
-  },
-  confirmIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  confirmTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: colors.text,
-    textAlign: "center",
-  },
-  confirmDesc: {
-    fontSize: 15,
-    color: colors.textMuted,
-    textAlign: "center",
-    lineHeight: 22,
-    paddingHorizontal: 8,
-  },
-  confirmBtn: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  confirmBtnText: {
-    color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
   },
 });
