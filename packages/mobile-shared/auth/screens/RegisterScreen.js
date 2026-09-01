@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, StatusBar } from "react-native";
+import { View, Text, StyleSheet, ScrollView, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
 import { ApiClient } from "../../api/client";
 import { Icon } from "../../components/Icon";
 import { Button, Field, Checkbox, ScreenHeader, BottomBar } from "../../components/ui";
+import { LegalModal } from "../../screens/LegalModal";
+import { EDAD_MINIMA_ARRENDATARIO } from "../../legal/documentos";
 import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
 
@@ -32,6 +34,10 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Documento legal abierto en el visor (null = cerrado). El registro exige
+  // aceptar términos y privacidad, así que tienen que poder leerse acá mismo
+  // antes de marcar la casilla.
+  const [documentoLegal, setDocumentoLegal] = useState(null);
 
   const set = (campo) => (text) => setForm((f) => ({ ...f, [campo]: text }));
 
@@ -59,7 +65,11 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
     if (!acceptedTerms) {
       showAlert(
         "Términos requeridos",
-        "Debes aceptar los términos y condiciones y declarar tener 22 años o más."
+        `Debes leer y aceptar los términos y condiciones y la política de privacidad, y declarar tener ${EDAD_MINIMA_ARRENDATARIO} años o más.`,
+        [
+          { text: "Ahora no", style: "cancel" },
+          { text: "Leer términos", onPress: () => setDocumentoLegal("terminos") },
+        ]
       );
       return;
     }
@@ -107,12 +117,21 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+    >
       <StatusBar barStyle="dark-content" />
 
       <ScreenHeader title="Crear mi cuenta" onBack={() => onNavigate("welcome")} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {/* Banner del rol elegido en la bienvenida */}
         <View
           style={[
@@ -187,12 +206,43 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
           }
         />
 
+        <View style={styles.legalBox}>
+          <Text style={styles.legalTitle}>Antes de aceptar, léelos</Text>
+          <View style={styles.legalLinks}>
+            <TouchableOpacity
+              style={styles.legalLink}
+              onPress={() => setDocumentoLegal("terminos")}
+              hitSlop={theme.control.hitSlop}
+            >
+              <Icon name="document" size={16} color={colors.accentDark} />
+              <Text style={styles.legalLinkText}>Términos y condiciones</Text>
+              <Icon name="arrow-right" size={14} color={colors.accentDark} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.legalLink}
+              onPress={() => setDocumentoLegal("privacidad")}
+              hitSlop={theme.control.hitSlop}
+            >
+              <Icon name="shield" size={16} color={colors.accentDark} />
+              <Text style={styles.legalLinkText}>Política de privacidad</Text>
+              <Icon name="arrow-right" size={14} color={colors.accentDark} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <Checkbox
+          label={`He leído y acepto los términos y la política de privacidad, y tengo ${EDAD_MINIMA_ARRENDATARIO} años o más.`}
           checked={acceptedTerms}
-          onToggle={() => setAcceptedTerms((v) => !v)}
-          label="Acepto los términos y la política de privacidad. Declaro tener 22 años o más."
+          onChange={setAcceptedTerms}
         />
       </ScrollView>
+
+      <LegalModal
+        visible={!!documentoLegal}
+        doc={documentoLegal || "terminos"}
+        onClose={() => setDocumentoLegal(null)}
+        onAccept={() => setAcceptedTerms(true)}
+      />
 
       <BottomBar>
         <Button
@@ -201,7 +251,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
           loading={loading}
         />
       </BottomBar>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -227,4 +277,16 @@ const styles = StyleSheet.create({
     flex: 1,
     ...theme.typography.body,
   },
+  legalBox: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: theme.radius.field,
+    backgroundColor: colors.surfaceSubtle,
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  legalTitle: { ...theme.typography.label, color: colors.textMuted },
+  legalLinks: { gap: theme.spacing.xs },
+  legalLink: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
+  legalLinkText: { flex: 1, fontSize: 14, fontWeight: "600", color: colors.accentDark },
 });

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, KeyboardAvoidingView, Platform } from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
@@ -38,12 +38,21 @@ export function LoginScreen({ onNavigate }) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+    >
       <StatusBar barStyle="dark-content" />
 
       <ScreenHeader title="Iniciar sesión" onBack={() => onNavigate("welcome")} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <View style={styles.logoBox}>
           <BrandLogo size={64} />
           <Text style={styles.logoTitle}>Arriendo Mi Auto Ya</Text>
@@ -91,7 +100,7 @@ export function LoginScreen({ onNavigate }) {
           </Text>
         </TouchableOpacity>
       </BottomBar>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

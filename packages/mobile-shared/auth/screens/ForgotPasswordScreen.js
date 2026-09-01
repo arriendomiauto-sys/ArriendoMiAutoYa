@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, StatusBar } from "react-native";
+import { View, Text, StyleSheet, ScrollView, StatusBar, KeyboardAvoidingView, Platform } from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
@@ -41,7 +41,11 @@ export function ForgotPasswordScreen({ onNavigate }) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+    >
       <StatusBar barStyle="dark-content" />
 
       <ScreenHeader
@@ -50,7 +54,12 @@ export function ForgotPasswordScreen({ onNavigate }) {
         onBack={() => onNavigate("login")}
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: 40 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {!enviado ? (
           <Card style={styles.card}>
             <View style={styles.cardIntro}>
@@ -88,7 +97,7 @@ export function ForgotPasswordScreen({ onNavigate }) {
           </Card>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

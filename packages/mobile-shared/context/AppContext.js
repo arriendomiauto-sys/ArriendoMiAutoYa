@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, useCallback, use
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiClient, MOCK_CARS } from "../api/client";
 import { supabase } from "../api/supabase";
+import { urlWeb } from "../utils/webUrl";
 
 const AppContext = createContext();
 
@@ -233,9 +234,12 @@ export function AppProvider({ children }) {
   };
 
   const resetPassword = async (email) => {
-    const webUrl = process.env.EXPO_PUBLIC_WEB_URL;
+    // El enlace viaja por correo y se abre en el navegador del usuario, no en
+    // la app: siempre tiene que apuntar a la web pública. Sin `redirectTo`
+    // Supabase usa su Site URL, que en un proyecto recién configurado es
+    // http://localhost:3000 — un enlace muerto para quien recibe el correo.
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: webUrl ? `${webUrl}/restablecer-contrasena` : undefined,
+      redirectTo: urlWeb("restablecer-contrasena"),
     });
     if (error) throw error;
   };

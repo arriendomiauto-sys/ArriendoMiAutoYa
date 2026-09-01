@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   ScrollView,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
@@ -15,6 +17,8 @@ import { Icon } from "../../components/Icon";
 import { DocumentCameraModal } from "../../components/DocumentCameraModal";
 import { ApiClient } from "../../api/client";
 import { supabase } from "../../api/supabase";
+import { EDAD_MINIMA_ARRENDATARIO } from "../../legal/documentos";
+import { edadDesdeOcr } from "../../utils/edad";
 import { showAlert } from "../../utils/alert";
 
 // Valida un RUT chileno con el dígito verificador Módulo 11.
@@ -68,6 +72,9 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const [telefono, setTelefono] = useState(prefill?.telefono || currentUser?.telefono || "");
 
   const [submitting, setSubmitting] = useState(false);
+  // Edad leída de la cédula por el OCR (null = todavía no se validó o el OCR
+  // no pudo leer la fecha de nacimiento).
+  const [edadCarnet, setEdadCarnet] = useState(null);
 
   const rutTouched = rut.trim().length > 0;
   const rutIsValid = isRutValid(rut);
@@ -146,6 +153,42 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           userEmail = authData?.user?.email;
         } catch {
           /* fallback si falla getUser */
+        }
+      }
+
+      // La edad no puede quedar solo en la casilla que el usuario marcó en el
+      // registro: acá se lee la fecha de nacimiento que el OCR extrae del
+      // carnet y se valida contra el mínimo de los términos ANTES de
+      // completar el enrolamiento (que además cobra el hold de garantía).
+      // Si el OCR no logra leer la fecha no se bloquea a nadie: esos casos
+      // ya terminan en revisión manual del lado del backend.
+      if (userEmail) {
+        try {
+          const previo = await ApiClient.verifyKyc({
+            nombre,
+            rut,
+            email: userEmail,
+            telefono,
+            carnet_frontal_url: carnetFrontalUrl,
+            carnet_trasero_url: carnetTraseroUrl,
+            licencia_url: role === "renter" ? licenciaUrl : undefined,
+            foto_perfil_verificada_url: selfieUrl,
+          });
+          const edad = edadDesdeOcr(previo?.datos_extraidos);
+          setEdadCarnet(edad);
+
+          if (edad !== null && edad < EDAD_MINIMA_ARRENDATARIO) {
+            showAlert(
+              "No cumples la edad mínima",
+              `Según la fecha de nacimiento de tu cédula tienes ${edad} años, y para operar en la plataforma se necesitan ${EDAD_MINIMA_ARRENDATARIO} cumplidos.\n\n` +
+                "Si crees que leímos mal tu cédula, vuelve a fotografiarla con buena luz o escríbenos a soporte."
+            );
+            return;
+          }
+        } catch (err) {
+          // El pre-chequeo es best-effort: si falla (red, OCR caído) no se
+          // frena el enrolamiento, que igual pasa por la verificación real.
+          console.warn("[KycScreen] No se pudo validar la edad con el carnet:", err.message);
         }
       }
 
@@ -370,7 +413,11 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       {/* 04: REVISIÓN Y CONFIRMACIÓN DE DATOS */}
       {/* ========================================================================= */}
       {currentStep === "04_review" && (
-        <View style={styles.reviewStepBox}>
+        <KeyboardAvoidingView
+          style={styles.reviewStepBox}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+        >
           <TouchableOpacity
             onPress={() => setCurrentStep("03_facial")}
             style={styles.reviewBackBtn}
@@ -379,7 +426,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             <Icon name="arrow-left" size={20} color={colors.primary} />
           </TouchableOpacity>
 
-          <ScrollView contentContainerStyle={styles.reviewCenter} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[styles.reviewCenter, { paddingBottom: 60 }]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             <View style={styles.clockCircle}>
               <Icon name="clock" size={38} color="#D97706" />
             </View>
@@ -481,6 +534,17 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 </View>
                 <Text style={styles.checkText}>Selfie de verificación capturada</Text>
               </View>
+
+              <View style={styles.checkItem}>
+                <View style={[styles.checkDone, edadCarnet === null && styles.checkPending]}>
+                  <Icon name="check" size={14} color="#FFFFFF" />
+                </View>
+                <Text style={styles.checkText}>
+                  {edadCarnet === null
+                    ? `Edad (${EDAD_MINIMA_ARRENDATARIO}+): se valida con tu cédula`
+                    : `Edad verificada en tu cédula: ${edadCarnet} años`}
+                </Text>
+              </View>
             </View>
 
             <View style={styles.noticeBox}>
@@ -489,23 +553,23 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 Tu información está protegida con cifrado bancario y seguro full cobertura.
               </Text>
             </View>
-          </ScrollView>
 
-          <View style={styles.reviewBottomBar}>
-            <TouchableOpacity
-              style={[styles.reviewPrimaryBtn, submitting && styles.btnDisabled]}
-              onPress={handleApprove}
-              activeOpacity={0.85}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.reviewPrimaryBtnText}>Completar y Activar Cuenta</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+            <View style={{ width: "100%", marginTop: 8 }}>
+              <TouchableOpacity
+                style={[styles.reviewPrimaryBtn, submitting && styles.btnDisabled]}
+                onPress={handleApprove}
+                activeOpacity={0.85}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.reviewPrimaryBtnText}>Completar y Activar Cuenta</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       )}
 
       {/* ========================================================================= */}
