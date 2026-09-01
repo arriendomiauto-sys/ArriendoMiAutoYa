@@ -31,8 +31,10 @@ class KYCManager:
                 api_url=settings.VERIDAS_API_URL,
                 api_key=settings.VERIDAS_API_KEY,
             )
+        elif provider_name in ("google_vision", "google", "vision"):
+            from app.features.verificacion_identidad.providers.google_provider import GoogleVisionProvider
+            cls._current_provider = GoogleVisionProvider()
         else:
-            # Fallback a Veridas local / compatible
             cls._current_provider = VeridasProvider()
 
         logger.info(f"[KYCManager] Proveedor activo: {cls._current_provider.nombre_proveedor}")
