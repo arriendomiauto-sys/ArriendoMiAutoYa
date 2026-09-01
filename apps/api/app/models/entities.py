@@ -87,11 +87,23 @@ class Reserva(Base):
     cargo_km_extra_clp = Column(Integer, default=0) # CLP (exceso de kilometraje)
     cargo_atraso_clp = Column(Integer, default=0) # CLP (retraso en devolución)
     cargos_adicionales_clp = Column(Integer, default=0) # CLP
+    cargo_falta_grave_clp = Column(Integer, default=0) # CLP (fumar, lugar no acordado, etc.)
     monto_cobro_final = Column(Integer, default=0) # CLP
     liquidacion_dueno_clp = Column(Integer, default=0) # CLP
     codigo_qr_hash = Column(String, index=True, nullable=True)
     lugar_entrega_acordado = Column(String, nullable=False)
     contrato_pdf_url = Column(String, nullable=True)
+
+    # Verificación / Pre-checkin 24 horas antes
+    precheck_cliente_confirmado = Column(Boolean, default=False)
+    precheck_cliente_timestamp = Column(DateTime, nullable=True)
+    precheck_dueno_confirmado = Column(Boolean, default=False)
+    precheck_dueno_timestamp = Column(DateTime, nullable=True)
+
+    # Desglose y detalle de multas y penalizaciones
+    motivo_multas = Column(Text, nullable=True)
+    multas_detalle = Column(JSON, default=list) # [{tipo, monto, motivo, fecha, fotos}]
+
     creado_en = Column(DateTime, default=utc_now)
 
     # Relaciones
