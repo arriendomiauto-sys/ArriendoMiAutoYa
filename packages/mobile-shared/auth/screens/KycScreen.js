@@ -43,7 +43,7 @@ function isRutValid(rutRaw) {
 
 export function KycScreen({ onBack, onComplete, role = "renter", prefill = null }) {
   const { currentUser, completeEnrolment } = useApp();
-  const isDriver = role === "owner";
+  const isOwner = role === "owner";
 
   const yaVerificado = currentUser?.estado_documentos === "verificado";
   const enRevision = currentUser?.estado_documentos === "requiere_revision_manual";
@@ -103,7 +103,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       } else if (slot === "carnet_reverso") {
         const url = await subirDocumento(uri, "carnet_trasero");
         setCarnetTraseroUrl(url);
-        setCurrentStep(isDriver ? "03_facial" : "02_licencia");
+        setCurrentStep(isOwner ? "03_facial" : "02_licencia");
       } else if (slot === "licencia") {
         const url = await subirDocumento(uri, "licencia_conducir");
         setLicenciaUrl(url);
@@ -254,13 +254,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
               <Icon name="arrow-left" size={20} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.camTopTitle}>Verificación de Identidad</Text>
-            <Text style={styles.camTopStep}>Paso 1 de {isDriver ? "2" : "3"}</Text>
+            <Text style={styles.camTopStep}>Paso 1 de {isOwner ? "2" : "3"}</Text>
           </View>
 
           <View style={styles.stepperBar}>
             <View style={[styles.barSegment, { backgroundColor: colors.accent500 }]} />
             <View style={styles.barSegment} />
-            {!isDriver && <View style={styles.barSegment} />}
+            {!isOwner && <View style={styles.barSegment} />}
           </View>
 
           <CaptureGuide
@@ -362,21 +362,21 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         <View style={styles.cameraStepBox}>
           <View style={styles.camTopBar}>
             <TouchableOpacity
-              onPress={() => setCurrentStep(isDriver ? "01_cedula" : "02_licencia")}
+              onPress={() => setCurrentStep(isOwner ? "01_cedula" : "02_licencia")}
               style={styles.backBtnTouch}
             >
               <Icon name="arrow-left" size={20} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.camTopTitle}>Validación Facial</Text>
             <Text style={styles.camTopStep}>
-              Paso {isDriver ? "2 de 2" : "3 de 3"}
+              Paso {isOwner ? "2 de 2" : "3 de 3"}
             </Text>
           </View>
 
           <View style={styles.stepperBar}>
             <View style={[styles.barSegment, { backgroundColor: colors.accent500 }]} />
             <View style={[styles.barSegment, { backgroundColor: colors.accent500 }]} />
-            {!isDriver && (
+            {!isOwner && (
               <View style={[styles.barSegment, { backgroundColor: colors.accent500 }]} />
             )}
           </View>
@@ -524,7 +524,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                   <Icon name="check" size={14} color="#FFFFFF" />
                 </View>
                 <Text style={styles.checkText}>
-                  {isDriver ? "Datos de cuenta bancaria" : "Licencia de conducir"}
+                  {isOwner ? "Identificación de Dueño" : "Licencia de conducir"}
                 </Text>
               </View>
 
@@ -610,7 +610,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
               activeOpacity={0.85}
             >
               <Text style={styles.approvedPrimaryBtnText}>
-                {isDriver ? "Ir a mi Panel de Dueño" : "Explorar Autos Disponibles"}
+                {isOwner ? "Ir a mi Panel de Dueño" : "Explorar Autos Disponibles"}
               </Text>
             </TouchableOpacity>
           </View>
