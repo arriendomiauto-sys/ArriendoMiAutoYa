@@ -123,6 +123,19 @@ export class ApiClient {
     return this.request(`/autos/${autoId}`);
   }
 
+  /**
+   * Pasa por OCR los documentos legales del auto (padron, permiso, SOAP,
+   * seguro y revision tecnica) y devuelve por cada uno que documento es, de
+   * que patente y hasta cuando vale. Se llama mientras el dueno los sube,
+   * para avisarle de un vencido antes de que arme toda la publicacion.
+   */
+  static async validarDocumentosAuto(datos) {
+    return this.request("/autos/validar-documentos", {
+      method: "POST",
+      body: JSON.stringify(datos),
+    });
+  }
+
   static async getMisAutos() {
     return this.request("/autos/mios");
   }

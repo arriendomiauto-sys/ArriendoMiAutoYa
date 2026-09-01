@@ -76,6 +76,16 @@ const CAR_BRANDS = [
 ];
 
 // Documentos legales del auto que el backend exige para publicar.
+// Que tipo de documento espera el backend en cada campo — el motor de
+// validacion responde por tipo (ver app/features/verificacion_vehiculos).
+const TIPO_POR_CAMPO = {
+  doc_inscripcion_url: "padron",
+  doc_permiso_circulacion_url: "permiso_circulacion",
+  doc_soap_url: "soap",
+  doc_seguro_url: "seguro",
+  doc_revision_tecnica_url: "revision_tecnica",
+};
+
 const DOCS = [
   {
     key: "doc_inscripcion_url",
@@ -101,7 +111,16 @@ const DOCS = [
     ayuda: "Certificado de planta PRT o de homologación vigente.",
     icon: "check",
   },
+  {
+    key: "doc_seguro_url",
+    titulo: "Seguro del auto (opcional)",
+    ayuda: "Póliza comercial vigente, si tienes una además del SOAP.",
+    icon: "shield",
+    opcional: true,
+  },
 ];
+
+const DOCS_OBLIGATORIOS = DOCS.filter((d) => !d.opcional);
 
 const STEPS = ["Vehículo", "Tarifa", "Fotos", "Documentos"];
 
@@ -157,9 +176,31 @@ function MarcaInput({ value, onChange, onFocus }) {
 
 // Tarjeta de un documento legal del auto: muestra la miniatura de lo ya
 // cargado y ofrece las dos formas de adjuntarlo a la vista con botones bien dimensionados.
-function DocSlot({ doc, uri, uploading, onCamera, onFile, onClear }) {
+// Colores del veredicto que devuelve el motor de documentos del backend.
+const TONO_VALIDACION = {
+  vigente: "ok",
+  sin_vencimiento: "ok",
+  por_vencer: "aviso",
+  vencido: "error",
+  patente_no_coincide: "error",
+  tipo_incorrecto: "error",
+};
+
+function DocSlot({ doc, uri, uploading, validando, validacion, onCamera, onFile, onClear }) {
+  const tono = validacion ? TONO_VALIDACION[validacion.estado] || "aviso" : null;
+  const textoValidacion = (() => {
+    if (validando) return "Leyendo el documento…";
+    if (!validacion) return null;
+    if (validacion.motivo) return validacion.motivo;
+    if (validacion.vencimiento) {
+      const [a, m, d] = validacion.vencimiento.split("-");
+      return `Vigente hasta el ${d}-${m}-${a}`;
+    }
+    return "Documento verificado";
+  })();
+
   return (
-    <View style={[styles.docSlot, uri && styles.docSlotDone]}>
+    <View style={[styles.docSlot, uri && styles.docSlotDone, tono === "error" && styles.docSlotError]}>
       <View style={styles.docHeadRow}>
         {uri ? (
           <Image source={{ uri }} style={styles.docThumb} />
@@ -184,6 +225,25 @@ function DocSlot({ doc, uri, uploading, onCamera, onFile, onClear }) {
           </TouchableOpacity>
         ) : null}
       </View>
+
+      {textoValidacion ? (
+        <View style={styles.docValidacion}>
+          <Icon
+            name={tono === "error" ? "alert" : tono === "ok" ? "check" : "history"}
+            size={13}
+            color={tono === "error" ? colors.danger : tono === "ok" ? colors.accent : colors.warningAccent}
+          />
+          <Text
+            style={[
+              styles.docValidacionTexto,
+              tono === "error" && { color: colors.danger },
+              tono === "ok" && { color: colors.accent },
+            ]}
+          >
+            {textoValidacion}
+          </Text>
+        </View>
+      ) : null}
 
       {!uri && !uploading ? (
         <View style={styles.docActions}>
@@ -214,6 +274,11 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   const [progresoGaleria, setProgresoGaleria] = useState(null); // { listas, total }
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(null); // key del doc en subida
+  // Veredicto del motor de documentos por campo: { [key]: {estado, motivo,
+  // vencimiento, bloquea} }. Se pide apenas se sube cada documento, para que
+  // un permiso vencido se vea ahi mismo y no al intentar publicar.
+  const [validacionDocs, setValidacionDocs] = useState({});
+  const [validandoDoc, setValidandoDoc] = useState(null);
   const [locatingGps, setLocatingGps] = useState(false);
 
   const scrollRef = useRef(null);
@@ -240,7 +305,8 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
   const tarifaNum = parseInt(form.tarifa_dia, 10) || 35000;
   const gananciaNeta = Math.round(tarifaNum * 0.8);
-  const docsCargados = DOCS.filter((d) => form.docs[d.key]).length;
+  const docsCargados = DOCS_OBLIGATORIOS.filter((d) => form.docs[d.key]).length;
+  const docsBloqueantes = DOCS.filter((d) => validacionDocs[d.key]?.bloquea);
 
   // El orden de FOTOS_AUTO es el que ve el arrendatario en la ficha: frontal
   // primero, después laterales, interior y detalle.
@@ -451,6 +517,27 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     });
   };
 
+  // Manda el documento recien subido al motor de validacion del backend, que
+  // responde que documento es, de que patente y hasta cuando vale. Es
+  // best-effort: si falla, publicar vuelve a validarlo del lado del servidor.
+  const validarDocumento = async (docKey, url) => {
+    const patente = (form.patente || "").toUpperCase().trim();
+    if (!patente || !url) return;
+
+    setValidandoDoc(docKey);
+    try {
+      const res = await ApiClient.validarDocumentosAuto({ patente, [docKey]: url });
+      const veredicto = (res?.documentos || []).find((d) => d.tipo === TIPO_POR_CAMPO[docKey]);
+      if (veredicto) {
+        setValidacionDocs((prev) => ({ ...prev, [docKey]: veredicto }));
+      }
+    } catch (error) {
+      console.warn("[AddEditCar] No se pudo validar el documento:", error.message);
+    } finally {
+      setValidandoDoc((actual) => (actual === docKey ? null : actual));
+    }
+  };
+
   // `origen`: "camera" | "library". El documento se sube en el momento, con la
   // misma optimizacion que las fotos (un permiso de circulacion fotografiado
   // pesa lo mismo que una foto del auto).
@@ -467,6 +554,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         });
         if (url) {
           setForm((prev) => ({ ...prev, docs: { ...prev.docs, [docKey]: url } }));
+          validarDocumento(docKey, url);
         }
       } catch (error) {
         showAlert("No se pudo subir el documento", error.message || "Revisa tu conexion e intentalo de nuevo.");
@@ -477,7 +565,17 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   };
 
   const handleSubmit = async () => {
-    const faltan = DOCS.filter((d) => !form.docs[d.key]);
+    // Lo que el motor de documentos ya rechazo no se manda: el backend
+    // responderia 400 igual, pero el dueno merece saber cual y por que.
+    if (docsBloqueantes.length) {
+      showAlert(
+        "Documentos que no sirven para publicar",
+        docsBloqueantes.map((d) => validacionDocs[d.key].motivo).join("\n\n")
+      );
+      return;
+    }
+
+    const faltan = DOCS_OBLIGATORIOS.filter((d) => !form.docs[d.key]);
     if (faltan.length) {
       showAlert(
         "Faltan documentos",
@@ -903,8 +1001,8 @@ export function AddEditCarScreen({ onBack, onComplete }) {
             <View style={styles.card}>
               <Text style={styles.cardHeading}>Documentos del vehiculo</Text>
               <Text style={styles.cardHelp}>
-                Los 4 son obligatorios para publicar. Fotografialos derechos y completos: un ejecutivo
-                los revisa antes de dejar el auto activo.
+                Los {DOCS_OBLIGATORIOS.length} primeros son obligatorios. Al subir cada uno lo leemos
+                para confirmar que es de este auto y que sigue vigente.
               </Text>
               <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
                 {DOCS.map((doc) => (
@@ -915,17 +1013,26 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                     uploading={uploadingDoc === doc.key}
                     onCamera={() => subirDocumento(doc.key, "camera")}
                     onFile={() => subirDocumento(doc.key, "library")}
-                    onClear={() =>
+                    validando={validandoDoc === doc.key}
+                    validacion={validacionDocs[doc.key]}
+                    onClear={() => {
                       setForm((prev) => {
                         const next = { ...prev.docs };
                         delete next[doc.key];
                         return { ...prev, docs: next };
-                      })
-                    }
+                      });
+                      setValidacionDocs((prev) => {
+                        const next = { ...prev };
+                        delete next[doc.key];
+                        return next;
+                      });
+                    }}
                   />
                 ))}
               </View>
-              <Text style={styles.count}>{docsCargados} de 4 documentos</Text>
+              <Text style={styles.count}>
+                {docsCargados} de {DOCS_OBLIGATORIOS.length} documentos obligatorios
+              </Text>
             </View>
           )}
 
@@ -1111,6 +1218,19 @@ const styles = StyleSheet.create({
   },
   docIconDone: { backgroundColor: colors.accent },
   docSlotDone: { borderColor: colors.accent, backgroundColor: "rgba(47, 191, 155, 0.06)" },
+  docSlotError: { borderColor: colors.danger },
+  docValidacion: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: theme.spacing.sm,
+  },
+  docValidacionTexto: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.darkTextMuted,
+  },
   docHeadRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md, width: "100%" },
   docThumb: { width: 44, height: 44, borderRadius: theme.radius.sm, backgroundColor: colors.darkCardSubtle, borderWidth: 1, borderColor: colors.accent },
   docActions: { flexDirection: "row", gap: theme.spacing.sm, marginTop: 4, width: "100%" },

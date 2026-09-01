@@ -38,3 +38,36 @@ describe("ApiClient.getAutos", () => {
     await expect(ApiClient.getAutos()).resolves.toEqual(autos);
   });
 });
+
+describe("ApiClient.validarDocumentosAuto", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("manda los documentos al motor de validación del backend", async () => {
+    const respuesta = {
+      verificado: false,
+      bloqueantes: [{ tipo: "permiso_circulacion", estado: "vencido", motivo: "venció" }],
+      documentos: [{ tipo: "permiso_circulacion", estado: "vencido", bloquea: true }],
+    };
+    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => respuesta,
+    });
+
+    const data = await ApiClient.validarDocumentosAuto({
+      patente: "BBCL-10",
+      doc_permiso_circulacion_url: "https://cdn/permiso.jpg",
+    });
+
+    expect(data).toEqual(respuesta);
+    const [url, opciones] = fetchMock.mock.calls[0];
+    expect(url).toContain("/autos/validar-documentos");
+    expect(opciones.method).toBe("POST");
+    expect(JSON.parse(opciones.body)).toEqual({
+      patente: "BBCL-10",
+      doc_permiso_circulacion_url: "https://cdn/permiso.jpg",
+    });
+  });
+});
