@@ -10,13 +10,17 @@ import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
 import { BrandLogo } from "../../components/BrandLogo";
 
-export function SplashScreen({ onFinish }) {
+/**
+ * `duracionMs` se acorta en los arranques siguientes al primero: la marca ya
+ * se vio y alargar cada apertura de la app no aporta nada.
+ */
+export function SplashScreen({ onFinish, duracionMs = 1800 }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onFinish();
-    }, 1800);
+    }, duracionMs);
     return () => clearTimeout(timer);
-  }, []);
+  }, [duracionMs]);
 
   return (
     <View style={styles.container}>

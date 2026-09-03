@@ -33,7 +33,12 @@ export function OwnerProfileScreen({
 
   useEffect(() => {
     if (!currentUser?.id) return;
-    ApiClient.getCalificaciones(currentUser.id).then(setCalificaciones);
+    // Sin catch, un backend caído al abrir la app dejaba un rechazo sin
+    // manejar. Las calificaciones son secundarias: si no llegan, la
+    // pantalla se muestra igual.
+    ApiClient.getCalificaciones(currentUser.id)
+      .then(setCalificaciones)
+      .catch(() => {});
   }, [currentUser?.id]);
 
   const user = currentUser || {};

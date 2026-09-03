@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { getAccessToken } from "./supabase";
+import { getAccessToken, refreshAccessToken } from "./supabase";
 
 const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
@@ -40,7 +40,7 @@ export const MOCK_CARS = [
  * requieren sesión.
  */
 export class ApiClient {
-  static async request(endpoint, options = {}) {
+  static async request(endpoint, options = {}, { reintentoDeAuth = false } = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = await getAccessToken();
 
@@ -64,6 +64,17 @@ export class ApiClient {
       // reaccionan distinto (modo demo vs. error con reintento).
       err.esFalloDeConexion = true;
       throw err;
+    }
+
+    // Un 401 con sesión guardada casi nunca significa "no estás logueado":
+    // significa que el access token venció. Se renueva y se reintenta una sola
+    // vez, para que un token vencido no se vea como un cierre de sesión.
+    // Solo se reintenta si había token: sin sesión, un 401 es un 401.
+    if (response.status === 401 && token && !reintentoDeAuth) {
+      const tokenNuevo = await refreshAccessToken();
+      if (tokenNuevo) {
+        return await this.request(endpoint, options, { reintentoDeAuth: true });
+      }
     }
 
     if (!response.ok) {

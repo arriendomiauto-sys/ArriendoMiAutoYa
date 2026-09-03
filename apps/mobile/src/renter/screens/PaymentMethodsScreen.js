@@ -21,6 +21,19 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
       ? `${WEB_URL}/pago/retorno`
       : "https://arriendatuauto.cl/pago/retorno";
     const inicio = await ApiClient.iniciarPagoWebpay(montoHold, "hold_reserva", reservaId, returnUrl);
+
+    // BLOQUE TEMPORAL — PAGOS SIMULADOS
+    // Mientras la pasarela real no esté configurada, el backend devuelve
+    // `simulado: true` y da el pago y la retención por aprobados. Acá se salta
+    // el navegador de Webpay, que no tendría a dónde ir. Borrar este bloque
+    // junto con app/services/pagos_simulados.py del backend.
+    if (inicio?.simulado) {
+      const confirmSimulado = await ApiClient.confirmarPagoWebpay(inicio.token);
+      return confirmSimulado?.autorizada
+        ? { estado: "confirmada", simulado: true }
+        : { estado: "pendiente", motivo: confirmSimulado?.mensaje || "rechazado" };
+    }
+
     if (!inicio?.url) throw new Error("La pasarela de pago no está disponible en este momento.");
 
     const redirect = Linking.createURL("pago-retorno");
@@ -66,7 +79,7 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
       }
 
       if (resultado.estado === "confirmada") {
-        onPaymentSuccess({ ...reserva, car, estado: "confirmada" });
+        onPaymentSuccess({ ...reserva, car, estado: "confirmada", pagoSimulado: !!resultado.simulado });
       } else {
         showAlert(
           resultado.motivo === "cancelado" ? "Pago no completado" : "Pago rechazado",

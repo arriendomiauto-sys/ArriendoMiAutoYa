@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiClient, MOCK_CARS } from "../api/client";
-import { supabase } from "../api/supabase";
+import { supabase, vigilarSesionEnPrimerPlano } from "../api/supabase";
 import { urlWeb } from "../utils/webUrl";
 
 const AppContext = createContext();
@@ -12,6 +12,12 @@ const AppContext = createContext();
 // su perfil. Se elige por primera vez en el registro.
 const MODE_STORAGE_KEY = "@rentacar/mode";
 const VALID_MODES = ["renter", "owner"];
+
+// Las pantallas de presentación (onboarding) son para explicar la app la
+// primera vez. Una vez vistas se marcan acá y no vuelven a aparecer, ni
+// siquiera al cerrar sesión: no son parte del login, son material de
+// bienvenida.
+const ONBOARDING_STORAGE_KEY = "@rentacar/onboarding_visto";
 
 // Cuánto se mantiene la pantalla de transición tapando el árbol nuevo. No es
 // una espera artificial: RenterApp y OwnerApp son árboles completos distintos
@@ -41,6 +47,11 @@ export function AppProvider({ children }) {
 
   const [mode, setModeState] = useState("renter");
 
+  // null = todavía no se sabe (se está leyendo del almacenamiento). El flujo
+  // de autenticación espera a que deje de ser null para decidir si muestra
+  // el onboarding, así no parpadea.
+  const [onboardingVisto, setOnboardingVisto] = useState(null);
+
   // Transición activa: { mode, title, subtitle } o null. La consume la app
   // para tapar el cambio de rol o de cuenta con <SwitchingScreen>.
   const [transition, setTransition] = useState(null);
@@ -56,19 +67,35 @@ export function AppProvider({ children }) {
 
   useEffect(() => () => clearTimeout(transitionTimer.current), []);
 
-  // Rehidrata el modo elegido en la sesión anterior antes de pintar la app.
+  // Rehidrata el modo elegido en la sesión anterior y si ya se vio el
+  // onboarding, antes de pintar la app.
   useEffect(() => {
     let alive = true;
-    AsyncStorage.getItem(MODE_STORAGE_KEY)
-      .then((saved) => {
-        if (!alive || !VALID_MODES.includes(saved)) return;
-        modeRef.current = saved;
-        setModeState(saved);
+    AsyncStorage.multiGet([MODE_STORAGE_KEY, ONBOARDING_STORAGE_KEY])
+      .then((pares) => {
+        if (!alive) return;
+        const guardado = Object.fromEntries(pares);
+        const modoGuardado = guardado[MODE_STORAGE_KEY];
+        if (VALID_MODES.includes(modoGuardado)) {
+          modeRef.current = modoGuardado;
+          setModeState(modoGuardado);
+        }
+        setOnboardingVisto(guardado[ONBOARDING_STORAGE_KEY] === "1");
       })
-      .catch(() => {});
+      .catch(() => {
+        // Si el almacenamiento falla se muestra el onboarding: es preferible
+        // repetirlo a dejar la app trancada esperando una lectura que no llega.
+        if (alive) setOnboardingVisto(false);
+      });
     return () => {
       alive = false;
     };
+  }, []);
+
+  /** Marca el onboarding como visto para que no vuelva a aparecer. */
+  const marcarOnboardingVisto = useCallback(() => {
+    setOnboardingVisto(true);
+    AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, "1").catch(() => {});
   }, []);
 
   /**
@@ -140,25 +167,43 @@ export function AppProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMounted) return;
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setIsLoggedIn(!!data?.session);
+        if (data?.session) syncProfile();
+      })
+      .catch((err) => {
+        // Sin este catch, cualquier falla leyendo la sesión (almacenamiento
+        // corrupto, cliente mal configurado) dejaba authLoading en true para
+        // siempre: la app se quedaba pegada en "Cargando tu sesión".
+        console.warn("[AppContext] No se pudo recuperar la sesión:", err?.message);
+        if (isMounted) setIsLoggedIn(false);
+      })
+      .finally(() => {
+        if (isMounted) setAuthLoading(false);
+      });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((evento, session) => {
       setIsLoggedIn(!!session);
-      if (session) syncProfile();
-      setAuthLoading(false);
+      if (!session) {
+        setCurrentUser(null);
+        return;
+      }
+      // TOKEN_REFRESHED se dispara cada vez que se renueva el token (cada hora
+      // aprox.) y no cambia nada del perfil: volver a pedirlo en cada refresco
+      // es tráfico y re-render de más.
+      if (evento !== "TOKEN_REFRESHED") syncProfile();
     });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session);
-      if (session) {
-        syncProfile();
-      } else {
-        setCurrentUser(null);
-      }
-    });
+    // Mantiene el token vivo mientras la app está en primer plano.
+    const dejarDeVigilar = vigilarSesionEnPrimerPlano();
 
     return () => {
       isMounted = false;
       subscription?.subscription?.unsubscribe();
+      dejarDeVigilar();
     };
   }, [syncProfile]);
 
@@ -304,6 +349,8 @@ export function AppProvider({ children }) {
       value={{
         isLoggedIn,
         authLoading,
+        onboardingVisto,
+        marcarOnboardingVisto,
         mode,
         setMode,
         transition,

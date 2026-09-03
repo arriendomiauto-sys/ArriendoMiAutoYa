@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, StyleSheet, StatusBar } from "react-native";
+import { useApp } from "../context/AppContext";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Button, EmptyState } from "../components/ui";
@@ -24,23 +25,51 @@ import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen";
  * crea simple y el KYC se pide más adelante, dentro de la app
  * (OwnerApp/RenterApp), justo cuando el usuario intenta publicar o reservar
  * un auto de verdad.
+ *
+ * Las pantallas de presentación (onboarding) se muestran UNA sola vez, la
+ * primera vez que se abre la app. Después el splash lleva directo a la
+ * bienvenida: quien ya conoce la app no tiene por qué volver a pasar por la
+ * explicación cada vez que cierra sesión.
  */
 export function AuthFlow() {
-  // 'splash' -> 'onboarding' -> 'welcome' -> 'login' | 'register'
+  // 'splash' -> ('onboarding' solo la primera vez) -> 'welcome'
+  //   -> 'login' | 'register'
   //   -> 'confirm_email' (solo si el registro no devolvió sesión activa)
   //   -> (el padre deja de mostrar AuthFlow apenas isLoggedIn sea true)
   const [step, setStep] = useState("splash");
+
+  const { onboardingVisto, marcarOnboardingVisto } = useApp();
 
   // Rol elegido en la bienvenida: 'renter' (arrendar) | 'owner' (publicar).
   // Solo afecta el copy del registro y el modo inicial de la app.
   const [role, setRole] = useState("renter");
 
   if (step === "splash") {
-    return <SplashScreen onFinish={() => setStep("onboarding")} />;
+    return (
+      <SplashScreen
+        // Quien ya vio la presentación no necesita volver a mirar el logo casi
+        // dos segundos en cada arranque.
+        duracionMs={onboardingVisto ? 700 : 1800}
+        onFinish={() => {
+          // `onboardingVisto` puede seguir en null si el almacenamiento tarda
+          // más que el splash; en ese caso se muestra la presentación, que es
+          // el comportamiento seguro para alguien que abre la app por primera
+          // vez.
+          setStep(onboardingVisto ? "welcome" : "onboarding");
+        }}
+      />
+    );
   }
 
   if (step === "onboarding") {
-    return <OnboardingScreen onFinish={() => setStep("welcome")} />;
+    return (
+      <OnboardingScreen
+        onFinish={() => {
+          marcarOnboardingVisto();
+          setStep("welcome");
+        }}
+      />
+    );
   }
 
   if (step === "welcome") {
