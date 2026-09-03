@@ -187,6 +187,19 @@ def confirmar_pago_webpay(
         "card_detail": resultado_tbk.get("card_detail")
     }
 
+# ===== BLOQUE TEMPORAL — PAGOS SIMULADOS ==================================
+@router.get("/configuracion", summary="Indica si la pasarela está en modo simulado")
+def obtener_configuracion_pagos():
+    """
+    Le dice a la app si los pagos están simulados, para que la pantalla de pago
+    lo muestre en vez de fingir un cobro real.
+
+    Borrar junto con app/services/pagos_simulados.py.
+    """
+    return {"simulado": pagos_simulados.pagos_simulados_activos()}
+# ==========================================================================
+
+
 @router.get("/webpay/estado/{token_ws}", summary="Consulta el estado de una transacción en Webpay")
 def consultar_estado_pago(token_ws: str):
     return TransbankService.consultar_estado(token_ws)

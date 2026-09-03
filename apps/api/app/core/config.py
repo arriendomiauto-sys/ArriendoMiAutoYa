@@ -54,9 +54,13 @@ class Settings(BaseSettings):
     # Mientras la cuenta de Transbank no esté configurada, esto deja pasar el
     # flujo dando el pago y la retención por aprobados, sin salir a la red.
     # Es SOLO para pruebas: se ignora en producción (ver pagos_simulados.py).
-    # Al configurar la pasarela real, borrar esta opción junto con
-    # app/services/pagos_simulados.py y sus dos usos en app/routers/pagos.py.
-    PAGOS_SIMULADOS: bool = False
+    #
+    # Viene ENCENDIDO por defecto a propósito, porque hoy no hay credenciales
+    # reales y sin esto el flujo de reserva queda trancado en "pendiente". Al
+    # configurar la pasarela real hay que ponerlo en False y borrar el bloque
+    # completo: app/services/pagos_simulados.py y sus usos en
+    # app/routers/pagos.py.
+    PAGOS_SIMULADOS: bool = True
     # ======================================================================
 
     # Storage Local Directory Fallback
