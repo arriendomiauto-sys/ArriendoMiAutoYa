@@ -138,7 +138,7 @@ export default function TerminosPage() {
               <ul className="list-disc pl-5 space-y-1.5 text-slate-300">
                 <li><strong>Kilometraje libre:</strong> Cada arriendo incluye 250 km libres por día. El km adicional tiene un costo de $120 CLP/km.</li>
                 <li><strong>Combustible:</strong> El vehículo debe restituirse con el mismo nivel de estanque recibido.</li>
-                <li><strong>Peajes y TAG:</strong> Los peajes interurbanos y pasadas TAG son de exclusiva responsabilidad del arrendatario y se cargan al término del arriendo.</li>
+                <li><strong>Peajes, TAG y fotomultas:</strong> Los peajes interurbanos, las pasadas por pórticos TAG y las infracciones cursadas por fotorradar son de exclusiva responsabilidad del arrendatario. Como se notifican a nombre del titular de la patente semanas después, el arrendatario autoriza su cobro posterior a la tarjeta registrada, por los eventos ocurridos durante su arriendo y contra la boleta o el parte de respaldo, dentro del plazo indicado en el contrato.</li>
               </ul>
             </section>
 

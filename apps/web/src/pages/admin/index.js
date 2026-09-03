@@ -51,6 +51,8 @@ export default function AdminPortal() {
     cargo_km_extra_clp: 120,
     km_diarios_incluidos: 250,
     periodo_gracia_minutos: 30,
+    dias_cobro_posterior_peajes: 60,
+    edad_minima_arriendo: 21,
   });
   const [configSaved, setConfigSaved] = useState(false);
 
@@ -361,6 +363,20 @@ export default function AdminPortal() {
                           </span>
                         </td>
                       </tr>
+                      <tr className="hover:bg-white/5 transition-colors">
+                        <td className="py-3.5 font-mono font-bold text-white">TBK-FINE-PEAJE-01</td>
+                        <td className="py-3.5">Peajes y multas post-arriendo</td>
+                        <td className="py-3.5 font-bold text-white">$8.450 CLP</td>
+                        <td className="py-3.5 text-slate-400">
+                          Boleta Autopista Central del período de arriendo · 100% al dueño (plazo de{" "}
+                          {configPlataforma.dias_cobro_posterior_peajes} días)
+                        </td>
+                        <td className="py-3.5 text-right">
+                          <span className="inline-flex items-center rounded-full bg-[#2FBF9B]/15 border border-[#2FBF9B]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#2FBF9B]">
+                            Capturado
+                          </span>
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -652,6 +668,48 @@ export default function AdminPortal() {
                       />
                       <p className="text-[11px] text-slate-400">
                         Kilometraje libre permitido por día
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="dias_peajes" className="text-xs font-semibold text-slate-300">
+                        Plazo Cobro de Peajes y Multas (días)
+                      </Label>
+                      <Input
+                        id="dias_peajes"
+                        type="number"
+                        value={configPlataforma.dias_cobro_posterior_peajes}
+                        onChange={(e) =>
+                          setConfigPlataforma({
+                            ...configPlataforma,
+                            dias_cobro_posterior_peajes: parseInt(e.target.value),
+                          })
+                        }
+                        className="font-mono text-sm bg-[#061E1F] text-white border-white/10 rounded-xl"
+                      />
+                      <p className="text-[11px] text-slate-400">
+                        Días tras la devolución para imputar TAG y fotomultas al arrendatario
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edad_minima" className="text-xs font-semibold text-slate-300">
+                        Edad Mínima para Arrendar (años)
+                      </Label>
+                      <Input
+                        id="edad_minima"
+                        type="number"
+                        value={configPlataforma.edad_minima_arriendo}
+                        onChange={(e) =>
+                          setConfigPlataforma({
+                            ...configPlataforma,
+                            edad_minima_arriendo: parseInt(e.target.value),
+                          })
+                        }
+                        className="font-mono text-sm bg-[#061E1F] text-white border-white/10 rounded-xl"
+                      />
+                      <p className="text-[11px] text-slate-400">
+                        Se valida al crear la reserva, junto con la vigencia de la licencia
                       </p>
                     </div>
                   </div>
