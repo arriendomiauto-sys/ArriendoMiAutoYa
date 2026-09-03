@@ -36,6 +36,8 @@ class PricingService:
             cargo_km_extra_clp = 120
             km_diarios_incluidos = 250
             periodo_gracia_minutos = 30
+            dias_cobro_posterior_peajes = 60
+            edad_minima_arriendo = 21
 
         return DefaultConfig()
 

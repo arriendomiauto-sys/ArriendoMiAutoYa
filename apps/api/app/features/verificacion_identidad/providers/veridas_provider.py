@@ -177,6 +177,8 @@ class VeridasProvider(BaseKYCProvider):
         licencia_bytes: Optional[bytes] = None,
         selfie_bytes: Optional[bytes] = None,
         rut_esperado: Optional[str] = None,
+        tipo_documento: str = "rut",
+        pais_documento: Optional[str] = None,
     ) -> KYCResult:
         """
         Procesa el flujo completo de KYC a través de Veridas.

@@ -7,6 +7,28 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 
+
+def clausula_peajes_tag(dias_cobro_posterior_peajes: int) -> str:
+    """
+    Cláusula que autoriza el cobro posterior de peajes y multas.
+
+    Es la pieza legal que hace viable el cobro: no existe API nacional de TAG y
+    las autopistas urbanas son de flujo libre, así que la boleta llega semanas
+    después y siempre a nombre del titular de la patente. Sin esta autorización
+    expresa la plataforma no puede cargarle nada al arrendatario una vez
+    cerrada la reserva.
+    """
+    return (
+        "<b>QUINTA — PEAJES, TAG Y MULTAS DE TRÁNSITO:</b> Los consumos de autopistas concesionadas (TAG y pórticos "
+        "de flujo libre) y las infracciones cursadas por fotorradar u otros controles se notifican semanas después "
+        "del hecho y siempre a nombre del titular de la patente, no del conductor. Por ello, el Arrendatario "
+        "<b>autoriza expresamente</b> a Arrienda Tu Auto SpA a cargar a su tarjeta registrada los peajes y multas "
+        f"generados entre la entrega y la devolución del vehículo, dentro de los <b>{dias_cobro_posterior_peajes} días</b> "
+        "siguientes al término del arriendo. Todo cargo se respaldará con la boleta de la concesionaria o el parte "
+        "cursado, que quedará disponible en el historial de la reserva. Vencido ese plazo, la plataforma no podrá "
+        "imputar nuevos cargos por este concepto al Arrendatario."
+    )
+
 class ContractService:
     @staticmethod
     def generar_contrato_pdf(
@@ -28,6 +50,7 @@ class ContractService:
         dias: int,
         monto_total_estimado_clp: int,
         valor_uf_clp: float = 38000.0,
+        dias_cobro_posterior_peajes: int = 60,
         output_path: str = None
     ) -> bytes:
         """
@@ -192,8 +215,11 @@ class ContractService:
         story.append(Paragraph(clausula4, body_style))
         story.append(Spacer(1, 5))
 
+        story.append(Paragraph(clausula_peajes_tag(dias_cobro_posterior_peajes), body_style))
+        story.append(Spacer(1, 5))
+
         clausula5 = (
-            "<b>QUINTA — DEVOLUCIÓN, ATRASOS Y JURISDICCIÓN:</b> Se otorga un período de gracia de 30 minutos respecto de la hora de término pactada. "
+            "<b>SEXTA — DEVOLUCIÓN, ATRASOS Y JURISDICCIÓN:</b> Se otorga un período de gracia de 30 minutos respecto de la hora de término pactada. "
             "Posterior a dicho lapso, se facturará la fracción horaria o el día adicional correspondiente. "
             "Para todos los efectos legales, las partes fijan su domicilio en la comuna de Los Ángeles, sometiéndose a la competencia de sus Tribunales de Justicia."
         )

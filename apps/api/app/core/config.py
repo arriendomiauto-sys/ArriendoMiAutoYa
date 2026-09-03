@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     VERIDAS_UMBRAL_FACEMATCH: float = 0.70 # Coincidencia facial mínima requerida (0.0 a 1.0)
     VERIDAS_UMBRAL_LIVENESS: float = 0.50 # Prueba de vida pasiva mínima (0.0 a 1.0)
 
+    # Rastreo GPS de la flota. El mercado chileno no tiene un convenio único:
+    # se opera con equipo en comodato + suscripción mensual por vehículo, así
+    # que el vendor se enchufa por configuración igual que el proveedor KYC.
+    GPS_PROVIDER: str = "mock" # "mock" | <vendor cuando se contrate>
+    GPS_API_URL: Optional[str] = None
+    GPS_API_KEY: Optional[str] = None
+
     USE_OCR_MOCK: bool = False
     GOOGLE_CLOUD_VISION_API_KEY: Optional[str] = None
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None

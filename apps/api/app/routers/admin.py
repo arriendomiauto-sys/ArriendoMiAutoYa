@@ -23,7 +23,9 @@ def obtener_configuracion_plataforma(db: Session = Depends(get_db)):
             cargo_combustible_cuarto_clp=15000,
             cargo_km_extra_clp=120,
             km_diarios_incluidos=250,
-            periodo_gracia_minutos=30
+            periodo_gracia_minutos=30,
+            dias_cobro_posterior_peajes=60,
+            edad_minima_arriendo=21
         )
         db.add(config)
         db.commit()

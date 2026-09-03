@@ -28,6 +28,26 @@ class Usuario(Base):
     cuenta_bancaria = Column(JSON, nullable=True) # {"banco","tipo_cuenta","numero","titular","rut"} — solo dueños
     expo_push_token = Column(String, nullable=True) # token de expo-notifications del dispositivo
 
+    # Documento de identidad. El chileno sigue viviendo en `rut` (único); un
+    # extranjero se identifica con `numero_documento` + `pais_documento`.
+    # ClaveÚnica no es una alternativa: solo la pueden integrar organismos del
+    # Estado, así que la identidad se resuelve 100% vía proveedor KYC.
+    tipo_documento = Column(String, default="rut")   # rut | pasaporte | dni_extranjero
+    numero_documento = Column(String, index=True, nullable=True)
+    pais_documento = Column(String, nullable=True)   # ISO-3166 alpha-2 ("CL", "AR", "VE"...)
+    fecha_nacimiento = Column(DateTime, nullable=True)  # requerido para la edad mínima de arriendo
+
+    # Licencia de conducir. Para chilenos basta la Clase B; para extranjeros
+    # manda el árbol de decisión de `app/services/licencias.py`.
+    licencia_pais_emisor = Column(String, nullable=True)  # ISO-3166 alpha-2
+    licencia_numero = Column(String, nullable=True)
+    licencia_clase = Column(String, nullable=True)
+    licencia_vencimiento = Column(DateTime, nullable=True)
+    pic_url = Column(String, nullable=True)               # Permiso Internacional de Conducir
+    pic_vencimiento = Column(DateTime, nullable=True)
+    es_residente_chile = Column(Boolean, default=False)
+    fecha_inicio_residencia = Column(DateTime, nullable=True)
+
     # Relaciones
     autos = relationship("Auto", back_populates="dueno", foreign_keys="Auto.dueno_id")
     reservas_cliente = relationship("Reserva", back_populates="cliente", foreign_keys="Reserva.cliente_id")
@@ -65,6 +85,15 @@ class Auto(Base):
     doc_soap_url = Column(String, nullable=True)                 # Seguro Obligatorio (SOAP) vigente
     doc_revision_tecnica_url = Column(String, nullable=True)     # Revisión técnica al día
     documentos_verificados = Column(Boolean, default=False)     # Los revisó un ejecutivo
+
+    # Rastreo GPS. Instalar un equipo en el auto de un tercero exige
+    # consentimiento escrito del dueño: sin él no se publica el vehículo.
+    gps_consentimiento = Column(Boolean, default=False)
+    gps_consentimiento_fecha = Column(DateTime, nullable=True)
+    gps_proveedor = Column(String, nullable=True)
+    gps_device_id = Column(String, nullable=True)
+    gps_instalado = Column(Boolean, default=False)
+    gps_ultima_posicion = Column(JSON, nullable=True)  # {"lat","lon","timestamp","velocidad"}
 
     # Relaciones
     dueno = relationship("Usuario", back_populates="autos", foreign_keys=[dueno_id])
@@ -293,6 +322,8 @@ class ConfiguracionPlataforma(Base):
     cargo_km_extra_clp = Column(Integer, default=120) # CLP por km excedente
     km_diarios_incluidos = Column(Integer, default=250) # Km incluidos por día de arriendo
     periodo_gracia_minutos = Column(Integer, default=30) # Minutos de gracia en devolución
+    dias_cobro_posterior_peajes = Column(Integer, default=60) # Plazo para imputar peajes/fotomultas tras la devolución
+    edad_minima_arriendo = Column(Integer, default=21) # Edad mínima del arrendatario
     actualizado_en = Column(DateTime, default=utc_now, onupdate=utc_now)
     actualizado_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
 

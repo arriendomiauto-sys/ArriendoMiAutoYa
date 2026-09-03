@@ -4,7 +4,7 @@ Define los montos oficiales de penalización, calcula deducciones contra el hold
 de garantía y registra los detalles estructurados de cada cargo.
 """
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 TARIFAS_MULTAS_OFICIALES: Dict[str, Dict[str, Any]] = {
     "fumar": {
@@ -42,6 +42,16 @@ TARIFAS_MULTAS_OFICIALES: Dict[str, Dict[str, Any]] = {
         "monto_sugerido_clp": 0,
         "descripcion": "Consumo de autopistas concesionadas o pórticos durante el período de arriendo.",
         "requiere_fotos": False,
+        "es_cargo_posterior": True,
+        "requiere_documento": True,
+    },
+    "fotomulta": {
+        "nombre": "Fotomulta / Infracción de tránsito",
+        "monto_sugerido_clp": 0,
+        "descripcion": "Parte cursado por fotorradar o control de tránsito, notificado a la patente semanas después.",
+        "requiere_fotos": False,
+        "es_cargo_posterior": True,
+        "requiere_documento": True,
     },
     "otro": {
         "nombre": "Otra infracción / daño menor",
@@ -58,11 +68,61 @@ class FinesService:
         return TARIFAS_MULTAS_OFICIALES
 
     @staticmethod
+    def es_cargo_posterior(tipo: str) -> bool:
+        """
+        Un cargo posterior es el que no se puede conocer al cerrar el arriendo:
+        peajes de autopistas free-flow y fotomultas llegan a nombre del dueño de
+        la patente semanas después de que el auto ya fue devuelto.
+        """
+        return bool(TARIFAS_MULTAS_OFICIALES.get(tipo, {}).get("es_cargo_posterior"))
+
+    @staticmethod
+    def validar_ventana_cargo_posterior(
+        fecha_inicio: datetime,
+        fecha_fin: datetime,
+        fecha_evento: Optional[datetime],
+        dias_limite: int,
+        ahora: Optional[datetime] = None,
+    ) -> Optional[str]:
+        """
+        Devuelve el motivo del rechazo, o `None` si el cargo posterior es imputable
+        a esta reserva. Dos condiciones: el evento ocurrió mientras el arrendatario
+        tenía el auto, y todavía corre el plazo de imputación.
+        """
+        ahora = ahora or datetime.now(timezone.utc)
+
+        if fecha_evento is None:
+            return "Debes indicar la fecha del pórtico o de la infracción para imputar el cargo."
+
+        # La BD guarda datetimes naive (SQLite) — se comparan en el mismo plano.
+        def _naive(dt: datetime) -> datetime:
+            return dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+        evento, inicio, fin, hoy = _naive(fecha_evento), _naive(fecha_inicio), _naive(fecha_fin), _naive(ahora)
+
+        if evento < inicio or evento > fin:
+            return (
+                "La fecha del evento está fuera del período de arriendo "
+                f"({inicio:%d-%m-%Y} a {fin:%d-%m-%Y}): no es imputable a este arrendatario."
+            )
+
+        limite = fin + timedelta(days=dias_limite)
+        if hoy > limite:
+            return (
+                f"Venció el plazo de {dias_limite} días para imputar peajes y multas "
+                f"de esta reserva (venció el {limite:%d-%m-%Y})."
+            )
+
+        return None
+
+    @staticmethod
     def validar_y_calcular_multa(
         tipo: str,
         monto_clp: Optional[int],
         motivo: str,
         fotos: Optional[List[str]] = None,
+        fecha_evento: Optional[datetime] = None,
+        documento_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         info = TARIFAS_MULTAS_OFICIALES.get(tipo)
         if not info:
@@ -80,4 +140,10 @@ class FinesService:
             "fotos": fotos or [],
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+        if info.get("es_cargo_posterior"):
+            item_detalle["es_cargo_posterior"] = True
+            item_detalle["fecha_evento"] = fecha_evento.isoformat() if fecha_evento else None
+            item_detalle["documento_url"] = documento_url
+
         return item_detalle

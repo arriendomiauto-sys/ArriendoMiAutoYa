@@ -19,7 +19,9 @@ def seed_demo_data(db: Session):
         cargo_combustible_cuarto_clp=15000,
         cargo_km_extra_clp=120,
         km_diarios_incluidos=250,
-        periodo_gracia_minutos=30
+        periodo_gracia_minutos=30,
+        dias_cobro_posterior_peajes=60,
+        edad_minima_arriendo=21
     )
     db.add(config)
 
@@ -107,7 +109,12 @@ def seed_demo_data(db: Session):
         fotos=[
             "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800",
             "https://images.unsplash.com/photo-1617788138017-80ad40651399?w=800"
-        ]
+        ],
+        gps_consentimiento=True,
+        gps_consentimiento_fecha=datetime.now(timezone.utc),
+        gps_proveedor="mock",
+        gps_device_id="GPS-BBCL10",
+        gps_instalado=True
     )
     auto2 = Auto(
         dueno_id=dueno.id,
@@ -122,7 +129,12 @@ def seed_demo_data(db: Session):
         longitud=-72.3600,
         fotos=[
             "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800"
-        ]
+        ],
+        gps_consentimiento=True,
+        gps_consentimiento_fecha=datetime.now(timezone.utc),
+        gps_proveedor="mock",
+        gps_device_id="GPS-CRTX45",
+        gps_instalado=True
     )
     auto3 = Auto(
         dueno_id=dueno.id,
@@ -137,7 +149,12 @@ def seed_demo_data(db: Session):
         longitud=-72.3520,
         fotos=[
             "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800"
-        ]
+        ],
+        gps_consentimiento=True,
+        gps_consentimiento_fecha=datetime.now(timezone.utc),
+        gps_proveedor="mock",
+        gps_device_id="GPS-JKLM56",
+        gps_instalado=True
     )
     db.add_all([auto1, auto2, auto3])
     db.flush()

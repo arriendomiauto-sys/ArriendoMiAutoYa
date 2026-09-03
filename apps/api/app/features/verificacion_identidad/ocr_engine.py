@@ -444,6 +444,8 @@ class OCRService:
         licencia_url: Optional[str] = None,
         rut_usuario: Optional[str] = None,
         selfie_url: Optional[str] = None,
+        tipo_documento: str = "rut",
+        pais_documento: Optional[str] = None,
     ) -> Dict[str, Any]:
         # 0. Cédula frontal obligatoria.
         if not carnet_frontal_url:
@@ -475,6 +477,8 @@ class OCRService:
                 licencia_url=licencia_url,
                 rut_usuario=rut_usuario,
                 selfie_url=selfie_url,
+                tipo_documento=tipo_documento,
+                pais_documento=pais_documento,
             )
             motivo = res_kyc.get("motivo")
             coincide_rut = True if not motivo else ("no coincide" not in motivo.lower())
@@ -496,6 +500,29 @@ class OCRService:
                 "licencia_valida": res_kyc.get("licencia_valida", True),
                 "licencia_a_soporte": res_kyc.get("licencia_a_soporte", False),
                 "proveedor_kyc": "veridas",
+                "es_mock": settings.USE_OCR_MOCK,
+            }
+
+        # 1.5. Documento extranjero fuera de Veridas. El resto del motor está
+        # construido sobre la cédula chilena (clasificador + extracción de RUT
+        # Módulo 11), así que un pasaporte saldría "rechazado" por no ser una
+        # cédula. Se deriva a revisión manual del Admin en vez de rechazarlo.
+        if (tipo_documento or "rut").lower() != "rut":
+            return {
+                "rut_extraido": None,
+                "nombre_extraido": None,
+                "confianza_ocr": 0.0,
+                "confianza_facial": None,
+                "verificacion_facial": "no_evaluado",
+                "documentos_legibles": True,
+                "coincide_rut_declarado": None,
+                "estado_recomendado": "requiere_revision_manual",
+                "motivo": (
+                    f"Documento extranjero ({tipo_documento}"
+                    + (f", {pais_documento}" if pais_documento else "")
+                    + "): un ejecutivo debe validarlo manualmente."
+                ),
+                "tipo_documento_detectado": tipo_documento,
                 "es_mock": settings.USE_OCR_MOCK,
             }
 
