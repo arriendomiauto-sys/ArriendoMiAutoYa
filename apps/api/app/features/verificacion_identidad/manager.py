@@ -59,6 +59,8 @@ class KYCManager:
         licencia_url: Optional[str] = None,
         rut_usuario: Optional[str] = None,
         selfie_url: Optional[str] = None,
+        tipo_documento: str = "rut",
+        pais_documento: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Descarga las imágenes desde sus fuentes seguras y ejecuta el KYC con el proveedor activo.
@@ -77,6 +79,27 @@ class KYCManager:
             licencia_bytes=img_licencia,
             selfie_bytes=img_selfie,
             rut_esperado=rut_usuario,
+            tipo_documento=tipo_documento,
+            pais_documento=pais_documento,
         )
 
-        return resultado.to_dict()
+        datos = resultado.to_dict()
+
+        # Documento extranjero: ningún proveedor está habilitado hoy para
+        # autenticar pasaportes o DNI de otros países, así que el resultado no
+        # se toma como palabra final en ninguna dirección. Ni se rechaza al
+        # turista porque su documento no es una cédula chilena, ni se da por
+        # verificado algo que nadie autenticó: va a la cola de revisión manual
+        # del Admin. Cuando se habilite el producto de pasaportes del vendor,
+        # este debe marcar `detalles["documento_extranjero_autenticado"]` para
+        # saltarse la cola.
+        if tipo_documento != "rut":
+            autenticado = bool(datos.get("detalles", {}).get("documento_extranjero_autenticado"))
+            if not autenticado and datos.get("estado_recomendado") != "requiere_revision_manual":
+                datos["estado_recomendado"] = "requiere_revision_manual"
+                datos["motivo"] = (
+                    (datos.get("motivo") or f"Documento extranjero ({tipo_documento}).")
+                    + " Un ejecutivo debe validarlo manualmente."
+                )
+
+        return datos

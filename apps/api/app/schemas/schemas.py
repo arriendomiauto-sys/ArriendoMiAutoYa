@@ -43,13 +43,31 @@ class UserCreate(UserBase):
 
 class UserEnrolamiento(UserBase):
     nombre: str
-    rut: str
+    # El RUT deja de ser obligatorio: un extranjero se enrola con pasaporte o
+    # DNI de su país. El router exige uno u otro vía validar_documento_identidad.
+    rut: Optional[str] = None
     email: Optional[EmailStr] = None
     carnet_frontal_url: Optional[str] = None
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None
     foto_perfil_verificada_url: Optional[str] = None
     tarjeta_token: Optional[str] = None
+
+    # Identidad
+    tipo_documento: Literal["rut", "pasaporte", "dni_extranjero"] = "rut"
+    numero_documento: Optional[str] = None
+    pais_documento: Optional[str] = None
+    fecha_nacimiento: Optional[datetime] = None
+
+    # Licencia de conducir (país emisor y PIC para extranjeros)
+    licencia_pais_emisor: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_clase: Optional[str] = None
+    licencia_vencimiento: Optional[datetime] = None
+    pic_url: Optional[str] = None
+    pic_vencimiento: Optional[datetime] = None
+    es_residente_chile: bool = False
+    fecha_inicio_residencia: Optional[datetime] = None
 
 class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
@@ -76,6 +94,17 @@ class UserOut(UserBase):
     sucursal_id: Optional[str] = None
     fecha_registro: datetime
     cuenta_bancaria: Optional[Dict[str, str]] = None
+
+    tipo_documento: Optional[str] = "rut"
+    numero_documento: Optional[str] = None
+    pais_documento: Optional[str] = None
+    fecha_nacimiento: Optional[datetime] = None
+    licencia_pais_emisor: Optional[str] = None
+    licencia_clase: Optional[str] = None
+    licencia_vencimiento: Optional[datetime] = None
+    pic_url: Optional[str] = None
+    pic_vencimiento: Optional[datetime] = None
+    es_residente_chile: Optional[bool] = False
 
 class CuentaBancariaUpdate(BaseModel):
     banco: str
@@ -155,6 +184,10 @@ class AutoBase(BaseModel):
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
 
+    # Instalar un GPS en el auto de otra persona exige su consentimiento
+    # expreso: sin él el router no acepta la publicación.
+    gps_consentimiento: bool = False
+
     @field_validator("patente")
     @classmethod
     def check_patente(cls, v: str) -> str:
@@ -186,6 +219,7 @@ class AutoUpdate(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    gps_consentimiento: Optional[bool] = None
 
 class AutoOut(AutoBase):
     model_config = ConfigDict(from_attributes=True)
@@ -194,6 +228,8 @@ class AutoOut(AutoBase):
     dueno_id: str
     estado: str
     documentos_verificados: bool = False
+    gps_instalado: Optional[bool] = False
+    gps_consentimiento_fecha: Optional[datetime] = None
 
     # Filas anteriores a que la columna existiera pueden traer NULL (ver
     # app/core/schema_sync.py). Con el campo tipado `bool` a secas eso
@@ -294,11 +330,20 @@ class AplicarMultaRequest(BaseModel):
         "limpieza_estandar",
         "limpieza_profunda",
         "peajes_tag",
+        "fotomulta",
         "otro",
     ]
     monto_clp: Optional[int] = None
     motivo: str = Field(..., min_length=4, description="Justificación detallada de la falta/penalización")
     fotos: List[str] = Field(default=[], description="Fotografías de evidencia de la falta")
+    fecha_evento: Optional[datetime] = Field(
+        default=None,
+        description="Fecha del pórtico o de la infracción. Obligatoria en peajes y fotomultas.",
+    )
+    documento_url: Optional[str] = Field(
+        default=None,
+        description="Boleta de la concesionaria o parte cursado que respalda el cargo posterior.",
+    )
 
 # ==============================================================================
 # CONTRATOS API DE ENTREGA (FLUJO CRÍTICO)
@@ -369,6 +414,8 @@ class PlatformConfigOut(BaseModel):
     cargo_km_extra_clp: int
     km_diarios_incluidos: int
     periodo_gracia_minutos: int
+    dias_cobro_posterior_peajes: int = 60
+    edad_minima_arriendo: int = 21
     actualizado_en: Optional[datetime] = None
 
 class PlatformConfigUpdate(BaseModel):
@@ -381,6 +428,8 @@ class PlatformConfigUpdate(BaseModel):
     cargo_km_extra_clp: Optional[int] = None
     km_diarios_incluidos: Optional[int] = None
     periodo_gracia_minutos: Optional[int] = None
+    dias_cobro_posterior_peajes: Optional[int] = None
+    edad_minima_arriendo: Optional[int] = None
 
 # ==============================================================================
 # DISPUTAS Y SOPORTE

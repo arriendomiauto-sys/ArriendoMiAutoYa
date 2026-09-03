@@ -49,6 +49,41 @@ def normalizar_rut(rut_completo: Optional[str]) -> Optional[str]:
         return None
     return re.sub(r"[\.\-\s]", "", rut_completo).upper()
 
+def validar_documento_identidad(
+    tipo_documento: Optional[str],
+    numero: Optional[str],
+    pais: Optional[str] = None,
+) -> tuple:
+    """
+    Valida el documento de identidad según su tipo y devuelve `(es_valido, motivo)`.
+
+    El chileno se sigue validando con Módulo 11. Para un extranjero no existe
+    algoritmo verificable desde acá (el número de pasaporte no tiene dígito
+    verificador universal), así que la validación es de formato y la
+    autenticidad la resuelve el proveedor KYC sobre la imagen del documento.
+    """
+    tipo = (tipo_documento or "rut").lower()
+
+    if tipo == "rut":
+        if not validar_rut_chileno(numero):
+            return False, "RUT chileno inválido (falla verificación de dígito verificador Módulo 11)."
+        return True, None
+
+    if tipo not in ("pasaporte", "dni_extranjero"):
+        return False, f"Tipo de documento no soportado: '{tipo_documento}'."
+
+    limpio = re.sub(r"[\.\-\s]", "", numero or "").upper()
+    if not limpio.isalnum() or not (5 <= len(limpio) <= 20):
+        return False, "Número de documento inválido: debe tener entre 5 y 20 caracteres alfanuméricos."
+
+    pais_norm = (pais or "").strip().upper()
+    if len(pais_norm) != 2:
+        return False, "Debes indicar el país emisor del documento (código de 2 letras, ej. 'AR')."
+    if pais_norm == "CL":
+        return False, "Para documentos chilenos usa el RUT, no pasaporte ni DNI extranjero."
+
+    return True, None
+
 def validar_patente_chilena(patente: str) -> bool:
     """
     Validador de patentes vehiculares chilenas.

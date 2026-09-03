@@ -9,7 +9,9 @@ from app.services.auth import get_current_user
 from app.core.limiter import limiter
 import uuid
 
-from app.core.validators import validar_rut_chileno
+from app.core.validators import validar_documento_identidad
+from app.services.licencias import evaluar_licencia_usuario
+from app.services.pricing import PricingService
 
 router = APIRouter(prefix="/enrolamiento", tags=["Enrolamiento de Clientes"])
 
@@ -24,6 +26,8 @@ def procesar_documentos_ocr(payload: UserEnrolamiento):
         licencia_url=payload.licencia_url,
         rut_usuario=payload.rut,
         selfie_url=payload.foto_perfil_verificada_url,
+        tipo_documento=payload.tipo_documento,
+        pais_documento=payload.pais_documento,
     )
     return {
         "mensaje": "Documentos procesados exitosamente",
@@ -42,24 +46,47 @@ def completar_enrolamiento(
     if current_user.estado_documentos == "verificado":
         return current_user
 
-    if not validar_rut_chileno(payload.rut):
+    # El chileno se identifica con RUT (Módulo 11); el extranjero con pasaporte
+    # o DNI de su país. ClaveÚnica no es alternativa: solo la integran
+    # organismos del Estado, no una empresa privada.
+    es_chileno = (payload.tipo_documento or "rut") == "rut"
+    numero_identidad = payload.rut if es_chileno else payload.numero_documento
+
+    valido, motivo_documento = validar_documento_identidad(
+        payload.tipo_documento, numero_identidad, payload.pais_documento
+    )
+    if not valido:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="RUT chileno inválido (falla verificación de dígito verificador Módulo 11)."
+            detail=motivo_documento
         )
 
-    # Sin este chequeo, un RUT repetido revienta recién en el commit() de
-    # más abajo con un IntegrityError crudo de SQLite/Postgres (mensaje
+    # Sin este chequeo, un documento repetido revienta recién en el commit()
+    # de más abajo con un IntegrityError crudo de SQLite/Postgres (mensaje
     # técnico en inglés, no algo que se le pueda mostrar a un usuario).
-    rut_en_uso = (
-        db.query(Usuario)
-        .filter(Usuario.rut == payload.rut, Usuario.id != current_user.id)
-        .first()
-    )
-    if rut_en_uso:
+    if es_chileno:
+        documento_en_uso = (
+            db.query(Usuario)
+            .filter(Usuario.rut == payload.rut, Usuario.id != current_user.id)
+            .first()
+        )
+        detalle_duplicado = "Este RUT ya está registrado en otra cuenta."
+    else:
+        documento_en_uso = (
+            db.query(Usuario)
+            .filter(
+                Usuario.numero_documento == payload.numero_documento,
+                Usuario.pais_documento == payload.pais_documento,
+                Usuario.id != current_user.id,
+            )
+            .first()
+        )
+        detalle_duplicado = "Este documento ya está registrado en otra cuenta."
+
+    if documento_en_uso:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este RUT ya está registrado en otra cuenta."
+            detail=detalle_duplicado
         )
 
     # Procesar documentos para calcular confianza
@@ -69,6 +96,8 @@ def completar_enrolamiento(
         licencia_url=payload.licencia_url,
         rut_usuario=payload.rut,
         selfie_url=payload.foto_perfil_verificada_url,
+        tipo_documento=payload.tipo_documento,
+        pais_documento=payload.pais_documento,
     )
 
     # Un rechazo del OCR bloquea el enrolamiento de verdad: no se otorga el
@@ -81,7 +110,25 @@ def completar_enrolamiento(
         )
 
     current_user.nombre = payload.nombre
-    current_user.rut = payload.rut
+    if es_chileno:
+        current_user.rut = payload.rut
+    current_user.tipo_documento = payload.tipo_documento
+    current_user.numero_documento = numero_identidad
+    current_user.pais_documento = payload.pais_documento or ("CL" if es_chileno else None)
+    if payload.fecha_nacimiento:
+        current_user.fecha_nacimiento = payload.fecha_nacimiento
+
+    # Licencia de conducir. Un chileno que no declara país se asume con
+    # licencia chilena Clase B, que es el flujo que ya existía.
+    current_user.licencia_pais_emisor = payload.licencia_pais_emisor or ("CL" if es_chileno else None)
+    current_user.licencia_numero = payload.licencia_numero
+    current_user.licencia_clase = payload.licencia_clase or ("B" if es_chileno else None)
+    current_user.licencia_vencimiento = payload.licencia_vencimiento
+    current_user.pic_url = payload.pic_url
+    current_user.pic_vencimiento = payload.pic_vencimiento
+    current_user.es_residente_chile = payload.es_residente_chile
+    current_user.fecha_inicio_residencia = payload.fecha_inicio_residencia
+
     if payload.email:
         current_user.email = payload.email
     if payload.telefono is not None:
@@ -97,6 +144,24 @@ def completar_enrolamiento(
     if "cliente" not in roles:
         roles.append("cliente")
     current_user.roles_activos = roles
+
+    # Árbol de decisión de licencia (Convenio de Viena, PIC, residencia > 1 año
+    # y edad mínima). No bloquea el enrolamiento: lo deriva a un ejecutivo, igual
+    # que se hace con la licencia ilegible.
+    config = PricingService.obtener_configuracion(db)
+    evaluacion_licencia = evaluar_licencia_usuario(
+        current_user,
+        edad_minima=getattr(config, "edad_minima_arriendo", None) or 21,
+    )
+    if not evaluacion_licencia["permitido"]:
+        current_user.estado_documentos = "requiere_revision_manual"
+        current_user.notas_auditoria = evaluacion_licencia["motivo"]
+        db.add(TicketSoporte(
+            usuario_id=current_user.id,
+            sucursal_id=current_user.sucursal_id,
+            asunto="Revisión de licencia de conducir extranjera",
+            descripcion=evaluacion_licencia["motivo"],
+        ))
 
     # Licencia que el OCR no pudo reconocer: se abre un ticket de soporte
     # para que un ejecutivo la revise a mano, sin frenar el resto del

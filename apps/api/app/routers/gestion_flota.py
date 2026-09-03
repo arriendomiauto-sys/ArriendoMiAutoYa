@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.schemas import (
@@ -11,6 +13,8 @@ from app.schemas.schemas import (
 from app.models.entities import Usuario, Auto, MantencionAuto, BloqueoCalendarioAuto, Reserva
 from app.services.auth import get_current_user
 from app.core.limiter import limiter
+from app.core.security_audit import SecurityAudit
+from app.features.rastreo_gps.manager import GPSManager
 
 router = APIRouter(tags=["Gestión de Flota (Mantenciones y Calendario)"])
 
@@ -140,3 +144,104 @@ def eliminar_bloqueo(bloqueo_id: str, db: Session = Depends(get_db), current_use
     _requerir_dueno_del_auto(auto, current_user)
     db.delete(bloqueo)
     db.commit()
+
+
+# ==============================================================================
+# RASTREO GPS
+# ==============================================================================
+class CorteMotorRequest(BaseModel):
+    motivo: str = Field(..., min_length=10, description="Justificación del corte remoto de motor")
+    reserva_id: str = Field(..., description="Reserva por la que se activa el protocolo de recuperación")
+
+
+@router.get(
+    "/autos/{auto_id}/gps/posicion",
+    summary="Última posición conocida del vehículo (Dueño o Admin)",
+)
+def obtener_posicion_gps(
+    auto_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    auto = _obtener_auto_o_404(auto_id, db)
+    _requerir_dueno_del_auto(auto, current_user)
+
+    if not auto.gps_consentimiento:
+        raise HTTPException(
+            status_code=403,
+            detail="El dueño no ha autorizado el monitoreo GPS de este vehículo.",
+        )
+    if not auto.gps_device_id:
+        raise HTTPException(status_code=404, detail="Este vehículo aún no tiene un equipo GPS instalado.")
+
+    posicion = GPSManager.get_provider().obtener_posicion(auto.gps_device_id)
+    if not posicion:
+        raise HTTPException(status_code=503, detail="El equipo GPS no está reportando posición en este momento.")
+
+    auto.gps_ultima_posicion = posicion.to_dict()
+    db.commit()
+
+    return {"auto_id": auto.id, "patente": auto.patente, "posicion": posicion.to_dict()}
+
+
+@router.post(
+    "/autos/{auto_id}/gps/cortar-motor",
+    summary="Corte remoto de motor por no devolución del vehículo (Admin exclusivo)",
+)
+@limiter.limit("5/minute")
+def cortar_motor_gps(
+    request: Request,
+    auto_id: str,
+    payload: CorteMotorRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Último recurso para recuperar un vehículo no devuelto.
+
+    El protocolo exige tres cosas antes de mandar el comando: que lo pida un
+    Admin (nunca el dueño desde su app), que exista una reserva disputada o
+    vencida sin devolver, y que quede el motivo registrado en la auditoría.
+    """
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo un administrador puede ordenar el corte remoto de motor.",
+        )
+
+    auto = _obtener_auto_o_404(auto_id, db)
+    if not auto.gps_device_id:
+        raise HTTPException(status_code=404, detail="Este vehículo aún no tiene un equipo GPS instalado.")
+
+    reserva = db.query(Reserva).filter(
+        Reserva.id == payload.reserva_id,
+        Reserva.auto_id == auto_id,
+    ).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada para este vehículo.")
+
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    fecha_fin = reserva.fecha_fin.replace(tzinfo=None) if reserva.fecha_fin.tzinfo else reserva.fecha_fin
+    vencida_sin_devolver = reserva.estado == "en_curso" and fecha_fin < ahora
+
+    if reserva.estado != "disputada" and not vencida_sin_devolver:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "El corte de motor solo procede sobre una reserva disputada o vencida "
+                "sin devolución del vehículo."
+            ),
+        )
+
+    resultado = GPSManager.get_provider().cortar_motor(auto.gps_device_id, payload.motivo)
+
+    SecurityAudit.log_event(
+        event_type="GPS_CORTE_MOTOR",
+        user_id=current_user.id,
+        ip_address=request.client.host if request.client else None,
+        resource=f"auto:{auto.id}",
+        status="SUCCESS" if resultado.ejecutado else "FAILURE",
+        details={"reserva_id": reserva.id, "motivo": payload.motivo, "patente": auto.patente},
+    )
+
+    return {"ejecutado": resultado.ejecutado, "mensaje": resultado.mensaje}

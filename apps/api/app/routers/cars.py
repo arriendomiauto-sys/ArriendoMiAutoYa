@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import List, Optional
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.schemas import AutoCreate, AutoUpdate, AutoOut
@@ -85,6 +86,17 @@ def crear_auto(
             detail=f"Faltan documentos del vehículo: {', '.join(faltantes)}. Súbelos para publicar el auto.",
         )
 
+    # Instalar un equipo GPS en el auto de un tercero requiere su
+    # consentimiento expreso por escrito: sin él no se publica el vehículo.
+    if not payload.gps_consentimiento:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Debes autorizar la instalación y el monitoreo del dispositivo GPS "
+                "en tu vehículo para publicarlo en la plataforma."
+            ),
+        )
+
     # Verificar si la patente ya existe
     patente_existente = db.query(Auto).filter(Auto.patente == payload.patente.upper()).first()
     if patente_existente:
@@ -126,6 +138,8 @@ def crear_auto(
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
         documentos_verificados=doc_verificados,
+        gps_consentimiento=True,
+        gps_consentimiento_fecha=datetime.now(timezone.utc),
     )
 
     # Si el OCR no pudo validar automáticamente con certeza los documentos,

@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, List
 @dataclass
 class DocumentValidationResult:
     es_valido: bool
-    tipo_documento: str # "cedula_frontal", "cedula_trasera", "licencia", "padron", "permiso", "soap", "revision"
+    tipo_documento: str # "cedula_frontal", "cedula_trasera", "pasaporte", "dni_extranjero", "licencia", "padron", "permiso", "soap", "revision"
     rut: Optional[str] = None
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
@@ -21,6 +21,7 @@ class DocumentValidationResult:
     score_autenticidad: float = 1.0
     folio: Optional[str] = None
     patente: Optional[str] = None
+    pais_emisor: Optional[str] = None  # ISO-3166 alpha-2 del documento extranjero
     errores: List[str] = field(default_factory=list)
     raw_data: Dict[str, Any] = field(default_factory=dict)
 
@@ -112,6 +113,8 @@ class BaseKYCProvider(ABC):
         licencia_bytes: Optional[bytes] = None,
         selfie_bytes: Optional[bytes] = None,
         rut_esperado: Optional[str] = None,
+        tipo_documento: str = "rut",
+        pais_documento: Optional[str] = None,
     ) -> KYCResult:
         """
         Orquesta el flujo integral de validación de identidad (carnet frontal, trasero, licencia y biometría).

@@ -136,3 +136,70 @@ def test_completar_enrolamiento_usuario_ya_verificado_retorna_directo(usuario_fa
     data = resp.json()
     assert data["estado_documentos"] == "verificado"
     assert data["nombre"] == "Cliente Aprobado"
+
+
+def test_enrolamiento_con_pasaporte_extranjero_va_a_revision_manual(usuario_factory, auth_as, db_session):
+    """
+    ClaveÚnica no es integrable por una empresa privada, así que la identidad
+    de un extranjero se resuelve con su pasaporte y el proveedor KYC. El motor
+    de OCR está entrenado sobre la cédula chilena: un pasaporte no se rechaza,
+    se deriva a la cola de revisión manual del Admin.
+    """
+    from app.models.entities import TicketSoporte
+
+    nuevo_usuario = usuario_factory(roles_activos=["cliente"], rut=None, nombre=None, estado_documentos="pendiente")
+    c = auth_as(nuevo_usuario)
+    resp = c.post(
+        "/api/v1/enrolamiento/completar",
+        json={
+            "nombre": "Marie Dupont",
+            "email": "marie.dupont@test.cl",
+            "telefono": "+56912345678",
+            "tipo_documento": "pasaporte",
+            "numero_documento": "FR9988776",
+            "pais_documento": "FR",
+            "licencia_pais_emisor": "FR",
+            "carnet_frontal_url": "https://ejemplo.com/pasaporte.jpg",
+            "foto_perfil_verificada_url": "https://ejemplo.com/selfie.jpg",
+        },
+    )
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["estado_documentos"] == "requiere_revision_manual"
+    assert data["rut"] is None
+    assert data["numero_documento"] == "FR9988776"
+    assert data["pais_documento"] == "FR"
+
+
+def test_enrolamiento_extranjero_sin_pais_emisor_es_rechazado(usuario_factory, auth_as):
+    nuevo_usuario = usuario_factory(roles_activos=["cliente"], rut=None, nombre=None, estado_documentos="pendiente")
+    c = auth_as(nuevo_usuario)
+    resp = c.post(
+        "/api/v1/enrolamiento/completar",
+        json={
+            "nombre": "Sin País",
+            "email": "sin.pais@test.cl",
+            "tipo_documento": "pasaporte",
+            "numero_documento": "XY123456",
+            "carnet_frontal_url": "https://ejemplo.com/pasaporte.jpg",
+        },
+    )
+    assert resp.status_code == 400
+    assert "país emisor" in resp.json()["detail"]
+
+
+def test_enrolamiento_chileno_mantiene_validacion_modulo_11(usuario_factory, auth_as):
+    nuevo_usuario = usuario_factory(roles_activos=["cliente"], rut=None, nombre=None, estado_documentos="pendiente")
+    c = auth_as(nuevo_usuario)
+    resp = c.post(
+        "/api/v1/enrolamiento/completar",
+        json={
+            "nombre": "RUT Malo",
+            "rut": "12.345.678-0",  # dígito verificador incorrecto
+            "email": "rut.malo@test.cl",
+            "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg",
+        },
+    )
+    # El validador de UserBase corta antes con un 422 de pydantic.
+    assert resp.status_code in (400, 422)
