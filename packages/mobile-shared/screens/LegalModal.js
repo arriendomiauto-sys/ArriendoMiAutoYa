@@ -52,7 +52,7 @@ export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
             {Object.values(DOCUMENTOS_LEGALES).map((d) => (
               <Chip
                 key={d.id}
-                label={d.id === "terminos" ? "Términos" : "Privacidad"}
+                label={d.tab || d.titulo}
                 selected={activo === d.id}
                 onPress={() => setActivo(d.id)}
               />

@@ -48,16 +48,27 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const yaVerificado = currentUser?.estado_documentos === "verificado";
   const enRevision = currentUser?.estado_documentos === "requiere_revision_manual";
 
-  // Steps: '01_cedula' | '02_licencia' | '03_facial' | '04_review' | '05_approved' | '06_revision'
+  // Steps: '00_nacionalidad' | '01_cedula' | '02_licencia' | '03_facial' | '04_review' | '05_approved' | '06_revision'
   const [currentStep, setCurrentStep] = useState(
-    yaVerificado ? "05_approved" : enRevision ? "06_revision" : "01_cedula"
+    yaVerificado ? "05_approved" : enRevision ? "06_revision" : "00_nacionalidad"
   );
   const [capturing, setCapturing] = useState(false);
   const [cedulaSide, setCedulaSide] = useState("front"); // 'front' | 'back'
 
   // Qué documento está capturando la cámara guiada (null = cerrada).
-  // 'carnet_frente' | 'carnet_reverso' | 'licencia' | 'selfie'
+  // 'carnet_frente' | 'carnet_reverso' | 'licencia' | 'pic' | 'selfie'
   const [cameraFor, setCameraFor] = useState(null);
+
+  // Identidad. ClaveÚnica no es una opción (solo la integran organismos del
+  // Estado), así que el extranjero se enrola con su pasaporte o DNI y el
+  // proveedor KYC + revisión manual resuelven la autenticidad.
+  const [tipoDocumento, setTipoDocumento] = useState(currentUser?.tipo_documento || "rut");
+  const [numeroDocumento, setNumeroDocumento] = useState(currentUser?.numero_documento || "");
+  const [paisDocumento, setPaisDocumento] = useState(currentUser?.pais_documento || "");
+  const [esResidente, setEsResidente] = useState(!!currentUser?.es_residente_chile);
+  const [picUrl, setPicUrl] = useState(null);
+
+  const esExtranjero = tipoDocumento !== "rut";
 
   // URLs de Supabase Storage tras subir cada documento capturado.
   const [carnetFrontalUrl, setCarnetFrontalUrl] = useState(null);
@@ -108,6 +119,10 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         const url = await subirDocumento(uri, "licencia_conducir");
         setLicenciaUrl(url);
         setCurrentStep("03_facial");
+      } else if (slot === "pic") {
+        const url = await subirDocumento(uri, "permiso_internacional");
+        setPicUrl(url);
+        setCurrentStep("03_facial");
       } else if (slot === "selfie") {
         // La selfie queda como foto_perfil_verificada_url; el OCR + control
         // facial reales corren en /enrolamiento/completar con todo junto.
@@ -123,16 +138,35 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   };
 
   const handleApprove = async () => {
-    if (!nombre.trim() || !rut.trim()) {
-      showAlert("Datos incompletos", "Ingresa tu nombre completo y tu RUT para continuar.");
+    if (!nombre.trim()) {
+      showAlert("Datos incompletos", "Ingresa tu nombre completo para continuar.");
       return;
     }
-    if (!isRutValid(rut)) {
-      showAlert(
-        "RUT inválido",
-        "Revisa el RUT ingresado: el dígito verificador no coincide (Módulo 11)."
-      );
-      return;
+
+    if (esExtranjero) {
+      if (!numeroDocumento.trim()) {
+        showAlert("Datos incompletos", "Ingresa el número de tu pasaporte o documento de identidad.");
+        return;
+      }
+      if (paisDocumento.trim().length !== 2) {
+        showAlert(
+          "Falta el país",
+          "Indica el país que emitió tu documento con su código de 2 letras (ej. AR, PE, VE)."
+        );
+        return;
+      }
+    } else {
+      if (!rut.trim()) {
+        showAlert("Datos incompletos", "Ingresa tu RUT para continuar.");
+        return;
+      }
+      if (!isRutValid(rut)) {
+        showAlert(
+          "RUT inválido",
+          "Revisa el RUT ingresado: el dígito verificador no coincide (Módulo 11)."
+        );
+        return;
+      }
     }
 
     if (!carnetFrontalUrl) {
@@ -143,6 +177,17 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       setCurrentStep("01_cedula");
       return;
     }
+
+    const datosIdentidad = esExtranjero
+      ? {
+          tipo_documento: tipoDocumento,
+          numero_documento: numeroDocumento.trim(),
+          pais_documento: paisDocumento.trim().toUpperCase(),
+          licencia_pais_emisor: paisDocumento.trim().toUpperCase(),
+          es_residente_chile: esResidente,
+          pic_url: picUrl || undefined,
+        }
+      : { tipo_documento: "rut", rut, licencia_pais_emisor: "CL" };
 
     setSubmitting(true);
     try {
@@ -162,11 +207,11 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       // completar el enrolamiento (que además cobra el hold de garantía).
       // Si el OCR no logra leer la fecha no se bloquea a nadie: esos casos
       // ya terminan en revisión manual del lado del backend.
-      if (userEmail) {
+      if (userEmail && !esExtranjero) {
         try {
           const previo = await ApiClient.verifyKyc({
             nombre,
-            rut,
+            ...datosIdentidad,
             email: userEmail,
             telefono,
             carnet_frontal_url: carnetFrontalUrl,
@@ -202,7 +247,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       //  - 400 (rechazado)                              -> vuelve a intentar
       const profile = await completeEnrolment({
         nombre,
-        rut,
+        ...datosIdentidad,
         email: userEmail,
         telefono,
         carnet_frontal_url: carnetFrontalUrl,
@@ -239,6 +284,107 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       />
 
       {/* ========================================================================= */}
+      {/* 00: NACIONALIDAD Y TIPO DE DOCUMENTO */}
+      {/* ========================================================================= */}
+      {currentStep === "00_nacionalidad" && (
+        <ScrollView
+          contentContainerStyle={[styles.reviewCenter, { paddingBottom: 60 }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TouchableOpacity
+            onPress={onBack}
+            style={styles.reviewBackBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Icon name="arrow-left" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
+          <View style={styles.reviewTextBox}>
+            <Text style={styles.reviewTitle}>¿Con qué documento te identificas?</Text>
+            <Text style={styles.reviewSub}>
+              Si eres extranjero puedes enrolarte con tu pasaporte o documento de identidad.
+            </Text>
+          </View>
+
+          <View style={styles.reviewFormCard}>
+            <TouchableOpacity
+              style={[styles.docTypeOption, !esExtranjero && styles.docTypeOptionSelected]}
+              onPress={() => setTipoDocumento("rut")}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.docTypeTitle}>Cédula chilena (RUT)</Text>
+              <Text style={styles.docTypeDesc}>Cédula de identidad y licencia chilena Clase B</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.docTypeOption, tipoDocumento === "pasaporte" && styles.docTypeOptionSelected]}
+              onPress={() => setTipoDocumento("pasaporte")}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.docTypeTitle}>Pasaporte extranjero</Text>
+              <Text style={styles.docTypeDesc}>Documento emitido en otro país</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.docTypeOption, tipoDocumento === "dni_extranjero" && styles.docTypeOptionSelected]}
+              onPress={() => setTipoDocumento("dni_extranjero")}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.docTypeTitle}>DNI o cédula de otro país</Text>
+              <Text style={styles.docTypeDesc}>Documento nacional de identidad extranjero</Text>
+            </TouchableOpacity>
+
+            {esExtranjero && (
+              <>
+                <View style={styles.reviewFormGroup}>
+                  <Text style={styles.reviewFieldLabel}>PAÍS EMISOR (2 LETRAS)</Text>
+                  <View style={styles.reviewInputBox}>
+                    <TextInput
+                      style={styles.reviewTextInput}
+                      value={paisDocumento}
+                      onChangeText={(t) => setPaisDocumento(t.toUpperCase().slice(0, 2))}
+                      placeholder="Ej. AR"
+                      placeholderTextColor={colors.textPlaceholder}
+                      autoCapitalize="characters"
+                      maxLength={2}
+                    />
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.docTypeOption, esResidente && styles.docTypeOptionSelected]}
+                  onPress={() => setEsResidente(!esResidente)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.docTypeTitle}>
+                    {esResidente ? "Soy residente en Chile ✓" : "¿Eres residente en Chile?"}
+                  </Text>
+                  <Text style={styles.docTypeDesc}>
+                    Con más de un año de residencia continua necesitas licencia chilena.
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={styles.docTypeNota}>
+                  Si tu país no adhirió al Convenio de Viena, además de tu licencia necesitas el
+                  Permiso Internacional de Conducir (PIC) vigente. Te lo pediremos en el siguiente paso.
+                </Text>
+              </>
+            )}
+          </View>
+
+          <View style={{ width: "100%", paddingHorizontal: 4 }}>
+            <TouchableOpacity
+              style={styles.primaryCta}
+              onPress={() => setCurrentStep("01_cedula")}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryCtaText}>Continuar</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      )}
+
+      {/* ========================================================================= */}
       {/* 01: CÉDULA DE IDENTIDAD */}
       {/* ========================================================================= */}
       {currentStep === "01_cedula" && (
@@ -247,7 +393,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             <TouchableOpacity
               onPress={() => {
                 if (cedulaSide === "back") setCedulaSide("front");
-                else onBack();
+                else setCurrentStep("00_nacionalidad");
               }}
               style={styles.backBtnTouch}
             >
@@ -266,15 +412,27 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           <CaptureGuide
             shape="card"
             titulo={
-              cedulaSide === "front"
-                ? "Cédula — lado de la foto"
-                : "Cédula — reverso (código de barras)"
+              esExtranjero
+                ? cedulaSide === "front"
+                  ? "Documento — página con tu foto"
+                  : "Documento — reverso o segunda página"
+                : cedulaSide === "front"
+                  ? "Cédula — lado de la foto"
+                  : "Cédula — reverso (código de barras)"
             }
-            tips={[
-              "Los 4 bordes de la cédula dentro del marco",
-              "Buena luz, sin flash ni reflejos sobre el plástico",
-              "Cédula plana; el RUT y el nombre bien nítidos",
-            ]}
+            tips={
+              esExtranjero
+                ? [
+                    "Los 4 bordes del documento dentro del marco",
+                    "Buena luz, sin flash ni reflejos",
+                    "Que se lean el número de documento y tu nombre",
+                  ]
+                : [
+                    "Los 4 bordes de la cédula dentro del marco",
+                    "Buena luz, sin flash ni reflejos sobre el plástico",
+                    "Cédula plana; el RUT y el nombre bien nítidos",
+                  ]
+            }
             done={cedulaSide === "back" ? "Frente capturado ✓" : null}
           />
 
@@ -324,7 +482,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
 
           <CaptureGuide
             shape="card"
-            titulo="Licencia de conducir (Clase B)"
+            titulo={esExtranjero ? "Licencia de conducir de tu país" : "Licencia de conducir (Clase B)"}
             tips={[
               "Licencia completa dentro del marco",
               "Plana y sin reflejos; que se lea la clase y la vigencia",
@@ -346,6 +504,20 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 <Text style={styles.primaryCtaText}>Abrir cámara</Text>
               )}
             </TouchableOpacity>
+            {esExtranjero && (
+              <TouchableOpacity
+                style={styles.picCta}
+                onPress={() => setCameraFor("pic")}
+                disabled={capturing}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.picCtaText}>
+                  {picUrl
+                    ? "Permiso Internacional capturado ✓"
+                    : "Agregar Permiso Internacional (PIC)"}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => setCurrentStep("03_facial")}>
               <Text style={styles.skipText}>
                 ¿No tienes tu licencia ahora? Puedes continuar y subirla después.
@@ -440,7 +612,8 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             <View style={styles.reviewTextBox}>
               <Text style={styles.reviewTitle}>Confirma tus Datos</Text>
               <Text style={styles.reviewSub}>
-                Revisa que tu nombre y RUT sean correctos antes de activar tu cuenta.
+                Revisa que tu nombre y {esExtranjero ? "número de documento" : "RUT"} sean
+                correctos antes de activar tu cuenta.
               </Text>
             </View>
 
@@ -460,31 +633,52 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 </View>
               </View>
 
-              <View style={styles.reviewFormGroup}>
-                <Text style={styles.reviewFieldLabel}>RUT CHILENO</Text>
-                <View style={styles.reviewInputBox}>
-                  <TextInput
-                    style={styles.reviewTextInput}
-                    value={rut}
-                    onChangeText={setRut}
-                    placeholder="Ej. 14.234.567-8"
-                    placeholderTextColor={colors.textPlaceholder}
-                    autoCapitalize="characters"
-                  />
-                </View>
-                {rutTouched && (
-                  <Text
-                    style={[
-                      styles.rutValidationText,
-                      rutIsValid ? styles.rutValidationOk : styles.rutValidationBad,
-                    ]}
-                  >
-                    {rutIsValid
-                      ? "RUT válido (Módulo 11)"
-                      : "Dígito verificador no coincide"}
+              {esExtranjero ? (
+                <View style={styles.reviewFormGroup}>
+                  <Text style={styles.reviewFieldLabel}>
+                    N° DE {tipoDocumento === "pasaporte" ? "PASAPORTE" : "DOCUMENTO"} ({paisDocumento || "??"})
                   </Text>
-                )}
-              </View>
+                  <View style={styles.reviewInputBox}>
+                    <TextInput
+                      style={styles.reviewTextInput}
+                      value={numeroDocumento}
+                      onChangeText={setNumeroDocumento}
+                      placeholder="Ej. AB1234567"
+                      placeholderTextColor={colors.textPlaceholder}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                  <Text style={styles.docTypeNota}>
+                    Un ejecutivo validará tu documento extranjero antes de activar la cuenta.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.reviewFormGroup}>
+                  <Text style={styles.reviewFieldLabel}>RUT CHILENO</Text>
+                  <View style={styles.reviewInputBox}>
+                    <TextInput
+                      style={styles.reviewTextInput}
+                      value={rut}
+                      onChangeText={setRut}
+                      placeholder="Ej. 14.234.567-8"
+                      placeholderTextColor={colors.textPlaceholder}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                  {rutTouched && (
+                    <Text
+                      style={[
+                        styles.rutValidationText,
+                        rutIsValid ? styles.rutValidationOk : styles.rutValidationBad,
+                      ]}
+                    >
+                      {rutIsValid
+                        ? "RUT válido (Módulo 11)"
+                        : "Dígito verificador no coincide"}
+                    </Text>
+                  )}
+                </View>
+              )}
 
               <View style={styles.reviewFormGroup}>
                 <Text style={styles.reviewFieldLabel}>TELÉFONO</Text>
@@ -918,6 +1112,48 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
+  },
+  picCta: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.accent500,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+  },
+  picCtaText: {
+    color: colors.accent500,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  docTypeOption: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 14,
+    gap: 4,
+  },
+  docTypeOptionSelected: {
+    borderColor: colors.accent500,
+    backgroundColor: colors.accent500 + "12",
+  },
+  docTypeTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  docTypeDesc: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+  },
+  docTypeNota: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+    marginTop: 4,
   },
   skipText: {
     fontSize: 13,

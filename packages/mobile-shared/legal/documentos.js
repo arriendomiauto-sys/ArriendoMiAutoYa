@@ -17,6 +17,7 @@ const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "https://www.arriendomiautoy
 export const DOCUMENTOS_LEGALES = {
   terminos: {
     id: "terminos",
+    tab: "Términos",
     titulo: "Términos y Condiciones",
     subtitulo: "Marco legal y operativo · Los Ángeles, Región del Biobío",
     actualizado: "Última actualización: agosto de 2026",
@@ -34,8 +35,9 @@ export const DOCUMENTOS_LEGALES = {
         h: "2. Requisitos para arrendatarios",
         items: [
           `Ser mayor de ${EDAD_MINIMA_ARRENDATARIO - 1} años al momento de solicitar el arriendo.`,
-          "Cédula Nacional de Identidad chilena vigente y sin órdenes pendientes.",
+          "Cédula Nacional de Identidad chilena vigente y sin órdenes pendientes, o pasaporte/documento de identidad extranjero verificado.",
           "Licencia de Conducir Clase B con al menos 1 año de antigüedad demostrable.",
+          "Conductores extranjeros: si el país emisor de la licencia no adhirió al Convenio de Viena de 1968, se exige además el Permiso Internacional de Conducir (PIC) vigente. Con más de un año de residencia continua en Chile se requiere licencia chilena.",
           "Tarjeta de crédito bancaria a nombre del conductor titular para constituir el hold de garantía.",
         ],
       },
@@ -70,7 +72,7 @@ export const DOCUMENTOS_LEGALES = {
         items: [
           "Kilometraje: cada arriendo incluye 250 km libres por día; el km adicional cuesta $120 CLP.",
           "Combustible: el vehículo se restituye con el mismo nivel de estanque recibido.",
-          "Peajes y TAG: son de exclusiva responsabilidad del arrendatario y se cargan al término del arriendo.",
+          "Peajes, TAG y fotomultas: son de exclusiva responsabilidad del arrendatario. Como se notifican a nombre del titular de la patente semanas después, el arrendatario autoriza su cobro posterior a la tarjeta registrada, por los eventos ocurridos durante su arriendo y contra la boleta de la concesionaria o el parte cursado.",
         ],
       },
       {
@@ -82,8 +84,58 @@ export const DOCUMENTOS_LEGALES = {
     ],
   },
 
+  gps: {
+    id: "gps",
+    tab: "GPS",
+    titulo: "Consentimiento de Monitoreo GPS",
+    subtitulo: "Enrolamiento del vehículo · Propietarios",
+    actualizado: "Última actualización: septiembre de 2026",
+    url: `${WEB_URL}/terminos`,
+    secciones: [
+      {
+        h: "1. Instalación del dispositivo",
+        p:
+          "Para publicar un vehículo en la plataforma, el propietario autoriza expresamente la " +
+          "instalación de un dispositivo de rastreo GPS en su vehículo. El equipo se entrega en " +
+          "comodato: sigue siendo propiedad del proveedor del servicio y su uso está incluido en " +
+          "la suscripción mensual de la flota, sin costo inicial para el dueño.",
+      },
+      {
+        h: "2. Qué datos se registran y quién los ve",
+        items: [
+          "Posición del vehículo, velocidad y estado del equipo mientras el auto está enrolado.",
+          "El propietario puede consultar la posición de su propio vehículo desde la app.",
+          "El equipo de la plataforma accede a esos datos solo para resolver incidentes, disputas y recuperación del vehículo.",
+        ],
+      },
+      {
+        h: "3. Corte remoto de motor",
+        p:
+          "El corte remoto de motor es un recurso de última instancia frente a la no devolución del " +
+          "vehículo o a una disputa formal abierta. Solo puede ordenarlo un administrador de la " +
+          "plataforma, con motivo registrado y auditable, y el proveedor lo ejecuta únicamente con " +
+          "el vehículo detenido. Nunca se activa desde la app del dueño ni con el auto en marcha.",
+      },
+      {
+        h: "4. Retiro del dispositivo",
+        p:
+          "Si el propietario retira su vehículo de la plataforma, puede solicitar la desinstalación " +
+          "del equipo sin costo. El retiro lo coordina la plataforma con el proveedor y, hecha la " +
+          "desinstalación, cesa todo registro de posición del vehículo.",
+      },
+      {
+        h: "5. Revocación del consentimiento",
+        p:
+          "El propietario puede revocar este consentimiento en cualquier momento. Revocarlo implica " +
+          "pausar la publicación del vehículo, porque el monitoreo es condición para operar en la " +
+          "plataforma. Las reservas ya confirmadas se mantienen hasta su término.",
+      },
+    ],
+  },
+
   privacidad: {
     id: "privacidad",
+    tab: "Privacidad",
     titulo: "Política de Privacidad",
     subtitulo: "Ley N° 19.628 sobre Protección de la Vida Privada (Chile)",
     actualizado: "Última actualización: agosto de 2026",
@@ -104,6 +156,7 @@ export const DOCUMENTOS_LEGALES = {
           "Datos de contacto: número de teléfono móvil y correo electrónico.",
           "Registro fotográfico del checklist: las 9 fotos obligatorias del estado inicial y final del vehículo.",
           "Datos transaccionales: tokens seguros de la pasarela de pago (no almacenamos números de tarjeta).",
+          "Datos de ubicación del vehículo: posición reportada por el dispositivo GPS instalado con consentimiento del propietario.",
         ],
       },
       {

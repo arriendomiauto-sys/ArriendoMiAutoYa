@@ -301,6 +301,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     equipamiento: { ac: true, bluetooth: true, isofix: false, doble_traccion: false, camara_retroceso: true },
     fotos: [],
     docs: {},
+    gps_consentimiento: false,
   });
 
   const tarifaNum = parseInt(form.tarifa_dia, 10) || 35000;
@@ -583,6 +584,16 @@ export function AddEditCarScreen({ onBack, onComplete }) {
       );
       return;
     }
+
+    // Instalar un GPS en el auto de otra persona requiere su consentimiento
+    // por escrito: sin eso el backend tampoco acepta la publicación.
+    if (!form.gps_consentimiento) {
+      showAlert(
+        "Falta autorizar el GPS",
+        "Para publicar tu auto necesitamos tu autorización para instalar y monitorear el dispositivo GPS."
+      );
+      return;
+    }
     setLoading(true);
     try {
       const res = await ApiClient.crearAuto({
@@ -601,6 +612,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         puertas: parseInt(form.puertas, 10) || undefined,
         fotos: fotosOrdenadas,
         equipamiento: form.equipamiento,
+        gps_consentimiento: form.gps_consentimiento,
         ...form.docs,
       });
 
@@ -1033,6 +1045,28 @@ export function AddEditCarScreen({ onBack, onComplete }) {
               <Text style={styles.count}>
                 {docsCargados} de {DOCS_OBLIGATORIOS.length} documentos obligatorios
               </Text>
+
+              <TouchableOpacity
+                style={[styles.gpsConsent, form.gps_consentimiento && styles.gpsConsentOn]}
+                onPress={() =>
+                  setForm((prev) => ({ ...prev, gps_consentimiento: !prev.gps_consentimiento }))
+                }
+                activeOpacity={0.85}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: form.gps_consentimiento }}
+              >
+                <View style={[styles.gpsBox, form.gps_consentimiento && styles.gpsBoxOn]}>
+                  {form.gps_consentimiento && <Icon name="check" size={13} color="#FFFFFF" />}
+                </View>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.gpsTitle}>Autorizo la instalación del GPS</Text>
+                  <Text style={styles.gpsHelp}>
+                    Equipo en comodato, sin costo inicial. Puedes ver la posición de tu auto desde la
+                    app y pedir el retiro del equipo cuando salgas de la plataforma. El corte remoto de
+                    motor es exclusivo de la plataforma y solo ante no devolución o disputa formal.
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -1200,6 +1234,31 @@ const styles = StyleSheet.create({
   },
   uploadBtnText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   count: { color: colors.darkTextMuted, fontSize: 12, textAlign: "center" },
+  gpsConsent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+    backgroundColor: colors.darkCardSubtle,
+  },
+  gpsConsentOn: { borderColor: colors.accent },
+  gpsBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.darkBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  gpsBoxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  gpsTitle: { color: colors.textWhite, fontSize: 14, fontWeight: "700" },
+  gpsHelp: { color: colors.darkTextMuted, fontSize: 12, lineHeight: 17 },
   docSlot: {
     backgroundColor: colors.darkCardSubtle,
     borderRadius: theme.radius.field,

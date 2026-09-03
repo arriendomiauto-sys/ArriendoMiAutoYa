@@ -24,6 +24,26 @@ describe("LegalModal", () => {
     expect(t).toContain("Ley N° 19.628");
   });
 
+  it("incluye el consentimiento de monitoreo GPS del dueño", () => {
+    const t = textOf(renderTree(<LegalModal visible doc="gps" onClose={() => {}} />));
+    expect(t).toContain("Consentimiento de Monitoreo GPS");
+    expect(t).toContain("comodato");
+    expect(t).toContain("Corte remoto de motor");
+    expect(t).toContain("Revocación del consentimiento");
+  });
+
+  it("los términos autorizan el cobro posterior de peajes y fotomultas", () => {
+    const t = textOf(renderTree(<LegalModal visible doc="terminos" onClose={() => {}} />));
+    expect(t).toContain("titular de la patente");
+    expect(t).toContain("cobro posterior a la tarjeta registrada");
+  });
+
+  it("los términos contemplan al conductor extranjero", () => {
+    const t = textOf(renderTree(<LegalModal visible doc="terminos" onClose={() => {}} />));
+    expect(t).toContain("Permiso Internacional de Conducir");
+    expect(t).toContain("Convenio de Viena");
+  });
+
   it("acepta desde el visor y lo cierra", () => {
     const onAccept = jest.fn();
     const onClose = jest.fn();

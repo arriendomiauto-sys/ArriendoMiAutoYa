@@ -75,7 +75,20 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
         onPaymentSuccess({ ...reserva, car, estado: "pendiente" });
       }
     } catch (error) {
-      showAlert("No se pudo crear la reserva", error.message || "Intenta nuevamente en unos segundos.");
+      // El backend rechaza la reserva cuando la licencia (o el PIC) vence antes
+      // del término del arriendo, o cuando no se cumple la edad mínima. Eso no
+      // se arregla reintentando, así que se muestra tal cual, sin el "intenta
+      // de nuevo" que haría pensar en una falla pasajera.
+      const motivo = error.message || "";
+      const esRequisitoDelConductor = /licencia|permiso internacional|edad mínima|residencia/i.test(motivo);
+      showAlert(
+        esRequisitoDelConductor ? "No puedes reservar este auto" : "No se pudo crear la reserva",
+        esRequisitoDelConductor
+          ? `${motivo}
+
+Actualiza tus documentos desde tu perfil o escríbenos a soporte.`
+          : motivo || "Intenta nuevamente en unos segundos."
+      );
     } finally {
       setProcessing(false);
     }

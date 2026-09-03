@@ -14,6 +14,7 @@ import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Button } from "../components/ui";
+import { DateTimeField, aISOLocal } from "../components/DateTimeField";
 import { ApiClient } from "../api/client";
 import { showAlert } from "../utils/alert";
 
@@ -23,9 +24,21 @@ const TIPOS_FALTAS = [
   { id: "mascotas", label: "Mascotas sin canil", sugerido: 25000, desc: "Pelos o suciedad en tapicería" },
   { id: "limpieza_estandar", label: "Suciedad excesiva", sugerido: 15000, desc: "Barro, arena o basura acumulada" },
   { id: "limpieza_profunda", label: "Limpieza profunda", sugerido: 35000, desc: "Manchas en tapiz o líquidos" },
-  { id: "peajes_tag", label: "Peajes / TAG", sugerido: 0, desc: "Cobro de pórticos o peajes" },
   { id: "otro", label: "Otra falta", sugerido: 0, desc: "Infracción declarada con justificación" },
 ];
+
+/**
+ * Peajes y fotomultas no se ven en la devolución: las autopistas urbanas son
+ * de flujo libre y la boleta llega semanas después, siempre a nombre del
+ * titular de la patente. Por eso se cobran aparte, con la fecha del pórtico y
+ * la boleta de respaldo, y solo dentro del plazo que fija la plataforma.
+ */
+const TIPOS_CARGO_POSTERIOR = [
+  { id: "peajes_tag", label: "Peajes / TAG", sugerido: 0, desc: "Pórticos pasados durante el arriendo" },
+  { id: "fotomulta", label: "Fotomulta", sugerido: 0, desc: "Parte cursado por fotorradar o control" },
+];
+
+const esCargoPosterior = (id) => TIPOS_CARGO_POSTERIOR.some((t) => t.id === id);
 
 export function ReportFineModal({
   visible,
@@ -37,9 +50,15 @@ export function ReportFineModal({
   const [monto, setMonto] = useState("50000");
   const [motivo, setMotivo] = useState("");
   const [fotoUrl, setFotoUrl] = useState("");
+  const [fechaEvento, setFechaEvento] = useState(null);
+  const [documentoUrl, setDocumentoUrl] = useState("");
   const [loading, setLoading] = useState(false);
 
   if (!reserva) return null;
+
+  const cargoPosterior = esCargoPosterior(tipo);
+  const inicioArriendo = reserva.fecha_inicio ? new Date(reserva.fecha_inicio) : undefined;
+  const finArriendo = reserva.fecha_fin ? new Date(reserva.fecha_fin) : undefined;
 
   const handleSelectTipo = (item) => {
     setTipo(item.id);
@@ -58,6 +77,22 @@ export function ReportFineModal({
       showAlert("Motivo requerido", "Por favor ingresa una explicación detallada de la falta.");
       return;
     }
+    if (cargoPosterior) {
+      if (!fechaEvento) {
+        showAlert(
+          "Falta la fecha",
+          "Indica la fecha del pórtico o de la infracción: solo se cobra lo ocurrido durante el arriendo."
+        );
+        return;
+      }
+      if (!documentoUrl.trim()) {
+        showAlert(
+          "Falta el respaldo",
+          "Adjunta la boleta de la concesionaria o el parte cursado que respalda el cobro."
+        );
+        return;
+      }
+    }
 
     setLoading(true);
     try {
@@ -66,6 +101,9 @@ export function ReportFineModal({
         monto_clp: montoNum,
         motivo: motivo.trim(),
         fotos: fotoUrl.trim() ? [fotoUrl.trim()] : [],
+        ...(cargoPosterior
+          ? { fecha_evento: aISOLocal(fechaEvento), documento_url: documentoUrl.trim() }
+          : {}),
       });
       showAlert(
         "Multa aplicada",
@@ -128,8 +166,60 @@ export function ReportFineModal({
               })}
             </View>
 
+            <Text style={styles.sectionTitle}>Cobros que llegan después</Text>
+            <Text style={styles.sectionHelp}>
+              Peajes y fotomultas se notifican a tu nombre semanas después. Se cobran a la
+              tarjeta registrada del arrendatario, solo por lo ocurrido durante su arriendo.
+            </Text>
+            <View style={styles.typesGrid}>
+              {TIPOS_CARGO_POSTERIOR.map((item) => {
+                const selected = tipo === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.typeButton, selected && styles.typeButtonSelected]}
+                    onPress={() => handleSelectTipo(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.typeButtonText, selected && styles.typeButtonTextSelected]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {cargoPosterior && (
+              <>
+                <View style={styles.inputGroup}>
+                  <DateTimeField
+                    label="Fecha del pórtico o de la infracción"
+                    value={fechaEvento}
+                    onChange={setFechaEvento}
+                    minimumDate={inicioArriendo}
+                    maximumDate={finArriendo}
+                    helper="Debe caer dentro del período de arriendo del cliente"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>URL de la boleta o del parte</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={documentoUrl}
+                    onChangeText={setDocumentoUrl}
+                    autoCapitalize="none"
+                    placeholder="https://..."
+                    placeholderTextColor={colors.textPlaceholder}
+                  />
+                </View>
+              </>
+            )}
+
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Monto de la multa (CLP)</Text>
+              <Text style={styles.inputLabel}>
+                {cargoPosterior ? "Monto exacto de la boleta (CLP)" : "Monto de la multa (CLP)"}
+              </Text>
               <TextInput
                 style={styles.input}
                 value={monto}
@@ -223,6 +313,12 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  sectionHelp: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+    marginTop: -4,
   },
   typesGrid: {
     flexDirection: "row",
