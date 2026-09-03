@@ -8,6 +8,8 @@ from app.core.url_validator import validate_safe_return_url
 from app.core.security_audit import SecurityAudit
 from app.models.entities import Pago, Reserva, Usuario, Auto
 from app.services.transbank import TransbankService
+# BLOQUE TEMPORAL — pagos simulados (borrar con app/services/pagos_simulados.py)
+from app.services import pagos_simulados
 from app.services.auth import get_current_user
 from app.services.notificaciones import crear_notificacion
 import uuid
@@ -62,12 +64,29 @@ def iniciar_pago_webpay(
     session_id = f"SES-{current_user.id[:8]}"
     url_retorno = return_url or settings.WEBPAY_DEFAULT_RETURN_URL
 
-    resultado_tbk = TransbankService.crear_transaccion(
-        buy_order=buy_order,
-        session_id=session_id,
-        amount=monto,
-        return_url=url_retorno
-    )
+    # ===== BLOQUE TEMPORAL — PAGOS SIMULADOS ==============================
+    # Mientras no haya credenciales de Transbank se da la transacción por
+    # creada. Borrar este if junto con app/services/pagos_simulados.py.
+    if pagos_simulados.pagos_simulados_activos():
+        resultado_tbk = pagos_simulados.crear_transaccion_simulada(
+            buy_order=buy_order,
+            amount=monto,
+            return_url=url_retorno,
+        )
+        SecurityAudit.log_event(
+            "PAGO_SIMULADO_INICIADO",
+            user_id=current_user.id,
+            resource=f"reserva:{reserva_id}" if reserva_id else f"tipo:{tipo}",
+            details={"monto": monto, "tipo": tipo, "token": resultado_tbk.get("token")},
+        )
+    else:
+        resultado_tbk = TransbankService.crear_transaccion(
+            buy_order=buy_order,
+            session_id=session_id,
+            amount=monto,
+            return_url=url_retorno
+        )
+    # ======================================================================
 
     if not resultado_tbk.get("success"):
         raise HTTPException(
@@ -94,7 +113,10 @@ def iniciar_pago_webpay(
         "token": resultado_tbk.get("token"),
         "url": resultado_tbk.get("url"),
         "buy_order": buy_order,
-        "monto": monto
+        "monto": monto,
+        # BLOQUE TEMPORAL: el cliente usa esto para saltarse el navegador de
+        # Webpay y confirmar de inmediato. Borrar con el resto de la simulación.
+        "simulado": bool(resultado_tbk.get("simulado", False)),
     }
 
 @router.post("/webpay/confirmar", summary="Confirma el token devuelto por Webpay tras el pago")
@@ -108,9 +130,25 @@ def confirmar_pago_webpay(
     Recibe el token de Webpay, consulta la autorización formal con Transbank
     y actualiza el estado del pago y de la reserva correspondiente.
     """
-    resultado_tbk = TransbankService.confirmar_transaccion(token_ws)
-
     pago = db.query(Pago).filter(Pago.referencia_transbank == token_ws).first()
+
+    # ===== BLOQUE TEMPORAL — PAGOS SIMULADOS ==============================
+    # Un token con prefijo SIMULADO- se da por autorizado: así la reserva pasa
+    # a "confirmada" y el hold queda "capturado" sin pasarela real. Un token
+    # real sigue yendo a Transbank aunque la simulación esté encendida.
+    if pagos_simulados.pagos_simulados_activos() and pagos_simulados.es_token_simulado(token_ws):
+        resultado_tbk = pagos_simulados.confirmar_transaccion_simulada(
+            token_ws, monto=pago.monto if pago else 0
+        )
+        SecurityAudit.log_event(
+            "PAGO_SIMULADO_CONFIRMADO",
+            user_id=pago.usuario_id if pago else None,
+            resource=f"pago:{pago.id}" if pago else f"token:{token_ws}",
+            details={"monto": pago.monto if pago else 0, "tipo": pago.tipo if pago else None},
+        )
+    else:
+        resultado_tbk = TransbankService.confirmar_transaccion(token_ws)
+    # ======================================================================
 
     if not resultado_tbk.get("success") or not resultado_tbk.get("autorizada"):
         if pago:
@@ -135,7 +173,13 @@ def confirmar_pago_webpay(
 
     return {
         "autorizada": True,
-        "mensaje": "Pago autorizado exitosamente en Transbank Webpay.",
+        "mensaje": (
+            "Pago simulado: la pasarela real todavía no está configurada."
+            if resultado_tbk.get("simulado")
+            else "Pago autorizado exitosamente en Transbank Webpay."
+        ),
+        # BLOQUE TEMPORAL: marca de simulación, borrar con el resto.
+        "simulado": bool(resultado_tbk.get("simulado", False)),
         "pago_id": pago.id if pago else None,
         "amount": resultado_tbk.get("amount"),
         "buy_order": resultado_tbk.get("buy_order"),
