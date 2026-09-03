@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     TBK_API_KEY: str = "579B532A7440BBAB610796F8393E2D5E"
     TBK_ENVIRONMENT: str = "INTEGRACION" # INTEGRACION | PRODUCCION
 
+    # ===== BLOQUE TEMPORAL — PAGOS SIMULADOS ==============================
+    # Mientras la cuenta de Transbank no esté configurada, esto deja pasar el
+    # flujo dando el pago y la retención por aprobados, sin salir a la red.
+    # Es SOLO para pruebas: se ignora en producción (ver pagos_simulados.py).
+    # Al configurar la pasarela real, borrar esta opción junto con
+    # app/services/pagos_simulados.py y sus dos usos en app/routers/pagos.py.
+    PAGOS_SIMULADOS: bool = False
+    # ======================================================================
+
     # Storage Local Directory Fallback
     STORAGE_LOCAL_DIR: str = "./uploads"
 
