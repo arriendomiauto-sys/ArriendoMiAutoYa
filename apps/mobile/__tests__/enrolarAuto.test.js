@@ -195,19 +195,19 @@ describe("Publicar un auto · paso 2", () => {
     return tr;
   };
 
-  it("exige una tarifa mayor a cero", () => {
+  it("exige una tarifa mayor a cero y válida", () => {
     const tr = llegarAPaso2();
-    escribir(tr, "35000", "0");
+    escribir(tr, "ej. 45000", "0");
     pressText(tr, "Continuar");
 
     const t = textOf(tr);
-    expect(t).toContain("mayor a cero");
+    expect(t).toContain("La tarifa mínima es de $15.000 CLP");
     expect(t).toContain("Paso 2 de 4");
   });
 
   it("con una tarifa válida sigue al paso de fotos", () => {
     const tr = llegarAPaso2();
-    escribir(tr, "35000", "42000");
+    escribir(tr, "ej. 45000", "45000");
     pressText(tr, "Continuar");
 
     expect(textOf(tr)).toContain("Paso 3 de 4");

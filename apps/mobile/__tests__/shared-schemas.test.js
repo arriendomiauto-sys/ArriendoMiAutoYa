@@ -39,7 +39,7 @@ describe("PublicarAutoSchema", () => {
     modelo: "RAV4",
     anio: 2023,
     patente: "BBFK-42",
-    tarifa_dia: 42000,
+    tarifa_dia: 40000,
     ubicacion_base: "Los Ángeles",
   };
 
@@ -47,8 +47,10 @@ describe("PublicarAutoSchema", () => {
     expect(PublicarAutoSchema.safeParse(base).success).toBe(true);
   });
 
-  it("rechaza tarifa <= 0 y año fuera de rango", () => {
+  it("rechaza tarifa <= 0, menor a 15000, no múltiplo de 5000 y año fuera de rango", () => {
     expect(PublicarAutoSchema.safeParse({ ...base, tarifa_dia: 0 }).success).toBe(false);
+    expect(PublicarAutoSchema.safeParse({ ...base, tarifa_dia: 10000 }).success).toBe(false);
+    expect(PublicarAutoSchema.safeParse({ ...base, tarifa_dia: 42000 }).success).toBe(false); // No múltiplo de $5.000
     expect(PublicarAutoSchema.safeParse({ ...base, anio: 1990 }).success).toBe(false);
   });
 });

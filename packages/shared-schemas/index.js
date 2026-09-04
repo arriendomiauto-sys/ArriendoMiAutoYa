@@ -88,13 +88,28 @@ const PublicarAutoSchema = z.object({
   patente: z.string().refine(validarPatenteChilena, {
     message: "Patente chilena inválida (ej. ABCD-12 o AB-12-34)",
   }),
-  tarifa_dia: z.number().positive("La tarifa diaria debe ser mayor a 0"),
-  ubicacion_base: z.string().min(3, "Ubicación base requerida en Los Ángeles"),
+  categoria: z.enum(["economico", "sedan", "suv", "camioneta", "premium"]).optional(),
+  tarifa_dia: z
+    .number()
+    .positive("La tarifa diaria debe ser mayor a 0")
+    .min(15000, "La tarifa mínima es de $15.000 CLP")
+    .refine((val) => val % 5000 === 0, {
+      message: "La tarifa diaria debe ser en tramos de $5.000 CLP",
+    }),
+  ubicacion_base: z.string().min(3, "Ubicación base requerida"),
   fotos: z.array(z.string().url()).min(1, "Debe incluir al menos una foto del vehículo").optional(),
 });
 
 const EditarAutoSchema = z.object({
-  tarifa_dia: z.number().positive("La tarifa debe ser positiva").optional(),
+  categoria: z.enum(["economico", "sedan", "suv", "camioneta", "premium"]).optional(),
+  tarifa_dia: z
+    .number()
+    .positive("La tarifa debe ser positiva")
+    .min(15000, "La tarifa mínima es de $15.000 CLP")
+    .refine((val) => val % 5000 === 0, {
+      message: "La tarifa diaria debe ser en tramos de $5.000 CLP",
+    })
+    .optional(),
   estado: z.enum(["activo", "pausado", "mantenimiento"]).optional(),
   ubicacion_base: z.string().min(3).optional(),
   fotos: z.array(z.string().url()).optional(),

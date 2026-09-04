@@ -57,7 +57,11 @@ export async function optimizarImagen(uri, { maxAncho = ANCHO_MAXIMO_FOTO, calid
       format: ImageManipulator.SaveFormat.JPEG,
     });
     return out?.uri || uri;
-  } catch {
+  } catch (err) {
+    // Este fallback subía el original de 3-8 MB en silencio — exactamente
+    // el escenario que hace que una subida se sienta "sin conexión" en una
+    // red lenta, sin dejar ningún rastro para diagnosticarlo después.
+    console.warn("[optimizarImagen] no se pudo comprimir, subiendo el original sin optimizar:", err?.message);
     return uri;
   }
 }

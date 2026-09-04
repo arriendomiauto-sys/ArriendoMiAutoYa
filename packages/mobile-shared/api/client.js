@@ -3,7 +3,7 @@ import { getAccessToken, refreshAccessToken } from "./supabase";
 
 const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
-  "https://api.arriendatuauto.com/api/v1";
+  "https://arriendomiautoya.onrender.com/api/v1";
 
 // Autos de respaldo SOLO para modo offline (backend inalcanzable). Los
 // campos siguen el mismo shape que devuelve GET /autos (AutoOut) para que
@@ -39,8 +39,34 @@ export const MOCK_CARS = [
  * cada request. Los métodos de lectura pública (getAutos/getAuto) no
  * requieren sesión.
  */
+// El backend vive en el plan gratuito de Render: se duerme tras ~15 min sin
+// tráfico y tarda entre 20 y 50 segundos en despertar en el peor caso. Antes
+// esto se cubría con 2 reintentos separados por 1.8s (~3.6s en total), que no
+// alcanza ni de cerca — el primer request del día fallaba con "no se pudo
+// conectar" aunque el servidor estuviera sano, solo dormido. Este backoff
+// creciente suma ~35s de espera antes de rendirse, que sí cubre un cold
+// start real. Es el default para requests normales (JSON, chicos).
+const ESPERAS_REINTENTO_MS =
+  process.env.NODE_ENV === "test" ? [10, 10] : [2000, 3000, 5000, 8000, 13000];
+
+// Subir una foto es distinto: si se corta porque la transferencia va lenta
+// (señal débil, no porque el servidor esté dormido), reintentar con esperas
+// largas de varios segundos no ayuda en nada — es la MISMA foto pesada por
+// la MISMA conexión lenta, va a volver a tardar/cortarse igual. Un solo
+// reintento rápido alcanza; subirImagenOptimizada ya tiene su propio
+// reintento por encima de este.
+const ESPERAS_REINTENTO_SUBIDA_MS = process.env.NODE_ENV === "test" ? [10] : [1500];
+
+// Sin esto, una subida en una red lenta puede quedar colgada minutos enteras
+// esperando que el sistema operativo se rinda solo — el usuario ve la app
+// "trabada" sin ningún mensaje. 45s es generoso para una foto ya optimizada
+// (200-400 KB) incluso en una conexión mala; 20s alcanza de sobra para
+// cualquier otro request (JSON, sin archivos).
+const TIMEOUT_JSON_MS = 20000;
+const TIMEOUT_SUBIDA_MS = 45000;
+
 export class ApiClient {
-  static async request(endpoint, options = {}, { reintentoDeAuth = false, reintentosRed = 2 } = {}) {
+  static async request(endpoint, options = {}, { reintentoDeAuth = false, intento = 0, esSubida = false } = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = await getAccessToken();
 
@@ -49,31 +75,50 @@ export class ApiClient {
     if (!isFormData) headers["Content-Type"] = "application/json";
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
+    const esperas = esSubida ? ESPERAS_REINTENTO_SUBIDA_MS : ESPERAS_REINTENTO_MS;
+    const timeoutMs = esSubida ? TIMEOUT_SUBIDA_MS : TIMEOUT_JSON_MS;
+    const controlador = new AbortController();
+    const timer = setTimeout(() => controlador.abort(), timeoutMs);
+
     let response;
+    let seAgotoElTiempo = false;
     try {
-      response = await fetch(url, { ...options, headers });
+      response = await fetch(url, { ...options, headers, signal: controlador.signal });
     } catch (netErr) {
+      seAgotoElTiempo = controlador.signal.aborted;
       // Si el backend está en cold start (Render despertando) o hubo un microcorte,
       // reintentamos automáticamente antes de lanzar el error a la pantalla.
-      if (reintentosRed > 0) {
-        await new Promise((r) => setTimeout(r, 1800));
+      if (intento < esperas.length) {
+        await new Promise((r) => setTimeout(r, esperas[intento]));
         return await this.request(endpoint, options, {
           reintentoDeAuth,
-          reintentosRed: reintentosRed - 1,
+          intento: intento + 1,
+          esSubida,
         });
       }
 
-      // fetch solo tira cuando no se pudo ni contactar al servidor: URL mal
-      // configurada, backend caído, o el teléfono no alcanza esa dirección.
-      const err = new Error(
-        `No se pudo conectar con el servidor (${API_BASE_URL}). ` +
-          "Revisa tu conexión y que la app apunte a una URL accesible desde el teléfono."
-      );
+      // Distinguir "se cortó porque tardaba demasiado" (típico de una subida
+      // en mala señal) de "no se pudo ni contactar al servidor" (URL mal
+      // configurada, backend caído, o el teléfono no alcanza esa dirección)
+      // — son causas distintas y el mensaje genérico de "sin conexión"
+      // confundía a alguien que sí tenía señal, solo lenta.
+      const err = seAgotoElTiempo
+        ? new Error(
+            esSubida
+              ? "La subida está tardando demasiado. Revisa tu señal e inténtalo de nuevo."
+              : "El servidor está tardando en responder. Revisa tu conexión e inténtalo de nuevo."
+          )
+        : new Error(
+            `No se pudo conectar con el servidor (${API_BASE_URL}). ` +
+              "Revisa tu conexión y que la app apunte a una URL accesible desde el teléfono."
+          );
       // Marca explícita para distinguir "no llegué al servidor" de "el
       // servidor respondió mal": son dos fallas distintas y las pantallas
       // reaccionan distinto (modo demo vs. error con reintento).
       err.esFalloDeConexion = true;
       throw err;
+    } finally {
+      clearTimeout(timer);
     }
 
     // Un 401 con sesión guardada casi nunca significa "no estás logueado":
@@ -83,7 +128,7 @@ export class ApiClient {
     if (response.status === 401 && token && !reintentoDeAuth) {
       const tokenNuevo = await refreshAccessToken();
       if (tokenNuevo) {
-        return await this.request(endpoint, options, { reintentoDeAuth: true });
+        return await this.request(endpoint, options, { reintentoDeAuth: true, esSubida });
       }
     }
 
@@ -530,7 +575,7 @@ export class ApiClient {
     }
     formData.append("bucket", bucket);
 
-    return this.request("/storage/upload", { method: "POST", body: formData });
+    return this.request("/storage/upload", { method: "POST", body: formData }, { esSubida: true });
   }
 
   static getContratoPdfUrl(reservaId) {

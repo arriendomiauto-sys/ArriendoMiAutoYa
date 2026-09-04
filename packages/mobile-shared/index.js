@@ -31,6 +31,15 @@ export { DocumentCameraModal } from "./components/DocumentCameraModal";
 export { ReferralCodeCard } from "./components/ReferralCodeCard";
 export { FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "./vehiculo/fotosAuto";
 export {
+  TIPOS_VEHICULO,
+  PASO_PRECIO_CLP,
+  TARIFA_MINIMA_CLP,
+  TARIFA_MAXIMA_CLP,
+  redondearATramo5000,
+  obtenerConfiguracionTipo,
+  calcularDesgloseIva,
+} from "./vehiculo/catalogoPrecios";
+export {
   optimizarImagen,
   subirImagenOptimizada,
   subirImagenesOptimizadas,

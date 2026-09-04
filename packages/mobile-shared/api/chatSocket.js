@@ -11,7 +11,7 @@ import { getAccessToken } from "./supabase";
 
 const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
-  "https://api.arriendatuauto.com/api/v1";
+  "https://arriendomiautoya.onrender.com/api/v1";
 
 /** Obtiene el origen base del servidor (quitando el path /api/v1) */
 function getSocketBaseUrl() {

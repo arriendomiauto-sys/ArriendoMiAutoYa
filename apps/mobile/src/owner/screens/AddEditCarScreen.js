@@ -30,6 +30,13 @@ import {
   subirImagenesOptimizadas,
   showAlert,
   CampoConSugerencias,
+  TIPOS_VEHICULO,
+  PASO_PRECIO_CLP,
+  TARIFA_MINIMA_CLP,
+  TARIFA_MAXIMA_CLP,
+  redondearATramo5000,
+  obtenerConfiguracionTipo,
+  calcularDesgloseIva,
 } from "@rentacar/mobile-shared";
 import { validarPatenteChilena } from "@rentacar/shared-schemas";
 import {
@@ -332,7 +339,8 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     modelo: "",
     anio: "2023",
     patente: "",
-    tarifa_dia: "35000",
+    categoria: "sedan",
+    tarifa_dia: "40000",
     // Sin punto por defecto: si todos los autos nacen en Plaza de Armas,
     // todos los pines caen encima del mismo lugar y el mapa deja de decir
     // dónde está cada auto. El dueño fija el punto con el GPS o tocando el
@@ -342,7 +350,6 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     longitud: null,
     transmision: "automatica",
     combustible: "bencina",
-    categoria: "sedan",
     asientos: "5",
     puertas: "4",
     equipamiento: { ac: true, bluetooth: true, isofix: false, doble_traccion: false, camara_retroceso: true },
@@ -361,6 +368,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     const e = {};
     if (!form.marca.trim()) e.marca = "Elige la marca de tu auto.";
     if (!form.modelo.trim()) e.modelo = "Escribe el modelo, como aparece en el padrón.";
+    if (!form.categoria) e.categoria = "Selecciona el tipo de vehículo.";
 
     const anio = parseInt(form.anio, 10);
     if (!form.anio.trim()) e.anio = "Falta el año.";
@@ -385,14 +393,19 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     }
 
     const tarifa = parseInt(form.tarifa_dia, 10);
-    if (!form.tarifa_dia.trim()) e.tarifa_dia = "Define cuánto quieres cobrar por día.";
-    else if (Number.isNaN(tarifa) || tarifa <= 0) e.tarifa_dia = "La tarifa debe ser mayor a cero.";
+    if (!form.tarifa_dia || !form.tarifa_dia.trim()) {
+      e.tarifa_dia = "Define cuánto quieres cobrar por día.";
+    } else if (Number.isNaN(tarifa) || tarifa < TARIFA_MINIMA_CLP) {
+      e.tarifa_dia = `La tarifa mínima es de $${TARIFA_MINIMA_CLP.toLocaleString("es-CL")} CLP al día.`;
+    } else if (tarifa % PASO_PRECIO_CLP !== 0) {
+      e.tarifa_dia = `La tarifa debe ser en tramos de $${PASO_PRECIO_CLP.toLocaleString("es-CL")} CLP (ej. $35.000, $40.000).`;
+    }
 
     return e;
   })();
 
   const CAMPOS_POR_PASO = {
-    1: ["marca", "modelo", "anio", "patente", "ubicacion_base", "punto"],
+    1: ["marca", "modelo", "categoria", "anio", "patente", "ubicacion_base", "punto"],
     2: ["tarifa_dia"],
   };
   const errorDe = (campo) => {
@@ -402,8 +415,10 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
   const tienePunto = typeof form.latitud === "number" && typeof form.longitud === "number";
 
-  const tarifaNum = parseInt(form.tarifa_dia, 10) || 35000;
-  const gananciaNeta = Math.round(tarifaNum * 0.8);
+  const configTipo = obtenerConfiguracionTipo(form.categoria);
+  const tarifaNum = redondearATramo5000(form.tarifa_dia || configTipo.tarifaDefault);
+  const desgloseFinanciero = calcularDesgloseIva(tarifaNum);
+  const gananciaNeta = desgloseFinanciero.gananciaDueno;
   const docsCargados = DOCS_OBLIGATORIOS.filter((d) => form.docs[d.key]).length;
   const docsBloqueantes = DOCS.filter((d) => validacionDocs[d.key]?.bloquea);
 
@@ -847,6 +862,63 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                 error={errorDe("modelo")}
               />
               <MensajeError texto={errorDe("modelo")} />
+
+              {/* Selector Destacado de Tipo de Vehículo */}
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Tipo de vehículo / Categoría</Text>
+                <View style={styles.tipoVehiculoGrid}>
+                  {TIPOS_VEHICULO.map((tipo) => {
+                    const seleccionado = form.categoria === tipo.id;
+                    return (
+                      <TouchableOpacity
+                        key={tipo.id}
+                        style={[styles.tipoCard, seleccionado && styles.tipoCardSelected]}
+                        onPress={() => {
+                          setForm((prev) => {
+                            const configAnterior = obtenerConfiguracionTipo(prev.categoria);
+                            const tarifaActual = parseInt(prev.tarifa_dia, 10);
+                            const debiaActualizar =
+                              !prev.tarifa_dia || tarifaActual === configAnterior.tarifaDefault;
+                            return {
+                              ...prev,
+                              categoria: tipo.id,
+                              tarifa_dia: debiaActualizar ? tipo.tarifaDefault.toString() : prev.tarifa_dia,
+                            };
+                          });
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.tipoCardTop}>
+                          <View style={[styles.tipoIconBox, seleccionado && styles.tipoIconBoxSelected]}>
+                            <Icon
+                              name={tipo.icon}
+                              size={15}
+                              color={seleccionado ? colors.accent : colors.textSilver}
+                            />
+                          </View>
+                          <Text style={[styles.tipoTitle, seleccionado && styles.tipoTitleSelected]}>
+                            {tipo.label}
+                          </Text>
+                          {seleccionado && (
+                            <View style={styles.tipoCheckBadge}>
+                              <Icon name="check" size={10} color={colors.primary900} />
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.tipoDesc}>{tipo.descripcion}</Text>
+                        <View style={styles.tipoFooter}>
+                          <Text style={styles.tipoRango}>
+                            Sugerido: ${tipo.rangoMin.toLocaleString("es-CL")} - ${tipo.rangoMax.toLocaleString("es-CL")} / día
+                          </Text>
+                          <Text style={styles.tipoEjemplos}>Ej. {tipo.ejemplos}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <MensajeError texto={errorDe("categoria")} />
+              </View>
+
               <View style={styles.row}>
                 <View style={[styles.field, { flex: 1 }]}>
                   <Text style={styles.fieldLabel}>Año</Text>
@@ -933,11 +1005,6 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                   <MapView
                     ref={mapaRef}
                     style={styles.miniMap}
-                    // initialRegion, NO region: con `region` controlado el mapa
-                    // vuelve a la posición y al zoom del estado en cada render,
-                    // así que acercarse para poner el pin en la esquina exacta
-                    // era imposible. La cámara se mueve a propósito con
-                    // centrarMapa(), y el resto del tiempo manda el usuario.
                     initialRegion={{
                       latitude: form.latitud ?? PUNTO_INICIAL.latitude,
                       longitude: form.longitud ?? PUNTO_INICIAL.longitude,
@@ -984,25 +1051,130 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
           {step === 2 && (
             <View style={styles.card}>
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Tarifa por día (CLP)</Text>
-                <TextInput
-                  style={[styles.input, errorDe("tarifa_dia") && styles.inputError]}
-                  placeholder="35000"
-                  placeholderTextColor={colors.textSilver}
-                  value={form.tarifa_dia}
-                  onChangeText={(t) => setForm((prev) => ({ ...prev, tarifa_dia: t }))}
-                  onFocus={handleFieldFocus}
-                  keyboardType="number-pad"
-                />
+              {/* Resumen de Categoría y Rango Sugerido */}
+              <View style={styles.tarifaHeaderBox}>
+                <View style={styles.tarifaCatBadge}>
+                  <Icon name={configTipo.icon} size={14} color={colors.accent} />
+                  <Text style={styles.tarifaCatText}>{configTipo.label}</Text>
+                </View>
+                <Text style={styles.tarifaRangoInfo}>
+                  Sugerido: ${configTipo.rangoMin.toLocaleString("es-CL")} a ${configTipo.rangoMax.toLocaleString("es-CL")} / día (IVA incl.)
+                </Text>
+              </View>
+
+              {/* Control de Tarifa con Stepper en Tramos de $5.000 */}
+              <View style={styles.tarifaCardPrincipal}>
+                <Text style={styles.tarifaCardTitle}>Tarifa diaria del vehículo</Text>
+                <View style={styles.stepperContainer}>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => {
+                      const actual = parseInt(form.tarifa_dia, 10) || configTipo.tarifaDefault;
+                      const nuevo = Math.max(TARIFA_MINIMA_CLP, actual - PASO_PRECIO_CLP);
+                      setForm((p) => ({ ...p, tarifa_dia: nuevo.toString() }));
+                    }}
+                    activeOpacity={0.8}
+                    accessibilityLabel="Disminuir tarifa en cinco mil pesos"
+                  >
+                    <Icon name="minus" size={18} color={colors.accent} />
+                    <Text style={styles.stepperBtnText}>-$5.000</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.stepperValueBox}>
+                    <Text style={styles.stepperMonto}>${tarifaNum.toLocaleString("es-CL")}</Text>
+                    <Text style={styles.stepperMontoSub}>CLP / día (IVA 19% incl.)</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => {
+                      const actual = parseInt(form.tarifa_dia, 10) || configTipo.tarifaDefault;
+                      const nuevo = Math.min(TARIFA_MAXIMA_CLP, actual + PASO_PRECIO_CLP);
+                      setForm((p) => ({ ...p, tarifa_dia: nuevo.toString() }));
+                    }}
+                    activeOpacity={0.8}
+                    accessibilityLabel="Aumentar tarifa en cinco mil pesos"
+                  >
+                    <Icon name="plus" size={18} color={colors.accent} />
+                    <Text style={styles.stepperBtnText}>+$5.000</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Píldoras de Precios Sugeridos para la Categoría */}
+                <Text style={styles.pillsLabel}>Precios sugeridos en tramos de $5.000 ({configTipo.labelCorto}):</Text>
+                <View style={styles.pillsRow}>
+                  {configTipo.preciosSugeridos.map((precio) => {
+                    const esActivo = parseInt(form.tarifa_dia, 10) === precio;
+                    return (
+                      <TouchableOpacity
+                        key={precio}
+                        style={[styles.precioPill, esActivo && styles.precioPillActive]}
+                        onPress={() => setForm((p) => ({ ...p, tarifa_dia: precio.toString() }))}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.precioPillText, esActivo && styles.precioPillTextActive]}>
+                          ${precio.toLocaleString("es-CL")}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Ajuste manual directo con auto-redondeo a múltiplos de $5.000 */}
+                <View style={styles.inputManualRow}>
+                  <Text style={styles.inputManualLabel}>O escribe un monto directo:</Text>
+                  <TextInput
+                    style={[styles.inputManual, errorDe("tarifa_dia") && styles.inputError]}
+                    placeholder="ej. 45000"
+                    placeholderTextColor={colors.textSilver}
+                    value={form.tarifa_dia}
+                    onChangeText={(t) => setForm((prev) => ({ ...prev, tarifa_dia: t }))}
+                    onBlur={() => {
+                      if (form.tarifa_dia) {
+                        const redondeado = redondearATramo5000(form.tarifa_dia);
+                        setForm((prev) => ({ ...prev, tarifa_dia: redondeado.toString() }));
+                      }
+                    }}
+                    onFocus={handleFieldFocus}
+                    keyboardType="number-pad"
+                  />
+                </View>
                 <MensajeError texto={errorDe("tarifa_dia")} />
               </View>
 
+              {/* Desglose Financiero con IVA (19%) y Liquidación al Dueño (80%) */}
               <View style={styles.profitBox}>
-                <Text style={styles.profitLabel}>Recibes por día (80%)</Text>
-                <Text style={styles.profitAmount}>${gananciaNeta.toLocaleString("es-CL")}</Text>
+                <View style={styles.profitHeadRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.profitLabel}>Recibes por día (80%)</Text>
+                    <Text style={styles.profitAmount}>${desgloseFinanciero.gananciaDueno.toLocaleString("es-CL")}</Text>
+                  </View>
+                  <View style={styles.ivaBadge}>
+                    <Text style={styles.ivaBadgeText}>IVA 19% Incluido</Text>
+                  </View>
+                </View>
+
+                <View style={styles.desgloseDivider} />
+
+                <View style={styles.desgloseFila}>
+                  <Text style={styles.desgloseTxt}>Tarifa diaria cobrada al cliente:</Text>
+                  <Text style={styles.desgloseVal}>${desgloseFinanciero.tarifaBruta.toLocaleString("es-CL")}</Text>
+                </View>
+                <View style={styles.desgloseFila}>
+                  <Text style={styles.desgloseTxtSub}>• Valor neto:</Text>
+                  <Text style={styles.desgloseValSub}>${desgloseFinanciero.subtotalNeto.toLocaleString("es-CL")}</Text>
+                </View>
+                <View style={styles.desgloseFila}>
+                  <Text style={styles.desgloseTxtSub}>• IVA (19%):</Text>
+                  <Text style={styles.desgloseValSub}>${desgloseFinanciero.ivaMonto.toLocaleString("es-CL")}</Text>
+                </View>
+                <View style={styles.desgloseFila}>
+                  <Text style={styles.desgloseTxtSub}>• Comisión plataforma (20%):</Text>
+                  <Text style={styles.desgloseValSub}>-${desgloseFinanciero.comisionPlataforma.toLocaleString("es-CL")}</Text>
+                </View>
+
                 <Text style={styles.profitDesc}>
-                  La plataforma retiene 20% por seguro, verificación y soporte 24/7.
+                  La plataforma retiene 20% por cobertura de seguro, verificación de identidad y soporte 24/7.
                 </Text>
               </View>
 
@@ -1030,18 +1202,6 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                     label={o.label}
                     selected={form.combustible === o.v}
                     onPress={() => setForm((p) => ({ ...p, combustible: o.v }))}
-                  />
-                ))}
-              </View>
-              <Text style={styles.specGroupLabel}>Categoría</Text>
-              <View style={styles.chipsRow}>
-                {CATEGORIAS.map((o) => (
-                  <Chip
-                    key={o.v}
-                    tone="dark"
-                    label={o.label}
-                    selected={form.categoria === o.v}
-                    onPress={() => setForm((p) => ({ ...p, categoria: o.v }))}
                   />
                 ))}
               </View>
@@ -1594,4 +1754,276 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   noMapText: { color: colors.textSilver, fontSize: 13, fontWeight: "500" },
+  // Estilos del Selector de Tipo de Vehículo
+  tipoVehiculoGrid: {
+    gap: 8,
+    marginTop: 4,
+  },
+  tipoCard: {
+    backgroundColor: colors.darkCardSubtle,
+    borderRadius: theme.radius.card,
+    borderWidth: 1.5,
+    borderColor: colors.darkBorder,
+    padding: 12,
+    gap: 4,
+  },
+  tipoCardSelected: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(47, 191, 155, 0.08)",
+  },
+  tipoCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  tipoIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipoIconBoxSelected: {
+    backgroundColor: "rgba(47, 191, 155, 0.2)",
+  },
+  tipoTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.textWhite,
+    flex: 1,
+  },
+  tipoTitleSelected: {
+    color: colors.accent,
+  },
+  tipoCheckBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipoDesc: {
+    fontSize: 12,
+    color: colors.textSilver,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  tipoFooter: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+    gap: 2,
+  },
+  tipoRango: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.accent,
+  },
+  tipoEjemplos: {
+    fontSize: 11,
+    color: colors.darkTextMuted,
+    fontStyle: "italic",
+  },
+  // Estilos de Tarifa & Stepper de $5.000
+  tarifaHeaderBox: {
+    backgroundColor: "rgba(47, 191, 155, 0.08)",
+    padding: 12,
+    borderRadius: theme.radius.card,
+    borderWidth: 1,
+    borderColor: "rgba(47, 191, 155, 0.25)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  tarifaCatBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(47, 191, 155, 0.2)",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  tarifaCatText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.accent,
+  },
+  tarifaRangoInfo: {
+    fontSize: 12,
+    color: colors.textSilver,
+    fontWeight: "500",
+  },
+  tarifaCardPrincipal: {
+    backgroundColor: colors.darkCardSubtle,
+    borderRadius: theme.radius.card,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+    padding: 14,
+    gap: 12,
+  },
+  tarifaCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.textWhite,
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.darkBg,
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: colors.darkBorderStrong,
+    padding: 6,
+  },
+  stepperBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: "rgba(47, 191, 155, 0.15)",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(47, 191, 155, 0.3)",
+  },
+  stepperBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.accent,
+  },
+  stepperValueBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
+  stepperMonto: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: colors.textWhite,
+    letterSpacing: -0.5,
+  },
+  stepperMontoSub: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: colors.accent,
+    marginTop: 1,
+  },
+  pillsLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSilver,
+  },
+  pillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  precioPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: colors.darkBg,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+  },
+  precioPillActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  precioPillText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textSilver,
+  },
+  precioPillTextActive: {
+    color: colors.primary900,
+    fontWeight: "800",
+  },
+  inputManualRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+  },
+  inputManualLabel: {
+    fontSize: 12,
+    color: colors.textSilver,
+    flex: 1,
+  },
+  inputManual: {
+    backgroundColor: colors.darkBg,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: 12,
+    height: 38,
+    borderWidth: 1,
+    borderColor: colors.darkBorderStrong,
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.textWhite,
+    width: 120,
+    textAlign: "right",
+  },
+  // Desglose Financiero con IVA 19%
+  profitHeadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  ivaBadge: {
+    backgroundColor: "rgba(47, 191, 155, 0.15)",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(47, 191, 155, 0.3)",
+  },
+  ivaBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.accent,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  desgloseDivider: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    marginVertical: 6,
+  },
+  desgloseFila: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 2,
+  },
+  desgloseTxt: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textWhite,
+  },
+  desgloseVal: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textWhite,
+  },
+  desgloseTxtSub: {
+    fontSize: 11,
+    color: colors.textSilver,
+  },
+  desgloseValSub: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.textSilver,
+  },
 });
