@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, ActivityIndicator, Animated } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { BrandLogo } from "../components/BrandLogo";
@@ -31,9 +31,18 @@ export function SwitchingScreen({
   const text = dark ? colors.textWhite : colors.text;
   const muted = dark ? colors.darkTextMuted : colors.textMuted;
 
-  return (
-    <View
-      style={[styles.container, { backgroundColor: bg }, overlay && StyleSheet.absoluteFillObject]}
+  // Entra con un fundido corto. El título cambia (rol, cuenta, sesión) sin
+  // que la pantalla se desmonte, así que también sirve como transición
+  // suave entre un mensaje y el siguiente en vez de un corte seco de texto.
+  const entrada = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    entrada.setValue(0);
+    Animated.timing(entrada, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+  }, [entrada, title]);
+
+  const contenido = (
+    <Animated.View
+      style={[styles.container, { backgroundColor: bg, opacity: entrada }]}
       accessibilityRole="progressbar"
       accessibilityLabel={title}
     >
@@ -43,11 +52,34 @@ export function SwitchingScreen({
         {subtitle ? <Text style={[styles.subtitle, { color: muted }]}>{subtitle}</Text> : null}
       </View>
       <ActivityIndicator size="small" color={dark ? colors.accent : colors.primary} />
+    </Animated.View>
+  );
+
+  // `position:absolute` va en un envoltorio APARTE del que tiene `flex:1` +
+  // la opacidad animada — mezclarlos en el mismo array de estilos dejaba,
+  // en algunos builds de Android, la transición partiendo el alto en dos
+  // con su hermano en vez de taparlo entero (se veía la pantalla de atrás
+  // arriba y esto abajo). `elevation` es lo que de verdad decide el orden
+  // de apilado en Android entre hermanos absolutos — el orden de render
+  // solo alcanza en iOS.
+  if (!overlay) return contenido;
+  return (
+    <View style={styles.overlayWrap} pointerEvents="auto">
+      {contenido}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlayWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+    elevation: 999,
+  },
   container: {
     flex: 1,
     alignItems: "center",

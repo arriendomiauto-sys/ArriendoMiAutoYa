@@ -17,6 +17,7 @@ import {
   ApiClient,
   showAlert,
   PreCheckinModal,
+  SegundoConductorModal,
 } from "@rentacar/mobile-shared";
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
@@ -49,6 +50,7 @@ export function ActiveRentalScreen({
   const insets = useSafeAreaInsets();
   const [res, setRes] = useState(reservation || {});
   const [modalPrecheck, setModalPrecheck] = useState(false);
+  const [modalSegundoConductor, setModalSegundoConductor] = useState(false);
   const car = res.car || res.auto || {};
   const montoHold = res.monto_hold || 0;
   const nombre = [car.marca, car.modelo, car.anio].filter(Boolean).join(" ") || "Auto";
@@ -62,19 +64,22 @@ export function ActiveRentalScreen({
     <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>{children}</View>
   );
 
-  // La reserva "pendiente" sigue esperando que se autorice el hold en Webpay.
+  // La reserva "pendiente" sigue esperando que se autorice la garantía en Mercado Pago.
   const reintentarPago = async () => {
     if (!res.id) return;
     setPagando(true);
     try {
       const returnUrl = WEB_URL ? `${WEB_URL}/pago/retorno` : "https://arriendatuauto.cl/pago/retorno";
-      const inicio = await ApiClient.iniciarPagoWebpay(montoHold, "hold_reserva", res.id, returnUrl);
+      const inicio = await ApiClient.iniciarPago(montoHold, "hold_reserva", res.id, returnUrl);
       if (!inicio?.url) throw new Error("La pasarela de pago no está disponible.");
       const redirect = Linking.createURL("pago-retorno");
       const r = await WebBrowser.openAuthSessionAsync(inicio.url, redirect);
       if (r.type === "success" && r.url) {
         const { queryParams } = Linking.parse(r.url);
-        const confirm = await ApiClient.confirmarPagoWebpay(queryParams?.token_ws || inicio.token);
+        const confirm = await ApiClient.confirmarPago(
+          queryParams?.payment_id || queryParams?.collection_id,
+          inicio.pago_id
+        );
         if (confirm?.autorizada) {
           setView("confirmed");
           return;
@@ -100,7 +105,7 @@ export function ActiveRentalScreen({
           <View style={styles.centerText}>
             <Text style={styles.bigTitle}>Reserva pendiente de pago</Text>
             <Text style={styles.bigSub}>
-              Falta autorizar la garantía en Webpay para confirmar tu reserva.
+              Falta autorizar la garantía en Mercado Pago para confirmar tu reserva.
             </Text>
           </View>
           <Card padded style={{ width: "100%", gap: theme.spacing.md }}>
@@ -118,7 +123,7 @@ export function ActiveRentalScreen({
         </ScrollView>
         {footer(
           <>
-            <Button label="Pagar con Webpay" iconRight="arrow-right" onPress={reintentarPago} loading={pagando} />
+            <Button label="Pagar con Mercado Pago" iconRight="arrow-right" onPress={reintentarPago} loading={pagando} />
             <Button variant="ghost" size="sm" label="Seguir mirando autos" onPress={onBack} />
           </>
         )}
@@ -192,6 +197,52 @@ export function ActiveRentalScreen({
             <Button variant="secondary" size="sm" iconLeft="chat" label="Chat" onPress={onOpenChat} fullWidth={false} />
           </Card>
 
+          {/* Segundo Conductor */}
+          <Card padded style={{ gap: 6 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="user" size={18} color={colors.primary} />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                  Segundo Conductor
+                </Text>
+              </View>
+              {res.segundo_conductor ? (
+                <Badge
+                  label={
+                    res.segundo_conductor.estado_kyc === "verificado"
+                      ? "Verificado"
+                      : res.segundo_conductor.estado_kyc === "requiere_revision_manual"
+                      ? "En revisión"
+                      : "Pendiente"
+                  }
+                  variant={
+                    res.segundo_conductor.estado_kyc === "verificado"
+                      ? "success"
+                      : res.segundo_conductor.estado_kyc === "requiere_revision_manual"
+                      ? "warning"
+                      : "neutral"
+                  }
+                />
+              ) : null}
+            </View>
+            {res.segundo_conductor ? (
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                {res.segundo_conductor.nombre} (Doc: {res.segundo_conductor.rut || res.segundo_conductor.numero_documento || "—"})
+              </Text>
+            ) : (
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                ¿Otra persona manejará el vehículo? Asígnala con verificación KYC previa.
+              </Text>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              label={res.segundo_conductor ? "Gestionar segundo conductor" : "+ Asignar segundo conductor"}
+              onPress={() => setModalSegundoConductor(true)}
+              style={{ marginTop: 4 }}
+            />
+          </Card>
+
           <View style={styles.noteTeal}>
             <Text style={styles.noteTealTitle}>Lleva tu licencia</Text>
             <Text style={styles.noteTealText}>
@@ -213,6 +264,16 @@ export function ActiveRentalScreen({
           onClose={() => setModalPrecheck(false)}
           onConfirmed={(updated) => {
             setRes((prev) => ({ ...prev, ...updated }));
+          }}
+        />
+
+        <SegundoConductorModal
+          visible={modalSegundoConductor}
+          reservaId={res.id}
+          initialData={res.segundo_conductor}
+          onClose={() => setModalSegundoConductor(false)}
+          onSaved={(sc) => {
+            setRes((prev) => ({ ...prev, segundo_conductor: sc }));
           }}
         />
       </View>
@@ -256,7 +317,7 @@ export function ActiveRentalScreen({
         {tieneCargosExtra && (
           <Card padded style={{ gap: theme.spacing.sm, borderColor: colors.warning, borderWidth: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Icon name="alert-triangle" size={18} color={colors.warning} />
+              <Icon name="alert" size={18} color={colors.warning} />
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Cargos y penalizaciones aplicadas
               </Text>
@@ -283,6 +344,15 @@ export function ActiveRentalScreen({
 
         <MenuList>
           <MenuRow icon="document" label="Ver el contrato firmado" onPress={onOpenContract} />
+          <MenuRow
+            icon="user"
+            label={
+              res.segundo_conductor
+                ? `Segundo conductor (${res.segundo_conductor.estado_kyc === "verificado" ? "Verificado" : "En revisión"})`
+                : "Asignar segundo conductor (KYC)"
+            }
+            onPress={() => setModalSegundoConductor(true)}
+          />
           <MenuRow icon="pin" label="Mi código de entrega" onPress={onStartDelivery} />
           <MenuRow icon="calendar" label="Extender arriendo" onPress={onExtendRental} />
           <MenuRow icon="shield" label="Asistencia en ruta / siniestro" onPress={onRoadsideClaim} />
@@ -303,6 +373,16 @@ export function ActiveRentalScreen({
         onClose={() => setModalPrecheck(false)}
         onConfirmed={(updated) => {
           setRes((prev) => ({ ...prev, ...updated }));
+        }}
+      />
+
+      <SegundoConductorModal
+        visible={modalSegundoConductor}
+        reservaId={res.id}
+        initialData={res.segundo_conductor}
+        onClose={() => setModalSegundoConductor(false)}
+        onSaved={(sc) => {
+          setRes((prev) => ({ ...prev, segundo_conductor: sc }));
         }}
       />
     </View>

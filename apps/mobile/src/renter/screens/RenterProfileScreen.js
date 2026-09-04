@@ -13,6 +13,9 @@ import {
   MenuRow,
   ApiClient,
   showAlert,
+  useBloqueoBiometrico,
+  hayHardwareBiometrico,
+  ReferralCodeCard,
 } from "@rentacar/mobile-shared";
 
 export function RenterProfileScreen({
@@ -26,8 +29,26 @@ export function RenterProfileScreen({
   onOpenChat,
 }) {
   const insets = useSafeAreaInsets();
-  const { currentUser, reservations, paymentMethods, logout, setMode } = useApp();
+  const { currentUser, reservations, paymentMethods, logout, setMode, isLoggedIn } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
+  const bio = useBloqueoBiometrico(isLoggedIn);
+  const [hardwareBiometrico, setHardwareBiometrico] = useState(false);
+
+  useEffect(() => {
+    hayHardwareBiometrico().then(setHardwareBiometrico);
+  }, []);
+
+  const toggleBloqueoBiometrico = async () => {
+    if (bio.activado) {
+      await bio.setActivado(false);
+      return;
+    }
+    // Antes de activarlo, se confirma que la huella/Face ID funciona en este
+    // teléfono — si no, quedaría activado un candado que nadie puede abrir.
+    const ok = await bio.intentarDesbloquear();
+    if (ok) await bio.setActivado(true);
+    else showAlert("No se pudo verificar", "Inténtalo de nuevo para activar el bloqueo biométrico.");
+  };
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -125,6 +146,8 @@ export function RenterProfileScreen({
           ]}
         />
 
+        <ReferralCodeCard />
+
         <MenuList>
           <MenuRow icon="calendar" label="Mis arriendos y comprobantes" onPress={onOpenRentalHistory} />
           <MenuRow
@@ -133,7 +156,26 @@ export function RenterProfileScreen({
             meta={verificado ? "Verificado" : enRevision ? "En revisión" : "Pendiente"}
             onPress={handleKycPress}
           />
-          <MenuRow icon="card" label="Billetera y tarjetas Webpay" onPress={onOpenPaymentMethods} />
+          <MenuRow
+            icon="card"
+            label="Tarjeta de crédito"
+            meta={
+              user.tarjeta_ultimos4
+                ? `•••• ${user.tarjeta_ultimos4}`
+                : user.tarjeta_estado === "requiere_revision_manual"
+                  ? "En revisión"
+                  : "Sin registrar"
+            }
+            onPress={onOpenPaymentMethods}
+          />
+          {hardwareBiometrico ? (
+            <MenuRow
+              icon="shield"
+              label="Bloqueo con Face ID / huella"
+              meta={bio.activado ? "Activado" : "Desactivado"}
+              onPress={toggleBloqueoBiometrico}
+            />
+          ) : null}
           <MenuRow icon="chat" label="Mensajería y coordinación" onPress={onOpenChat} />
           <MenuRow icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
           <MenuRow icon="shield" label="Asistencia en ruta 24/7" onPress={onOpenRoadsideClaim} />

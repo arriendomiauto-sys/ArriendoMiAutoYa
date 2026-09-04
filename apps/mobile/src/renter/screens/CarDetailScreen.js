@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -20,6 +21,9 @@ import {
   DateTimeField,
   formatearFechaHora,
   aISOLocal,
+  ApiClient,
+  useFavoritos,
+  urlWeb,
 } from "@rentacar/mobile-shared";
 
 // Misma regla que app/services/pricing.py:PricingService.calcular_dias_reserva
@@ -61,6 +65,16 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const [step, setStep] = useState("detail");
   const [fotoActiva, setFotoActiva] = useState(0);
   const [heroW, setHeroW] = useState(0);
+  const { esFavorito, toggle: toggleFavorito } = useFavoritos();
+
+  const compartirAuto = () => {
+    const precio = (car?.tarifa_dia || 0).toLocaleString("es-CL");
+    Share.share({
+      message:
+        `${car?.marca || ""} ${car?.modelo || ""} ${car?.anio || ""} en ${car?.ubicacion_base || "Chile"} ` +
+        `· $${precio}/día\n¡Arriéndalo en Arrienda Tu Auto! ${urlWeb()}`,
+    }).catch(() => {});
+  };
 
   const [fechaInicio, setFechaInicio] = useState(() => enDias(1, 10));
   const [fechaFin, setFechaFin] = useState(() => enDias(4, 18));
@@ -86,6 +100,32 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const tarifaDia = car?.tarifa_dia || 0;
   const dias = useMemo(() => calcularDias(fechaInicio, fechaFin), [fechaInicio, fechaFin]);
   const montoHold = tarifaDia * dias;
+
+  // Reseñas del dueño (no del auto: acá no hay calificación por vehículo,
+  // solo por persona — dos autos del mismo dueño comparten reputación).
+  const [calificaciones, setCalificaciones] = useState([]);
+  const [cargandoResenas, setCargandoResenas] = useState(true);
+  useEffect(() => {
+    let vivo = true;
+    if (!car?.dueno_id) {
+      setCargandoResenas(false);
+      return undefined;
+    }
+    ApiClient.getCalificaciones(car.dueno_id)
+      .then((datos) => {
+        if (vivo) setCalificaciones(Array.isArray(datos) ? datos : []);
+      })
+      .finally(() => {
+        if (vivo) setCargandoResenas(false);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [car?.dueno_id]);
+
+  const promedioResenas = calificaciones.length
+    ? calificaciones.reduce((suma, c) => suma + (c.puntaje || 0), 0) / calificaciones.length
+    : null;
 
   const fotos = car?.fotos?.length ? car.fotos : ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800"];
   const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
@@ -153,6 +193,31 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             >
               <Icon name="arrow-left" size={20} color={colors.primary} />
             </TouchableOpacity>
+            <View style={[styles.heroActions, { top: insets.top + 8 }]}>
+              <TouchableOpacity
+                style={styles.heroActionBtn}
+                onPress={compartirAuto}
+                hitSlop={theme.control.hitSlop}
+                accessibilityRole="button"
+                accessibilityLabel="Compartir este auto"
+              >
+                <Icon name="share" size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.heroActionBtn}
+                onPress={() => toggleFavorito(car?.id)}
+                hitSlop={theme.control.hitSlop}
+                accessibilityRole="button"
+                accessibilityLabel={esFavorito(car?.id) ? "Quitar de favoritos" : "Agregar a favoritos"}
+              >
+                <Icon
+                  name="heart"
+                  size={18}
+                  color={esFavorito(car?.id) ? colors.danger : colors.primary}
+                  fill={esFavorito(car?.id) ? colors.danger : "none"}
+                />
+              </TouchableOpacity>
+            </View>
             {fotos.length > 1 && (
               <View style={styles.dots}>
                 {fotos.map((_, i) => (
@@ -240,6 +305,63 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 </View>
               </View>
             )}
+
+            {/* Calificaciones y reseñas del dueño */}
+            {cargandoResenas ? null : calificaciones.length > 0 ? (
+              <View style={{ gap: theme.spacing.sm }}>
+                <SectionLabel>Calificaciones</SectionLabel>
+                <View style={styles.ratingSummaryRow}>
+                  <Text style={styles.ratingSummaryNum}>{promedioResenas.toFixed(1)}</Text>
+                  <View style={{ gap: 2 }}>
+                    <View style={{ flexDirection: "row" }}>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Icon
+                          key={n}
+                          name={n <= Math.round(promedioResenas) ? "star" : "star-outline"}
+                          size={14}
+                          color={colors.warning}
+                        />
+                      ))}
+                    </View>
+                    <Text style={styles.ratingSummarySub}>
+                      {calificaciones.length} {calificaciones.length === 1 ? "opinión" : "opiniones"}
+                    </Text>
+                  </View>
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: theme.spacing.sm, paddingRight: theme.spacing.screen }}
+                >
+                  {calificaciones.slice(0, 10).map((r) => (
+                    <View key={r.id} style={styles.reviewCard}>
+                      <View style={styles.reviewHead}>
+                        <View style={{ flexDirection: "row" }}>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Icon
+                              key={n}
+                              name={n <= r.puntaje ? "star" : "star-outline"}
+                              size={11}
+                              color={colors.warning}
+                            />
+                          ))}
+                        </View>
+                        <Text style={styles.reviewFecha}>
+                          {new Date(r.timestamp).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+                        </Text>
+                      </View>
+                      {r.comentario ? (
+                        <Text style={styles.reviewTexto} numberOfLines={4}>
+                          {r.comentario}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.reviewAutor}>{r.autor_nombre || "Arrendatario"}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
 
             {/* Punto de Encuentro / Entrega */}
             <Card style={styles.locationCard} padded>
@@ -408,6 +530,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...theme.shadow.sm,
   },
+  heroActions: {
+    position: "absolute",
+    right: theme.spacing.screen,
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+  },
+  heroActionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...theme.shadow.sm,
+  },
   dots: { position: "absolute", bottom: 14, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 6 },
   dot: { height: 6, borderRadius: 999 },
   dotOn: { width: 20, backgroundColor: "#FFFFFF" },
@@ -446,6 +583,23 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
   },
   verifText: { fontSize: 11, fontWeight: "700", color: colors.accent800 },
+
+  ratingSummaryRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  ratingSummaryNum: { fontSize: 32, fontWeight: "800", color: colors.text, letterSpacing: -1 },
+  ratingSummarySub: { fontSize: 12, color: colors.textMuted },
+  reviewCard: {
+    width: 220,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: theme.spacing.md,
+    gap: 6,
+  },
+  reviewHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  reviewFecha: { fontSize: 11, color: colors.textMuted },
+  reviewTexto: { fontSize: 13, color: colors.text, lineHeight: 18 },
+  reviewAutor: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
 
   priceRow: {
     flexDirection: "row",

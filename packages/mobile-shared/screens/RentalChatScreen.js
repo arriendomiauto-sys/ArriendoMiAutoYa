@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
@@ -7,7 +17,11 @@ import { useApp } from "../context/AppContext";
 import { Icon } from "../components/Icon";
 import { ScreenHeader, EmptyState } from "../components/ui";
 import { ApiClient } from "../api/client";
+import { conectarChat } from "../api/chatSocket";
 
+// Red de seguridad, no el mecanismo principal: los mensajes llegan por
+// WebSocket. Este intervalo solo corre mientras el canal en vivo no esté
+// arriba (sin sesión, backend viejo, o señal cortada).
 const POLL_MS = 4000;
 const QUICK = [
   "Ya llegué al punto de encuentro",
@@ -26,7 +40,18 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [enVivo, setEnVivo] = useState(false);
   const scrollRef = useRef(null);
+  const canalRef = useRef(null);
+
+  // Un mensaje puede llegar dos veces: por el WebSocket y por el refresco
+  // REST que corre al reconectar. Se agrega por id para que no se duplique en
+  // pantalla.
+  const agregarMensaje = useCallback((nuevo) => {
+    if (!nuevo?.id) return;
+    setMessages((prev) => (prev.some((m) => m.id === nuevo.id) ? prev : [...prev, nuevo]));
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+  }, []);
 
   const auto = reservation?.auto || reservation?.car || {};
   const interlocutor = dark ? "Arrendatario" : "Dueño del vehículo";
@@ -42,22 +67,50 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     }
   }, [reservation?.id]);
 
+  // Canal en vivo. Si no levanta, `enVivo` queda en false y abajo se
+  // enciende el polling: el chat sigue funcionando igual, solo más lento.
+  useEffect(() => {
+    if (!reservation?.id) return undefined;
+    const canal = conectarChat(reservation.id, {
+      onMensaje: agregarMensaje,
+      onEstado: (estado) => {
+        setEnVivo(estado === "conectado");
+        // Al reconectar puede haberse perdido algo mientras no había canal:
+        // se vuelve a pedir el historial completo.
+        if (estado === "conectado") cargar();
+      },
+    });
+    canalRef.current = canal;
+    return () => {
+      canal.cerrar();
+      canalRef.current = null;
+    };
+  }, [reservation?.id, agregarMensaje, cargar]);
+
   useEffect(() => {
     cargar();
+    if (enVivo) return undefined;
     const t = setInterval(cargar, POLL_MS);
     return () => clearInterval(t);
-  }, [cargar]);
+  }, [cargar, enVivo]);
 
   const handleSend = async () => {
     const texto = input.trim();
     if (!texto || !reservation?.id) return;
+
+    // Por el canal en vivo el mensaje vuelve difundido por el backend, así que
+    // no hay que agregarlo a mano: llega por `onMensaje` con su id real.
+    if (canalRef.current?.enviar(texto)) {
+      setInput("");
+      return;
+    }
+
     setSending(true);
     setInput("");
     try {
-      const nuevo = await ApiClient.enviarMensaje(reservation.id, texto);
-      setMessages((prev) => [...prev, nuevo]);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      agregarMensaje(await ApiClient.enviarMensaje(reservation.id, texto));
     } catch {
+      // Devolver el texto al campo es la única forma de no perder lo escrito.
       setInput(texto);
     } finally {
       setSending(false);
@@ -92,7 +145,13 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: c.bg }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: c.bg }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      // Ver LoginScreen.js: sin este KeyboardAvoidingView explícito, el
+      // teclado tapaba la caja de mensaje entera — softwareKeyboardLayoutMode
+      // "pan" por sí solo no alcanza.
+    >
       <ScreenHeader
         tone={tone}
         title={interlocutor}
@@ -172,7 +231,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
           {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="arrow-right" size={18} color="#FFFFFF" />}
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -1,23 +1,19 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  Text,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, View } from "react-native";
 import {
   colors,
-  Icon,
   useApp,
   ApiClient,
   showAlert,
   RentalChatScreen,
+  TabBar,
+  useConversaciones,
   NotificationsScreen,
   SupportScreen,
   ContractModal,
   DeliveryScreen,
   KycScreen,
+  TarjetaScreen,
 } from "@rentacar/mobile-shared";
 
 // Screens del Dueño
@@ -33,11 +29,14 @@ import { ChatListScreen } from "./screens/ChatListScreen";
 
 export function OwnerApp() {
   const { currentUser } = useApp();
-  const insets = useSafeAreaInsets();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
   // Pestañas de Navegación del Dueño
   const [activeTab, setActiveTab] = useState("cars"); // 'cars' | 'bookings' | 'earnings' | 'chat' | 'profile'
+
+  // No leídos reales para el globo de "Mensajes". Antes el punto rojo estaba
+  // pintado a mano y se veía encendido siempre, hubiera mensajes o no.
+  const { noLeidos, refrescar: refrescarConversaciones } = useConversaciones();
 
   // Flota real del dueño autenticado (cualquier estado, no solo activos) —
   // separada del listado público del marketplace.
@@ -66,6 +65,7 @@ export function OwnerApp() {
   // Modales y Flujos Secundarios
   const [showAddCar, setShowAddCar] = useState(false);
   const [showEnrolment, setShowEnrolment] = useState(false);
+  const [showTarjeta, setShowTarjeta] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showMaintenance, setShowMaintenance] = useState(false);
   const [showDeliveryFlow, setShowDeliveryFlow] = useState(false);
@@ -90,6 +90,20 @@ export function OwnerApp() {
       );
       return;
     }
+    // Sin tarjeta validada, el backend igual va a rechazar la publicación —
+    // mejor avisar ANTES de que llene todo el formulario del auto, con una
+    // salida directa a agregarla, en vez de que se entere recién al final.
+    if (currentUser?.tarjeta_estado !== "validada") {
+      showAlert(
+        "Necesitas una tarjeta registrada",
+        "Es la garantía con la que se cobra el deducible, los cargos de la devolución y los peajes que lleguen después. Puedes agregarla ahora.",
+        [
+          { text: "Ahora no", style: "cancel" },
+          { text: "Agregar tarjeta", onPress: () => setShowTarjeta(true) },
+        ]
+      );
+      return;
+    }
     setShowAddCar(true);
   };
 
@@ -104,6 +118,10 @@ export function OwnerApp() {
           onComplete={() => setShowEnrolment(false)}
         />
       );
+    }
+
+    if (showTarjeta) {
+      return <TarjetaScreen onBack={() => setShowTarjeta(false)} onDone={() => setShowTarjeta(false)} />;
     }
 
     // Flujo Crítico de Entrega y Devolución 360°
@@ -238,6 +256,7 @@ export function OwnerApp() {
             onOpenContract={() => setActiveTab("bookings")}
             onOpenChat={() => setActiveTab("chat")}
             onOpenEnrolment={() => setShowEnrolment(true)}
+            onOpenTarjeta={() => setShowTarjeta(true)}
           />
         );
 
@@ -253,6 +272,7 @@ export function OwnerApp() {
 
       {/* Barra de Navegación Inferior Exclusiva del Dueño */}
       {!showEnrolment &&
+        !showTarjeta &&
         !showDeliveryFlow &&
         !showCalendar &&
         !showMaintenance &&
@@ -261,116 +281,23 @@ export function OwnerApp() {
         !showNotifications &&
         !showSupport &&
         !showContract && (
-        <View
-          style={[
-            styles.bottomTabBar,
-            { paddingBottom: Math.max(insets.bottom, 12) },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("cars")}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name="car"
-              size={24}
-              color={activeTab === "cars" ? colors.primary : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "cars" && styles.tabLabelActive,
-              ]}
-            >
-              Mi Flota
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("bookings")}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name="calendar"
-              size={24}
-              color={activeTab === "bookings" ? colors.primary : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "bookings" && styles.tabLabelActive,
-              ]}
-            >
-              Solicitudes
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("earnings")}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name="card"
-              size={24}
-              color={activeTab === "earnings" ? colors.primary : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "earnings" && styles.tabLabelActive,
-              ]}
-            >
-              Ganancias
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("chat")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.chatIconWrapper}>
-              <Icon
-                name="chat"
-                size={24}
-                color={activeTab === "chat" ? colors.primary : colors.textMuted}
-              />
-              <View style={styles.unreadDot} />
-            </View>
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "chat" && styles.tabLabelActive,
-              ]}
-            >
-              Mensajes
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("profile")}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name="profile"
-              size={24}
-              color={activeTab === "profile" ? colors.primary : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "profile" && styles.tabLabelActive,
-              ]}
-            >
-              Mi Perfil
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+          <TabBar
+            tabs={[
+              { id: "cars", icon: "car", label: "Mi Flota" },
+              { id: "bookings", icon: "calendar", label: "Solicitudes" },
+              { id: "earnings", icon: "card", label: "Ganancias" },
+              { id: "chat", icon: "chat", label: "Mensajes", badge: noLeidos },
+              { id: "profile", icon: "profile", label: "Mi Perfil" },
+            ]}
+            activeTab={activeTab}
+            onChange={(id) => {
+              setActiveTab(id);
+              // Salir de Mensajes es el momento en que los no leídos
+              // cambiaron: el backend los marcó al abrir la conversación.
+              if (activeTab === "chat" && id !== "chat") refrescarConversaciones();
+            }}
+          />
+        )}
 
       {/* Modal de Contrato (RN Modal: se monta en su propia capa) */}
       {showContract && (
@@ -394,39 +321,5 @@ const styles = StyleSheet.create({
   },
   screenContainer: {
     flex: 1,
-  },
-  bottomTabBar: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingTop: 10,
-  },
-  tabItem: {
-    alignItems: "center",
-    gap: 4,
-    minWidth: 58,
-  },
-  tabLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  tabLabelActive: {
-    fontWeight: "600",
-    color: colors.primary,
-  },
-  chatIconWrapper: {
-    position: "relative",
-  },
-  unreadDot: {
-    position: "absolute",
-    top: -2,
-    right: -3,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.danger,
   },
 });

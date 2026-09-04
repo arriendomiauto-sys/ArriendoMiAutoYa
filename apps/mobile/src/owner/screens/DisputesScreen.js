@@ -1,5 +1,16 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, theme, Chip, Badge, Button, EmptyState, ScreenHeader, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
@@ -10,13 +21,44 @@ const MOTIVOS = [
 ];
 const LABEL = Object.fromEntries(MOTIVOS.map((m) => [m.id, m.label]));
 
+// Estados que devuelve TicketSoporte.estado, traducidos al badge que ve el
+// dueño. Antes esto vivía solo en memoria del componente: cerrar la app
+// perdía el historial completo de reclamos, y el estado real (si soporte ya
+// lo resolvió, si escaló a disputa formal) nunca se reflejaba.
+const ESTADO_BADGE = {
+  abierto: { variant: "warning", label: "Recibido" },
+  en_revision: { variant: "info", label: "En revisión" },
+  cerrado: { variant: "success", label: "Cerrado" },
+  escalado_a_disputa: { variant: "danger", label: "Escalado a disputa" },
+};
+
 export function DisputesScreen({ onBack }) {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState("activas");
   const [motivo, setMotivo] = useState("multa_tag");
   const [form, setForm] = useState({ monto: "", reservaId: "", folio: "", descripcion: "" });
   const [enviando, setEnviando] = useState(false);
-  const [enviados, setEnviados] = useState([]);
+
+  const [tickets, setTickets] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
+
+  const cargarTickets = useCallback(async () => {
+    setCargando(true);
+    try {
+      const datos = await ApiClient.getMisTicketsSoporte();
+      setTickets(Array.isArray(datos) ? datos : []);
+      setError(null);
+    } catch (err) {
+      setError(err.message || "No pudimos cargar tus reclamos.");
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarTickets();
+  }, [cargarTickets]);
 
   const set = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -35,7 +77,9 @@ export function DisputesScreen({ onBack }) {
         `Detalle: ${form.descripcion.trim()}`,
       ].filter(Boolean).join("\n");
       const ticket = await ApiClient.crearTicketSoporte("Reclamo de garantía (Dueño)", detalle);
-      setEnviados((p) => [ticket, ...p]);
+      // Se agrega de inmediato (no hace falta esperar el próximo refresco
+      // para verlo) y de todos modos queda persistido en el backend.
+      setTickets((p) => [ticket, ...p]);
       setForm({ monto: "", reservaId: "", folio: "", descripcion: "" });
       showAlert(
         "Reclamo ingresado",
@@ -50,7 +94,7 @@ export function DisputesScreen({ onBack }) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ScreenHeader
         tone="dark"
         title="Disputas y garantías"
@@ -59,35 +103,58 @@ export function DisputesScreen({ onBack }) {
       />
 
       <View style={styles.tabs}>
-        <Chip tone="dark" label={`Mis reclamos (${enviados.length})`} selected={tab === "activas"} onPress={() => setTab("activas")} />
+        <Chip tone="dark" label={`Mis reclamos (${tickets.length})`} selected={tab === "activas"} onPress={() => setTab("activas")} />
         <Chip tone="dark" label="Ingresar disputa" selected={tab === "nueva"} onPress={() => setTab("nueva")} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          tab === "activas" ? (
+            <RefreshControl refreshing={cargando} onRefresh={cargarTickets} tintColor={colors.accent} />
+          ) : undefined
+        }
+      >
         {tab === "activas" ? (
-          enviados.length === 0 ? (
+          cargando && tickets.length === 0 ? (
+            <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+          ) : error && tickets.length === 0 ? (
+            <EmptyState
+              tone="dark"
+              icon="alert"
+              title="No pudimos cargar tus reclamos"
+              message={error}
+              action="Reintentar"
+              onAction={cargarTickets}
+            />
+          ) : tickets.length === 0 ? (
             <EmptyState
               tone="dark"
               icon="document"
-              title="Sin reclamos en esta sesión"
+              title="Sin reclamos todavía"
               message="Usa 'Ingresar disputa' para reportar un cobro pendiente contra la garantía."
               action="Ingresar disputa"
               onAction={() => setTab("nueva")}
             />
           ) : (
-            enviados.map((d) => (
-              <View key={d.id} style={styles.card}>
-                <View style={styles.cardHead}>
-                  <Text style={styles.ticketId}>Ticket #{d.id.slice(0, 8).toUpperCase()}</Text>
-                  <Badge variant="warning" label={d.estado === "abierto" ? "Recibido" : d.estado} />
+            tickets.map((d) => {
+              const badge = ESTADO_BADGE[d.estado] || { variant: "warning", label: d.estado };
+              return (
+                <View key={d.id} style={styles.card}>
+                  <View style={styles.cardHead}>
+                    <Text style={styles.ticketId}>Ticket #{d.id.slice(0, 8).toUpperCase()}</Text>
+                    <Badge variant={badge.variant} label={badge.label} />
+                  </View>
+                  <Text style={styles.asunto}>{d.asunto}</Text>
+                  <Text style={styles.fecha}>{new Date(d.timestamp).toLocaleDateString("es-CL")}</Text>
+                  <View style={styles.detalle}>
+                    <Text style={styles.detalleText}>{d.descripcion}</Text>
+                  </View>
                 </View>
-                <Text style={styles.asunto}>{d.asunto}</Text>
-                <Text style={styles.fecha}>{new Date(d.timestamp).toLocaleDateString("es-CL")}</Text>
-                <View style={styles.detalle}>
-                  <Text style={styles.detalleText}>{d.descripcion}</Text>
-                </View>
-              </View>
-            ))
+              );
+            })
           )
         ) : (
           <View style={styles.card}>
@@ -137,7 +204,7 @@ export function DisputesScreen({ onBack }) {
           </View>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

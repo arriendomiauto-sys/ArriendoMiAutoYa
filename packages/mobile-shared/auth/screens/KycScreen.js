@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -10,16 +10,34 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
 import { DocumentCameraModal } from "../../components/DocumentCameraModal";
 import { ApiClient } from "../../api/client";
+import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../../utils/imagenes";
+import {
+  FormularioTarjeta,
+  validarFormularioTarjeta,
+  tokenizarTarjeta,
+} from "../../components/FormularioTarjeta";
 import { supabase } from "../../api/supabase";
 import { EDAD_MINIMA_ARRENDATARIO } from "../../legal/documentos";
 import { edadDesdeOcr } from "../../utils/edad";
 import { showAlert } from "../../utils/alert";
+import { CameraView, useCameraPermissions } from "expo-camera";
+
+// Escaneo automático de la cédula: detecta los bordes del documento y
+// dispara sola cuando queda bien encuadrado (frente, luego reverso). Requiere
+// el módulo nativo — build real, ya no corre en Expo Go (ver escanearCedula
+// más abajo).
+import DocumentScanner, {
+  ResponseType as ResponseTypeEscaner,
+  ScanDocumentResponseStatus as EstadoEscaner,
+} from "react-native-document-scanner-plugin";
 
 // Valida un RUT chileno con el dígito verificador Módulo 11.
 function isRutValid(rutRaw) {
@@ -56,8 +74,16 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const [cedulaSide, setCedulaSide] = useState("front"); // 'front' | 'back'
 
   // Qué documento está capturando la cámara guiada (null = cerrada).
-  // 'carnet_frente' | 'carnet_reverso' | 'licencia' | 'pic' | 'selfie'
+  // 'licencia' | 'pic' | 'selfie' — el carnet ya no pasa por acá, ver
+  // escanearCedula/DocumentScanner más abajo.
   const [cameraFor, setCameraFor] = useState(null);
+
+  // Intento de lectura del QR de la cédula nueva, entre el escaneo del
+  // frente y el del reverso (el QR está impreso atrás). Solo un atajo
+  // opcional: si no hay QR o el usuario lo salta, se sigue igual al reverso.
+  const [mostrarQR, setMostrarQR] = useState(false);
+  const [qrPayload, setQrPayload] = useState(null);
+  const [permisoCamaraQR, solicitarPermisoCamaraQR] = useCameraPermissions();
 
   // Identidad. ClaveÚnica no es una opción (solo la integran organismos del
   // Estado), así que el extranjero se enrola con su pasaporte o DNI y el
@@ -82,6 +108,12 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const [rut, setRut] = useState(prefill?.rut || currentUser?.rut || "");
   const [telefono, setTelefono] = useState(prefill?.telefono || currentUser?.telefono || "");
 
+  // La tarjeta se pide dentro del KYC, no en una pantalla aparte: si algo no
+  // se puede verificar, el caso completo viaja a soporte en un solo ticket en
+  // vez de dejar al usuario a medio camino entre dos flujos.
+  const [tarjeta, setTarjeta] = useState({ numero: "", vencimiento: "", cvv: "", nombre: "" });
+  const [tarjetaIntentada, setTarjetaIntentada] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   // Edad leída de la cédula por el OCR (null = todavía no se validó o el OCR
   // no pudo leer la fecha de nacimiento).
@@ -94,12 +126,19 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   // la URL almacenada (firmada, bucket privado documentos-kyc).
   const subirDocumento = async (uri, filenamePrefix) => {
     const filename = `${filenamePrefix}_${Date.now()}.jpg`;
-    const { url } = await ApiClient.subirArchivoStorage(uri, filename, "documentos-kyc");
-    return url;
+    // La foto de cámara viene de 3 a 8 MB y por 4G eso son decenas de segundos
+    // por documento. Se optimiza antes de subir con los ajustes de documento,
+    // que conservan la resolución que el OCR necesita para leer el RUT.
+    return await subirImagenOptimizada(uri, {
+      filename,
+      bucket: "documentos-kyc",
+      ...AJUSTES_DOCUMENTO,
+    });
   };
 
   // Callback único de la cámara guiada: sabe qué documento se estaba
-  // capturando por `cameraFor`, lo sube y avanza el flujo.
+  // capturando por `cameraFor`, lo sube y avanza el flujo. El carnet ya no
+  // pasa por acá (ver escanearCedula/escanearReversoCedula abajo).
   const handleFotoCapturada = async (uri) => {
     const slot = cameraFor;
     setCameraFor(null);
@@ -107,15 +146,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
 
     setCapturing(true);
     try {
-      if (slot === "carnet_frente") {
-        const url = await subirDocumento(uri, "carnet_frontal");
-        setCarnetFrontalUrl(url);
-        setCedulaSide("back");
-      } else if (slot === "carnet_reverso") {
-        const url = await subirDocumento(uri, "carnet_trasero");
-        setCarnetTraseroUrl(url);
-        setCurrentStep(isOwner ? "03_facial" : "02_licencia");
-      } else if (slot === "licencia") {
+      if (slot === "licencia") {
         const url = await subirDocumento(uri, "licencia_conducir");
         setLicenciaUrl(url);
         setCurrentStep("03_facial");
@@ -128,13 +159,81 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         // facial reales corren en /enrolamiento/completar con todo junto.
         const url = await subirDocumento(uri, "selfie_verificacion");
         setSelfieUrl(url);
-        setCurrentStep("04_review");
+        setCurrentStep("04_tarjeta");
       }
     } catch (err) {
       showAlert("No se pudo subir la foto", err.message || "Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setCapturing(false);
     }
+  };
+
+  // Reverso de la cédula: el QR (si la persona tiene la cédula nueva) queda
+  // impreso acá, así que el intento de lectura pasa justo antes de este
+  // escaneo — nunca lo reemplaza, la foto se toma siempre.
+  const escanearReversoCedula = async () => {
+    setMostrarQR(false);
+    setCapturing(true);
+    try {
+      const resultado = await DocumentScanner.scanDocument({
+        responseType: ResponseTypeEscaner.ImageFilePath,
+        croppedImageQuality: 90,
+      });
+      if (resultado.status !== EstadoEscaner.Success || !resultado.scannedImages?.[0]) {
+        return; // cancelado por el usuario: el botón queda para reintentar
+      }
+      const url = await subirDocumento(resultado.scannedImages[0], "carnet_trasero");
+      setCarnetTraseroUrl(url);
+      setCurrentStep(isOwner ? "03_facial" : "02_licencia");
+    } catch (err) {
+      showAlert("No se pudo escanear el reverso", err.message || "Inténtalo de nuevo.");
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  // Frente de la cédula: detección real de bordes vía el scanner nativo
+  // (ya no la cámara guiada propia). Al terminar, ofrece el intento de QR
+  // antes de encadenar automáticamente el escaneo del reverso.
+  const escanearCedula = async () => {
+    setCapturing(true);
+    try {
+      const resultado = await DocumentScanner.scanDocument({
+        responseType: ResponseTypeEscaner.ImageFilePath,
+        croppedImageQuality: 90,
+      });
+      if (resultado.status !== EstadoEscaner.Success || !resultado.scannedImages?.[0]) {
+        return;
+      }
+      const url = await subirDocumento(resultado.scannedImages[0], "carnet_frontal");
+      setCarnetFrontalUrl(url);
+      setCedulaSide("back");
+      setMostrarQR(true);
+    } catch (err) {
+      showAlert("No se pudo escanear la cédula", err.message || "Inténtalo de nuevo.");
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  // Botón único del paso 01_cedula: si ya se capturó el frente (p. ej. el
+  // usuario volvió a este paso), salta directo a ofrecer el QR + reverso.
+  const iniciarEscaneoCedula = () => {
+    if (cedulaSide === "front") escanearCedula();
+    else setMostrarQR(true);
+  };
+
+  // `onBarcodeScanned` dispara muchas veces por segundo mientras el QR está
+  // en cuadro — un guard por estado no alcanza (las actualizaciones de
+  // estado no son sincrónicas, así que varias llamadas verían el mismo
+  // `qrPayload` viejo antes de que se actualice). El ref sí bloquea de
+  // inmediato la segunda llamada.
+  const qrYaLeidoRef = useRef(false);
+  const handleQrDetectado = ({ data }) => {
+    if (!data || qrYaLeidoRef.current) return;
+    qrYaLeidoRef.current = true;
+    setQrPayload(data);
+    escanearReversoCedula();
   };
 
   const handleApprove = async () => {
@@ -175,6 +274,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         "Debes fotografiar tu cédula de identidad con la cámara antes de continuar."
       );
       setCurrentStep("01_cedula");
+      return;
+    }
+
+    const erroresTarjeta = validarFormularioTarjeta(tarjeta);
+    if (Object.keys(erroresTarjeta).length) {
+      setTarjetaIntentada(true);
+      setCurrentStep("04_tarjeta");
       return;
     }
 
@@ -248,12 +354,14 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       const profile = await completeEnrolment({
         nombre,
         ...datosIdentidad,
+        ...tokenizarTarjeta(tarjeta),
         email: userEmail,
         telefono,
         carnet_frontal_url: carnetFrontalUrl,
         carnet_trasero_url: carnetTraseroUrl,
         licencia_url: role === "renter" ? licenciaUrl : undefined,
         foto_perfil_verificada_url: selfieUrl,
+        qr_carnet_payload: qrPayload || undefined,
       });
       setCurrentStep(profile?.estado_documentos === "verificado" ? "05_approved" : "06_revision");
     } catch (err) {
@@ -282,6 +390,63 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       <StatusBar
         barStyle={isDarkScreen ? "light-content" : "dark-content"}
       />
+
+      {/* ========================================================================= */}
+      {/* 04: MEDIO DE PAGO */}
+      {/* ========================================================================= */}
+      {currentStep === "04_tarjeta" && (
+        <ScrollView
+          contentContainerStyle={[styles.reviewCenter, { paddingBottom: 60 }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TouchableOpacity
+            onPress={() => setCurrentStep("03_facial")}
+            style={styles.reviewBackBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
+          >
+            <Icon name="arrow-left" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
+          <View style={styles.reviewTextBox}>
+            <Text style={styles.reviewTitle}>Tu tarjeta de crédito</Text>
+            <Text style={styles.reviewSub}>
+              Es la garantía del arriendo. Sin ella no se puede reservar ni publicar un auto.
+              {"\n\n"}
+              No se cobra nada ahora.
+            </Text>
+          </View>
+
+          <View style={styles.reviewFormCard}>
+            <FormularioTarjeta
+              valor={tarjeta}
+              onChange={setTarjeta}
+              errores={{
+                ...validarFormularioTarjeta(tarjeta),
+                mostrarTodos: tarjetaIntentada,
+              }}
+              nombreTitular={nombre}
+            />
+          </View>
+
+          <View style={{ width: "100%", paddingHorizontal: 4 }}>
+            <TouchableOpacity
+              style={styles.primaryCta}
+              onPress={() => {
+                setTarjetaIntentada(true);
+                if (Object.keys(validarFormularioTarjeta(tarjeta)).length) return;
+                setCurrentStep("04_review");
+              }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Continuar"
+            >
+              <Text style={styles.primaryCtaText}>Continuar</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      )}
 
       {/* ========================================================================= */}
       {/* 00: NACIONALIDAD Y TIPO DE DOCUMENTO */}
@@ -439,7 +604,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           <View style={styles.ctaArea}>
             <TouchableOpacity
               style={styles.primaryCta}
-              onPress={() => setCameraFor(cedulaSide === "front" ? "carnet_frente" : "carnet_reverso")}
+              onPress={iniciarEscaneoCedula}
               disabled={capturing}
               activeOpacity={0.85}
             >
@@ -587,13 +752,18 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       {currentStep === "04_review" && (
         <KeyboardAvoidingView
           style={styles.reviewStepBox}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+      // Android ya no redimensiona la ventana con el teclado (ver app.json,
+      // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
+      // Detalle completo en LoginScreen.js.
           keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
         >
           <TouchableOpacity
-            onPress={() => setCurrentStep("03_facial")}
+            onPress={() => setCurrentStep("04_tarjeta")}
             style={styles.reviewBackBtn}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
           >
             <Icon name="arrow-left" size={20} color={colors.primary} />
           </TouchableOpacity>
@@ -719,6 +889,22 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 </View>
                 <Text style={styles.checkText}>
                   {isOwner ? "Identificación de Dueño" : "Licencia de conducir"}
+                </Text>
+              </View>
+
+              <View style={styles.checkItem}>
+                <View
+                  style={[
+                    styles.checkDone,
+                    Object.keys(validarFormularioTarjeta(tarjeta)).length && styles.checkPending,
+                  ]}
+                >
+                  <Icon name="check" size={14} color="#FFFFFF" />
+                </View>
+                <Text style={styles.checkText}>
+                  {tarjeta.numero
+                    ? `Tarjeta terminada en ${tarjeta.numero.replace(/\D/g, "").slice(-4)}`
+                    : "Tarjeta de crédito"}
                 </Text>
               </View>
 
@@ -853,6 +1039,8 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 setLicenciaUrl(null);
                 setSelfieUrl(null);
                 setCedulaSide("front");
+                setQrPayload(null);
+                qrYaLeidoRef.current = false;
                 setCurrentStep("01_cedula");
               }}
               activeOpacity={0.85}
@@ -870,10 +1058,74 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
 
       <DocumentCameraModal
         visible={!!cameraFor}
-        variant={cameraFor || "carnet_frente"}
+        variant={cameraFor || "selfie"}
         onClose={() => setCameraFor(null)}
         onCaptured={handleFotoCapturada}
       />
+
+      {/* Intento breve de QR entre el frente y el reverso de la cédula. */}
+      <Modal visible={mostrarQR} animationType="slide" onRequestClose={() => escanearReversoCedula()} statusBarTranslucent>
+        <VisorQRCedula
+          permiso={permisoCamaraQR}
+          onSolicitarPermiso={solicitarPermisoCamaraQR}
+          onDetectado={handleQrDetectado}
+          onSaltar={escanearReversoCedula}
+        />
+      </Modal>
+    </View>
+  );
+}
+
+// Intento breve y opcional de leer el QR de la cédula nueva (va en el
+// reverso). Nunca reemplaza la foto del documento — solo un atajo si hay
+// QR; si no, "Tomar foto directamente" sigue el flujo igual.
+function VisorQRCedula({ permiso, onSolicitarPermiso, onDetectado, onSaltar }) {
+  const insets = useSafeAreaInsets();
+
+  if (!permiso) {
+    return (
+      <View style={styles.qrCenterBox}>
+        <ActivityIndicator color="#FFFFFF" />
+      </View>
+    );
+  }
+
+  if (!permiso.granted) {
+    return (
+      <View style={styles.qrCenterBox}>
+        <Icon name="camera" size={40} color="#FFFFFF" />
+        <Text style={styles.qrPermTitle}>Cámara para el QR</Text>
+        <Text style={styles.qrPermText}>
+          Si tu cédula es la versión nueva, puedes escanear el QR del reverso para acelerar la
+          verificación. Es opcional.
+        </Text>
+        <TouchableOpacity style={styles.qrPermBtn} onPress={onSolicitarPermiso}>
+          <Text style={styles.qrPermBtnText}>Permitir cámara</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onSaltar} style={{ marginTop: 14 }}>
+          <Text style={styles.qrSaltarText}>Tomar foto directamente</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.flex}>
+      <CameraView
+        style={StyleSheet.absoluteFill}
+        facing="back"
+        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+        onBarcodeScanned={onDetectado}
+      />
+      <View style={[styles.qrTopBar, { top: insets.top + 12 }]}>
+        <Text style={styles.qrTopTitle}>Escanea el QR del reverso (opcional)</Text>
+      </View>
+      <View style={[styles.qrBottomArea, { bottom: insets.bottom + 40 }]}>
+        <Text style={styles.qrHint}>Si tu cédula no tiene QR, no hay problema.</Text>
+        <TouchableOpacity style={styles.qrSaltarBtn} onPress={onSaltar}>
+          <Text style={styles.qrSaltarBtnText}>Tomar foto directamente</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -931,6 +1183,40 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  flex: { flex: 1 },
+
+  // VisorQRCedula — mismo lenguaje visual que DocumentCameraModal (fondo
+  // negro, texto blanco, insets seguros reales en vez de offsets fijos).
+  qrCenterBox: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 12, backgroundColor: "#000000" },
+  qrPermTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "700", marginTop: 8 },
+  qrPermText: { color: "#CBD5E1", fontSize: 14, textAlign: "center", lineHeight: 20 },
+  qrPermBtn: { marginTop: 18, backgroundColor: colors.accent500, paddingHorizontal: 24, paddingVertical: 13, borderRadius: 12 },
+  qrPermBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
+  qrSaltarText: { color: "#94A3B8", fontSize: 14 },
+  qrTopBar: { position: "absolute", left: 0, right: 0, alignItems: "center", paddingHorizontal: 16 },
+  qrTopTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  qrBottomArea: { position: "absolute", left: 0, right: 0, alignItems: "center", gap: 14, paddingHorizontal: 28 },
+  qrHint: { color: "#E2E8F0", fontSize: 13, textAlign: "center" },
+  qrSaltarBtn: {
+    height: 48,
+    minWidth: 220,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  qrSaltarBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
   bgDark: {
     backgroundColor: "#061E1F",
   },

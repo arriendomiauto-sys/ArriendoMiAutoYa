@@ -8,6 +8,11 @@ import { renderTree, textOf, pressText } from "../test-utils";
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+// La pantalla lee del contexto el estado de la tarjeta: sin tarjeta validada
+// no deja publicar. Acá se simula un dueño ya habilitado.
+jest.mock("@rentacar/mobile-shared/context/AppContext", () => ({
+  useApp: () => ({ currentUser: { tarjeta_estado: "validada" } }),
+}));
 
 jest.mock("expo-camera", () => ({
   CameraView: "CameraView",
@@ -61,8 +66,16 @@ describe("AddEditCarScreen · paso de fotos", () => {
   const irAFotos = () => {
     const tr = renderTree(<AddEditCarScreen onBack={() => {}} onComplete={() => {}} />);
     escribir(tr, "Escribe y elige de la lista", "Toyota");
-    escribir(tr, "ej. RAV4, Tucson, Swift", "Yaris");
+    // Con una marca del catálogo el campo de modelo ofrece sus modelos, así
+    // que el placeholder deja de ser el de texto libre.
+    escribir(tr, "Elige el modelo", "Yaris");
     escribir(tr, "ABCD-12", "BBCL-10");
+    // El punto de entrega ya no viene pre-rellenado: hay que fijarlo.
+    const mapa = tr.root.findAll(
+      (n) => typeof n.props?.onPress === "function" && n.props?.initialRegion
+    )[0];
+    act(() => mapa.props.onPress({ nativeEvent: { coordinate: { latitude: -37.47, longitude: -72.35 } } }));
+    escribir(tr, "ej. Copec Av. Alemania / Plaza de Armas", "Copec Av. Alemania");
     pressText(tr, "Continuar"); // paso 1 -> 2
     pressText(tr, "Continuar"); // paso 2 -> 3
     return tr;

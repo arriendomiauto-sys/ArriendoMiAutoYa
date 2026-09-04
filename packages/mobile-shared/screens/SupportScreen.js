@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Linking,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
@@ -211,7 +213,10 @@ export function SupportScreen({ onBack, variant = "renter" }) {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: c.bg }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: c.bg }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <ScreenHeader tone={tone} title="Centro de ayuda" subtitle="Atención 24/7" onBack={onBack} />
 
       <View style={styles.tabs}>
@@ -344,7 +349,7 @@ export function SupportScreen({ onBack, variant = "renter" }) {
           {contacto}
         </ScrollView>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

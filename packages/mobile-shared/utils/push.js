@@ -7,12 +7,42 @@ import { Platform } from "react-native";
 
 let _cache = { intentado: false, token: null };
 
+/**
+ * `true` si la app corre dentro de Expo Go (el cliente de la tienda, no un
+ * development build ni un standalone).
+ *
+ * Desde el SDK 53, expo-notifications ni siquiera deja requerirse sin
+ * quejarse en Expo Go para Android: el propio módulo hace un
+ * `console.error` apenas se carga, antes de que cualquier try/catch propio
+ * pueda evitarlo. La única forma de que no aparezca ese banner rojo es no
+ * tocar el módulo en absoluto cuando se sabe de antemano que va a fallar.
+ */
+function corriendoEnExpoGo() {
+  try {
+    const Constants = require("expo-constants").default;
+    return Constants?.executionEnvironment === "storeClient";
+  } catch {
+    return false;
+  }
+}
+
 export async function registrarPushToken(apiClient) {
   if (_cache.intentado) {
     if (_cache.token) apiClient?.registrarPushToken?.(_cache.token).catch(() => {});
     return _cache.token;
   }
   _cache.intentado = true;
+
+  if (corriendoEnExpoGo()) {
+    // No es un fallo: las notificaciones remotas simplemente no existen acá.
+    // Se avisa una sola vez, con un nivel que no asuste, y sin cargar
+    // expo-notifications — cargarlo es lo que dispara el banner de error.
+    console.log(
+      "[push] Expo Go no soporta notificaciones remotas (desde el SDK 53 en Android). " +
+        "Usa un development build para probarlas: https://docs.expo.dev/develop/development-builds/introduction/"
+    );
+    return null;
+  }
 
   try {
     const Notifications = require("expo-notifications");

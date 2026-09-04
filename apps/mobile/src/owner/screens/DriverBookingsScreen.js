@@ -9,6 +9,8 @@ import {
   Button,
   EmptyState,
   ApiClient,
+  GPSMapModal,
+  RatingModal,
 } from "@rentacar/mobile-shared";
 
 function formatearFecha(iso) {
@@ -36,6 +38,10 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("confirmada");
+  const [gpsReserva, setGpsReserva] = useState(null);
+  // reservaId -> true si el dueño ya calificó al cliente de esa reserva.
+  const [calificadas, setCalificadas] = useState({});
+  const [reservaACalificar, setReservaACalificar] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -54,6 +60,31 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
   }, [cargar]);
 
   const filtered = reservas.filter((r) => (filter === "todas" ? true : r.estado === filter));
+
+  // Solo importa saber si ya se calificó para las finalizadas visibles —
+  // se pregunta al backend recién cuando aparecen en la lista filtrada.
+  useEffect(() => {
+    const pendientes = filtered.filter(
+      (r) => r.estado === "finalizada" && calificadas[r.id] === undefined
+    );
+    if (pendientes.length === 0) return;
+    let vivo = true;
+    Promise.all(
+      pendientes.map((r) =>
+        ApiClient.getCalificacionesDeReserva(r.id).then((cs) => [
+          r.id,
+          (cs || []).some((c) => c.autor_rol === "dueno"),
+        ])
+      )
+    ).then((pares) => {
+      if (!vivo) return;
+      setCalificadas((prev) => ({ ...prev, ...Object.fromEntries(pares) }));
+    });
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered.map((r) => r.id).join(",")]);
 
   const renderItem = ({ item }) => {
     const auto = item.auto || {};
@@ -96,6 +127,26 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
             label={puedeEntregar ? "Iniciar entrega con QR" : "Iniciar devolución con QR"}
             iconRight="arrow-right"
             onPress={() => onOpenDelivery?.(item)}
+          />
+        )}
+        {puedeDevolver && auto.gps_consentimiento && (
+          <Button
+            tone="dark"
+            variant="secondary"
+            size="sm"
+            label="Ver ubicación GPS en vivo"
+            iconLeft="location"
+            onPress={() => setGpsReserva(item)}
+          />
+        )}
+        {item.estado === "finalizada" && calificadas[item.id] === false && (
+          <Button
+            tone="dark"
+            variant="secondary"
+            size="sm"
+            label="Calificar a este arrendatario"
+            iconLeft="star"
+            onPress={() => setReservaACalificar(item)}
           />
         )}
         <Button
@@ -153,6 +204,26 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
           }
         />
       )}
+
+      <GPSMapModal
+        visible={!!gpsReserva}
+        onClose={() => setGpsReserva(null)}
+        autoId={gpsReserva?.auto?.id || gpsReserva?.auto_id}
+        nombreAuto={[gpsReserva?.auto?.marca, gpsReserva?.auto?.modelo].filter(Boolean).join(" ")}
+      />
+
+      <RatingModal
+        visible={!!reservaACalificar}
+        onClose={() => setReservaACalificar(null)}
+        reservaId={reservaACalificar?.id}
+        autorRol="dueno"
+        destinatarioId={reservaACalificar?.cliente_id}
+        destinatarioNombre="tu arrendatario"
+        onSubmitted={() => {
+          setCalificadas((prev) => ({ ...prev, [reservaACalificar.id]: true }));
+          setReservaACalificar(null);
+        }}
+      />
     </View>
   );
 }

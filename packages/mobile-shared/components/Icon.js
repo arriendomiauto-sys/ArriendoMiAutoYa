@@ -243,6 +243,9 @@ export function Icon({
     case "history":
     case "receipt":
     case "historial":
+    // Tres pantallas pedían "clock" y caían al círculo genérico del default;
+    // este mismo dibujo (esfera con manecillas) es exactamente un reloj.
+    case "clock":
       return renderSvg(
         <>
           <Circle cx="12" cy="12" r="9" />
@@ -333,6 +336,30 @@ export function Icon({
 
     case "filter":
       return renderSvg(<Polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />);
+
+    case "heart":
+    case "favorito":
+      return renderSvg(
+        <Path
+          d="M12 20.5s-7.5-4.6-10-9.3C.5 7.7 2.6 4.3 6 4.3c2 0 3.5 1 6 3.4 2.5-2.4 4-3.4 6-3.4 3.4 0 5.5 3.4 4 6.9-2.5 4.7-10 9.3-10 9.3z"
+          fill={fill !== "none" ? fill : "none"}
+        />
+      );
+
+    case "share":
+    case "compartir":
+      return renderSvg(
+        <>
+          <Circle cx="18" cy="5" r="2.6" />
+          <Circle cx="6" cy="12" r="2.6" />
+          <Circle cx="18" cy="19" r="2.6" />
+          <Path d="M8.3 10.7l7.4-4.2M8.3 13.3l7.4 4.2" />
+        </>
+      );
+
+    case "pencil":
+    case "edit":
+      return renderSvg(<Path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" />);
 
     default:
       return renderSvg(<Circle cx="12" cy="12" r="4" fill={color} />);

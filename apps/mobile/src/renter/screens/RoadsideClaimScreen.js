@@ -10,10 +10,14 @@ import {
   ActivityIndicator,
   StatusBar,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
-import { colors, theme, useApp, Icon, Button, Card, ScreenHeader, SectionLabel, Chip, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import {
+  colors, theme, useApp, Icon, Button, Card, ScreenHeader, SectionLabel, Chip,
+  ApiClient, showAlert, elegirImagen, subirImagenOptimizada,
+} from "@rentacar/mobile-shared";
 
 const TIPOS = [
   { id: "colision", label: "Colisión / choque" },
@@ -34,18 +38,21 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   const [enviando, setEnviando] = useState(false);
 
   const addFoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      showAlert("Permiso requerido", "Necesitamos la cámara para adjuntar el daño.");
-      return;
-    }
-    const r = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-    if (r.canceled || !r.assets?.length) return;
+    const uri = await elegirImagen({
+      origen: "camera",
+      motivoPermiso: "Necesitamos la cámara para adjuntar el daño.",
+    });
+    if (!uri) return;
+
     setSubiendo(true);
     try {
-      const a = r.assets[0];
-      const up = await ApiClient.subirArchivoStorage(a.uri, a.fileName || `siniestro-${Date.now()}.jpg`, "evidencias");
-      setFotos((p) => [...p, up.url]);
+      // Optimizada sube en segundos en vez de decenas: el usuario está en la
+      // carretera y probablemente con mala señal.
+      const url = await subirImagenOptimizada(uri, {
+        filename: `siniestro-${Date.now()}.jpg`,
+        bucket: "evidencias",
+      });
+      setFotos((p) => [...p, url]);
     } catch (err) {
       showAlert("No se pudo subir la foto", err.message);
     } finally {
@@ -95,7 +102,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Auxilio en ruta" subtitle="Siniestros y asistencia 24/7" onBack={onBack} />
 
@@ -164,7 +171,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
         <Button label="Enviar reporte y activar seguro" iconRight="arrow-right" onPress={enviarReporte} loading={enviando} />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

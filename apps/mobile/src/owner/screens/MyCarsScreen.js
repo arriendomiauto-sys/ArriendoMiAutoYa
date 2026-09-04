@@ -9,6 +9,8 @@ import {
   Image,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -20,6 +22,7 @@ import {
   ApiClient,
   showAlert,
   VerifyIdentityBanner,
+  GPSMapModal,
 } from "@rentacar/mobile-shared";
 
 // `cars`/`setCars` vienen como props (la flota real del dueño, desde
@@ -39,6 +42,7 @@ export function MyCarsScreen({
   const [editingCar, setEditingCar] = useState(null);
   const [newTarifa, setNewTarifa] = useState("");
   const [saving, setSaving] = useState(false);
+  const [gpsCar, setGpsCar] = useState(null);
 
   const toggleCarAvailability = async (car) => {
     const nuevoEstado = car.estado === "pausado" ? "activo" : "pausado";
@@ -145,6 +149,12 @@ export function MyCarsScreen({
               <Icon name="settings" size={15} color={colors.accent} />
               <Text style={styles.toolText}>Mantenciones</Text>
             </TouchableOpacity>
+            {item.gps_consentimiento && (
+              <TouchableOpacity style={styles.tool} onPress={() => setGpsCar(item)} activeOpacity={0.8}>
+                <Icon name="location" size={15} color={colors.accent} />
+                <Text style={styles.toolText}>GPS</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -207,7 +217,7 @@ export function MyCarsScreen({
       />
 
       <Modal visible={!!editingCar} transparent animationType="fade" onRequestClose={() => setEditingCar(null)}>
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Ajustar tarifa diaria</Text>
             <Text style={styles.modalSub}>
@@ -244,8 +254,15 @@ export function MyCarsScreen({
               <Button tone="dark" label="Guardar" onPress={handleSaveRate} loading={saving} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
+
+      <GPSMapModal
+        visible={!!gpsCar}
+        onClose={() => setGpsCar(null)}
+        autoId={gpsCar?.id}
+        nombreAuto={gpsCar ? `${gpsCar.marca} ${gpsCar.modelo}` : ""}
+      />
     </View>
   );
 }

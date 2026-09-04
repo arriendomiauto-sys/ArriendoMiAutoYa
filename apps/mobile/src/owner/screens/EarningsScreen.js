@@ -8,6 +8,8 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -16,10 +18,14 @@ import {
   useApp,
   Icon,
   Button,
+  Chip,
   ScreenHeader,
   SectionLabel,
   showAlert,
   ApiClient,
+  CampoConSugerencias,
+  buscarBancos,
+  TIPOS_CUENTA_CHILE,
 } from "@rentacar/mobile-shared";
 
 const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -60,8 +66,8 @@ export function EarningsScreen({ onBack, onOpenDisputes }) {
   }, [cargar]);
 
   const handleSaveBank = async () => {
-    if (!form.numero || !form.titular || !form.rut) {
-      showAlert("Datos incompletos", "Completa el número de cuenta, el titular y su RUT.");
+    if (!form.banco || !form.tipo_cuenta || !form.numero || !form.titular || !form.rut) {
+      showAlert("Datos incompletos", "Completa el banco, el tipo de cuenta, el número, el titular y su RUT.");
       return;
     }
     setSavingBank(true);
@@ -78,6 +84,8 @@ export function EarningsScreen({ onBack, onOpenDisputes }) {
 
   const saldo = ganancias?.saldo_disponible_clp ?? 0;
   const historial = ganancias?.historial ?? [];
+  const porAuto = ganancias?.por_auto ?? [];
+  const bonoReferidoPendiente = ganancias?.bono_referido_pendiente_clp ?? 0;
 
   const handlePayout = () => {
     if (!bankAccount) {
@@ -161,6 +169,14 @@ export function EarningsScreen({ onBack, onOpenDisputes }) {
           <Text style={styles.balanceSub}>
             {ganancias ? `${ganancias.cantidad_liquidaciones} liquidación(es) en total` : "Cargando…"}
           </Text>
+          {bonoReferidoPendiente > 0 ? (
+            <View style={styles.bonoReferidoRow}>
+              <Icon name="star" size={13} color="#FFFFFF" />
+              <Text style={styles.bonoReferidoTexto}>
+                + {fmt(bonoReferidoPendiente)} de bono por invitación (aparte del saldo de arriba)
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.balanceBtns}>
             <Button
               tone="dark"
@@ -212,6 +228,33 @@ export function EarningsScreen({ onBack, onOpenDisputes }) {
           </View>
         </View>
 
+        {porAuto.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Rendimiento de tu flota</Text>
+            {porAuto.map((a, i) => (
+              <View key={a.auto_id} style={[styles.fleetRow, i === porAuto.length - 1 && { borderBottomWidth: 0 }]}>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.fleetName} numberOfLines={1}>
+                    {a.marca} {a.modelo} · {a.patente}
+                  </Text>
+                  <Text style={styles.fleetEarnings}>{fmt(a.ganancia_total_clp)}</Text>
+                </View>
+                <View style={styles.occupancyTrack}>
+                  <View
+                    style={[
+                      styles.occupancyFill,
+                      { width: `${Math.max(a.tasa_ocupacion_pct, a.tasa_ocupacion_pct > 0 ? 4 : 0)}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.fleetMeta}>
+                  {a.tasa_ocupacion_pct}% de ocupación · {a.reservas_finalizadas} arriendo{a.reservas_finalizadas === 1 ? "" : "s"} finalizado{a.reservas_finalizadas === 1 ? "" : "s"}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Últimas liquidaciones</Text>
           {loading ? (
@@ -242,7 +285,12 @@ export function EarningsScreen({ onBack, onOpenDisputes }) {
       </ScrollView>
 
       <Modal visible={bankModal} transparent animationType="slide" onRequestClose={() => setBankModal(false)}>
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView
+          style={styles.overlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          // Ver LoginScreen.js: sin este KeyboardAvoidingView explícito, el
+          // teclado tapaba los campos de más abajo del formulario.
+        >
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.rowBetween}>
@@ -253,9 +301,32 @@ export function EarningsScreen({ onBack, onOpenDisputes }) {
             </View>
             <Text style={styles.sheetSub}>Los fondos se transfieren a esta cuenta bancaria chilena.</Text>
             <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
+              <View style={{ marginBottom: theme.spacing.md }}>
+                <CampoConSugerencias
+                  etiqueta="Banco"
+                  valor={form.banco}
+                  onChange={(v) => setForm((p) => ({ ...p, banco: v }))}
+                  buscar={buscarBancos}
+                  placeholder="Escribe y elige de la lista"
+                />
+              </View>
+
+              <View style={{ gap: 8, marginBottom: theme.spacing.md }}>
+                <SectionLabel tone="dark">Tipo de cuenta</SectionLabel>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm }}>
+                  {TIPOS_CUENTA_CHILE.map((tipo) => (
+                    <Chip
+                      key={tipo}
+                      tone="dark"
+                      label={tipo}
+                      selected={form.tipo_cuenta === tipo}
+                      onPress={() => setForm((p) => ({ ...p, tipo_cuenta: tipo }))}
+                    />
+                  ))}
+                </View>
+              </View>
+
               {[
-                { k: "banco", label: "Banco", ph: "ej. Banco Estado, Santander, BCI" },
-                { k: "tipo_cuenta", label: "Tipo de cuenta", ph: "CuentaRUT / Vista / Corriente" },
                 { k: "numero", label: "Número de cuenta", ph: "", kb: "number-pad" },
                 { k: "titular", label: "Nombre del titular", ph: "" },
                 { k: "rut", label: "RUT del titular", ph: "12.345.678-9" },
@@ -269,13 +340,14 @@ export function EarningsScreen({ onBack, onOpenDisputes }) {
                     placeholder={f.ph}
                     placeholderTextColor={colors.textSilver}
                     keyboardType={f.kb || "default"}
+                    accessibilityLabel={f.label}
                   />
                 </View>
               ))}
             </ScrollView>
             <Button tone="dark" label="Guardar cuenta" onPress={handleSaveBank} loading={savingBank} />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -295,6 +367,8 @@ const styles = StyleSheet.create({
   },
   balanceAmount: { fontSize: 32, fontWeight: "800", color: "#FFFFFF", letterSpacing: -0.5 },
   balanceSub: { fontSize: 12, color: "rgba(255,255,255,0.75)", marginBottom: theme.spacing.md },
+  bonoReferidoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: -6, marginBottom: theme.spacing.md },
+  bonoReferidoTexto: { fontSize: 12, color: "rgba(255,255,255,0.85)", fontWeight: "600" },
   balanceBtns: { flexDirection: "row", gap: theme.spacing.sm, alignItems: "stretch" },
   bankChip: {
     flex: 1,
@@ -335,6 +409,22 @@ const styles = StyleSheet.create({
   histConcept: { fontSize: 13, fontWeight: "600", color: colors.textWhite },
   histDate: { fontSize: 11, color: colors.darkTextMuted, marginTop: 2 },
   histAmount: { fontSize: 14, fontWeight: "800" },
+  fleetRow: {
+    gap: 6,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.darkBorder,
+  },
+  fleetName: { flex: 1, fontSize: 13, fontWeight: "600", color: colors.textWhite },
+  fleetEarnings: { fontSize: 14, fontWeight: "800", color: colors.accent },
+  occupancyTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.darkCardSubtle,
+    overflow: "hidden",
+  },
+  occupancyFill: { height: "100%", borderRadius: 3, backgroundColor: colors.accent },
+  fleetMeta: { fontSize: 11, color: colors.darkTextMuted },
   overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.75)", justifyContent: "flex-end" },
   sheet: {
     backgroundColor: colors.darkCard,

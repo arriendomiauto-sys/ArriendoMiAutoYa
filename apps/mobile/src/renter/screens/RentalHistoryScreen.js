@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient, Button, RatingModal } from "@rentacar/mobile-shared";
 
 function formatearRango(inicio, fin) {
   if (!inicio || !fin) return "—";
@@ -36,6 +36,9 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // reservaId -> true si el cliente ya calificó esa reserva.
+  const [calificadas, setCalificadas] = useState({});
+  const [reservaACalificar, setReservaACalificar] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -55,6 +58,32 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
 
   const estados = TABS.find((t) => t.id === tab)?.estados || [];
   const filtradas = reservas.filter((r) => estados.includes(r.estado));
+
+  // Solo se necesita saber si ya se calificó para las finalizadas de la
+  // pestaña "pasadas" — se consulta ahí en vez de para todo el historial.
+  useEffect(() => {
+    if (tab !== "pasadas") return;
+    const pendientes = filtradas.filter(
+      (r) => r.estado === "finalizada" && calificadas[r.id] === undefined
+    );
+    if (pendientes.length === 0) return;
+    let vivo = true;
+    Promise.all(
+      pendientes.map((r) =>
+        ApiClient.getCalificacionesDeReserva(r.id).then((cs) => [
+          r.id,
+          (cs || []).some((c) => c.autor_rol === "cliente"),
+        ])
+      )
+    ).then((pares) => {
+      if (!vivo) return;
+      setCalificadas((prev) => ({ ...prev, ...Object.fromEntries(pares) }));
+    });
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, filtradas.map((r) => r.id).join(",")]);
 
   return (
     <View style={styles.container}>
@@ -112,6 +141,16 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
                       Garantía retenida · ${(r.monto_hold || 0).toLocaleString("es-CL")}
                     </Text>
                   )}
+                  {r.estado === "finalizada" && calificadas[r.id] === false && (
+                    <TouchableOpacity
+                      style={styles.rateBtn}
+                      onPress={() => setReservaACalificar(r)}
+                      hitSlop={theme.control.hitSlop}
+                    >
+                      <Icon name="star" size={14} color={colors.accent700} fill={colors.accent700} />
+                      <Text style={styles.rateBtnText}>Calificar este arriendo</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </TouchableOpacity>
             );
@@ -132,6 +171,19 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
           )}
         </ScrollView>
       )}
+
+      <RatingModal
+        visible={!!reservaACalificar}
+        onClose={() => setReservaACalificar(null)}
+        reservaId={reservaACalificar?.id}
+        autorRol="cliente"
+        destinatarioId={reservaACalificar?.auto?.dueno_id}
+        destinatarioNombre={[reservaACalificar?.auto?.marca, reservaACalificar?.auto?.modelo].filter(Boolean).join(" ")}
+        onSubmitted={() => {
+          setCalificadas((prev) => ({ ...prev, [reservaACalificar.id]: true }));
+          setReservaACalificar(null);
+        }}
+      />
     </View>
   );
 }
@@ -176,4 +228,6 @@ const styles = StyleSheet.create({
   carName: { fontSize: 15, fontWeight: "700", color: colors.text, flex: 1 },
   meta: { fontSize: 13, color: colors.textMuted },
   guarantee: { fontSize: 13, fontWeight: "600", color: colors.warningText },
+  rateBtn: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2, alignSelf: "flex-start" },
+  rateBtnText: { fontSize: 13, fontWeight: "600", color: colors.accent700 },
 });

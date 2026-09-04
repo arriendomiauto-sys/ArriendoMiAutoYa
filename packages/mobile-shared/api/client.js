@@ -40,7 +40,7 @@ export const MOCK_CARS = [
  * requieren sesión.
  */
 export class ApiClient {
-  static async request(endpoint, options = {}, { reintentoDeAuth = false } = {}) {
+  static async request(endpoint, options = {}, { reintentoDeAuth = false, reintentosRed = 2 } = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = await getAccessToken();
 
@@ -53,6 +53,16 @@ export class ApiClient {
     try {
       response = await fetch(url, { ...options, headers });
     } catch (netErr) {
+      // Si el backend está en cold start (Render despertando) o hubo un microcorte,
+      // reintentamos automáticamente antes de lanzar el error a la pantalla.
+      if (reintentosRed > 0) {
+        await new Promise((r) => setTimeout(r, 1800));
+        return await this.request(endpoint, options, {
+          reintentoDeAuth,
+          reintentosRed: reintentosRed - 1,
+        });
+      }
+
       // fetch solo tira cuando no se pudo ni contactar al servidor: URL mal
       // configurada, backend caído, o el teléfono no alcanza esa dirección.
       const err = new Error(
@@ -109,6 +119,13 @@ export class ApiClient {
     return this.request("/usuarios/me/perfil-basico", {
       method: "PUT",
       body: JSON.stringify(data),
+    });
+  }
+
+  static async aplicarCodigoReferido(codigo) {
+    return this.request("/usuarios/me/codigo-referido", {
+      method: "PUT",
+      body: JSON.stringify({ codigo }),
     });
   }
 
@@ -212,6 +229,37 @@ export class ApiClient {
     });
   }
 
+  // Segundo Conductor / Conductor Adicional
+  static async asignarSegundoConductor(reservaId, data) {
+    return this.request(`/reservas/${reservaId}/segundo-conductor`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async obtenerSegundoConductor(reservaId) {
+    return this.request(`/reservas/${reservaId}/segundo-conductor`);
+  }
+
+  static async actualizarSegundoConductor(reservaId, data) {
+    return this.request(`/reservas/${reservaId}/segundo-conductor`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static async eliminarSegundoConductor(reservaId) {
+    return this.request(`/reservas/${reservaId}/segundo-conductor`, {
+      method: "DELETE",
+    });
+  }
+
+  static async verificarKycSegundoConductor(reservaId) {
+    return this.request(`/reservas/${reservaId}/segundo-conductor/verificar-kyc`, {
+      method: "POST",
+    });
+  }
+
   // Mantenciones y documentación legal del auto
   static async getMantenciones(autoId) {
     return this.request(`/autos/${autoId}/mantenciones`);
@@ -238,6 +286,13 @@ export class ApiClient {
 
   static async eliminarBloqueoCalendario(bloqueoId) {
     return this.request(`/bloqueos/${bloqueoId}`, { method: "DELETE" });
+  }
+
+  // GPS: última posición conocida (solo dueño del auto o admin; el backend
+  // exige gps_consentimiento y un equipo instalado, y devuelve 404/403 con
+  // el motivo si no se cumple).
+  static async getPosicionGPS(autoId) {
+    return this.request(`/autos/${autoId}/gps/posicion`);
   }
 
   // Enrolamiento / KYC
@@ -293,10 +348,33 @@ export class ApiClient {
     });
   }
 
+  /**
+   * Última línea y no leídos de cada conversación.
+   *
+   * Devuelve [] si falla: es información de adorno (el globo de la pestaña,
+   * la vista previa de la lista) y no vale la pena romper una pantalla que
+   * por lo demás funciona.
+   */
+  static async getResumenConversaciones() {
+    try {
+      return (await this.request("/reservas/mensajes/resumen")) || [];
+    } catch {
+      return [];
+    }
+  }
+
   // Calificaciones (sistema bidireccional dueño/cliente)
   static async getCalificaciones(destinatarioId) {
     try {
       return await this.request(`/calificaciones?destinatario_id=${destinatarioId}`);
+    } catch {
+      return [];
+    }
+  }
+
+  static async getCalificacionesDeReserva(reservaId) {
+    try {
+      return await this.request(`/calificaciones?reserva_id=${reservaId}`);
     } catch {
       return [];
     }
@@ -307,6 +385,31 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  // Favoritos / wishlist
+  static async getFavoritos() {
+    try {
+      return await this.request("/favoritos");
+    } catch {
+      return [];
+    }
+  }
+
+  static async getIdsFavoritos() {
+    try {
+      return await this.request("/favoritos/ids");
+    } catch {
+      return [];
+    }
+  }
+
+  static async marcarFavorito(autoId) {
+    return this.request(`/favoritos/${autoId}`, { method: "POST" });
+  }
+
+  static async quitarFavorito(autoId) {
+    return this.request(`/favoritos/${autoId}`, { method: "DELETE" });
   }
 
   // Notificaciones in-app
@@ -354,18 +457,33 @@ export class ApiClient {
     return this.request("/soporte/mis-tickets");
   }
 
-  // Pasarela de Pagos Transbank Webpay Plus
-  static async iniciarPagoWebpay(monto, tipo = "hold_reserva", reservaId = null, returnUrl = null) {
-    return this.request("/pagos/webpay/iniciar", {
+  // Pasarela de pagos: Mercado Pago (Checkout Pro)
+  static async iniciarPago(monto, tipo = "hold_reserva", reservaId = null, returnUrl = null) {
+    return this.request("/pagos/mercadopago/iniciar", {
       method: "POST",
       body: JSON.stringify({ monto, tipo, reserva_id: reservaId, return_url: returnUrl }),
     });
   }
 
-  static async confirmarPagoWebpay(tokenWs) {
-    return this.request("/pagos/webpay/confirmar", {
+  /**
+   * Datos públicos de la pasarela: la llave con la que el SDK tokeniza la
+   * tarjeta y, mientras dure el bypass, si los pagos están simulados.
+   */
+  static async getConfiguracionPagos() {
+    return this.request("/pagos/configuracion");
+  }
+
+  /**
+   * Adelanta el resultado del pago cuando el usuario vuelve del checkout.
+   *
+   * No es la confirmación definitiva: el backend también recibe el webhook de
+   * Mercado Pago, así que la reserva queda confirmada aunque el usuario cierre
+   * la app antes de volver. Acá solo se evita hacerlo esperar.
+   */
+  static async confirmarPago(paymentId, pagoId = null) {
+    return this.request("/pagos/mercadopago/confirmar", {
       method: "POST",
-      body: JSON.stringify({ token_ws: tokenWs }),
+      body: JSON.stringify({ payment_id: paymentId, pago_id: pagoId }),
     });
   }
 
@@ -377,6 +495,13 @@ export class ApiClient {
     return this.request("/usuarios/me/cuenta-bancaria", {
       method: "PUT",
       body: JSON.stringify(cuentaBancaria),
+    });
+  }
+
+  static async actualizarTarjeta(datosTarjeta) {
+    return this.request("/usuarios/me/tarjeta", {
+      method: "PUT",
+      body: JSON.stringify(datosTarjeta),
     });
   }
 

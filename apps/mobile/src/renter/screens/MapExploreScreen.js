@@ -32,18 +32,18 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.08,
 };
 
-// Para autos sin lat/long en el backend: posición estable y repartida
-// alrededor del centro, derivada del id (no salta entre renders).
-function fallbackCoord(car, index) {
-  const seed = String(car.id || car._id || index)
-    .split("")
-    .reduce((a, c) => a + c.charCodeAt(0), 0);
-  const angle = (seed % 360) * (Math.PI / 180);
-  const dist = 0.006 + ((seed % 7) / 7) * 0.022;
-  return {
-    latitude: DEFAULT_REGION.latitude + Math.sin(angle) * dist,
-    longitude: DEFAULT_REGION.longitude + Math.cos(angle) * dist,
-  };
+// Colores del pin según la categoría, para leer el mapa de un vistazo sin
+// tocar cada punto.
+const COLOR_CATEGORIA = {
+  economico: colors.accent700,
+  sedan: colors.primary,
+  suv: "#7A4FBF",
+  camioneta: "#B4642A",
+  premium: "#1F2937",
+};
+
+function colorDeCategoria(categoria) {
+  return COLOR_CATEGORIA[categoria] || colors.primary;
 }
 
 export function MapExploreScreen({ onBack, onSelectCar }) {
@@ -52,18 +52,25 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
   const mapRef = useRef(null);
   const [userCoords, setUserCoords] = useState(null);
 
-  const puntos = useMemo(
-    () =>
-      (cars || []).map((car, i) => {
-        const hasReal =
-          typeof car.latitud === "number" && typeof car.longitud === "number";
-        const coord = hasReal
-          ? { latitude: car.latitud, longitude: car.longitud }
-          : fallbackCoord(car, i);
-        return { car, coord };
-      }),
-    [cars]
-  );
+  // Solo los autos con coordenadas reales van al mapa.
+  //
+  // Antes, a los que no las tenían se les inventaba una posición derivada del
+  // id: el pin salía a cuadras del auto y el arrendatario llegaba a una
+  // esquina donde no había nadie. Un punto inventado es peor que ningún punto,
+  // porque parece información. Los que no tienen coordenadas se cuentan aparte
+  // y se dicen abajo, en vez de fingir que están en algún lugar.
+  const { puntos, sinUbicacion } = useMemo(() => {
+    const conUbicacion = [];
+    let sinCoords = 0;
+    for (const car of cars || []) {
+      if (typeof car.latitud === "number" && typeof car.longitud === "number") {
+        conUbicacion.push({ car, coord: { latitude: car.latitud, longitude: car.longitud } });
+      } else {
+        sinCoords += 1;
+      }
+    }
+    return { puntos: conUbicacion, sinUbicacion: sinCoords };
+  }, [cars]);
 
   const [selectedId, setSelectedId] = useState(puntos[0]?.car?.id || null);
   const selected =
@@ -92,7 +99,11 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
         const Location = require("expo-location");
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") return;
-        const pos = await Location.getCurrentPositionAsync({ accuracy: 3 });
+        // High (4), no Balanced (3): con ~100 m de error el "estás aquí"
+        // aparece a dos cuadras y la distancia a cada auto sale mal.
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy?.High ?? 4,
+        });
         if (!alive) return;
         setUserCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
       } catch (e) {
@@ -149,18 +160,35 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
         {puntos.map(({ car, coord }, i) => {
           const id = car.id || car._id || i;
           const active = id === (selected?.car?.id || selected?.car?._id);
+          const color = colorDeCategoria(car.categoria);
           return (
             <Marker
               key={id}
               coordinate={coord}
               onPress={() => setSelectedId(car.id || car._id)}
-              tracksViewChanges={false}
+              // tracksViewChanges en false congela el pin apenas se dibuja, y
+              // el seleccionado se quedaba con el color del anterior. Se deja
+              // vivo solo el activo, que es uno.
+              tracksViewChanges={active}
               anchor={{ x: 0.5, y: 1 }}
+              accessibilityLabel={`${car.marca} ${car.modelo}, ${precio(car.tarifa_dia)} por día`}
             >
-              <View style={[styles.pin, active ? styles.pinActive : styles.pinIdle]}>
-                <Text style={[styles.pinText, active ? styles.pinTextActive : styles.pinTextIdle]}>
-                  {precio(car.tarifa_dia)}
-                </Text>
+              <View style={styles.pinWrap}>
+                <View
+                  style={[
+                    styles.pin,
+                    active
+                      ? { backgroundColor: color, borderColor: "#FFFFFF" }
+                      : { backgroundColor: colors.surface, borderColor: color },
+                  ]}
+                >
+                  <Text style={[styles.pinText, { color: active ? "#FFFFFF" : color }]}>
+                    {precio(car.tarifa_dia)}
+                  </Text>
+                </View>
+                {/* La punta ancla el globo al punto exacto: sin ella el precio
+                    flota y no se sabe a qué coordenada corresponde. */}
+                <View style={[styles.pinTip, { borderTopColor: active ? color : colors.surface }]} />
               </View>
             </Marker>
           );
@@ -175,7 +203,10 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
         <View style={styles.searchPill}>
           <Icon name="search" size={16} color={colors.textMuted} />
           <Text style={styles.searchPillText} numberOfLines={1}>
-            {puntos.length} autos en el mapa
+            {puntos.length === 1 ? "1 auto en el mapa" : `${puntos.length} autos en el mapa`}
+            {sinUbicacion > 0
+              ? ` · ${sinUbicacion} sin ubicación exacta`
+              : ""}
           </Text>
         </View>
       </View>
@@ -260,6 +291,7 @@ const styles = StyleSheet.create({
     ...theme.shadow.md,
   },
   searchPillText: { fontSize: 14, color: colors.text, fontWeight: "500", flex: 1 },
+  pinWrap: { alignItems: "center" },
   pin: {
     paddingVertical: 7,
     paddingHorizontal: 12,
@@ -267,11 +299,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     ...theme.shadow.sm,
   },
-  pinIdle: { backgroundColor: colors.surface, borderColor: colors.surface },
-  pinActive: { backgroundColor: colors.primary, borderColor: "#FFFFFF" },
+  pinTip: {
+    width: 0,
+    height: 0,
+    marginTop: -1,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 7,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+  },
   pinText: { fontSize: 13, fontWeight: "700" },
-  pinTextIdle: { color: colors.primary },
-  pinTextActive: { color: "#FFFFFF" },
   locateBtn: {
     position: "absolute",
     right: theme.spacing.screen,

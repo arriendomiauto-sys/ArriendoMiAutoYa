@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { colors, theme, useApp, Chip, ScreenHeader, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, theme, useApp, Chip, Icon, ScreenHeader, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -15,10 +15,17 @@ export function CarCalendarScreen({ car, onBack }) {
   const [loading, setLoading] = useState(true);
 
   const hoy = new Date();
-  const anio = hoy.getFullYear();
-  const mes = hoy.getMonth();
+  // 0 = mes actual, 1 = el siguiente, etc. No se navega hacia atrás: no
+  // tiene sentido bloquear un día que ya pasó.
+  const [mesOffset, setMesOffset] = useState(0);
+  const fechaMostrada = new Date(hoy.getFullYear(), hoy.getMonth() + mesOffset, 1);
+  const anio = fechaMostrada.getFullYear();
+  const mes = fechaMostrada.getMonth();
   const diasEnMes = new Date(anio, mes + 1, 0).getDate();
   const primerDia = (new Date(anio, mes, 1).getDay() + 6) % 7;
+  const enMesActual = mesOffset === 0;
+  const irMesAnterior = () => setMesOffset((o) => Math.max(0, o - 1));
+  const irMesSiguiente = () => setMesOffset((o) => o + 1);
 
   const cargar = useCallback(async () => {
     if (!selectedCarId) return;
@@ -105,7 +112,29 @@ export function CarCalendarScreen({ car, onBack }) {
         </ScrollView>
 
         <View style={styles.calCard}>
-          <Text style={styles.month}>{MESES[mes]} {anio}</Text>
+          <View style={styles.monthNav}>
+            <TouchableOpacity
+              onPress={irMesAnterior}
+              disabled={enMesActual}
+              hitSlop={theme.control.hitSlop}
+              style={[styles.monthNavBtn, enMesActual && styles.monthNavBtnDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="Mes anterior"
+              accessibilityState={{ disabled: enMesActual }}
+            >
+              <Icon name="chevron-left" size={18} color={enMesActual ? colors.darkTextMuted : colors.textWhite} />
+            </TouchableOpacity>
+            <Text style={styles.month}>{MESES[mes]} {anio}</Text>
+            <TouchableOpacity
+              onPress={irMesSiguiente}
+              hitSlop={theme.control.hitSlop}
+              style={styles.monthNavBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Mes siguiente"
+            >
+              <Icon name="chevron-right" size={18} color={colors.textWhite} />
+            </TouchableOpacity>
+          </View>
 
           {loading ? (
             <ActivityIndicator color={colors.accent} style={{ marginVertical: 30 }} />
@@ -175,7 +204,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.darkBorder,
   },
-  month: { fontSize: 16, fontWeight: "700", color: colors.textWhite, marginBottom: theme.spacing.md },
+  monthNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: theme.spacing.md,
+  },
+  monthNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.darkCardSubtle,
+  },
+  monthNavBtnDisabled: { opacity: 0.4 },
+  month: { fontSize: 16, fontWeight: "700", color: colors.textWhite },
   weekRow: { flexDirection: "row", marginBottom: theme.spacing.sm },
   weekday: { flex: 1, fontSize: 11, fontWeight: "700", color: colors.darkTextMuted, textAlign: "center" },
   grid: { flexDirection: "row", flexWrap: "wrap" },

@@ -17,6 +17,7 @@ import {
   colors,
   theme,
   Icon,
+  useApp,
   Button,
   Chip,
   ScreenHeader,
@@ -28,7 +29,15 @@ import {
   subirImagenOptimizada,
   subirImagenesOptimizadas,
   showAlert,
+  CampoConSugerencias,
 } from "@rentacar/mobile-shared";
+import { validarPatenteChilena } from "@rentacar/shared-schemas";
+import {
+  buscarMarcas,
+  buscarModelos,
+  esMarcaConocida,
+  normalizarMarca,
+} from "@rentacar/mobile-shared/vehiculo/catalogo";
 
 let MapView = null;
 let Marker = null;
@@ -47,6 +56,14 @@ try {
   Location = null;
 }
 
+// Centro del mapa la primera vez, solo para que la cámara arranque en la zona
+// donde opera la flota. No es un punto por defecto del auto: mientras el dueño
+// no toque el mapa no hay pin y no se puede publicar.
+const PUNTO_INICIAL = { latitude: -37.4697, longitude: -72.3536 };
+
+// Si no hay ni mapa nativo ni GPS, no hay manera de marcar el punto exacto.
+const PUEDE_FIJAR_PUNTO = !!MapView || !!Location;
+
 const TRANSMISIONES = [
   { v: "automatica", label: "Automática" },
   { v: "mecanica", label: "Mecánica" },
@@ -63,16 +80,6 @@ const CATEGORIAS = [
   { v: "suv", label: "SUV" },
   { v: "camioneta", label: "Camioneta" },
   { v: "premium", label: "Premium" },
-];
-
-// Marcas con presencia real en Chile (para el autocompletado de "Marca").
-const CAR_BRANDS = [
-  "Audi", "BAIC", "BMW", "BYD", "Changan", "Chery", "Chevrolet", "Chrysler",
-  "Citroën", "DFSK", "Dodge", "Fiat", "Ford", "Foton", "Great Wall", "Haval",
-  "Honda", "Hyundai", "Isuzu", "JAC", "Jeep", "Jetour", "Kia", "Land Rover",
-  "Lexus", "Mahindra", "Maxus", "Mazda", "Mercedes-Benz", "MG", "Mini",
-  "Mitsubishi", "Nissan", "Opel", "Peugeot", "Porsche", "RAM", "Renault",
-  "Skoda", "SsangYong", "Subaru", "Suzuki", "Toyota", "Volkswagen", "Volvo",
 ];
 
 // Documentos legales del auto que el backend exige para publicar.
@@ -124,52 +131,44 @@ const DOCS_OBLIGATORIOS = DOCS.filter((d) => !d.opcional);
 
 const STEPS = ["Vehículo", "Tarifa", "Fotos", "Documentos"];
 
-// Input de marca con lista de sugerencias filtrada por lo que escribe el usuario.
-function MarcaInput({ value, onChange, onFocus }) {
-  const [open, setOpen] = useState(false);
-  const q = (value || "").trim().toLowerCase();
-  const matches = q.length === 0 ? CAR_BRANDS : CAR_BRANDS.filter((b) => b.toLowerCase().includes(q));
-  const yaCoincide = matches.length === 1 && matches[0].toLowerCase() === q;
-  const mostrarLista = open && matches.length > 0 && !yaCoincide;
-
+/**
+ * Mensaje de error bajo un campo.
+ *
+ * Reemplaza a las alertas modales de "Faltan datos", que interrumpían y no
+ * decían cuál campo estaba mal. Lleva rol de alerta para que un lector de
+ * pantalla lo anuncie en vez de dejarlo solo en el color rojo.
+ */
+function MensajeError({ texto }) {
+  if (!texto) return null;
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>Marca</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Escribe y elige de la lista"
-        placeholderTextColor={colors.textSilver}
-        value={value}
-        onChangeText={(t) => {
-          onChange(t);
-          setOpen(true);
-        }}
-        onFocus={(e) => {
-          setOpen(true);
-          onFocus && onFocus(e);
-        }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        autoCapitalize="words"
-        autoCorrect={false}
-      />
-      {mostrarLista && (
-        <View style={styles.suggestBox}>
-          <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled style={styles.suggestScroll}>
-            {matches.slice(0, 8).map((b) => (
-              <TouchableOpacity
-                key={b}
-                style={styles.suggestRow}
-                onPress={() => {
-                  onChange(b);
-                  setOpen(false);
-                }}
-              >
-                <Text style={styles.suggestText}>{b}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+    <Text style={styles.mensajeError} accessibilityRole="alert">
+      {texto}
+    </Text>
+  );
+}
+
+/**
+ * Lo que el dueño va a necesitar, dicho antes de empezar.
+ *
+ * El flujo pide 8 fotos y 4 documentos legales, pero eso recién aparecía en
+ * los pasos 3 y 4: el dueño llegaba hasta ahí y se encontraba con que tenía
+ * que ir a buscar el padrón. Decirlo al principio evita el abandono a mitad
+ * de camino.
+ */
+function QueNecesitas() {
+  return (
+    <View style={styles.necesitasCard}>
+      <Text style={styles.necesitasTitulo}>Ten a mano antes de empezar</Text>
+      {[
+        { icon: "camera", texto: `${TOTAL_FOTOS_AUTO} fotos del auto, guiadas paso a paso` },
+        { icon: "document", texto: "Padrón, permiso de circulación, SOAP y revisión técnica" },
+        { icon: "clock", texto: "Unos 5 minutos. Puedes salir y retomar después" },
+      ].map((item) => (
+        <View key={item.icon} style={styles.necesitasFila}>
+          <Icon name={item.icon} size={16} color={colors.accent} />
+          <Text style={styles.necesitasTexto}>{item.texto}</Text>
         </View>
-      )}
+      ))}
     </View>
   );
 }
@@ -261,8 +260,48 @@ function DocSlot({ doc, uri, uploading, validando, validacion, onCamera, onFile,
   );
 }
 
+/**
+ * Bloqueo por falta de tarjeta.
+ *
+ * El backend rechaza la publicación sin tarjeta validada, pero descubrirlo al
+ * final —después de cuatro pasos, ocho fotos y cuatro documentos— sería la
+ * peor forma de enterarse. Se avisa antes de empezar y se dice qué hacer.
+ */
+function TarjetaRequerida({ estado, onBack }) {
+  const enRevision = estado === "requiere_revision_manual";
+  const rechazada = estado === "rechazada";
+
+  return (
+    <View style={styles.container}>
+      <ScreenHeader tone="dark" title="Publicar un auto" onBack={onBack} />
+      <View style={styles.bloqueoCaja}>
+        <View style={styles.bloqueoIcono}>
+          <Icon name={enRevision ? "clock" : "card"} size={30} color={colors.accent} />
+        </View>
+        <Text style={styles.bloqueoTitulo}>
+          {enRevision ? "Estamos revisando tu tarjeta" : "Primero registra tu tarjeta"}
+        </Text>
+        <Text style={styles.bloqueoTexto}>
+          {enRevision
+            ? "Apenas quede validada podrás publicar tu auto. Te avisamos por notificación."
+            : rechazada
+              ? "Tu tarjeta fue rechazada. Registra otra desde tu perfil y vuelve a intentarlo."
+              : "Necesitamos una tarjeta de crédito validada antes de publicar. Es de donde se cobran el deducible, los cargos de la devolución y los peajes que llegan a nombre de la patente."}
+        </Text>
+        {!enRevision ? (
+          <Text style={styles.bloqueoPista}>
+            La registras en tu perfil, en Métodos de pago.
+          </Text>
+        ) : null}
+        <Button label="Entendido" onPress={onBack} tone="dark" style={{ marginTop: theme.spacing.lg }} />
+      </View>
+    </View>
+  );
+}
+
 export function AddEditCarScreen({ onBack, onComplete }) {
   const insets = useSafeAreaInsets();
+  const { currentUser } = useApp();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   // Fotos del auto: una por casilla (ver FOTOS_AUTO). Se suben apenas se
@@ -283,6 +322,10 @@ export function AddEditCarScreen({ onBack, onComplete }) {
 
   const scrollRef = useRef(null);
   const contentRef = useRef(null);
+  const mapaRef = useRef(null);
+  // Una vez que el dueño escribe su propia referencia, el geocodificador deja
+  // de pisarla.
+  const referenciaEditadaAMano = useRef(false);
 
   const [form, setForm] = useState({
     marca: "",
@@ -290,9 +333,13 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     anio: "2023",
     patente: "",
     tarifa_dia: "35000",
-    ubicacion_base: "Plaza de Armas, Los Ángeles",
-    latitud: -37.4697,
-    longitud: -72.3536,
+    // Sin punto por defecto: si todos los autos nacen en Plaza de Armas,
+    // todos los pines caen encima del mismo lugar y el mapa deja de decir
+    // dónde está cada auto. El dueño fija el punto con el GPS o tocando el
+    // mapa, y sin eso no puede avanzar.
+    ubicacion_base: "",
+    latitud: null,
+    longitud: null,
     transmision: "automatica",
     combustible: "bencina",
     categoria: "sedan",
@@ -304,6 +351,57 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     gps_consentimiento: false,
   });
 
+  // Los errores se calculan siempre, pero solo se muestran cuando el usuario
+  // ya intentó avanzar de ese paso: no tiene sentido pintar de rojo un
+  // formulario recién abierto.
+  const [pasosIntentados, setPasosIntentados] = useState({});
+  const anioActual = new Date().getFullYear();
+
+  const errores = (() => {
+    const e = {};
+    if (!form.marca.trim()) e.marca = "Elige la marca de tu auto.";
+    if (!form.modelo.trim()) e.modelo = "Escribe el modelo, como aparece en el padrón.";
+
+    const anio = parseInt(form.anio, 10);
+    if (!form.anio.trim()) e.anio = "Falta el año.";
+    else if (Number.isNaN(anio) || anio < 2000) e.anio = "Aceptamos autos del año 2000 en adelante.";
+    else if (anio > anioActual + 1) e.anio = `El año no puede ser mayor a ${anioActual + 1}.`;
+
+    if (!form.patente.trim()) e.patente = "Falta la patente.";
+    else if (!validarPatenteChilena(form.patente)) {
+      e.patente = "Revisa el formato: 4 letras y 2 números (BBCL-10) o 2 letras y 4 números (AB-12-34).";
+    }
+
+    if (!form.ubicacion_base.trim()) {
+      e.ubicacion_base = "Escribe una referencia del punto de entrega.";
+    }
+    // Solo se exige el punto si el dispositivo tiene con qué fijarlo. Sin
+    // mapa nativo ni GPS no habría forma de cumplir el requisito y el dueño
+    // quedaría encerrado en el paso 1: en ese caso el auto se publica sin
+    // coordenadas y el mapa de búsqueda lo cuenta aparte, en vez de inventarle
+    // una posición.
+    if (PUEDE_FIJAR_PUNTO && (typeof form.latitud !== "number" || typeof form.longitud !== "number")) {
+      e.punto = "Fija el punto en el mapa o usa tu ubicación GPS.";
+    }
+
+    const tarifa = parseInt(form.tarifa_dia, 10);
+    if (!form.tarifa_dia.trim()) e.tarifa_dia = "Define cuánto quieres cobrar por día.";
+    else if (Number.isNaN(tarifa) || tarifa <= 0) e.tarifa_dia = "La tarifa debe ser mayor a cero.";
+
+    return e;
+  })();
+
+  const CAMPOS_POR_PASO = {
+    1: ["marca", "modelo", "anio", "patente", "ubicacion_base", "punto"],
+    2: ["tarifa_dia"],
+  };
+  const errorDe = (campo) => {
+    const paso = Object.keys(CAMPOS_POR_PASO).find((k) => CAMPOS_POR_PASO[k].includes(campo));
+    return pasosIntentados[paso] ? errores[campo] : null;
+  };
+
+  const tienePunto = typeof form.latitud === "number" && typeof form.longitud === "number";
+
   const tarifaNum = parseInt(form.tarifa_dia, 10) || 35000;
   const gananciaNeta = Math.round(tarifaNum * 0.8);
   const docsCargados = DOCS_OBLIGATORIOS.filter((d) => form.docs[d.key]).length;
@@ -313,6 +411,30 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   // primero, después laterales, interior y detalle.
   const fotosOrdenadas = FOTOS_AUTO.map((s) => fotosPorSlot[s.key]).filter(Boolean);
   const fotosListas = fotosOrdenadas.length;
+
+  /**
+   * Nombre legible de un punto, para que el dueño reconozca dónde quedó el pin.
+   * Si el reverse geocoding falla devuelve las coordenadas: feo pero exacto, y
+   * mejor que dejar la referencia vacía.
+   */
+  const describirPunto = async (lat, lon) => {
+    const respaldo = `Punto GPS (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
+    if (!Location) return respaldo;
+    try {
+      const [rev] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
+      if (!rev) return respaldo;
+      const partes = [rev.street, rev.name, rev.district || rev.subregion || rev.city].filter(Boolean);
+      return partes.length ? partes.join(", ") : respaldo;
+    } catch {
+      return respaldo;
+    }
+  };
+
+  /** Mueve la cámara sin tocar el zoom que el usuario haya elegido. */
+  const centrarMapa = (lat, lon) => {
+    if (!mapaRef.current) return;
+    mapaRef.current.animateCamera({ center: { latitude: lat, longitude: lon } }, { duration: 350 });
+  };
 
   const handleUseCurrentLocation = async () => {
     setLocatingGps(true);
@@ -326,29 +448,28 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         showAlert("Permiso requerido", "Activa el permiso de ubicación para obtener tus coordenadas actuales.");
         return;
       }
-      const pos = await Location.getCurrentPositionAsync({ accuracy: 3 });
+      // Accuracy.High (4), no Balanced (3): Balanced resuelve con ~100 m de
+      // error, suficiente para "en qué ciudad estás" pero no para un punto de
+      // encuentro. 100 m son dos cuadras, y el arrendatario termina llamando
+      // para preguntar dónde es.
+      const precisionAlta = Location.Accuracy?.High ?? 4;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: precisionAlta });
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
 
-      let sectorLegible = `Punto GPS (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
-      try {
-        const [rev] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
-        if (rev) {
-          const partes = [rev.street, rev.name, rev.district || rev.subregion || rev.city].filter(Boolean);
-          if (partes.length) sectorLegible = partes.join(", ");
-        }
-      } catch {}
-
+      // A diferencia del toque en el mapa, acá sí se pisa lo escrito: tocar
+      // "Mi ubicación GPS" es pedir explícitamente que se use esa dirección.
+      const sectorLegible = await describirPunto(lat, lon);
+      referenciaEditadaAMano.current = false;
       setForm((prev) => ({
         ...prev,
         latitud: lat,
         longitud: lon,
         ubicacion_base: sectorLegible,
       }));
-      showAlert(
-        "Ubicación GPS capturada",
-        `Se fijó el punto de entrega:\n${sectorLegible}\n\nRecuerda preferir siempre lugares públicos concurridos.`
-      );
+      // Recentrar el mapa es la confirmación visible de que el punto quedó
+      // fijado, y deja ver al tiro si cayó donde el dueño esperaba.
+      centrarMapa(lat, lon);
     } catch (err) {
       showAlert("No se pudo obtener la ubicación", err.message || "Toca el mapa para elegir el punto.");
     } finally {
@@ -356,14 +477,29 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     }
   };
 
+  const fijarPunto = async (lat, lon) => {
+    setForm((prev) => ({ ...prev, latitud: lat, longitud: lon }));
+
+    // La referencia escrita tiene que seguir al pin: si el texto dice "Plaza
+    // de Armas" y el pin está en otro barrio, el arrendatario le cree al texto
+    // y llega al lugar equivocado.
+    //
+    // Pero solo se rellena mientras el dueño no haya escrito la suya: "Copec
+    // Av. Alemania" le dice más al arrendatario que el nombre de calle que
+    // devuelve el geocodificador, y pisárselo cada vez que corre el pin unos
+    // metros sería insufrible.
+    if (referenciaEditadaAMano.current) return;
+    const descripcion = await describirPunto(lat, lon);
+    if (referenciaEditadaAMano.current) return;
+    setForm((prev) => ({ ...prev, ubicacion_base: descripcion }));
+  };
+
   const handleMapPress = (e) => {
     const coord = e?.nativeEvent?.coordinate;
-    if (coord?.latitude && coord?.longitude) {
-      setForm((prev) => ({
-        ...prev,
-        latitud: coord.latitude,
-        longitud: coord.longitude,
-      }));
+    // Se compara contra undefined y no por valor verdadero: una coordenada 0
+    // es legítima y `if (coord.latitude)` la descartaba.
+    if (coord && coord.latitude !== undefined && coord.longitude !== undefined) {
+      fijarPunto(coord.latitude, coord.longitude);
     }
   };
 
@@ -381,15 +517,20 @@ export function AddEditCarScreen({ onBack, onComplete }) {
     }, 60);
   };
 
+  // Sin tarjeta validada no tiene sentido dejar entrar al asistente: el
+  // backend va a rechazar la publicación igual.
+  if (currentUser && currentUser.tarjeta_estado !== "validada") {
+    return <TarjetaRequerida estado={currentUser.tarjeta_estado} onBack={onBack} />;
+  }
+
   const handleNext = () => {
-    if (step === 1) {
-      if (!form.marca || !form.modelo || !form.patente) {
-        showAlert("Faltan datos", "Ingresa la marca, el modelo y la patente.");
-        return;
-      }
-      setStep(2);
-    } else if (step === 2) {
-      setStep(3);
+    if (step === 1 || step === 2) {
+      setPasosIntentados((prev) => ({ ...prev, [step]: true }));
+      // Los errores quedan visibles bajo cada campo: la alerta anterior decía
+      // "faltan datos" sin señalar cuál, y la patente mal escrita no se
+      // detectaba hasta el final, con las fotos y los documentos ya subidos.
+      if (CAMPOS_POR_PASO[step].some((campo) => errores[campo])) return;
+      setStep(step + 1);
     } else if (step === 3) {
       const faltantes = FOTOS_AUTO.filter((slot) => !fotosPorSlot[slot.key]);
       if (faltantes.length) {
@@ -639,7 +780,10 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      // Android ya no redimensiona la ventana con el teclado (ver app.json,
+      // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
+      // Detalle completo en LoginScreen.js.
       keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
     >
       <ScreenHeader
@@ -666,27 +810,48 @@ export function AddEditCarScreen({ onBack, onComplete }) {
         <View ref={contentRef} collapsable={false}>
           {step === 1 && (
             <View style={styles.card}>
-              <MarcaInput
-                value={form.marca}
-                onChange={(t) => setForm((prev) => ({ ...prev, marca: t }))}
+              <QueNecesitas />
+              <CampoConSugerencias
+                etiqueta="Marca"
+                valor={form.marca}
+                onChange={(t) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    marca: t,
+                    // Cambiar de marca invalida el modelo: un Swift no existe
+                    // en Toyota, y dejarlo escrito confunde más que ayudar.
+                    modelo: normalizarMarca(t) === normalizarMarca(prev.marca) ? prev.modelo : "",
+                  }))
+                }
                 onFocus={handleFieldFocus}
+                buscar={buscarMarcas}
+                placeholder="Escribe y elige de la lista"
+                error={errorDe("marca")}
               />
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Modelo</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="ej. RAV4, Tucson, Swift"
-                  placeholderTextColor={colors.textSilver}
-                  value={form.modelo}
-                  onChangeText={(t) => setForm((prev) => ({ ...prev, modelo: t }))}
-                  onFocus={handleFieldFocus}
-                />
-              </View>
+              <MensajeError texto={errorDe("marca")} />
+
+              <CampoConSugerencias
+                etiqueta="Modelo"
+                valor={form.modelo}
+                onChange={(t) => setForm((prev) => ({ ...prev, modelo: t }))}
+                onFocus={handleFieldFocus}
+                buscar={(q) => buscarModelos(form.marca, q)}
+                placeholder={
+                  esMarcaConocida(form.marca) ? "Elige el modelo" : "ej. RAV4, Tucson, Swift"
+                }
+                ayuda={
+                  esMarcaConocida(form.marca)
+                    ? null
+                    : "Elige primero la marca y te sugerimos sus modelos."
+                }
+                error={errorDe("modelo")}
+              />
+              <MensajeError texto={errorDe("modelo")} />
               <View style={styles.row}>
                 <View style={[styles.field, { flex: 1 }]}>
                   <Text style={styles.fieldLabel}>Año</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, errorDe("anio") && styles.inputError]}
                     placeholder="2023"
                     placeholderTextColor={colors.textSilver}
                     value={form.anio}
@@ -694,18 +859,22 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                     onFocus={handleFieldFocus}
                     keyboardType="number-pad"
                   />
+                  <MensajeError texto={errorDe("anio")} />
                 </View>
                 <View style={[styles.field, { flex: 1 }]}>
                   <Text style={styles.fieldLabel}>Patente</Text>
                   <TextInput
-                    style={[styles.input, styles.patenteInput]}
+                    style={[styles.input, styles.patenteInput, errorDe("patente") && styles.inputError]}
                     placeholder="ABCD-12"
                     placeholderTextColor={colors.textSilver}
                     value={form.patente}
                     onChangeText={(t) => setForm((prev) => ({ ...prev, patente: t }))}
                     onFocus={handleFieldFocus}
                     autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={9}
                   />
+                  <MensajeError texto={errorDe("patente")} />
                 </View>
               </View>
 
@@ -745,53 +914,71 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                   </TouchableOpacity>
                 </View>
                 <TextInput
-                  style={styles.input}
-                  placeholder="ej. Metro Tobalaba / Copec Plaza Principal"
+                  style={[styles.input, errorDe("ubicacion_base") && styles.inputError]}
+                  placeholder="ej. Copec Av. Alemania / Plaza de Armas"
                   placeholderTextColor={colors.textSilver}
                   value={form.ubicacion_base}
-                  onChangeText={(t) => setForm((prev) => ({ ...prev, ubicacion_base: t }))}
+                  onChangeText={(t) => {
+                    referenciaEditadaAMano.current = true;
+                    setForm((prev) => ({ ...prev, ubicacion_base: t }));
+                  }}
                   onFocus={handleFieldFocus}
                 />
+                <MensajeError texto={errorDe("ubicacion_base")} />
               </View>
 
               {/* Mapa Interactivo de Posicionamiento */}
               {MapView ? (
                 <View style={styles.mapContainer}>
                   <MapView
+                    ref={mapaRef}
                     style={styles.miniMap}
-                    region={{
-                      latitude: form.latitud || -37.4697,
-                      longitude: form.longitud || -72.3536,
+                    // initialRegion, NO region: con `region` controlado el mapa
+                    // vuelve a la posición y al zoom del estado en cada render,
+                    // así que acercarse para poner el pin en la esquina exacta
+                    // era imposible. La cámara se mueve a propósito con
+                    // centrarMapa(), y el resto del tiempo manda el usuario.
+                    initialRegion={{
+                      latitude: form.latitud ?? PUNTO_INICIAL.latitude,
+                      longitude: form.longitud ?? PUNTO_INICIAL.longitude,
                       latitudeDelta: 0.02,
                       longitudeDelta: 0.02,
                     }}
                     onPress={handleMapPress}
+                    showsUserLocation
+                    showsMyLocationButton={false}
                   >
-                    {Marker && (
+                    {Marker && tienePunto && (
                       <Marker
-                        coordinate={{
-                          latitude: form.latitud || -37.4697,
-                          longitude: form.longitud || -72.3536,
-                        }}
+                        coordinate={{ latitude: form.latitud, longitude: form.longitud }}
                         draggable
                         onDragEnd={handleMapPress}
                         title={form.ubicacion_base || "Punto de entrega"}
                       />
                     )}
                   </MapView>
-                  <View style={styles.mapHintBadge}>
-                    <Icon name="pin" size={12} color="#FFFFFF" />
-                    <Text style={styles.mapHintText}>Toca el mapa o arrastra el marcador para fijar el punto</Text>
+                  <View style={[styles.mapHintBadge, tienePunto && styles.mapHintBadgeOk]}>
+                    <Icon name={tienePunto ? "check" : "pin"} size={12} color="#FFFFFF" />
+                    <Text style={styles.mapHintText}>
+                      {tienePunto
+                        ? `Punto fijado en ${form.latitud.toFixed(5)}, ${form.longitud.toFixed(5)}`
+                        : "Toca el mapa para fijar el punto de entrega"}
+                    </Text>
                   </View>
                 </View>
               ) : (
                 <View style={styles.noMapBox}>
                   <Icon name="pin" size={18} color={colors.accent} />
                   <Text style={styles.noMapText}>
-                    Coordenadas fijadas: {Number(form.latitud || 0).toFixed(4)}, {Number(form.longitud || 0).toFixed(4)}
+                    {tienePunto
+                      ? `Coordenadas fijadas: ${form.latitud.toFixed(5)}, ${form.longitud.toFixed(5)}`
+                      : Location
+                      ? 'Usa "Mi ubicación GPS" para fijar el punto de entrega.'
+                      : "Sin mapa en este dispositivo. Tu auto se publica igual, pero no aparecerá en el mapa de búsqueda hasta que fijes el punto desde la app instalada."}
                   </Text>
                 </View>
               )}
+              <MensajeError texto={errorDe("punto")} />
             </View>
           )}
 
@@ -800,7 +987,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Tarifa por día (CLP)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, errorDe("tarifa_dia") && styles.inputError]}
                   placeholder="35000"
                   placeholderTextColor={colors.textSilver}
                   value={form.tarifa_dia}
@@ -808,6 +995,7 @@ export function AddEditCarScreen({ onBack, onComplete }) {
                   onFocus={handleFieldFocus}
                   keyboardType="number-pad"
                 />
+                <MensajeError texto={errorDe("tarifa_dia")} />
               </View>
 
               <View style={styles.profitBox}>
@@ -1135,22 +1323,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: theme.spacing.md },
   specGroupLabel: { fontSize: 13, color: colors.textSilver, fontWeight: "600", marginTop: 4 },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  suggestBox: {
-    marginTop: 4,
-    backgroundColor: colors.darkCard,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.darkBorderStrong,
-    overflow: "hidden",
-  },
-  suggestScroll: { maxHeight: 220 },
-  suggestRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.darkBorder,
-  },
-  suggestText: { color: colors.textWhite, fontSize: 15, fontWeight: "500" },
   profitBox: {
     backgroundColor: colors.darkCardSubtle,
     padding: theme.spacing.lg,
@@ -1234,6 +1406,44 @@ const styles = StyleSheet.create({
   },
   uploadBtnText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   count: { color: colors.darkTextMuted, fontSize: 12, textAlign: "center" },
+  mensajeError: {
+    color: colors.danger,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 6,
+  },
+  inputError: { borderColor: colors.danger },
+  necesitasCard: {
+    gap: theme.spacing.sm,
+    padding: theme.spacing.md,
+    borderRadius: theme.radius.field,
+    backgroundColor: colors.darkCardSubtle,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+    marginBottom: theme.spacing.md,
+  },
+  bloqueoCaja: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.xxl,
+  },
+  bloqueoIcono: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.darkCardSubtle,
+    marginBottom: theme.spacing.sm,
+  },
+  bloqueoTitulo: { color: colors.textWhite, fontSize: 19, fontWeight: "800", textAlign: "center" },
+  bloqueoTexto: { color: colors.textSilver, fontSize: 14, lineHeight: 20, textAlign: "center" },
+  bloqueoPista: { color: colors.accent, fontSize: 13, fontWeight: "700", textAlign: "center" },
+  necesitasTitulo: { color: colors.textWhite, fontSize: 14, fontWeight: "700" },
+  necesitasFila: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
+  necesitasTexto: { flex: 1, color: colors.textSilver, fontSize: 13, lineHeight: 18 },
   gpsConsent: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1369,7 +1579,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 999,
   },
+  mapHintBadgeOk: { backgroundColor: "rgba(16, 122, 87, 0.92)" },
   mapHintText: { color: "#FFFFFF", fontSize: 11, fontWeight: "600" },
+  fieldHint: { fontSize: 12, lineHeight: 16, color: colors.textSilver },
   noMapBox: {
     flexDirection: "row",
     alignItems: "center",

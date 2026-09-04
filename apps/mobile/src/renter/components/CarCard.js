@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { colors, theme, Icon } from "@rentacar/mobile-shared";
 
-export function CarCard({ car, onPress }) {
+export function CarCard({ car, onPress, esFavorito, onToggleFavorito }) {
   const precio = (car.tarifa_dia || 0).toLocaleString("es-CL");
   const rating = car.rating_promedio || car.dueno?.rating;
   const equip = car.equipamiento || {};
@@ -26,6 +26,22 @@ export function CarCard({ car, onPress }) {
           <View style={styles.badgeDot} />
           <Text style={styles.badgeText}>Disponible</Text>
         </View>
+        {onToggleFavorito ? (
+          <TouchableOpacity
+            style={styles.favButton}
+            onPress={() => onToggleFavorito(car)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={esFavorito ? "Quitar de favoritos" : "Agregar a favoritos"}
+          >
+            <Icon
+              name="heart"
+              size={18}
+              color={esFavorito ? colors.danger : colors.primary}
+              fill={esFavorito ? colors.danger : "none"}
+            />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={styles.body}>
@@ -97,6 +113,18 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.pill,
   },
   badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent500 },
+  favButton: {
+    position: "absolute",
+    top: theme.spacing.md,
+    right: theme.spacing.md,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...theme.shadow.sm,
+  },
   badgeText: { fontSize: 12, fontWeight: "600", color: colors.primary },
   body: { padding: theme.spacing.lg, gap: theme.spacing.sm },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },

@@ -9,6 +9,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
@@ -16,6 +17,7 @@ import { Icon } from "../components/Icon";
 import { Button } from "../components/ui";
 import { DateTimeField, aISOLocal } from "../components/DateTimeField";
 import { ApiClient } from "../api/client";
+import { elegirYSubirImagen, AJUSTES_DOCUMENTO } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
 
 const TIPOS_FALTAS = [
@@ -39,6 +41,83 @@ const TIPOS_CARGO_POSTERIOR = [
 ];
 
 const esCargoPosterior = (id) => TIPOS_CARGO_POSTERIOR.some((t) => t.id === id);
+
+/**
+ * Adjuntar una foto desde la cámara o la galería.
+ *
+ * Antes acá había un campo de texto pidiendo pegar una URL: nadie escribe una
+ * URL en el teléfono, así que la evidencia y la boleta quedaban sin adjuntar y
+ * el cargo se aplicaba sin respaldo.
+ */
+function AdjuntarFoto({ etiqueta, ayuda, url, onUrl, bucket, ajustes, obligatorio }) {
+  const [subiendo, setSubiendo] = useState(false);
+
+  const adjuntar = async (origen) => {
+    setSubiendo(true);
+    try {
+      const { url: subida, cancelado } = await elegirYSubirImagen({
+        origen,
+        bucket,
+        filename: `${bucket}-${Date.now()}.jpg`,
+        ...(ajustes || {}),
+      });
+      if (!cancelado && subida) onUrl(subida);
+    } catch (err) {
+      showAlert("No se pudo adjuntar", err.message || "Inténtalo de nuevo.");
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>
+        {etiqueta}
+        {obligatorio ? "" : " (opcional)"}
+      </Text>
+      {ayuda ? <Text style={styles.adjuntoAyuda}>{ayuda}</Text> : null}
+
+      {url ? (
+        <View style={styles.adjuntoListo}>
+          <Icon name="check" size={16} color={colors.accent700} />
+          <Text style={styles.adjuntoListoTexto} numberOfLines={1}>
+            Adjuntado
+          </Text>
+          <TouchableOpacity onPress={() => onUrl("")} hitSlop={theme.control.hitSlop}>
+            <Text style={styles.adjuntoQuitar}>Quitar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.adjuntoBotones}>
+          <TouchableOpacity
+            style={styles.adjuntoBoton}
+            onPress={() => adjuntar("camera")}
+            disabled={subiendo}
+            activeOpacity={0.8}
+          >
+            {subiendo ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <>
+                <Icon name="camera" size={16} color={colors.primary} />
+                <Text style={styles.adjuntoBotonTexto}>Tomar foto</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.adjuntoBoton}
+            onPress={() => adjuntar("library")}
+            disabled={subiendo}
+            activeOpacity={0.8}
+          >
+            <Icon name="document" size={16} color={colors.primary} />
+            <Text style={styles.adjuntoBotonTexto}>Desde galería</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
 
 export function ReportFineModal({
   visible,
@@ -121,12 +200,15 @@ export function ReportFineModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // Android ya no redimensiona la ventana con el teclado (ver app.json,
+        // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
+        // Detalle completo en LoginScreen.js.
       >
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={styles.iconCircle}>
-              <Icon name="alert-triangle" size={24} color={colors.warning} />
+              <Icon name="alert" size={24} color={colors.warning} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Reportar falta o penalización</Text>
@@ -202,17 +284,15 @@ export function ReportFineModal({
                   />
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>URL de la boleta o del parte</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={documentoUrl}
-                    onChangeText={setDocumentoUrl}
-                    autoCapitalize="none"
-                    placeholder="https://..."
-                    placeholderTextColor={colors.textPlaceholder}
-                  />
-                </View>
+                <AdjuntarFoto
+                  etiqueta="Boleta de la concesionaria o parte cursado"
+                  ayuda="Es el respaldo del cobro: el arrendatario lo puede revisar en su historial."
+                  url={documentoUrl}
+                  onUrl={setDocumentoUrl}
+                  bucket="evidencias"
+                  ajustes={AJUSTES_DOCUMENTO}
+                  obligatorio
+                />
               </>
             )}
 
@@ -243,17 +323,13 @@ export function ReportFineModal({
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>URL de foto de evidencia (opcional)</Text>
-              <TextInput
-                style={styles.input}
-                value={fotoUrl}
-                onChangeText={setFotoUrl}
-                autoCapitalize="none"
-                placeholder="https://..."
-                placeholderTextColor={colors.textPlaceholder}
-              />
-            </View>
+            <AdjuntarFoto
+              etiqueta="Foto de evidencia"
+              ayuda="Sirve como prueba si el arrendatario disputa el cargo."
+              url={fotoUrl}
+              onUrl={setFotoUrl}
+              bucket="evidencias"
+            />
 
             <Button
               label="Aplicar cargo y notificar"
@@ -314,6 +390,39 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  adjuntoAyuda: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+    marginTop: -2,
+  },
+  adjuntoBotones: { flexDirection: "row", gap: theme.spacing.sm },
+  adjuntoBoton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 44,
+    borderRadius: theme.radius.field,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  adjuntoBotonTexto: { fontSize: 13, fontWeight: "700", color: colors.primary },
+  adjuntoListo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    height: 44,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radius.field,
+    borderWidth: 1.5,
+    borderColor: colors.accent700,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  adjuntoListoTexto: { flex: 1, fontSize: 13, fontWeight: "700", color: colors.text },
+  adjuntoQuitar: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
   sectionHelp: {
     fontSize: 12,
     lineHeight: 17,

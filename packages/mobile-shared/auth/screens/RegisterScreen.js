@@ -119,7 +119,10 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      // Android ya no redimensiona la ventana con el teclado (ver app.json,
+      // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
+      // Detalle completo en LoginScreen.js.
       keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
     >
       <StatusBar barStyle="dark-content" />

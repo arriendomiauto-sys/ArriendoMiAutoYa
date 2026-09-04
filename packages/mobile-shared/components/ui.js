@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,10 +6,13 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
+
+const TouchableAnimado = Animated.createAnimatedComponent(TouchableOpacity);
 
 /**
  * Primitivas de UI compartidas. Todas aceptan `tone`:
@@ -46,6 +49,7 @@ export function Button({
   iconRight,
   style,
   fullWidth = true,
+  accessibilityLabel,
 }) {
   const p = palette(tone);
   const isDisabled = disabled || loading;
@@ -64,11 +68,30 @@ export function Button({
     danger: colors.dangerText,
   }[variant];
 
+  // Un botón que no reacciona al toque se siente roto un instante antes de
+  // que pase nada — el `activeOpacity` de TouchableOpacity ayuda, pero un
+  // achique físico confirma el toque de forma mucho más clara. useNativeDriver
+  // corre la animación en el hilo nativo: no compite con el trabajo de JS que
+  // el propio onPress puede disparar (crear una reserva, subir un archivo…).
+  const scale = useRef(new Animated.Value(1)).current;
+  const onPressIn = () =>
+    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+  const onPressOut = () =>
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
+
   return (
-    <TouchableOpacity
+    <TouchableAnimado
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       disabled={isDisabled}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      // Mientras carga, el texto se reemplaza por el spinner: sin esta
+      // etiqueta el botón quedaba mudo para un lector de pantalla justo
+      // durante la espera, que es cuando más importa saber qué está pasando.
+      accessibilityLabel={accessibilityLabel || label}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={[
         styles.btn,
         size === "sm" && styles.btnSm,
@@ -77,6 +100,7 @@ export function Button({
         variant === "ghost" && styles.btnGhost,
         fullWidth && { alignSelf: "stretch" },
         isDisabled && styles.btnDisabled,
+        { transform: [{ scale }] },
         style,
       ]}
     >
@@ -91,7 +115,7 @@ export function Button({
           {iconRight ? <Icon name={iconRight} size={18} color={fg} /> : null}
         </View>
       )}
-    </TouchableOpacity>
+    </TouchableAnimado>
   );
 }
 
@@ -126,6 +150,10 @@ export function ScreenHeader({ title, subtitle, onBack, right, tone = "light", s
         <TouchableOpacity
           onPress={onBack}
           hitSlop={theme.control.hitSlop}
+          accessibilityRole="button"
+          // Es un botón sin texto: sin etiqueta se anunciaba como un control
+          // sin nombre y no había forma de saber que era "volver".
+          accessibilityLabel="Volver"
           style={[styles.headerBack, { borderColor: p.border, backgroundColor: p.surface }]}
         >
           <Icon name="arrow-left" size={20} color={p.accent} />
@@ -153,10 +181,29 @@ export function ScreenHeader({ title, subtitle, onBack, right, tone = "light", s
 // ---------------------------------------------------------------------------
 export function Chip({ label, selected, onPress, tone = "light", iconLeft }) {
   const p = palette(tone);
+
+  // Mismo resorte que el botón: un chip de filtro se toca muchas veces
+  // seguidas (probando categorías, tipos de cuenta, marcas) y sin este
+  // "snap" cada toque se siente igual de plano que el anterior.
+  const scale = useRef(new Animated.Value(1)).current;
+  const onPressIn = () =>
+    Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+  const onPressOut = () =>
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }).start();
+
   return (
-    <TouchableOpacity
+    <TouchableAnimado
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      // Sin esto, un filtro activo se distinguía solo por color.
+      accessibilityState={{ selected: !!selected }}
+      // El chip mide ~34 px de alto, bajo el mínimo cómodo de 44: el hitSlop
+      // agranda el área táctil sin cambiar el diseño.
+      hitSlop={theme.control.hitSlop}
       style={[
         styles.chip,
         { borderColor: p.border, backgroundColor: p.surface },
@@ -164,6 +211,7 @@ export function Chip({ label, selected, onPress, tone = "light", iconLeft }) {
           backgroundColor: p.dark ? colors.accent : colors.primary,
           borderColor: p.dark ? colors.accent : colors.primary,
         },
+        { transform: [{ scale }] },
       ]}
     >
       {iconLeft ? (
@@ -182,7 +230,7 @@ export function Chip({ label, selected, onPress, tone = "light", iconLeft }) {
       >
         {label}
       </Text>
-    </TouchableOpacity>
+    </TouchableAnimado>
   );
 }
 
@@ -264,6 +312,8 @@ export function MenuRow({ icon, label, meta, onPress, tone = "light", danger = f
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={meta ? `${label}, ${meta}` : label}
       style={[styles.menuRow, !_last && { borderBottomWidth: 1, borderBottomColor: p.border }]}
     >
       <View style={styles.menuRowLeft}>
@@ -284,8 +334,18 @@ export function MenuRow({ icon, label, meta, onPress, tone = "light", danger = f
 // ---------------------------------------------------------------------------
 export function EmptyState({ icon = "car", title, message, action, onAction, tone = "light" }) {
   const p = palette(tone);
+
+  // Aparece justo cuando una lista termina de cargar y no hay nada que
+  // mostrar — sin transición, el salto de "cargando" a "vacío" se siente
+  // como un parpadeo. Un fundido corto marca que es un estado nuevo, no un
+  // error de layout.
+  const entrada = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(entrada, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+  }, [entrada]);
+
   return (
-    <View style={styles.empty}>
+    <Animated.View style={[styles.empty, { opacity: entrada }]}>
       <View style={[styles.emptyIcon, { backgroundColor: p.dark ? colors.darkCardSubtle : colors.primary100 }]}>
         <Icon name={icon} size={30} color={p.accent} />
       </View>
@@ -294,7 +354,7 @@ export function EmptyState({ icon = "car", title, message, action, onAction, ton
       {action && onAction ? (
         <Button label={action} onPress={onAction} tone={tone} size="sm" fullWidth={false} style={{ marginTop: 4 }} />
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -303,16 +363,21 @@ export function EmptyState({ icon = "car", title, message, action, onAction, ton
 // pantallas de auth repetían a mano: campo simple, campo con prefijo fijo
 // (+56 9) y campo de contraseña con botón Ver/Ocultar.
 // ---------------------------------------------------------------------------
-export function Field({
-  label,
-  helper,
-  error,
-  prefix,
-  secure = false,
-  tone = "light",
-  style,
-  ...inputProps
-}) {
+export const Field = React.forwardRef(function Field(
+  {
+    label,
+    helper,
+    error,
+    prefix,
+    secure = false,
+    tone = "light",
+    style,
+    ...inputProps
+  },
+  // La ref apunta al TextInput interno: es lo que permite que un campo enfoque
+  // al siguiente desde el botón "Siguiente" del teclado.
+  ref
+) {
   const p = palette(tone);
   const [focused, setFocused] = React.useState(false);
   const [revealed, setRevealed] = React.useState(false);
@@ -334,6 +399,7 @@ export function Field({
         ) : null}
         <TextInput
           {...inputProps}
+          ref={ref}
           style={[styles.fieldInput, { color: p.text }]}
           placeholderTextColor={colors.textPlaceholder}
           secureTextEntry={secure && !revealed}
@@ -351,6 +417,8 @@ export function Field({
             onPress={() => setRevealed((v) => !v)}
             hitSlop={theme.control.hitSlop}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={revealed ? "Ocultar la contraseña" : "Mostrar la contraseña"}
           >
             <Text style={[styles.fieldReveal, { color: p.accent }]}>
               {revealed ? "Ocultar" : "Ver"}
@@ -361,13 +429,15 @@ export function Field({
       {error || helper ? (
         <Text
           style={[styles.fieldHelper, { color: error ? colors.danger : p.textMuted }]}
+          // Un error marcado solo con color rojo no existe para quien no lo ve.
+          accessibilityRole={error ? "alert" : undefined}
         >
           {error || helper}
         </Text>
       ) : null}
     </View>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Checkbox — casilla cuadrada con etiqueta a la derecha
@@ -375,7 +445,15 @@ export function Field({
 export function Checkbox({ checked, onToggle, label, tone = "light" }) {
   const p = palette(tone);
   return (
-    <TouchableOpacity style={styles.checkboxRow} onPress={onToggle} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={styles.checkboxRow}
+      onPress={onToggle}
+      activeOpacity={0.8}
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      // El estado marcado vivía solo en el color de fondo del cuadrito.
+      accessibilityState={{ checked: !!checked }}
+    >
       <View
         style={[
           styles.checkbox,

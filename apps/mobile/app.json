@@ -7,11 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FAFAF9"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "cl.arriendatuauto.app",
@@ -24,20 +19,38 @@
     },
     "android": {
       "package": "cl.arriendatuauto.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDDoQbqpICrFbaIkiJ4V3jQAw7USg1BN1c"
+        }
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FAFAF9"
       },
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
-      ]
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FAFAF9"
+        }
+      ],
       [
         "expo-image-picker",
         {
@@ -57,7 +70,25 @@
         }
       ],
       "expo-web-browser",
-      "expo-notifications"
-    ]
+      "expo-notifications",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Arrienda Tu Auto usa Face ID para proteger el acceso a tu cuenta si activas el bloqueo biométrico."
+        }
+      ],
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Arrienda Tu Auto necesita tu cámara para escanear tu cédula automáticamente."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2b05af04-600a-4544-bc16-85fe714c68fb"
+      }
+    },
+    "owner": "arriendomiautoya"
   }
 }

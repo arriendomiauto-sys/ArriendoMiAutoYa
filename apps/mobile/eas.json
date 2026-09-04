@@ -2,8 +2,24 @@
   "cli": { "appVersionSource": "remote" },
   "build": {
     "development": { "developmentClient": true, "distribution": "internal" },
-    "preview": { "distribution": "internal" },
-    "production": {}
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://arriendomiautoya.onrender.com/api/v1",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rgxiyidijtoazcrmijly.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_yatHGTQbfFjv9RadBTBO8Q_4iF9Q6b5",
+        "EXPO_PUBLIC_WEB_URL": "https://arriendomiautoya.cl"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://arriendomiautoya.onrender.com/api/v1",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://rgxiyidijtoazcrmijly.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_yatHGTQbfFjv9RadBTBO8Q_4iF9Q6b5",
+        "EXPO_PUBLIC_WEB_URL": "https://arriendomiautoya.cl"
+      }
+    }
   },
   "submit": { "production": {} }
 }

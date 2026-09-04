@@ -40,7 +40,16 @@ export function LoginScreen({ onNavigate }) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      // Antes era `undefined` en Android, así que este KeyboardAvoidingView
+      // no hacía nada: todo el peso de esquivar el teclado caía en el
+      // ajuste nativo de ventana (adjustResize), que Android rompe desde la
+      // 11 con edge-to-edge y deja de funcionar del todo en la 15 — la
+      // pantalla que viene después (login, "Cargando tu sesión") se quedaba
+      // renderizada en la mitad de la ventana que el teclado nunca devolvió.
+      // Con softwareKeyboardLayoutMode: "pan" en app.json, Android deja de
+      // redimensionar la ventana y este componente pasa a ser quien de
+      // verdad esquiva el teclado.
       keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
     >
       <StatusBar barStyle="dark-content" />

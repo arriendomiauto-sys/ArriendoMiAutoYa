@@ -1,10 +1,11 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   StatusBar,
+  Animated,
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
@@ -22,12 +23,24 @@ export function SplashScreen({ onFinish, duracionMs = 1800 }) {
     return () => clearTimeout(timer);
   }, [duracionMs]);
 
+  // La marca entra con un pequeño respiro (opacidad + escala) en vez de
+  // aparecer de golpe: es lo primero que ve alguien que recién abre la app,
+  // y un salto seco ahí se siente más a error de carga que a intención.
+  const entrada = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(entrada, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+  }, [entrada]);
+  const estiloEntrada = {
+    opacity: entrada,
+    transform: [{ scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
       {/* Center Brand Identity (Pantalla 01) */}
-      <View style={styles.centerContent}>
+      <Animated.View style={[styles.centerContent, estiloEntrada]}>
         {/* Logo oficial */}
         <View style={styles.logoBox}>
           <BrandLogo size={96} />
@@ -37,7 +50,7 @@ export function SplashScreen({ onFinish, duracionMs = 1800 }) {
           <Text style={styles.brandTitle}>Arriendo Mi Auto Ya</Text>
           <Text style={styles.brandTagline}>Autos de personas, no de mostrador</Text>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Bottom Spinner */}
       <View style={styles.footerBox}>

@@ -1,17 +1,15 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import {
-  SafeAreaProvider,
-  SafeAreaView,
-  initialWindowMetrics,
-} from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import {
   AppProvider,
   useApp,
   colors,
   AuthFlow,
   SwitchingScreen,
+  BiometricLockScreen,
+  useBloqueoBiometrico,
 } from "@rentacar/mobile-shared";
 import { RenterApp } from "./src/renter/RenterApp";
 import { OwnerApp } from "./src/owner/OwnerApp";
@@ -24,12 +22,19 @@ import { OwnerApp } from "./src/owner/OwnerApp";
 // desde su perfil. La verificación de identidad (KYC) no bloquea el acceso:
 // se pide recién al publicar o reservar un auto de verdad.
 function Root() {
-  const { isLoggedIn, authLoading, mode, transition } = useApp();
+  const { isLoggedIn, authLoading, mode, transition, logout } = useApp();
+  const bio = useBloqueoBiometrico(isLoggedIn);
 
-  // Arranque: mientras se rehidrata la sesión de Supabase se muestra la
-  // pantalla de carga (antes era `null`, es decir, un marco vacío).
-  if (authLoading) {
+  // Arranque: mientras se rehidrata la sesión de Supabase, o (ya con sesión)
+  // mientras se lee si el bloqueo biométrico está activado, se muestra la
+  // pantalla de carga — así el usuario que nunca activó el bloqueo no ve un
+  // parpadeo de la pantalla de candado en cada apertura.
+  if (authLoading || (isLoggedIn && !bio.cargado)) {
     return <SwitchingScreen mode={mode} title="Cargando tu sesión" subtitle="Un segundo, estamos abriendo la app." />;
+  }
+
+  if (isLoggedIn && bio.activado && !bio.desbloqueada) {
+    return <BiometricLockScreen onIntentarDesbloquear={bio.intentarDesbloquear} onLogout={logout} />;
   }
 
   return (
@@ -86,8 +91,14 @@ function ThemedFrame() {
 }
 
 export default function App() {
+  // Sin `initialMetrics`, a propósito: en Android edge-to-edge (15+),
+  // `initialWindowMetrics` puede llegar con los insets mal medidos (queda
+  // tomada antes de que el sistema termine de acomodar la barra de estado
+  // translúcida) y ESA foto mala se queda pegada — es lo que empujaba
+  // pantallas enteras a la mitad inferior. Dejar que SafeAreaProvider mida
+  // en vivo cambia un parpadeo inicial mínimo por insets siempre correctos.
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+    <SafeAreaProvider>
       <AppProvider>
         <ThemedFrame />
       </AppProvider>

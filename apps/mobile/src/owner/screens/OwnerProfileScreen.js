@@ -13,6 +13,9 @@ import {
   MenuRow,
   ApiClient,
   showAlert,
+  useBloqueoBiometrico,
+  hayHardwareBiometrico,
+  ReferralCodeCard,
 } from "@rentacar/mobile-shared";
 
 export function OwnerProfileScreen({
@@ -26,10 +29,27 @@ export function OwnerProfileScreen({
   onOpenContract,
   onOpenChat,
   onOpenEnrolment,
+  onOpenTarjeta,
 }) {
   const insets = useSafeAreaInsets();
-  const { currentUser, bankAccount, logout, setMode } = useApp();
+  const { currentUser, bankAccount, logout, setMode, isLoggedIn } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
+  const bio = useBloqueoBiometrico(isLoggedIn);
+  const [hardwareBiometrico, setHardwareBiometrico] = useState(false);
+
+  useEffect(() => {
+    hayHardwareBiometrico().then(setHardwareBiometrico);
+  }, []);
+
+  const toggleBloqueoBiometrico = async () => {
+    if (bio.activado) {
+      await bio.setActivado(false);
+      return;
+    }
+    const ok = await bio.intentarDesbloquear();
+    if (ok) await bio.setActivado(true);
+    else showAlert("No se pudo verificar", "Inténtalo de nuevo para activar el bloqueo biométrico.");
+  };
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -119,6 +139,8 @@ export function OwnerProfileScreen({
           ]}
         />
 
+        <ReferralCodeCard />
+
         <MenuList tone="dark">
           <MenuRow tone="dark" icon="car" label="Mis vehículos y tarifas" meta={`${cars?.length || 0} autos`} onPress={onOpenMyCars} />
           <MenuRow
@@ -129,6 +151,28 @@ export function OwnerProfileScreen({
             onPress={handleKycPress}
           />
           <MenuRow tone="dark" icon="card" label="Datos de transferencia" meta={bankAccount?.banco || "Sin configurar"} onPress={onOpenEarnings} />
+          <MenuRow
+            tone="dark"
+            icon="wallet"
+            label="Tarjeta de crédito"
+            meta={
+              currentUser?.tarjeta_ultimos4
+                ? `•••• ${currentUser.tarjeta_ultimos4}`
+                : currentUser?.tarjeta_estado === "requiere_revision_manual"
+                  ? "En revisión"
+                  : "Sin registrar"
+            }
+            onPress={onOpenTarjeta}
+          />
+          {hardwareBiometrico ? (
+            <MenuRow
+              tone="dark"
+              icon="shield"
+              label="Bloqueo con Face ID / huella"
+              meta={bio.activado ? "Activado" : "Desactivado"}
+              onPress={toggleBloqueoBiometrico}
+            />
+          ) : null}
           <MenuRow tone="dark" icon="document" label="Registro de mantenciones" onPress={onOpenMaintenance} />
           <MenuRow tone="dark" icon="shield" label="Garantías y reclamos" onPress={onOpenDisputes} />
           <MenuRow tone="dark" icon="chat" label="Mensajes con arrendatarios" onPress={onOpenChat} />

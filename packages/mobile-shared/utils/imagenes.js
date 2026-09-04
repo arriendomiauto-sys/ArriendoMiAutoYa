@@ -1,6 +1,8 @@
 import { Image } from "react-native";
 import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 import { ApiClient } from "../api/client";
+import { showAlert } from "./alert";
 
 /**
  * Optimización de fotos antes de subirlas.
@@ -14,6 +16,11 @@ import { ApiClient } from "../api/client";
 
 export const ANCHO_MAXIMO_FOTO = 1600;
 export const CALIDAD_JPEG = 0.62;
+
+// Un documento que después lee el OCR (cédula, licencia, boleta) necesita más
+// resolución y menos compresión que una foto de carrocería: el texto chico es
+// lo primero que se pierde. Sigue siendo ~4 veces más liviano que el original.
+export const AJUSTES_DOCUMENTO = { maxAncho: 2000, calidad: 0.85 };
 
 // Cuántas subidas simultáneas. Más que esto no acelera en redes móviles y
 // arriesga el límite de 20 subidas/minuto del backend.
@@ -59,7 +66,18 @@ export async function optimizarImagen(uri, { maxAncho = ANCHO_MAXIMO_FOTO, calid
 export async function subirImagenOptimizada(uri, { filename, bucket = "general", calidad, maxAncho } = {}) {
   const optimizada = await optimizarImagen(uri, { calidad, maxAncho });
   const nombre = filename || `foto_${Date.now()}.jpg`;
-  const subida = await ApiClient.subirArchivoStorage(optimizada, nombre, bucket);
+  let subida = null;
+  let ultimoError = null;
+  for (let intento = 0; intento < 2; intento++) {
+    try {
+      subida = await ApiClient.subirArchivoStorage(optimizada, nombre, bucket);
+      if (subida?.url) break;
+    } catch (err) {
+      ultimoError = err;
+      if (intento === 0) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  if (!subida && ultimoError) throw ultimoError;
   return subida?.url || null;
 }
 
@@ -93,4 +111,60 @@ export async function subirImagenesOptimizadas(items, { bucket = "general", onPr
 
   if (urls.every((u) => u === null) && trabajador.error) throw trabajador.error;
   return urls;
+}
+
+
+/**
+ * Pide la foto al usuario resolviendo el permiso correspondiente.
+ *
+ * Cada pantalla repetía este mismo bloque (pedir permiso, lanzar el picker,
+ * distinguir cancelación de error) con textos distintos. Devuelve el `uri`
+ * elegido, o `null` si el usuario canceló o no dio permiso.
+ */
+export async function elegirImagen({ origen = "camera", motivoPermiso } = {}) {
+  const esCamara = origen === "camera";
+
+  const permiso = esCamara
+    ? await ImagePicker.requestCameraPermissionsAsync()
+    : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+  if (!permiso.granted) {
+    showAlert(
+      "Permiso requerido",
+      motivoPermiso ||
+        (esCamara
+          ? "Necesitamos acceso a la cámara para tomar la foto."
+          : "Necesitamos acceso a tus fotos para adjuntar el archivo.")
+    );
+    return null;
+  }
+
+  const resultado = esCamara
+    ? await ImagePicker.launchCameraAsync({ quality: 0.9 })
+    : await ImagePicker.launchImageLibraryAsync({ quality: 0.9 });
+
+  if (resultado.canceled || !resultado.assets?.length) return null;
+  return resultado.assets[0]?.uri || null;
+}
+
+/**
+ * Atajo completo: elegir foto, optimizarla y subirla.
+ *
+ * Devuelve `{ url, cancelado }`. Se separa "cancelado" del error para que la
+ * pantalla no muestre una alerta de fallo cuando el usuario simplemente cerró
+ * la cámara.
+ */
+export async function elegirYSubirImagen({
+  origen = "camera",
+  bucket = "general",
+  filename,
+  calidad,
+  maxAncho,
+  motivoPermiso,
+} = {}) {
+  const uri = await elegirImagen({ origen, motivoPermiso });
+  if (!uri) return { url: null, cancelado: true };
+
+  const url = await subirImagenOptimizada(uri, { filename, bucket, calidad, maxAncho });
+  return { url, cancelado: false };
 }

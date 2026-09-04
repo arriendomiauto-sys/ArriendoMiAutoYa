@@ -175,6 +175,28 @@ const CalificacionSchema = z.object({
   comentario: z.string().optional(),
 });
 
+const ConductorAdicionalSchema = z.object({
+  nombre: z.string().min(3, "El nombre completo es requerido"),
+  email: z.string().email("Correo electrónico inválido").optional().or(z.literal("")),
+  telefono: z.string().min(8, "Teléfono debe tener al menos 8 dígitos").optional().or(z.literal("")),
+  tipo_documento: z.enum(["rut", "pasaporte", "dni_extranjero"]).default("rut"),
+  rut: z.string().optional().refine((val) => !val || validarRutChileno(val), {
+    message: "RUT chileno inválido (falla Módulo 11)",
+  }),
+  numero_documento: z.string().optional(),
+  pais_documento: z.string().optional(),
+  fecha_nacimiento: z.string().or(z.date()).optional(),
+  licencia_pais_emisor: z.string().optional(),
+  licencia_numero: z.string().optional(),
+  licencia_clase: z.string().optional(),
+  licencia_vencimiento: z.string().or(z.date()).optional(),
+  pic_url: z.string().url().optional().or(z.literal("")),
+  carnet_frontal_url: z.string().url().optional(),
+  carnet_trasero_url: z.string().url().optional(),
+  licencia_url: z.string().url().optional(),
+  selfie_url: z.string().url().optional(),
+});
+
 module.exports = {
   validarRutChileno,
   validarPatenteChilena,
@@ -189,4 +211,5 @@ module.exports = {
   ResolverDisputaSchema,
   TicketSoporteSchema,
   CalificacionSchema,
+  ConductorAdicionalSchema,
 };

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,15 +9,20 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
+  AppState,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Button, Card, Badge, Chip, ScreenHeader, SectionLabel } from "../components/ui";
+import { SignaturePad } from "../components/SignaturePad";
 import { ApiClient } from "../api/client";
+import { elegirImagen, subirImagenOptimizada } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
+import { guardarColaFotos, leerColaFotos, borrarColaFotos } from "../utils/colaFotosOffline";
 
 const ANGLES = [
   { id: 1, name: "Frontal", desc: "Parte delantera completa" },
@@ -53,8 +58,18 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   const [confirmando, setConfirmando] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState("");
 
-  // Fotos del checklist
-  const [fotos, setFotos] = useState([]);
+  // Fotos del checklist. `colaFotos` es la fuente de verdad — cada entrada
+  // es { uriLocal, url, estado: "subiendo"|"subida"|"error" } — y `fotos`
+  // (solo los URI locales) se deriva de ahí para no tocar el resto de la
+  // pantalla, que ya usaba `fotos.length`/`fotos.map(...)` para todo:
+  // progreso, miniaturas y el conteo "N de 8".
+  //
+  // La foto se muestra apenas se toma (con su URI local, que Image renderiza
+  // igual que uno remoto) y la subida corre en segundo plano. Si falla, la
+  // foto NO desaparece: queda marcada "error" y se reintenta sola — antes,
+  // un fallo de red borraba la foto recién tomada sin dejar rastro.
+  const [colaFotos, setColaFotos] = useState([]);
+  const fotos = colaFotos.map((item) => item.uriLocal);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [currentAngleIdx, setCurrentAngleIdx] = useState(0);
 
@@ -69,6 +84,9 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   // Envío del checklist
   const [enviandoChecklist, setEnviandoChecklist] = useState(false);
   const [resultadoChecklist, setResultadoChecklist] = useState(null);
+
+  // Firma del contrato (solo entrega/"antes"): trazo SVG capturado en el pad.
+  const [firmaSvg, setFirmaSvg] = useState(null);
 
   // Calificación al cliente
   const [puntajeCliente, setPuntajeCliente] = useState(0);
@@ -141,27 +159,105 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
     }
   };
 
-  const handleTomarFoto = async () => {
-    const permiso = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permiso.granted) {
-      showAlert("Permiso requerido", "Necesitamos la cámara para el checklist.");
-      return;
-    }
-    const resultado = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (resultado.canceled || !resultado.assets?.length) return;
-    setSubiendoFoto(true);
+  /**
+   * Marca el estado de una foto en la cola y persiste el resultado. Vive
+   * aparte porque la usan tanto la subida recién tomada como el reintento
+   * (mount, vuelta a primer plano, o justo antes de enviar el checklist).
+   */
+  const marcarEnCola = (idx, cambios) => {
+    setColaFotos((prev) => {
+      const siguiente = prev.map((item, i) => (i === idx ? { ...item, ...cambios } : item));
+      guardarColaFotos(reservaIdActiva, tipo, siguiente);
+      return siguiente;
+    });
+  };
+
+  /**
+   * Sube una foto de la cola. Se puede llamar muchas veces sobre la misma
+   * (reintentos): no importa si ya estaba "error" o recién se tomó. Devuelve
+   * la URL si quedó subida, o null si falló — lo usa enviarChecklist() para
+   * saber con qué URLs cuenta de verdad antes de mandar el checklist, sin
+   * depender de releer el estado de React (que en ese punto puede estar
+   * desactualizado frente a varias subidas corriendo a la vez).
+   */
+  const subirUnaFoto = async (idx, uriLocal) => {
+    marcarEnCola(idx, { estado: "subiendo" });
     try {
-      const asset = resultado.assets[0];
-      const filename = asset.fileName || `checklist-${Date.now()}.jpg`;
-      const subida = await ApiClient.subirArchivoStorage(asset.uri, filename, "checklists");
-      setFotos((prev) => [...prev, subida.url]);
-      setCurrentAngleIdx((prev) => Math.min(ANGLES.length - 1, prev + 1));
+      // Las fotos del checklist se toman en la calle, muchas veces con señal
+      // mala. Sin optimizar son 3-8 MB cada una: optimizadas bajan a
+      // 200-400 KB y el paso deja de sentirse trancado.
+      const url = await subirImagenOptimizada(uriLocal, {
+        filename: `checklist-${Date.now()}-${idx}.jpg`,
+        bucket: "checklists",
+      });
+      marcarEnCola(idx, { estado: "subida", url });
+      return url;
     } catch (error) {
-      showAlert("Error al subir foto", error.message);
+      marcarEnCola(idx, { estado: "error" });
+      return null;
+    }
+  };
+
+  const handleTomarFoto = async () => {
+    setSubiendoFoto(true);
+    let uri;
+    try {
+      uri = await elegirImagen({
+        origen: "camera",
+        motivoPermiso: "Necesitamos la cámara para registrar el estado del vehículo.",
+      });
     } finally {
       setSubiendoFoto(false);
     }
+    if (!uri) return; // canceló o no dio permiso: no es un error que avisar
+
+    const idx = colaFotos.length;
+    const nuevaCola = [...colaFotos, { uriLocal: uri, url: null, estado: "subiendo" }];
+    setColaFotos(nuevaCola);
+    setCurrentAngleIdx((prev) => Math.min(ANGLES.length - 1, prev + 1));
+    guardarColaFotos(reservaIdActiva, tipo, nuevaCola);
+
+    // La subida corre en paralelo: no bloquea seguir sacando la siguiente
+    // foto. Si falla, la foto sigue en pantalla marcada "error" y se
+    // reintenta sola — no hace falta que el usuario la vuelva a tomar.
+    subirUnaFoto(idx, uri);
   };
+
+  // Al entrar a la pantalla, si había una cola sin terminar de esta misma
+  // reserva y tipo (la app se cerró o se quedó sin señal a mitad de camino),
+  // se recupera junto con sus fotos locales y se reintenta lo que faltaba.
+  useEffect(() => {
+    if (!reservaIdActiva) return;
+    let vivo = true;
+    leerColaFotos(reservaIdActiva, tipo).then((guardada) => {
+      if (!vivo || !guardada || !guardada.length) return;
+      setColaFotos(guardada);
+      setCurrentAngleIdx((prev) => Math.max(prev, Math.min(ANGLES.length - 1, guardada.length)));
+      guardada.forEach((item, idx) => {
+        if (item.estado !== "subida") subirUnaFoto(idx, item.uriLocal);
+      });
+    });
+    return () => {
+      vivo = false;
+    };
+    // Se dispara una sola vez por reserva/tipo: restaurar la cola no debe
+    // repetirse en cada re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservaIdActiva, tipo]);
+
+  // Reintenta lo que quedó en "error" al volver del segundo plano — el
+  // momento típico en que alguien recupera señal es justo al destrabar el
+  // teléfono de nuevo, no mientras sigue con la pantalla apagada.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (estado) => {
+      if (estado !== "active") return;
+      colaFotos.forEach((item, idx) => {
+        if (item.estado === "error") subirUnaFoto(idx, item.uriLocal);
+      });
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colaFotos]);
 
   const irAMetricas = () => setStage("22_metrics");
 
@@ -176,14 +272,37 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   const enviarChecklist = async (notasExtra) => {
     setEnviandoChecklist(true);
     try {
+      // Último intento de lo que haya quedado sin subir antes de mandar el
+      // checklist — la mayoría de las veces ya subió sola en el trayecto
+      // hasta acá (el useEffect de AppState reintenta cada vez que el
+      // teléfono vuelve a primer plano).
+      const urls = await Promise.all(
+        colaFotos.map((item, idx) =>
+          item.estado === "subida" ? item.url : subirUnaFoto(idx, item.uriLocal)
+        )
+      );
+      const urlsListas = urls.filter(Boolean);
+
+      if (colaFotos.length > 0 && urlsListas.length < colaFotos.length) {
+        const faltan = colaFotos.length - urlsListas.length;
+        showAlert(
+          "Todavía sin conexión",
+          `${faltan} foto${faltan === 1 ? "" : "s"} no se ${faltan === 1 ? "ha" : "han"} podido subir. ` +
+            "No se perdieron — quedan guardadas en el teléfono y se reintentan solas. Vuelve a enviar cuando recuperes señal."
+        );
+        return;
+      }
+
       const resultado = await ApiClient.registrarChecklist(reservaIdActiva, {
         tipo,
-        fotos: fotos.length > 0 ? fotos : ["sin-foto"],
+        fotos: urlsListas.length > 0 ? urlsListas : ["sin-foto"],
         kilometraje: parseInt(km.replace(/\D/g, ""), 10) || 0,
         nivel_combustible: FUEL_SYMBOL_TO_VALUE[fuelLevel] || "3/4",
         notas: notasExtra || undefined,
+        firma_svg: tipo === "antes" ? firmaSvg || undefined : undefined,
       });
       setResultadoChecklist(resultado);
+      borrarColaFotos(reservaIdActiva, tipo);
       setStage(tipo === "antes" ? "24_signed" : "28_done");
     } catch (error) {
       showAlert("No se pudo registrar el checklist", error.message);
@@ -293,10 +412,22 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           <TouchableOpacity onPress={() => setCurrentAngleIdx(Math.min(ANGLES.length - 1, currentAngleIdx + 1))}>
             <Text style={styles.skipText}>Saltar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shutterBtn} onPress={handleTomarFoto} disabled={subiendoFoto} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.shutterBtn}
+            onPress={handleTomarFoto}
+            disabled={subiendoFoto}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Tomar foto"
+          >
             {subiendoFoto ? <ActivityIndicator color={colors.darkBg} /> : <View style={styles.shutterInner} />}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.thumbCounter} onPress={onCounterPress}>
+          <TouchableOpacity
+            style={styles.thumbCounter}
+            onPress={onCounterPress}
+            accessibilityRole="button"
+            accessibilityLabel={`Ver las ${fotos.length} fotos tomadas`}
+          >
             <Text style={styles.thumbCounterText}>{fotos.length}</Text>
           </TouchableOpacity>
         </View>
@@ -309,7 +440,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   if (stage === "05_code") {
     return (
-      <View style={styles.light}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title={tipo === "antes" ? "Verificar entrega" : "Verificar devolución"} onBack={onBack} />
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -343,13 +474,13 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
         <Footer>
           <Button label="Validar código" onPress={handleValidarCodigo} loading={validando} disabled={!codigoInput.trim()} />
         </Footer>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
   if (stage === "06_confirm" && datosValidados) {
     return (
-      <View style={styles.light}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Confirmar identidad" onBack={() => setStage("05_code")} />
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -366,8 +497,35 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
             <InfoRow label="Lugar" value={datosValidados.lugar_entrega_acordado} />
           </Card>
 
+          {/* Segundo Conductor Verificado */}
+          {datosValidados.segundo_conductor ? (
+            <Card padded style={{ gap: theme.spacing.sm, marginTop: 10, borderColor: colors.primary, borderWidth: 1 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={[styles.cardTitle, { fontSize: 14 }]}>
+                  Segundo Conductor Autorizado
+                </Text>
+                <Badge label="KYC Verificado" variant="success" />
+              </View>
+              {datosValidados.segundo_conductor.foto_perfil_url ? (
+                <Image
+                  source={{ uri: datosValidados.segundo_conductor.foto_perfil_url }}
+                  style={[styles.perfilFoto, { height: 100, borderRadius: 12, marginVertical: 6 }]}
+                />
+              ) : null}
+              <InfoRow label="Nombre" value={datosValidados.segundo_conductor.nombre} />
+              <InfoRow
+                label="Documento"
+                value={datosValidados.segundo_conductor.rut || datosValidados.segundo_conductor.numero_documento || "—"}
+              />
+              <InfoRow
+                label="Licencia"
+                value={`${datosValidados.segundo_conductor.licencia_clase || "B"} · ${datosValidados.segundo_conductor.licencia_numero || "—"}`}
+              />
+            </Card>
+          ) : null}
+
           <Text style={styles.help}>
-            Compara el rostro de la persona presente con la foto de perfil verificada.
+            Compara el rostro del conductor titular (y segundo conductor si aplica) con las fotos verificadas.
           </Text>
 
           <View style={{ gap: 6 }}>
@@ -386,7 +544,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           <Button label="Confirmar identidad" onPress={handleConfirmarIdentidad} loading={confirmando} />
           <Button variant="danger" label="No coincide" onPress={handleRechazarIdentidad} disabled={confirmando} />
         </Footer>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -423,12 +581,28 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
             </View>
           )}
           <View style={styles.grid}>
-            {fotos.map((url, idx) => (
-              <View key={url + idx} style={styles.gridCard}>
-                <Image source={{ uri: url }} style={styles.gridThumb} />
+            {colaFotos.map((item, idx) => (
+              <View key={item.uriLocal + idx} style={styles.gridCard}>
+                <Image source={{ uri: item.uriLocal }} style={styles.gridThumb} />
                 <View style={styles.gridFoot}>
                   <Text style={styles.gridName} numberOfLines={1}>{ANGLES[idx]?.name || `Foto ${idx + 1}`}</Text>
-                  <Icon name="check" size={13} color={colors.accent} />
+                  {item.estado === "subida" ? (
+                    <Icon name="check" size={13} color={colors.accent} />
+                  ) : item.estado === "subiendo" ? (
+                    <ActivityIndicator size="small" color={colors.textMuted} />
+                  ) : (
+                    // "error": la foto sigue ahí (nunca se perdió), solo
+                    // falta que suba. Tocar el ícono reintenta al toque, sin
+                    // esperar a que vuelva sola con la señal.
+                    <TouchableOpacity
+                      onPress={() => subirUnaFoto(idx, item.uriLocal)}
+                      hitSlop={theme.control.hitSlop}
+                      accessibilityRole="button"
+                      accessibilityLabel="Reintentar subida"
+                    >
+                      <Icon name="alert" size={13} color={colors.warning} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             ))}
@@ -443,7 +617,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   if (stage === "22_metrics") {
     return (
-      <View style={styles.light}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader
           title="Kilometraje y combustible"
@@ -488,7 +662,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
         <Footer>
           <Button label={tipo === "antes" ? "Ir a la firma" : "Continuar"} onPress={handleContinuarMetricas} />
         </Footer>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -511,6 +685,11 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
             <InfoRow label="Garantía retenida" value={`$${(reserva?.monto_hold || 0).toLocaleString("es-CL")}`} />
           </Card>
 
+          <View>
+            <SectionLabel>Firma</SectionLabel>
+            <SignaturePad onChange={setFirmaSvg} />
+          </View>
+
           <View style={styles.faceCam}>
             <View style={styles.faceCircle}>
               <Icon name="user" size={44} color="rgba(146,227,203,0.7)" />
@@ -520,7 +699,12 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           </View>
         </ScrollView>
         <Footer>
-          <Button label="Firmar y entregar las llaves" onPress={() => enviarChecklist()} loading={enviandoChecklist} />
+          <Button
+            label="Firmar y entregar las llaves"
+            onPress={() => enviarChecklist()}
+            loading={enviandoChecklist}
+            disabled={!firmaSvg}
+          />
           <Text style={styles.footNote}>Al firmar aceptas el estado registrado en las fotos.</Text>
         </Footer>
       </View>
@@ -583,7 +767,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   if (stage === "27_damage") {
     return (
-      <View style={styles.light}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Reportar una diferencia" onBack={() => setStage("26_compare")} />
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -624,14 +808,14 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           />
           <Button variant="ghost" size="sm" label="Cancelar" onPress={() => setStage("26_compare")} />
         </Footer>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
   if (stage === "28_done") {
     const r = resultadoChecklist || {};
     return (
-      <View style={styles.light}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <StatusBar barStyle="dark-content" />
         <ScrollView contentContainerStyle={styles.centerBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.successCircle}>
@@ -693,7 +877,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
         <Footer>
           <Button label="Listo" onPress={onCompleteDelivery} />
         </Footer>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 

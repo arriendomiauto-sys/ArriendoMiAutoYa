@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { colors, theme, Icon, Button, Badge, ScreenHeader, ApiClient, showAlert } from "@rentacar/mobile-shared";
 
 function fmtFecha(iso) {
@@ -121,7 +132,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
       </ScrollView>
 
       <Modal visible={!!form} transparent animationType="fade" onRequestClose={() => setForm(null)}>
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
               {form?.tipo === "documento_legal" ? "Nuevo documento legal" : "Nueva mantención"}
@@ -164,7 +175,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
               <Button tone="dark" label="Guardar" onPress={guardar} loading={saving} style={{ flex: 1 }} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

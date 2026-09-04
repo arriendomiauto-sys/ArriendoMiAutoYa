@@ -1,12 +1,6 @@
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  Text,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, useApp, Icon, showAlert } from "@rentacar/mobile-shared";
+import { StyleSheet, View } from "react-native";
+import { colors, useApp, showAlert, TarjetaScreen } from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
@@ -20,6 +14,7 @@ import { PaymentMethodsScreen } from "./screens/PaymentMethodsScreen";
 import { CancelReservationModal } from "./screens/CancelReservationModal";
 import { RenterProfileScreen } from "./screens/RenterProfileScreen";
 import { MyQRCodeScreen } from "./screens/MyQRCodeScreen";
+import { FavoritesScreen } from "./screens/FavoritesScreen";
 
 // Modales Compartidos
 import {
@@ -28,20 +23,26 @@ import {
   SupportScreen,
   ContractModal,
   KycScreen,
+  TabBar,
+  useConversaciones,
 } from "@rentacar/mobile-shared";
 
 export function RenterApp() {
   const { activeReservation, setActiveReservation, currentUser } = useApp();
-  const insets = useSafeAreaInsets();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
   // Pestañas de Navegación del Arrendatario
   const [activeTab, setActiveTab] = useState("explore"); // 'explore' | 'rentals' | 'chat' | 'profile'
 
+  // No leídos reales para el globo de "Mensajes". Antes el punto rojo estaba
+  // pintado a mano y se veía encendido siempre, hubiera mensajes o no.
+  const { noLeidos, refrescar: refrescarConversaciones } = useConversaciones();
+
   // Modales y Flujos Secundarios
   const [selectedCar, setSelectedCar] = useState(null);
   const [bookingDraft, setBookingDraft] = useState(null);
   const [showMap, setShowMap] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showEnrolment, setShowEnrolment] = useState(false);
   const [showExtendRental, setShowExtendRental] = useState(false);
@@ -64,6 +65,19 @@ export function RenterApp() {
           role="renter"
           onBack={() => setShowEnrolment(false)}
           onComplete={() => setShowEnrolment(false)}
+        />
+      );
+    }
+
+    // 2b. Favoritos
+    if (showFavorites) {
+      return (
+        <FavoritesScreen
+          onBack={() => setShowFavorites(false)}
+          onSelectCar={(car) => {
+            setSelectedCar(car);
+            setShowFavorites(false);
+          }}
         />
       );
     }
@@ -118,6 +132,26 @@ export function RenterApp() {
               );
               return;
             }
+            // Sin tarjeta validada, el backend igual va a rechazar la
+            // reserva — mejor avisar antes de que elija fechas y llegue al
+            // pago, con una salida directa a agregarla.
+            if (currentUser?.tarjeta_estado !== "validada") {
+              showAlert(
+                "Necesitas una tarjeta registrada",
+                "Es la garantía con la que se retiene el hold de tu arriendo. Puedes agregarla ahora.",
+                [
+                  { text: "Ahora no", style: "cancel" },
+                  {
+                    text: "Agregar tarjeta",
+                    onPress: () => {
+                      setSelectedCar(null);
+                      setShowWallet(true);
+                    },
+                  },
+                ]
+              );
+              return;
+            }
             setSelectedCar(car);
             setBookingDraft(draft);
             setShowPayment(true);
@@ -147,14 +181,9 @@ export function RenterApp() {
       );
     }
 
-    // 6. Billetera y Métodos de Pago directos
+    // 6. Tarjeta de crédito — agregarla o reemplazarla fuera del enrolamiento inicial.
     if (showWallet) {
-      return (
-        <PaymentMethodsScreen
-          onBack={() => setShowWallet(false)}
-          onPaymentSuccess={() => setShowWallet(false)}
-        />
-      );
+      return <TarjetaScreen onBack={() => setShowWallet(false)} onDone={() => setShowWallet(false)} />;
     }
 
     // 7. Código de Entrega / Devolución (lo muestra el arrendatario al dueño)
@@ -195,6 +224,7 @@ export function RenterApp() {
           <MarketplaceScreen
             onSelectCar={(car) => setSelectedCar(car)}
             onOpenMap={() => setShowMap(true)}
+            onOpenFavorites={() => setShowFavorites(true)}
             onOpenFilters={() => setShowMap(true)}
             onVerifyIdentity={() => setShowEnrolment(true)}
           />
@@ -254,6 +284,7 @@ export function RenterApp() {
   const isModalOpen =
     showEnrolment ||
     showMap ||
+    showFavorites ||
     !!selectedCar ||
     showExtendRental ||
     showRoadsideClaim ||
@@ -271,95 +302,21 @@ export function RenterApp() {
 
       {/* Barra de Navegación Inferior Exclusiva del Arrendatario */}
       {!isModalOpen && (
-        <View
-          style={[
-            styles.bottomTabBar,
-            { paddingBottom: Math.max(insets.bottom, 12) },
+        <TabBar
+          tabs={[
+            { id: "explore", icon: "search", label: "Explorar" },
+            { id: "rentals", icon: "calendar", label: "Mis Arriendos" },
+            { id: "chat", icon: "chat", label: "Mensajes", badge: noLeidos },
+            { id: "profile", icon: "profile", label: "Mi Perfil" },
           ]}
-        >
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("explore")}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name="search"
-              size={24}
-              color={activeTab === "explore" ? colors.primary : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "explore" && styles.tabLabelActive,
-              ]}
-            >
-              Explorar
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("rentals")}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name="calendar"
-              size={24}
-              color={activeTab === "rentals" ? colors.primary : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "rentals" && styles.tabLabelActive,
-              ]}
-            >
-              Mis Arriendos
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("chat")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.chatIconWrapper}>
-              <Icon
-                name="chat"
-                size={24}
-                color={activeTab === "chat" ? colors.primary : colors.textMuted}
-              />
-              <View style={styles.unreadDot} />
-            </View>
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "chat" && styles.tabLabelActive,
-              ]}
-            >
-              Mensajes
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab("profile")}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name="profile"
-              size={24}
-              color={activeTab === "profile" ? colors.primary : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                activeTab === "profile" && styles.tabLabelActive,
-              ]}
-            >
-              Mi Perfil
-            </Text>
-          </TouchableOpacity>
-        </View>
+          activeTab={activeTab}
+          onChange={(id) => {
+            setActiveTab(id);
+            // Salir de Mensajes es el momento en que los no leídos cambiaron:
+            // el backend los marcó al abrir la conversación.
+            if (activeTab === "chat" && id !== "chat") refrescarConversaciones();
+          }}
+        />
       )}
 
       {/* Modal de Contrato (RN Modal: se monta en su propia capa) */}
@@ -381,39 +338,5 @@ const styles = StyleSheet.create({
   },
   screenContainer: {
     flex: 1,
-  },
-  bottomTabBar: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingTop: 10,
-  },
-  tabItem: {
-    alignItems: "center",
-    gap: 4,
-    minWidth: 64,
-  },
-  tabLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  tabLabelActive: {
-    fontWeight: "600",
-    color: colors.primary,
-  },
-  chatIconWrapper: {
-    position: "relative",
-  },
-  unreadDot: {
-    position: "absolute",
-    top: -2,
-    right: -3,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.danger,
   },
 });

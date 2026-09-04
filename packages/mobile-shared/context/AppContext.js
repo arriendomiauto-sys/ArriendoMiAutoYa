@@ -139,6 +139,20 @@ export function AppProvider({ children }) {
       const profile = await ApiClient.getMe();
       setCurrentUser(profile);
     } catch (err) {
+      // Un 401 acá es distinto de cualquier otro fallo: `isLoggedIn` se pone
+      // en true apenas hay un token guardado y sin vencer localmente, pero
+      // eso no confirma que la cuenta siga existiendo — un JWT firmado sigue
+      // "vigente" aunque la cuenta se haya borrado en Supabase Auth. Recién
+      // acá, contra el backend, se sabe si la cuenta detrás del token es
+      // real. Sin este chequeo la sesión quedaba en isLoggedIn=true con
+      // currentUser=null para siempre: la app mostraba el dashboard de una
+      // cuenta que ya no existe, vacío y roto.
+      if (err?.status === 401) {
+        await supabase.auth.signOut().catch(() => {});
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+        return;
+      }
       // El usuario existe en Supabase Auth pero aún no completó el
       // enrolamiento (fila en `usuarios` sin RUT/nombre). Las pantallas de
       // KYC se encargan de completarlo llamando a completarEnrolamiento().
@@ -167,12 +181,35 @@ export function AppProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
 
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
+    // Con mala señal, `supabase.auth.getSession()` puede quedar COLGADA en
+    // vez de rechazar (intenta refrescar el token contra la red y esa
+    // promesa nunca se resuelve ni se rechaza) — el try/catch de abajo no
+    // sirve de nada ahí porque nunca dispara. Sin este timeout, ese caso
+    // dejaba `authLoading` en true para siempre: la app se quedaba pegada
+    // en "Cargando tu sesión" sin ningún error que lo explicara.
+    let idTimeout;
+    const seColgo = new Promise((resolve) => {
+      idTimeout = setTimeout(() => resolve("timeout"), 10000);
+    });
+
+    Promise.race([
+      supabase.auth.getSession().then(({ data }) => ({ data })),
+      seColgo,
+    ])
+      .then(async (resultado) => {
         if (!isMounted) return;
-        setIsLoggedIn(!!data?.session);
-        if (data?.session) syncProfile();
+        if (resultado === "timeout") {
+          console.warn("[AppContext] getSession() no respondió a tiempo; se continúa sin sesión confirmada.");
+          setIsLoggedIn(false);
+          return;
+        }
+        const haySesion = !!resultado.data?.session;
+        setIsLoggedIn(haySesion);
+        // Se espera a que termine: si no, `authLoading` bajaba en el mismo
+        // tick y el dashboard alcanzaba a pintarse un frame antes de que
+        // syncProfile() confirmara (o desmintiera, con un 401) que la cuenta
+        // sigue existiendo. Mejor mantener la pantalla de carga hasta saberlo.
+        if (haySesion) await syncProfile();
       })
       .catch((err) => {
         // Sin este catch, cualquier falla leyendo la sesión (almacenamiento
@@ -182,6 +219,7 @@ export function AppProvider({ children }) {
         if (isMounted) setIsLoggedIn(false);
       })
       .finally(() => {
+        clearTimeout(idTimeout);
         if (isMounted) setAuthLoading(false);
       });
 
@@ -202,6 +240,7 @@ export function AppProvider({ children }) {
 
     return () => {
       isMounted = false;
+      clearTimeout(idTimeout);
       subscription?.subscription?.unsubscribe();
       dejarDeVigilar();
     };

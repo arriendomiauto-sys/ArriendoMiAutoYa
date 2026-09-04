@@ -71,7 +71,10 @@ export function PreCheckinModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // Android ya no redimensiona la ventana con el teclado (ver app.json,
+        // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
+        // Detalle completo en LoginScreen.js.
       >
         <View style={styles.sheet}>
           <View style={styles.header}>

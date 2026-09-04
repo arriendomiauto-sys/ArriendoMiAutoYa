@@ -7,9 +7,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
-  Platform,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import { colors } from "../theme/colors";
@@ -94,7 +94,13 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
   // donde está la guía y el usuario puede moverla tocando la imagen.
   const [censor, setCensor] = useState({ cx: BANDA_PATENTE.cx, cy: BANDA_PATENTE.cy });
 
-  const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
+  // useWindowDimensions (reactivo) en vez de Dimensions.get("window") (una
+  // sola foto tomada al montar): en Android edge-to-edge la medida inicial
+  // puede llegar mal, y esto es justo lo que usa el recorte para saber
+  // dónde estaba el marco — un valor viejo dejaba el documento mal
+  // encuadrado en la foto final aunque el marco en pantalla se viera bien.
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const esVehiculo = cfg.shape === "wide";
   const frameW = Math.min(SCREEN_W - (esVehiculo ? 24 : 48), esVehiculo ? 520 : 420);
   const frameH = cfg.shape === "face" ? frameW * 1.25 : esVehiculo ? frameW * 0.75 : frameW / ID1_RATIO;
@@ -364,7 +370,7 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
         </View>
 
         {/* Top bar */}
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { top: insets.top + 12 }]}>
           <TouchableOpacity onPress={cerrar} style={styles.iconBtn} hitSlop={12}>
             <Icon name="close" size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -373,7 +379,7 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
         </View>
 
         {/* Hint + shutter */}
-        <View style={styles.bottomArea}>
+        <View style={[styles.bottomArea, { bottom: insets.bottom + 40 }]}>
           <Text style={styles.hint}>{cfg.hint}</Text>
           <TouchableOpacity
             style={styles.shutter}
@@ -440,8 +446,8 @@ const styles = StyleSheet.create({
 
   // Barras superpuestas
   topBar: {
+    // `top` real lo pone el inline style con el inset seguro del dispositivo.
     position: "absolute",
-    top: Platform.OS === "ios" ? 54 : 24,
     left: 0,
     right: 0,
     flexDirection: "row",
@@ -452,8 +458,8 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   topTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center" },
   bottomArea: {
+    // `bottom` real lo pone el inline style con el inset seguro del dispositivo.
     position: "absolute",
-    bottom: 40,
     left: 0,
     right: 0,
     alignItems: "center",
