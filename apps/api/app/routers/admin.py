@@ -176,4 +176,24 @@ def revisar_documentos_usuario(
 
     db.commit()
     db.refresh(usuario)
+
+    # El enrolamiento ya avisa "en revisión" al completarse; este es el aviso
+    # que faltaba — el resultado real de esa revisión, que hasta ahora el
+    # usuario solo podía descubrir volviendo a abrir la app.
+    from app.services.notificaciones import crear_notificacion
+
+    crear_notificacion(
+        db,
+        usuario_id=usuario.id,
+        tipo="kyc",
+        titulo="Identidad verificada" if payload.accion == "aprobar" else "Necesitas corregir tus documentos",
+        mensaje=(
+            "Ya puedes reservar y publicar autos."
+            if payload.accion == "aprobar"
+            else f"{payload.notas} Revisa tus documentos desde tu perfil y vuelve a enviarlos."
+        ),
+        entidad_tipo="usuario",
+        entidad_id=usuario.id,
+    )
+
     return usuario

@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS public.calificaciones (
 CREATE INDEX IF NOT EXISTS idx_calificaciones_destinatario_id ON public.calificaciones(destinatario_id);
 
 -- -------------------------------------------------------------------------
--- PAGOS (holds, cobros finales, liquidaciones — Transbank Webpay Plus)
+-- PAGOS (holds, cobros finales, liquidaciones — Mercado Pago)
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.pagos (
     id TEXT PRIMARY KEY,
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS public.pagos (
     monto INTEGER NOT NULL,
     estado TEXT DEFAULT 'pendiente'
         CHECK (estado IN ('pendiente', 'capturado', 'liberado', 'fallido', 'reembolsado', 'pagado')),
-    referencia_transbank TEXT,
+    referencia_pago TEXT,
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 

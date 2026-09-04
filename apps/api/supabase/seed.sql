@@ -95,13 +95,13 @@ VALUES (
 ) ON CONFLICT (id) DO NOTHING;
 
 -- 5. Hold de enrolamiento y hold de reserva
-INSERT INTO public.pagos (id, reserva_id, usuario_id, tipo, monto, estado, referencia_transbank)
+INSERT INTO public.pagos (id, reserva_id, usuario_id, tipo, monto, estado, referencia_pago)
 VALUES
 (
-    'seed-pago-enrolamiento', NULL, 'seed-usuario-cliente', 'hold_enrolamiento', 800000, 'capturado', 'TBK-DEMO-ENROL-800K'
+    'seed-pago-enrolamiento', NULL, 'seed-usuario-cliente', 'hold_enrolamiento', 800000, 'capturado', 'MP-DEMO-ENROL-800K'
 ),
 (
-    'seed-pago-reserva', 'seed-reserva-demo', 'seed-usuario-cliente', 'hold_reserva', 126000, 'capturado', 'TBK-DEMO-RES-126K'
+    'seed-pago-reserva', 'seed-reserva-demo', 'seed-usuario-cliente', 'hold_reserva', 126000, 'capturado', 'MP-DEMO-RES-126K'
 )
 ON CONFLICT (id) DO NOTHING;
 

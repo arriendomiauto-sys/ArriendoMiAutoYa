@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -47,6 +47,20 @@ class Usuario(Base):
     pic_vencimiento = Column(DateTime, nullable=True)
     es_residente_chile = Column(Boolean, default=False)
     fecha_inicio_residencia = Column(DateTime, nullable=True)
+
+    # Medio de pago. Una tarjeta validada es requisito para arrendar y para
+    # publicar un auto: es la garantía de que hay de dónde cobrar el hold, los
+    # cargos de la devolución y los peajes que llegan después.
+    # NUNCA se guarda el número: solo el token de la pasarela y los datos
+    # mínimos para que el usuario reconozca su tarjeta.
+    tarjeta_token = Column(String, nullable=True)
+    tarjeta_ultimos4 = Column(String, nullable=True)
+    tarjeta_marca = Column(String, nullable=True)   # visa | mastercard | amex | otra
+    tarjeta_estado = Column(String, default="pendiente")  # pendiente | validada | rechazada | requiere_revision_manual
+    # Nombre tal como se declaró en el formulario de tarjeta. Por protocolo de
+    # seguridad debe coincidir con el titular de la cuenta (`nombre`, viene de
+    # la cédula) — se guarda para que soporte pueda auditar qué se declaró.
+    tarjeta_titular = Column(String, nullable=True)
 
     # Relaciones
     autos = relationship("Auto", back_populates="dueno", foreign_keys="Auto.dueno_id")
@@ -95,6 +109,11 @@ class Auto(Base):
     gps_instalado = Column(Boolean, default=False)
     gps_ultima_posicion = Column(JSON, nullable=True)  # {"lat","lon","timestamp","velocidad"}
 
+    # Para el orden "Más recientes" del marketplace. Nullable porque los autos
+    # publicados antes de este campo no tienen cómo rellenarlo retroactivo —
+    # quedan al final de ese orden en vez de reventar la consulta.
+    fecha_publicacion = Column(DateTime, default=utc_now, nullable=True)
+
     # Relaciones
     dueno = relationship("Usuario", back_populates="autos", foreign_keys=[dueno_id])
     reservas = relationship("Reserva", back_populates="auto")
@@ -128,6 +147,14 @@ class Reserva(Base):
     precheck_cliente_timestamp = Column(DateTime, nullable=True)
     precheck_dueno_confirmado = Column(Boolean, default=False)
     precheck_dueno_timestamp = Column(DateTime, nullable=True)
+
+    # Recordatorios push de entrega/devolución (ver app/services/recordatorios.py).
+    # Un flag por aviso, no un solo "ya se avisó": el de 24h y el de 2h son
+    # dos push distintos y cada uno se manda una sola vez.
+    recordatorio_entrega_24h_enviado = Column(Boolean, default=False)
+    recordatorio_entrega_2h_enviado = Column(Boolean, default=False)
+    recordatorio_devolucion_24h_enviado = Column(Boolean, default=False)
+    recordatorio_devolucion_2h_enviado = Column(Boolean, default=False)
 
     # Desglose y detalle de multas y penalizaciones
     motivo_multas = Column(Text, nullable=True)
@@ -172,10 +199,26 @@ class ChecklistAuto(Base):
     estado_limpieza = Column(String, default="limpio") # limpio, sucio_estandar, sucio_profundo
     cargo_limpieza_clp = Column(Integer, default=0) # 0, 15000, 35000
     notas = Column(Text, nullable=True)
+    # Trazo de la firma capturada en el checklist "antes" (entrega), como
+    # path SVG — no una imagen: no hay librería de captura de pantalla
+    # instalada (ni hace falta un rebuild nativo para agregarla). nullable
+    # porque el checklist "despues" (devolución) no pide firma.
+    firma_svg = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=utc_now)
 
     # Relaciones
     reserva = relationship("Reserva", back_populates="checklists")
+
+
+class Favorito(Base):
+    __tablename__ = "favoritos"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
+    auto_id = Column(String, ForeignKey("autos.id"), nullable=False, index=True)
+    timestamp = Column(DateTime, default=utc_now)
+
+    __table_args__ = (UniqueConstraint("usuario_id", "auto_id", name="uq_favorito_usuario_auto"),)
 
 class Calificacion(Base):
     __tablename__ = "calificaciones"
@@ -201,7 +244,9 @@ class Pago(Base):
     tipo = Column(String, nullable=False) # hold_reserva, hold_enrolamiento, cobro_final, liquidacion_dueno, deducible_seguro, cargo_limpieza, cargo_combustible
     monto = Column(Integer, nullable=False)
     estado = Column(String, default="pendiente") # pendiente, capturado, liberado, fallido, reembolsado, pagado
-    referencia_transbank = Column(String, nullable=True)
+    # Id del pago en la pasarela (Mercado Pago). Antes se llamaba
+    # `referencia_transbank`; al cambiar de pasarela el nombre quedó mintiendo.
+    referencia_pago = Column(String, nullable=True)
     timestamp = Column(DateTime, default=utc_now)
 
     # Relaciones
@@ -291,6 +336,10 @@ class Mensaje(Base):
     autor_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
     texto = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=utc_now)
+    # Lo marca el destinatario al abrir la conversación. Sirve para el punto
+    # rojo de la pestaña Mensajes, que hasta ahora estaba pintado a mano en la
+    # app y se veía encendido siempre, hubiera mensajes o no.
+    leido = Column(Boolean, default=False)
 
     # Relaciones
     reserva = relationship("Reserva", back_populates="mensajes")

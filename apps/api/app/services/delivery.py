@@ -141,7 +141,8 @@ class DeliveryService:
         notas: Optional[str],
         db: Session,
         estado_limpieza: str = "limpio",
-        cargo_limpieza_clp: Optional[int] = None
+        cargo_limpieza_clp: Optional[int] = None,
+        firma_svg: Optional[str] = None,
     ) -> Dict[str, Any]:
         reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
         if not reserva:
@@ -149,8 +150,17 @@ class DeliveryService:
 
         if len(fotos) < 1:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail="Debe adjuntar las fotografías del checklist obligatorio del vehículo."
+            )
+
+        # La app ya deshabilita el botón de "Firmar y entregar las llaves"
+        # sin un trazo — esto es la misma exigencia del lado servidor, para
+        # no depender solo de que el cliente se comporte.
+        if tipo == "antes" and not (firma_svg or "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Falta la firma del contrato antes de registrar la entrega.",
             )
 
         cargo_limpieza = cargo_limpieza_clp if cargo_limpieza_clp is not None else PricingService.obtener_cargo_limpieza(estado_limpieza, db)
@@ -163,7 +173,8 @@ class DeliveryService:
             nivel_combustible=nivel_combustible,
             estado_limpieza=estado_limpieza,
             cargo_limpieza_clp=cargo_limpieza,
-            notas=notas
+            notas=notas,
+            firma_svg=firma_svg,
         )
         db.add(checklist)
 
@@ -216,7 +227,7 @@ class DeliveryService:
                 tipo="cobro_final",
                 monto=cobro_info["monto_total_cobro"],
                 estado="capturado",
-                referencia_transbank=f"TBK-{uuid.uuid4().hex[:8].upper()}"
+                referencia_pago=f"MP-{uuid.uuid4().hex[:8].upper()}"
             )
             # Registrar liquidación para el dueño (incluye el 100% de compensaciones por limpieza, combustible y km)
             pago_liq = Pago(

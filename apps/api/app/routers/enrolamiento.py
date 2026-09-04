@@ -12,6 +12,7 @@ import uuid
 from app.core.validators import validar_documento_identidad
 from app.services.licencias import evaluar_licencia_usuario
 from app.services.pricing import PricingService
+from app.services import tarjetas
 
 router = APIRouter(prefix="/enrolamiento", tags=["Enrolamiento de Clientes"])
 
@@ -89,6 +90,25 @@ def completar_enrolamiento(
             detail=detalle_duplicado
         )
 
+    # La tarjeta es requisito para operar y se pide acá, junto con los
+    # documentos, para que un problema no parta el flujo en dos.
+    if not payload.tarjeta_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Necesitas registrar una tarjeta de crédito para completar tu cuenta. "
+                "Es la garantía con la que se retiene el hold y se cobran los cargos del arriendo."
+            ),
+        )
+
+    resultado_tarjeta = tarjetas.validar_tarjeta(
+        payload.tarjeta_token,
+        payload.tarjeta_ultimos4,
+        payload.tarjeta_marca,
+        titular=payload.tarjeta_titular,
+        nombre_cuenta=payload.nombre,
+    )
+
     # Procesar documentos para calcular confianza
     resultado_ocr = OCRService.procesar_documentos_enrolamiento(
         carnet_frontal_url=payload.carnet_frontal_url,
@@ -129,6 +149,12 @@ def completar_enrolamiento(
     current_user.es_residente_chile = payload.es_residente_chile
     current_user.fecha_inicio_residencia = payload.fecha_inicio_residencia
 
+    current_user.tarjeta_token = payload.tarjeta_token
+    current_user.tarjeta_ultimos4 = payload.tarjeta_ultimos4
+    current_user.tarjeta_marca = resultado_tarjeta["marca"]
+    current_user.tarjeta_estado = resultado_tarjeta["estado"]
+    current_user.tarjeta_titular = payload.tarjeta_titular
+
     if payload.email:
         current_user.email = payload.email
     if payload.telefono is not None:
@@ -153,27 +179,41 @@ def completar_enrolamiento(
         current_user,
         edad_minima=getattr(config, "edad_minima_arriendo", None) or 21,
     )
-    if not evaluacion_licencia["permitido"]:
-        current_user.estado_documentos = "requiere_revision_manual"
-        current_user.notas_auditoria = evaluacion_licencia["motivo"]
-        db.add(TicketSoporte(
-            usuario_id=current_user.id,
-            sucursal_id=current_user.sucursal_id,
-            asunto="Revisión de licencia de conducir extranjera",
-            descripcion=evaluacion_licencia["motivo"],
-        ))
 
-    # Licencia que el OCR no pudo reconocer: se abre un ticket de soporte
-    # para que un ejecutivo la revise a mano, sin frenar el resto del
-    # enrolamiento (la identidad ya quedó resuelta arriba).
+    # Todo lo que no se pudo verificar automáticamente se junta acá y sale en
+    # UN SOLO ticket. Antes se abría uno por cada problema: el ejecutivo veía
+    # tres tickets del mismo usuario sin saber que eran el mismo caso, y el
+    # usuario recibía tres respuestas distintas.
+    problemas = []
+
+    if resultado_ocr.get("estado_recomendado") == "requiere_revision_manual":
+        problemas.append(
+            f"Documento de identidad: {resultado_ocr.get('motivo') or 'requiere revisión manual'}."
+        )
+
+    if not evaluacion_licencia["permitido"]:
+        problemas.append(f"Licencia de conducir: {evaluacion_licencia['motivo']}")
+
     if resultado_ocr.get("licencia_a_soporte") and payload.licencia_url:
+        problemas.append(
+            "Licencia de conducir: el OCR no la reconoció. "
+            f"Documento: {payload.licencia_url}"
+        )
+
+    if resultado_tarjeta["estado"] == tarjetas.REVISION_MANUAL:
+        problemas.append(f"Medio de pago: {resultado_tarjeta['motivo']}")
+
+    if problemas:
+        current_user.estado_documentos = "requiere_revision_manual"
+        current_user.notas_auditoria = " | ".join(problemas)
         db.add(TicketSoporte(
             usuario_id=current_user.id,
             sucursal_id=current_user.sucursal_id,
-            asunto="Revisión manual de licencia de conducir",
+            asunto="Revisión manual de enrolamiento",
             descripcion=(
-                "El OCR no reconoció la licencia subida en el enrolamiento. "
-                f"Documento: {payload.licencia_url}"
+                f"Enrolamiento de {payload.nombre} que no se pudo verificar por completo "
+                f"de forma automática. Puntos a revisar ({len(problemas)}):\n\n"
+                + "\n".join(f"- {p}" for p in problemas)
             ),
         ))
 
@@ -183,7 +223,7 @@ def completar_enrolamiento(
         tipo="hold_enrolamiento",
         monto=settings.HOLD_ENROLAMIENTO_CLP,
         estado="capturado",
-        referencia_transbank=f"TBK-HOLD-{uuid.uuid4().hex[:8].upper()}"
+        referencia_pago=f"MP-HOLD-{uuid.uuid4().hex[:8].upper()}"
     )
     db.add(pago_hold)
     db.commit()
@@ -202,7 +242,7 @@ def completar_enrolamiento(
         mensaje=(
             "Ya puedes reservar y publicar autos."
             if _estado == "verificado"
-            else "Un ejecutivo revisa tus documentos. Te avisamos apenas quede lista tu cuenta."
+            else "Un ejecutivo revisa tu caso. Te avisamos apenas quede lista tu cuenta."
         ),
         entidad_tipo="usuario",
         entidad_id=current_user.id,

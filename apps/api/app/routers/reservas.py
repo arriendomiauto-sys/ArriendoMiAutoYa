@@ -22,6 +22,7 @@ import uuid
 
 from app.core.validators import validar_disponibilidad_reserva
 from app.services.licencias import evaluar_licencia_usuario
+from app.services import tarjetas
 
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
 
@@ -40,6 +41,14 @@ def crear_reserva(
         raise HTTPException(
             status_code=403,
             detail="Debes verificar tu identidad antes de reservar un vehículo."
+        )
+
+    # Sin tarjeta validada no hay de dónde retener la garantía ni cobrar los
+    # cargos de la devolución.
+    if not tarjetas.puede_operar(current_user):
+        raise HTTPException(
+            status_code=403,
+            detail=tarjetas.motivo_bloqueo(current_user, "reservar un vehículo"),
         )
 
     # La licencia (y el PIC, si su país lo exige) tiene que seguir vigente el
@@ -77,8 +86,8 @@ def crear_reserva(
     # cliente_id siempre es el usuario autenticado: no se confía en el valor
     # del payload (evita crear reservas y holds a nombre de otro usuario).
     # La reserva nace "pendiente": se confirma recién cuando el hold de
-    # garantía queda autorizado en Webpay (POST /pagos/webpay/confirmar).
-    # El pago NO se crea acá — lo crea /pagos/webpay/iniciar con el token real.
+    # garantía queda autorizada en Mercado Pago (POST /pagos/mercadopago/confirmar).
+    # El pago NO se crea acá — lo crea /pagos/mercadopago/iniciar.
     reserva = Reserva(
         id=reserva_id,
         auto_id=payload.auto_id,
@@ -239,7 +248,7 @@ def extender_reserva(
         tipo="hold_reserva",
         monto=monto_adicional,
         estado="capturado",
-        referencia_transbank=f"TBK-EXT-{uuid.uuid4().hex[:8].upper()}"
+        referencia_pago=f"MP-EXT-{uuid.uuid4().hex[:8].upper()}"
     ))
     db.commit()
     db.refresh(reserva)
@@ -428,7 +437,7 @@ def aplicar_multa_reserva(
         tipo=f"cargo_{payload.tipo}",
         monto=monto,
         estado="capturado",
-        referencia_transbank=f"TBK-FINE-{uuid.uuid4().hex[:8].upper()}"
+        referencia_pago=f"MP-FINE-{uuid.uuid4().hex[:8].upper()}"
     )
     db.add(pago_multa)
 

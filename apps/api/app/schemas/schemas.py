@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
-from typing import List, Optional, Literal, Dict, Any
+from typing import List, Optional, Literal, Dict, Any, ClassVar
 from datetime import datetime
 from app.core.validators import validar_rut_chileno, validar_patente_chilena
 from app.core.sanitizer import sanitize_text
@@ -51,7 +51,15 @@ class UserEnrolamiento(UserBase):
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None
     foto_perfil_verificada_url: Optional[str] = None
+
+    # Medio de pago. Se pide junto con los documentos, no en una pantalla
+    # aparte: así, si algo no se puede verificar, el caso completo viaja a
+    # soporte en un solo ticket. La app tokeniza contra la pasarela y manda el
+    # token — el número de la tarjeta nunca llega al backend.
     tarjeta_token: Optional[str] = None
+    tarjeta_ultimos4: Optional[str] = None
+    tarjeta_marca: Optional[str] = None
+    tarjeta_titular: Optional[str] = None
 
     # Identidad
     tipo_documento: Literal["rut", "pasaporte", "dni_extranjero"] = "rut"
@@ -95,6 +103,10 @@ class UserOut(UserBase):
     fecha_registro: datetime
     cuenta_bancaria: Optional[Dict[str, str]] = None
 
+    tarjeta_estado: Optional[str] = "pendiente"
+    tarjeta_ultimos4: Optional[str] = None
+    tarjeta_marca: Optional[str] = None
+
     tipo_documento: Optional[str] = "rut"
     numero_documento: Optional[str] = None
     pais_documento: Optional[str] = None
@@ -119,6 +131,25 @@ class CuentaBancariaUpdate(BaseModel):
         if not validar_rut_chileno(v):
             raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
         return v
+
+class TarjetaUpdate(BaseModel):
+    """
+    Registrar o reemplazar la tarjeta FUERA del enrolamiento inicial — para
+    cuando quedó pendiente/rechazada, o directamente no se cargó, y hace
+    falta antes de reservar o publicar un auto. El titular no es opcional:
+    por protocolo de seguridad la tarjeta tiene que ser de quien tiene la
+    cuenta, nunca de un tercero.
+    """
+    tarjeta_token: str
+    tarjeta_ultimos4: str
+    tarjeta_marca: Optional[str] = None
+    tarjeta_titular: str
+
+class TarjetaOut(BaseModel):
+    tarjeta_estado: str
+    tarjeta_ultimos4: Optional[str] = None
+    tarjeta_marca: Optional[str] = None
+    motivo: Optional[str] = None
 
 class PerfilBasicoUpdate(BaseModel):
     """
@@ -195,6 +226,33 @@ class AutoBase(BaseModel):
             raise ValueError("Patente chilena inválida (ej. ABCD-12 o AB-12-34)")
         return v.upper()
 
+    # Chile continental e insular, con holgura. Sirve para dos cosas que sí
+    # pasan: coordenadas invertidas (longitud en el campo de latitud, un
+    # clásico) y el (0, 0) que deja un formulario a medio llenar. Cualquiera
+    # de las dos deja el pin del auto en medio del océano y al arrendatario
+    # buscando un punto de entrega que no existe.
+    LIMITES_CHILE: ClassVar[dict] = {"lat": (-56.0, -17.0), "lon": (-110.0, -66.0)}
+
+    @field_validator("latitud")
+    @classmethod
+    def check_latitud(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        minimo, maximo = AutoBase.LIMITES_CHILE["lat"]
+        if not (minimo <= v <= maximo):
+            raise ValueError("La latitud está fuera de Chile. Vuelve a fijar el punto en el mapa.")
+        return v
+
+    @field_validator("longitud")
+    @classmethod
+    def check_longitud(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        minimo, maximo = AutoBase.LIMITES_CHILE["lon"]
+        if not (minimo <= v <= maximo):
+            raise ValueError("La longitud está fuera de Chile. Vuelve a fijar el punto en el mapa.")
+        return v
+
 class AutoCreate(AutoBase):
     dueno_id: Optional[str] = None
     # Para publicar hay que subir los 4 documentos legales del auto. Se
@@ -221,6 +279,35 @@ class AutoUpdate(BaseModel):
     doc_revision_tecnica_url: Optional[str] = None
     gps_consentimiento: Optional[bool] = None
 
+
+class ValidarDocumentosAutoRequest(BaseModel):
+    """
+    Se manda apenas se sube CADA documento (no los 4 juntos): la app llama a
+    esto una vez por casilla, así que en la práctica solo uno de los cuatro
+    campos viene con URL por request.
+    """
+    patente: str
+    doc_inscripcion_url: Optional[str] = None
+    doc_permiso_circulacion_url: Optional[str] = None
+    doc_soap_url: Optional[str] = None
+    doc_revision_tecnica_url: Optional[str] = None
+
+
+class VeredictoDocumentoAuto(BaseModel):
+    tipo: str
+    estado: str
+    motivo: Optional[str] = None
+    # Siempre False: esta lectura es informativa. Quien de verdad decide si
+    # se puede publicar es POST /autos, que ante duda deriva a soporte en vez
+    # de rechazar — bloquear acá sería más estricto que el propio publicar.
+    bloquea: bool = False
+
+
+class ValidarDocumentosAutoResponse(BaseModel):
+    verificado: bool
+    documentos: List[VeredictoDocumentoAuto]
+
+
 class AutoOut(AutoBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -230,6 +317,14 @@ class AutoOut(AutoBase):
     documentos_verificados: bool = False
     gps_instalado: Optional[bool] = False
     gps_consentimiento_fecha: Optional[datetime] = None
+    fecha_publicacion: Optional[datetime] = None
+
+    # No son columnas del modelo: GET /autos las calcula por request y las
+    # deja como atributos transitorios en cada Auto antes de serializar (ver
+    # cars.py). Es la calificación del DUEÑO, no del auto — acá no hay
+    # reseñas por vehículo, solo por persona (ver Calificacion.destinatario_id).
+    rating_promedio: Optional[float] = None
+    rating_cantidad: int = 0
 
     # Filas anteriores a que la columna existiera pueden traer NULL (ver
     # app/core/schema_sync.py). Con el campo tipado `bool` a secas eso
@@ -387,6 +482,7 @@ class ChecklistRequest(BaseModel):
     estado_limpieza: Literal["limpio", "sucio_estandar", "sucio_profundo"] = "limpio"
     cargo_limpieza_clp: Optional[int] = None
     notas: Optional[str] = None
+    firma_svg: Optional[str] = None
 
 class ChecklistResponse(BaseModel):
     mensaje: str
@@ -538,6 +634,10 @@ class RatingOut(BaseModel):
     puntaje: int
     comentario: Optional[str] = None
     timestamp: datetime
+    # No es columna de Calificacion: GET /calificaciones la arma con un join
+    # a Usuario. Sin esto, la reseña en la ficha del auto no tenía nombre que
+    # mostrar — solo un autor_id que no le dice nada a nadie.
+    autor_nombre: Optional[str] = None
 
 # ==============================================================================
 # MANTENCIONES Y DOCUMENTACIÓN DEL AUTO
@@ -609,6 +709,17 @@ class MessageOut(BaseModel):
     autor_id: str
     texto: str
     timestamp: datetime
+    leido: bool = False
+
+
+class ConversacionResumen(BaseModel):
+    """Fila de la lista de conversaciones: lo justo para pintarla sin abrirla."""
+    reserva_id: str
+    ultimo_mensaje: Optional[str] = None
+    ultimo_timestamp: Optional[datetime] = None
+    ultimo_autor_id: Optional[str] = None
+    no_leidos: int = 0
+
 
 # ==============================================================================
 # NOTIFICACIONES

@@ -128,6 +128,7 @@ def registrar_checklist_auto(
         estado_limpieza=payload.estado_limpieza,
         cargo_limpieza_clp=payload.cargo_limpieza_clp,
         notas=payload.notas,
+        firma_svg=payload.firma_svg,
         db=db
     )
 

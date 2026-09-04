@@ -26,6 +26,8 @@ coverage/
 __pycache__/
 *.py[cod]
 *$py.class
+.tests/
+
 
 # Next.js & Turborepo
 .next/

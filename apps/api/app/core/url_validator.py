@@ -28,9 +28,17 @@ DEFAULT_ALLOWED_RETURN_DOMAINS: Set[str] = {
     "app.arriendatuauto.com",
     "admin.arriendatuauto.com",
     "arriendamiauto.cl",
+    # Dominio público real de la plataforma (el que arma la app en
+    # packages/mobile-shared/utils/webUrl.js). Sin estas dos entradas, la URL
+    # de retorno que manda la app al iniciar un pago se rechazaba con 400.
+    "arriendomiautoya.cl",
+    "www.arriendomiautoya.cl",
     "rgxiyidijtoazcrmijly.supabase.co",
-    "webpay3g.transbank.cl",
-    "webpay3gint.transbank.cl",
+    # Mercado Pago: Checkout Pro devuelve al usuario desde estos dominios.
+    "www.mercadopago.cl",
+    "www.mercadopago.com",
+    "mercadopago.cl",
+    "mercadopago.com",
 }
 
 # IPs y rangos prohibidos para peticiones salientes (SSRF)

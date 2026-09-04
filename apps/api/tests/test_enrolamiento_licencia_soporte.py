@@ -51,6 +51,12 @@ def test_licencia_no_reconocida_abre_ticket_de_soporte(
             "rut": "17.123.456-5",
             "email": "lic.mala.unica@test.cl",
             "telefono": "+56912345678",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg",
             "licencia_url": "https://ejemplo.com/licencia.jpg",
             "foto_perfil_verificada_url": "https://ejemplo.com/selfie.jpg",
@@ -65,7 +71,10 @@ def test_licencia_no_reconocida_abre_ticket_de_soporte(
         .all()
     )
     assert len(tickets) == 1
-    assert "licencia" in tickets[0].asunto.lower()
+    # Los problemas del enrolamiento se consolidan en un solo ticket: el
+    # ejecutivo ve el caso completo y el usuario recibe una sola respuesta.
+    assert tickets[0].asunto == "Revisión manual de enrolamiento"
+    assert "licencia" in tickets[0].descripcion.lower()
 
 
 def test_ocr_rechazado_no_otorga_rol_ni_cobra_hold(
@@ -91,6 +100,12 @@ def test_ocr_rechazado_no_otorga_rol_ni_cobra_hold(
             "rut": "17.123.456-5",
             "email": "foto.mala.unica@test.cl",
             "telefono": "+56912345678",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/no-es-carnet.jpg",
             "foto_perfil_verificada_url": "https://ejemplo.com/selfie.jpg",
         },

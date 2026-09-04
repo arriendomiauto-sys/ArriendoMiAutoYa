@@ -7,6 +7,12 @@ def test_ocr_procesar_documentos(client):
             "nombre": "Juan Pérez",
             "rut": "18.456.789-K",
             "email": "juan@test.cl",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg"
         }
     )
@@ -26,6 +32,12 @@ def test_completar_enrolamiento_hold_800k(usuario_factory, auth_as):
             "rut": "17.123.456-5", # RUT chileno único y válido
             "email": "cliente.nuevo.unico@test.cl",
             "telefono": "+56912345678",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg",
             "foto_perfil_verificada_url": "https://ejemplo.com/selfie.jpg"
         }
@@ -50,7 +62,10 @@ def test_completar_enrolamiento_sin_foto_carnet_es_rechazado(usuario_factory, au
             "nombre": "Cliente Sin Fotos",
             "rut": "17.123.456-5",
             "email": "sin.fotos.unico@test.cl",
-            "telefono": "+56912345678"
+            "telefono": "+56912345678",
+            "tarjeta_token": "tok-test-visa",
+            "tarjeta_ultimos4": "4242",
+            "tarjeta_marca": "visa",
         }
     )
     assert resp.status_code == 400
@@ -87,6 +102,12 @@ def test_enrolamiento_rut_duplicado_da_400_no_500(usuario_factory, auth_as):
             "rut": "17.123.456-5", # mismo RUT que ya_registrado
             "email": "otro.cliente@test.cl",
             "telefono": "+56912345679",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg",
         }
     )
@@ -107,6 +128,12 @@ def test_completar_enrolamiento_sin_email_usa_sesion(usuario_factory, auth_as):
             "nombre": "Cliente Sin Email Payload",
             "rut": "17.123.456-5",
             "telefono": "+56912345678",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg",
             "foto_perfil_verificada_url": "https://ejemplo.com/selfie.jpg"
         }
@@ -159,6 +186,12 @@ def test_enrolamiento_con_pasaporte_extranjero_va_a_revision_manual(usuario_fact
             "numero_documento": "FR9988776",
             "pais_documento": "FR",
             "licencia_pais_emisor": "FR",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/pasaporte.jpg",
             "foto_perfil_verificada_url": "https://ejemplo.com/selfie.jpg",
         },
@@ -182,6 +215,12 @@ def test_enrolamiento_extranjero_sin_pais_emisor_es_rechazado(usuario_factory, a
             "email": "sin.pais@test.cl",
             "tipo_documento": "pasaporte",
             "numero_documento": "XY123456",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/pasaporte.jpg",
         },
     )
@@ -198,6 +237,12 @@ def test_enrolamiento_chileno_mantiene_validacion_modulo_11(usuario_factory, aut
             "nombre": "RUT Malo",
             "rut": "12.345.678-0",  # dígito verificador incorrecto
             "email": "rut.malo@test.cl",
+            "tarjeta_token": "tok-test-visa",
+
+            "tarjeta_ultimos4": "4242",
+
+            "tarjeta_marca": "visa",
+
             "carnet_frontal_url": "https://ejemplo.com/carnet_front.jpg",
         },
     )

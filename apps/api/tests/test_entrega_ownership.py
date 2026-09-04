@@ -64,6 +64,7 @@ def test_registrar_checklist_solo_lo_puede_el_dueno_del_auto(db_session, auth_as
         "fotos": ["https://ejemplo.com/foto1.jpg"],
         "kilometraje": 1000,
         "nivel_combustible": "lleno",
+        "firma_svg": "M1 1L2 2",
     }
 
     resp_intruso = auth_as(intruso).post(f"/api/v1/entrega/{reserva.id}/checklist", json=payload)
