@@ -1,6 +1,10 @@
 import os
 import uuid
 import logging
+import time
+import json
+import base64
+from urllib.parse import urlparse, parse_qs
 from typing import Dict, Any, Optional
 import httpx
 from app.core.config import settings
@@ -282,3 +286,51 @@ class StorageService:
             return None
         with httpx.Client(timeout=15.0) as client:
             return cls._generar_url_firmada(client, supabase_url, service_key, bucket, archivo_id)
+
+    @staticmethod
+    def _exp_de_url_firmada(url: str) -> Optional[int]:
+        """
+        Lee el `exp` del JWT que Supabase Storage embebe como `?token=` en
+        sus URLs firmadas — sin verificar la firma: es una URL que nosotros
+        mismos emitimos y ya guardamos en la base de datos, no un dato que
+        llegue de fuera. `None` si no se puede leer.
+        """
+        try:
+            token = parse_qs(urlparse(url).query).get("token", [None])[0]
+            if not token:
+                return None
+            payload_b64 = token.split(".")[1]
+            payload_b64 += "=" * (-len(payload_b64) % 4)  # padding base64
+            return json.loads(base64.urlsafe_b64decode(payload_b64)).get("exp")
+        except Exception:
+            return None
+
+    @classmethod
+    def renovar_si_vence_pronto(cls, url: Optional[str], margen_horas: int = 24) -> Optional[str]:
+        """
+        Las URLs firmadas de Supabase Storage para buckets privados
+        (documentos-kyc, checklists, evidencias, documentos-autos) expiran a
+        los 7 días — y quedan guardadas tal cual en la fila del usuario o del
+        auto. Sin esto, una foto de perfil o un documento dejan de cargar en
+        silencio apenas pasa esa semana: no hay error visible, la imagen
+        simplemente no aparece. Se llama justo antes de devolver el campo al
+        cliente; si el token ya venció o vence dentro de `margen_horas`, se
+        pide una URL nueva. Cualquier cosa que no sea una URL firmada
+        reconocible (pública, local, externa como las fotos demo, o si no se
+        puede leer el `exp`) se devuelve tal cual — nunca rompe por esto.
+        """
+        if not url or "/storage/v1/object/sign/" not in url:
+            return url
+        try:
+            partes = url.split("/storage/v1/object/sign/", 1)[1].split("?", 1)[0]
+            bucket, archivo_id = partes.split("/", 1)
+        except (IndexError, ValueError):
+            return url
+        if bucket not in cls.BUCKETS_PRIVADOS:
+            return url
+
+        exp = cls._exp_de_url_firmada(url)
+        if exp is None or exp - time.time() > margen_horas * 3600:
+            return url
+
+        return cls.renovar_url_firmada(bucket, archivo_id) or url

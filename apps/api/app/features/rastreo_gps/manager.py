@@ -1,8 +1,8 @@
 """
 Gestor modular de rastreo GPS (GPSManager).
 
-Mismo patrón que `KYCManager`: el proveedor activo se resuelve por
-configuración (`settings.GPS_PROVIDER`) y los tests pueden inyectar el suyo.
+El proveedor activo se resuelve por configuración (`settings.GPS_PROVIDER`)
+y los tests pueden inyectar el suyo.
 """
 import logging
 from typing import Optional

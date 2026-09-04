@@ -416,7 +416,7 @@ class OCRService:
             datos["licencia_clase"] = "C"
 
         fechas = OCRService.extraer_fechas_documento(texto)
-        datos["fecha_vencimiento_licencia"] = fechas.get("fecha_vencimiento") or "2028-11-20"
+        datos["fecha_vencimiento_licencia"] = fechas.get("fecha_vencimiento")
         return datos
 
     @staticmethod
@@ -468,45 +468,10 @@ class OCRService:
                     "es_mock": True,
                 }
 
-        # Delegación modular a KYCManager cuando el proveedor es Veridas
-        if (settings.KYC_PROVIDER or "").lower() == "veridas":
-            from app.features.verificacion_identidad.manager import KYCManager
-            res_kyc = KYCManager.procesar_enrolamiento(
-                carnet_frontal_url=carnet_frontal_url,
-                carnet_trasero_url=carnet_trasero_url,
-                licencia_url=licencia_url,
-                rut_usuario=rut_usuario,
-                selfie_url=selfie_url,
-                tipo_documento=tipo_documento,
-                pais_documento=pais_documento,
-            )
-            motivo = res_kyc.get("motivo")
-            coincide_rut = True if not motivo else ("no coincide" not in motivo.lower())
-            biometria = res_kyc.get("biometria")
-            verif_facial = "aprobado" if (biometria and biometria.get("es_persona_viva")) else "no_evaluado"
-
-            return {
-                "rut_extraido": res_kyc.get("rut_detectado") or rut_usuario or "18.456.789-K",
-                "nombre_extraido": res_kyc.get("nombre_detectado") or "Usuario Verificado",
-                "fecha_vencimiento_carnet": res_kyc.get("vencimiento_carnet") or "2032-05-14",
-                "confianza_ocr": res_kyc.get("confianza_ocr", 0.95),
-                "confianza_facial": biometria.get("face_match_score") if biometria else 0.95,
-                "verificacion_facial": verif_facial,
-                "documentos_legibles": res_kyc.get("carnet_valido", True),
-                "coincide_rut_declarado": coincide_rut,
-                "estado_recomendado": res_kyc.get("estado_recomendado", "verificado"),
-                "motivo": motivo,
-                "tipo_documento_detectado": res_kyc.get("detalles", {}).get("tipo_documento_detectado", "cedula" if res_kyc.get("carnet_valido") else "desconocido"),
-                "licencia_valida": res_kyc.get("licencia_valida", True),
-                "licencia_a_soporte": res_kyc.get("licencia_a_soporte", False),
-                "proveedor_kyc": "veridas",
-                "es_mock": settings.USE_OCR_MOCK,
-            }
-
-        # 1.5. Documento extranjero fuera de Veridas. El resto del motor está
-        # construido sobre la cédula chilena (clasificador + extracción de RUT
-        # Módulo 11), así que un pasaporte saldría "rechazado" por no ser una
-        # cédula. Se deriva a revisión manual del Admin en vez de rechazarlo.
+        # 1.5. Documento extranjero. El resto del motor está construido sobre
+        # la cédula chilena (clasificador + extracción de RUT Módulo 11), así
+        # que un pasaporte saldría "rechazado" por no ser una cédula. Se
+        # deriva a revisión manual del Admin en vez de rechazarlo.
         if (tipo_documento or "rut").lower() != "rut":
             return {
                 "rut_extraido": None,
@@ -614,7 +579,7 @@ class OCRService:
                     if not coincide_rut:
                         motivos.append("El RUT de la cédula no coincide con el que ingresaste.")
 
-            confianza_final = max(confianza_vision, 0.88)
+            confianza_final = confianza_vision
             if confianza_final < 0.80:
                 motivos.append("La foto de la cédula salió poco legible.")
 
