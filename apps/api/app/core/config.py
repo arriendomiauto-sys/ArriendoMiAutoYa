@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     # URL pública de esta API. Mercado Pago la necesita para avisarnos de los
     # pagos: sin webhook, un arrendatario que paga y cierra la app antes de
     # volver deja la reserva colgada en "pendiente" para siempre.
-    API_PUBLIC_URL: str = "https://api.arriendatuauto.com"
+    API_PUBLIC_URL: str = "https://arriendomiautoya.onrender.com"
     ADMIN_PANEL_ORIGIN: Optional[str] = "https://admin.arriendatuauto.com"
     PAGO_DEFAULT_RETURN_URL: str = "https://arriendatuauto.com/pago/retorno"
 
