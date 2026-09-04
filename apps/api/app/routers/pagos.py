@@ -423,10 +423,25 @@ def obtener_mis_ganancias(
         })
     por_auto.sort(key=lambda x: x["ganancia_total_clp"], reverse=True)
 
+    # Bono de invitación (ver app/services/referidos.py) — deliberadamente
+    # aparte de saldo_disponible_clp/total_pagado_clp: es plata que la
+    # plataforma pone por el programa de referidos, no ganancia del auto,
+    # y así se puede mostrar como línea propia en vez de mezclarla en
+    # silencio con la liquidación normal.
+    pagos_bono = (
+        db.query(Pago)
+        .filter(Pago.usuario_id == current_user.id, Pago.tipo == "bono_referido")
+        .all()
+    )
+    bono_referido_pendiente_clp = sum(p.monto for p in pagos_bono if p.estado == "pendiente")
+    bono_referido_pagado_clp = sum(p.monto for p in pagos_bono if p.estado == "pagado")
+
     return {
         "saldo_disponible_clp": saldo_disponible_clp,
         "total_pagado_clp": total_pagado_clp,
         "cantidad_liquidaciones": len(pagos_liquidacion),
         "historial": historial,
         "por_auto": por_auto,
+        "bono_referido_pendiente_clp": bono_referido_pendiente_clp,
+        "bono_referido_pagado_clp": bono_referido_pagado_clp,
     }

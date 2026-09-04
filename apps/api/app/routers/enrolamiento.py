@@ -163,8 +163,15 @@ def completar_enrolamiento(
         current_user.foto_perfil_verificada_url = payload.foto_perfil_verificada_url
     current_user.confianza_ocr = resultado_ocr.get("confianza_ocr", 0.95)
     current_user.estado_documentos = resultado_ocr.get("estado_recomendado", "verificado")
-    if resultado_ocr.get("motivo"):
-        current_user.notas_auditoria = resultado_ocr["motivo"]
+
+    notas = [resultado_ocr["motivo"]] if resultado_ocr.get("motivo") else []
+    if payload.qr_carnet_payload:
+        # No se sabe con certeza qué formato trae el QR de la cédula nueva
+        # (ver notas de la Fase 1 del plan) — se guarda tal cual para que
+        # soporte lo revise, sin usarlo para aprobar ni rechazar solo.
+        notas.append(f"QR cédula leído (sin interpretar): {payload.qr_carnet_payload[:500]}")
+    if notas:
+        current_user.notas_auditoria = " | ".join(notas)
     
     roles = current_user.roles_activos or []
     if "cliente" not in roles:
