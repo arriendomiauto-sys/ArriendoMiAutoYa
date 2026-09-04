@@ -145,10 +145,10 @@ export default function AdminPortal() {
   const handleExportCSV = () => {
     const csvContent =
       "data:text/csv;charset=utf-8,ID_Transaccion,Tipo,Monto_CLP,Estado,Fecha\n" +
-      "TBK-ENROL-800K,hold_enrolamiento,800000,capturado,2026-08-15\n" +
-      "TBK-RES-126K,hold_reserva,126000,capturado,2026-08-15\n" +
-      "TBK-COBRO-126K,cobro_final,126000,capturado,2026-08-15\n" +
-      "TBK-LIQ-100K,liquidacion_dueno,100800,pendiente,2026-08-15\n";
+      "MP-ENROL-800K,hold_enrolamiento,800000,capturado,2026-08-15\n" +
+      "MP-RES-126K,hold_reserva,126000,capturado,2026-08-15\n" +
+      "MP-COBRO-126K,cobro_final,126000,capturado,2026-08-15\n" +
+      "MP-LIQ-100K,liquidacion_dueno,100800,pendiente,2026-08-15\n";
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -304,7 +304,7 @@ export default function AdminPortal() {
                       Libro Mayor de Transacciones y Retenciones
                     </h3>
                     <p className="text-xs text-slate-400">
-                      Registro auditable de holds Transbank, liberaciones y pagos a dueños
+                      Registro auditable de garantías de Mercado Pago, liberaciones y pagos a dueños
                     </p>
                   </div>
 
@@ -331,7 +331,7 @@ export default function AdminPortal() {
                     </thead>
                     <tbody className="divide-y divide-white/5 text-slate-300">
                       <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 font-mono font-bold text-white">TBK-ENROL-800K</td>
+                        <td className="py-3.5 font-mono font-bold text-white">MP-ENROL-800K</td>
                         <td className="py-3.5">Hold de Garantía Enrolamiento</td>
                         <td className="py-3.5 font-bold text-[#2FBF9B]">$800.000 CLP</td>
                         <td className="py-3.5 text-slate-400">Retención de seguridad bancaria</td>
@@ -342,7 +342,7 @@ export default function AdminPortal() {
                         </td>
                       </tr>
                       <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 font-mono font-bold text-white">TBK-RES-126K</td>
+                        <td className="py-3.5 font-mono font-bold text-white">MP-RES-126K</td>
                         <td className="py-3.5">Hold de Reserva (3 días)</td>
                         <td className="py-3.5 font-bold text-white">$126.000 CLP</td>
                         <td className="py-3.5 text-slate-400">Toyota RAV4 Limited ($42.000/día)</td>
@@ -353,7 +353,7 @@ export default function AdminPortal() {
                         </td>
                       </tr>
                       <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 font-mono font-bold text-white">TBK-LIQ-DUENO-01</td>
+                        <td className="py-3.5 font-mono font-bold text-white">MP-LIQ-DUENO-01</td>
                         <td className="py-3.5">Liquidación Arrendador</td>
                         <td className="py-3.5 font-bold text-[#92E3CB]">$100.800 CLP</td>
                         <td className="py-3.5 text-slate-400">80% arriendo neto ($100.800) a Carlos Mendoza</td>
@@ -364,7 +364,7 @@ export default function AdminPortal() {
                         </td>
                       </tr>
                       <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 font-mono font-bold text-white">TBK-FINE-PEAJE-01</td>
+                        <td className="py-3.5 font-mono font-bold text-white">MP-FINE-PEAJE-01</td>
                         <td className="py-3.5">Peajes y multas post-arriendo</td>
                         <td className="py-3.5 font-bold text-white">$8.450 CLP</td>
                         <td className="py-3.5 text-slate-400">
