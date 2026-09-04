@@ -28,7 +28,6 @@ __pycache__/
 *$py.class
 .tests/
 
-
 # Next.js & Turborepo
 .next/
 out/
