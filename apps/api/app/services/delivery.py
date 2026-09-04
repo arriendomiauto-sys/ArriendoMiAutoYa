@@ -7,6 +7,75 @@ from fastapi import HTTPException, status
 
 from app.models.entities import Reserva, VerificacionEntrega, ChecklistAuto, Disputa, Pago, Auto, Usuario
 from app.services.pricing import PricingService
+from app.services.storage import StorageService
+from app.services import referidos
+
+
+def _foto_perfil_vigente(cliente: Optional[Usuario], db: Session) -> Optional[str]:
+    """
+    La URL firmada de la selfie expira a los 7 días — sin renovarla, el
+    dueño deja de poder ver la foto del cliente justo en el momento en que
+    más importa: comparándola en persona antes de entregarle las llaves.
+    """
+    if not cliente:
+        return None
+    renovada = StorageService.renovar_si_vence_pronto(cliente.foto_perfil_verificada_url)
+    if renovada and renovada != cliente.foto_perfil_verificada_url:
+        cliente.foto_perfil_verificada_url = renovada
+        db.commit()
+    return cliente.foto_perfil_verificada_url
+
+def _foto_segundo_conductor_vigente(conductor, db: Session) -> Optional[str]:
+    if not conductor or not conductor.selfie_url:
+        return None
+    renovada = StorageService.renovar_si_vence_pronto(conductor.selfie_url)
+    if renovada and renovada != conductor.selfie_url:
+        conductor.selfie_url = renovada
+        db.commit()
+    return conductor.selfie_url
+
+def _notificar_si_es_primera_finalizada(reserva: Reserva, db: Session) -> None:
+    """
+    Si esta es la primera Reserva "finalizada" del cliente (o del dueño del
+    auto, según quién de los dos fue el invitado), refresca el reloj de
+    bono de quien lo invitó. Se cuenta DESPUÉS del commit que puso
+    reserva.estado = "finalizada", así que "== 1" significa que esta es la
+    primera — evita depender de un flag aparte para no re-disparar.
+    """
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+
+    cliente = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
+    if cliente and cliente.referido_por_id:
+        total_cliente = db.query(Reserva).filter(
+            Reserva.cliente_id == cliente.id, Reserva.estado == "finalizada"
+        ).count()
+        if total_cliente == 1:
+            referidos.notificar_primera_actividad(cliente, db)
+
+    dueno = db.query(Usuario).filter(Usuario.id == auto.dueno_id).first() if auto else None
+    if dueno and dueno.referido_por_id:
+        total_dueno = db.query(Reserva).join(Auto, Reserva.auto_id == Auto.id).filter(
+            Auto.dueno_id == dueno.id, Reserva.estado == "finalizada"
+        ).count()
+        if total_dueno == 1:
+            referidos.notificar_primera_actividad(dueno, db)
+
+
+def _segundo_conductor_info(reserva: Reserva, db: Session) -> Optional[Dict[str, Any]]:
+    conductor = reserva.segundo_conductor
+    if not conductor:
+        return None
+    return {
+        "id": conductor.id,
+        "nombre": conductor.nombre,
+        "rut": conductor.rut,
+        "tipo_documento": conductor.tipo_documento,
+        "numero_documento": conductor.numero_documento,
+        "licencia_clase": conductor.licencia_clase,
+        "licencia_numero": conductor.licencia_numero,
+        "estado_kyc": conductor.estado_kyc,
+        "foto_perfil_url": _foto_segundo_conductor_vigente(conductor, db),
+    }
 
 class DeliveryService:
     @staticmethod
@@ -27,12 +96,12 @@ class DeliveryService:
         db.refresh(reserva)
 
         cliente = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
-        foto_url = cliente.foto_perfil_verificada_url if cliente else None
 
         return {
             "reserva_id": reserva.id,
             "codigo_qr_hash": qr_hash,
-            "foto_perfil_verificada_url": foto_url,
+            "foto_perfil_verificada_url": _foto_perfil_vigente(cliente, db),
+            "segundo_conductor": _segundo_conductor_info(reserva, db),
             "instrucciones": "Muestra este código QR al dueño en el momento de la entrega o devolución."
         }
 
@@ -57,7 +126,8 @@ class DeliveryService:
             "auto_modelo": auto.modelo if auto else "Desconocido",
             "auto_patente": auto.patente if auto else "Desconocido",
             "cliente_nombre": cliente.nombre if cliente else "Cliente",
-            "foto_perfil_verificada_url": cliente.foto_perfil_verificada_url if cliente else None,
+            "foto_perfil_verificada_url": _foto_perfil_vigente(cliente, db),
+            "segundo_conductor": _segundo_conductor_info(reserva, db),
             "estado_reserva": reserva.estado,
             "lugar_entrega_acordado": reserva.lugar_entrega_acordado
         }
@@ -212,7 +282,18 @@ class DeliveryService:
                 db=db
             )
 
-            reserva.monto_cobro_final = cobro_info["monto_total_cobro"]
+            # Bono/descuento de invitación (ver app/services/referidos.py):
+            # el descuento del cliente reduce lo que se le cobra a él, nunca
+            # lo que recibe el dueño (la diferencia la absorbe la
+            # plataforma); el bono del dueño va como Pago aparte, nunca
+            # modifica pago_liq — así ambos quedan auditables y reversibles
+            # sin tocar el cálculo de comisión normal.
+            config_referidos = PricingService.obtener_configuracion(db)
+            cliente = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
+            descuento_pct_cliente = referidos.calcular_bono_referido_pct(cliente, config_referidos) if cliente else 0.0
+            monto_cobro_final = round(cobro_info["monto_total_cobro"] * (1 - descuento_pct_cliente / 100))
+
+            reserva.monto_cobro_final = monto_cobro_final
             reserva.cargo_limpieza_clp = cobro_info["cargo_limpieza"]
             reserva.cargo_combustible_clp = cargo_combustible
             reserva.cargo_km_extra_clp = cargo_km_extra
@@ -220,12 +301,12 @@ class DeliveryService:
             reserva.cargos_adicionales_clp = cobro_info["cargos_adicionales"]
             reserva.liquidacion_dueno_clp = cobro_info["liquidacion_dueno"]
 
-            # Registrar cobro final al cliente
+            # Registrar cobro final al cliente (ya con su descuento aplicado)
             pago_cobro = Pago(
                 reserva_id=reserva.id,
                 usuario_id=reserva.cliente_id,
                 tipo="cobro_final",
-                monto=cobro_info["monto_total_cobro"],
+                monto=monto_cobro_final,
                 estado="capturado",
                 referencia_pago=f"MP-{uuid.uuid4().hex[:8].upper()}"
             )
@@ -240,12 +321,27 @@ class DeliveryService:
             db.add(pago_cobro)
             db.add(pago_liq)
 
+            dueno = db.query(Usuario).filter(Usuario.id == auto.dueno_id).first() if auto else None
+            if dueno:
+                bono_pct_dueno = referidos.calcular_bono_referido_pct(dueno, config_referidos)
+                if bono_pct_dueno > 0:
+                    db.add(Pago(
+                        reserva_id=reserva.id,
+                        usuario_id=dueno.id,
+                        tipo="bono_referido",
+                        monto=round(cobro_info["liquidacion_dueno"] * bono_pct_dueno / 100),
+                        estado="pendiente",
+                    ))
+
             limpieza_msg = f" Cargo por limpieza: ${cargo_limpieza:,} CLP." if cargo_limpieza > 0 else ""
             comb_msg = f" Combustible faltante: ${cargo_combustible:,} CLP." if cargo_combustible > 0 else ""
             mensaje = f"Checklist final completado. Arriendo finalizado.{limpieza_msg}{comb_msg}"
 
         db.commit()
         db.refresh(reserva)
+
+        if reserva.estado == "finalizada":
+            _notificar_si_es_primera_finalizada(reserva, db)
 
         return {
             "mensaje": mensaje,

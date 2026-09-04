@@ -51,6 +51,10 @@ class ContractService:
         monto_total_estimado_clp: int,
         valor_uf_clp: float = 38000.0,
         dias_cobro_posterior_peajes: int = 60,
+        segundo_conductor_nombre: str = None,
+        segundo_conductor_rut: str = None,
+        segundo_conductor_telefono: str = None,
+        segundo_conductor_licencia: str = None,
         output_path: str = None
     ) -> bytes:
         """
@@ -105,18 +109,20 @@ class ContractService:
             fontSize=8,
             leading=11,
             alignment=TA_JUSTIFY,
-            textColor=colors.HexColor("#1E293B")
+            textColor=colors.HexColor("#334155")
         )
         bold_body = ParagraphStyle(
             "BoldBody",
             parent=body_style,
-            fontName="Helvetica-Bold"
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor("#0F172A")
         )
 
         story = []
 
         # 1. Cabecera del Documento
         story.append(Paragraph("CONTRATO DE ARRIENDO TEMPORAL DE VEHÍCULO MOTORIZADO (PEER-TO-PEER)", title_style))
+        story.append(Spacer(1, 4))
         story.append(Paragraph(f"ARRIENDA TU AUTO CHILE SpA • CÓDIGO DE RESERVA: {reserva_id[:8].upper()}", subtitle_style))
         story.append(Spacer(1, 8))
         story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#E11D2A"), spaceAfter=10))
@@ -125,11 +131,18 @@ class ContractService:
         f_inicio_str = fecha_inicio.strftime("%d/%m/%Y %H:%M") if hasattr(fecha_inicio, "strftime") else str(fecha_inicio)
         f_fin_str = fecha_fin.strftime("%d/%m/%Y %H:%M") if hasattr(fecha_fin, "strftime") else str(fecha_fin)
 
+        segundo_conductor_intro = ""
+        if segundo_conductor_nombre:
+            segundo_conductor_intro = (
+                f"; y como <b>SEGUNDO CONDUCTOR AUTORIZADO</b> don/doña <b>{segundo_conductor_nombre}</b>, "
+                f"Documento N° <b>{segundo_conductor_rut or 'N/A'}</b>, fono {segundo_conductor_telefono or 'N/A'}"
+            )
+
         intro_text = (
             f"En la ciudad de Los Ángeles, Región del Biobío, Chile, comparecen por una parte como <b>ARRENDADOR (DUEÑO)</b> "
             f"don/doña <b>{dueno_nombre}</b>, Cédula de Identidad N° <b>{dueno_rut}</b>, fono {dueno_telefono}; y por la otra parte como "
             f"<b>ARRENDATARIO (CLIENTE)</b> don/doña <b>{cliente_nombre}</b>, Cédula de Identidad N° <b>{cliente_rut}</b>, "
-            f"fono {cliente_telefono}; con la intermediación digital y garantía de la plataforma <b>Arrienda Tu Auto Chile SpA</b> "
+            f"fono {cliente_telefono}{segundo_conductor_intro}; con la intermediación digital y garantía de la plataforma <b>Arrienda Tu Auto Chile SpA</b> "
             f"(RUT 77.891.234-5). Las partes convienen celebrar el presente contrato de arriendo bajo las siguientes cláusulas:"
         )
         story.append(Paragraph(intro_text, body_style))
@@ -176,11 +189,20 @@ class ContractService:
         story.append(Spacer(1, 10))
 
         # 4. Cláusulas Principales
-        clausula1 = (
-            "<b>PRIMERA — OBJETO Y ENTREGA PRESENCIAL (P2P):</b> El Arrendador entrega en arriendo temporal el vehículo antes individualizado al Arrendatario. "
-            "La entrega se efectúa de forma directa entre las partes, mediando verificación de identidad humana con código QR y foto oficial cacheada. "
-            "El Arrendatario es el único conductor autorizado y declara poseer licencia chilena Clase B vigente."
-        )
+        if segundo_conductor_nombre:
+            clausula1 = (
+                "<b>PRIMERA — OBJETO Y CONDUCTORES AUTORIZADOS (P2P):</b> El Arrendador entrega en arriendo temporal el vehículo antes individualizado al Arrendatario. "
+                "La entrega se efectúa de forma directa entre las partes, mediando verificación de identidad humana con código QR y fotos oficiales cacheadas. "
+                f"Son únicos conductores expresamente autorizados para operar el vehículo el Arrendatario (don/doña {cliente_nombre}) y el Segundo Conductor "
+                f"(don/doña {segundo_conductor_nombre}, Documento N° {segundo_conductor_rut or 'N/A'}), "
+                "ambos declarando poseer licencia de conducir vigente y validada por la plataforma."
+            )
+        else:
+            clausula1 = (
+                "<b>PRIMERA — OBJETO Y ENTREGA PRESENCIAL (P2P):</b> El Arrendador entrega en arriendo temporal el vehículo antes individualizado al Arrendatario. "
+                "La entrega se efectúa de forma directa entre las partes, mediando verificación de identidad humana con código QR y foto oficial cacheada. "
+                "El Arrendatario es el único conductor autorizado y declara poseer licencia chilena Clase B vigente."
+            )
         story.append(Paragraph(clausula1, body_style))
         story.append(Spacer(1, 5))
 

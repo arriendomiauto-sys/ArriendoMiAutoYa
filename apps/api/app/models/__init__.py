@@ -9,6 +9,7 @@ from app.models.entities import (
     Disputa,
     TicketSoporte,
     Sucursal,
+    ConductorAdicional,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "Disputa",
     "TicketSoporte",
     "Sucursal",
+    "ConductorAdicional",
 ]

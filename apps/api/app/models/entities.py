@@ -62,6 +62,17 @@ class Usuario(Base):
     # la cédula) — se guarda para que soporte pueda auditar qué se declaró.
     tarjeta_titular = Column(String, nullable=True)
 
+    # Programa de invitación. `codigo_referido` es el código propio para
+    # compartir (se genera perezosamente si viene NULL — ver
+    # app/services/referidos.py); `referido_por_id` queda fijo la primera vez
+    # que se aplica un código ajeno y nunca se puede reemplazar.
+    # `bono_referido_activado_en` es el reloj de decaimiento de ESTE usuario
+    # como quien invita: se refresca cada vez que alguien a quien invitó
+    # completa su primera actividad real en la plataforma.
+    codigo_referido = Column(String, nullable=True)
+    referido_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
+    bono_referido_activado_en = Column(DateTime, nullable=True)
+
     # Relaciones
     autos = relationship("Auto", back_populates="dueno", foreign_keys="Auto.dueno_id")
     reservas_cliente = relationship("Reserva", back_populates="cliente", foreign_keys="Reserva.cliente_id")
@@ -171,6 +182,7 @@ class Reserva(Base):
     disputas = relationship("Disputa", back_populates="reserva")
     calificaciones = relationship("Calificacion", back_populates="reserva")
     mensajes = relationship("Mensaje", back_populates="reserva")
+    segundo_conductor = relationship("ConductorAdicional", back_populates="reserva", uselist=False, cascade="all, delete-orphan")
 
 class VerificacionEntrega(Base):
     __tablename__ = "verificaciones_entrega"
@@ -373,6 +385,67 @@ class ConfiguracionPlataforma(Base):
     periodo_gracia_minutos = Column(Integer, default=30) # Minutos de gracia en devolución
     dias_cobro_posterior_peajes = Column(Integer, default=60) # Plazo para imputar peajes/fotomultas tras la devolución
     edad_minima_arriendo = Column(Integer, default=21) # Edad mínima del arrendatario
+
+    # Bono/descuento de invitación, por tramos decrecientes. El invitado
+    # ancla en su propia fecha_registro; quien invita ancla en
+    # Usuario.bono_referido_activado_en (se refresca cuando UN invitado suyo
+    # completa su primera actividad). Editable acá para no requerir deploy.
+    bono_invitado_pct_t1 = Column(Float, default=15.0)   # % días 0-30 desde el registro del invitado
+    bono_invitado_pct_t2 = Column(Float, default=8.0)    # % días 31-60
+    bono_invitado_pct_t3 = Column(Float, default=3.0)    # % días 61-90
+    bono_invitado_dias_t1 = Column(Integer, default=30)
+    bono_invitado_dias_t2 = Column(Integer, default=60)
+    bono_invitado_dias_t3 = Column(Integer, default=90)
+    bono_referente_pct_t1 = Column(Float, default=8.0)   # % días 0-30 desde la activación de quien invitó
+    bono_referente_pct_t2 = Column(Float, default=4.0)   # % días 31-60
+    bono_referente_dias_t1 = Column(Integer, default=30)
+    bono_referente_dias_t2 = Column(Integer, default=60)
+
     actualizado_en = Column(DateTime, default=utc_now, onupdate=utc_now)
     actualizado_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
+
+
+class ConductorAdicional(Base):
+    __tablename__ = "conductores_adicionales"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False, unique=True, index=True)
+    nombre = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    telefono = Column(String, nullable=True)
+
+    # Identidad
+    tipo_documento = Column(String, default="rut") # rut | pasaporte | dni_extranjero
+    rut = Column(String, nullable=True, index=True)
+    numero_documento = Column(String, nullable=True, index=True)
+    pais_documento = Column(String, nullable=True) # ISO-3166 alpha-2
+    fecha_nacimiento = Column(DateTime, nullable=True)
+
+    # Licencia de conducir
+    licencia_pais_emisor = Column(String, nullable=True)
+    licencia_numero = Column(String, nullable=True)
+    licencia_clase = Column(String, nullable=True)
+    licencia_vencimiento = Column(DateTime, nullable=True)
+    pic_url = Column(String, nullable=True)
+    pic_vencimiento = Column(DateTime, nullable=True)
+    es_residente_chile = Column(Boolean, default=False)
+    fecha_inicio_residencia = Column(DateTime, nullable=True)
+
+    # Documentos y fotos
+    carnet_frontal_url = Column(String, nullable=True)
+    carnet_trasero_url = Column(String, nullable=True)
+    licencia_url = Column(String, nullable=True)
+    selfie_url = Column(String, nullable=True)
+
+    # Estado KYC y Verificación
+    estado_kyc = Column(String, default="pendiente") # pendiente | verificado | requiere_revision_manual | rechazado
+    confianza_ocr = Column(Float, default=1.0)
+    notas_auditoria = Column(Text, nullable=True)
+
+    creado_en = Column(DateTime, default=utc_now)
+    actualizado_en = Column(DateTime, default=utc_now, onupdate=utc_now)
+
+    # Relaciones
+    reserva = relationship("Reserva", back_populates="segundo_conductor")
+
 
