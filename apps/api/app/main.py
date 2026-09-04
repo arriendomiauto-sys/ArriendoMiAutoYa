@@ -1,3 +1,4 @@
+import asyncio
 import os
 import logging
 from fastapi import FastAPI, Request
@@ -16,6 +17,7 @@ from app.core.seed import seed_demo_data
 from app.core.limiter import limiter
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.request_limit import RequestSizeLimitMiddleware
+from app.services.recordatorios import iniciar_bucle_recordatorios
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,9 @@ from app.routers import (
     usuarios,
     gestion_flota,
     mensajes,
+    ws_chat,
     notificaciones,
+    favoritos,
 )
 
 @asynccontextmanager
@@ -59,7 +63,20 @@ async def lifespan(app: FastAPI):
         seed_demo_data(db)
     finally:
         db.close()
+
+    # Recordatorios de entrega/devolución (24h y 2h antes). No hay
+    # Celery/Redis en este proyecto: es un bucle liviano dentro del propio
+    # proceso — ver app/services/recordatorios.py para el porqué y sus
+    # límites conocidos.
+    tarea_recordatorios = iniciar_bucle_recordatorios(SessionLocal)
+
     yield
+
+    tarea_recordatorios.cancel()
+    try:
+        await tarea_recordatorios
+    except asyncio.CancelledError:
+        pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -137,7 +154,14 @@ app.include_router(storage.router, prefix=api_prefix)
 app.include_router(usuarios.router, prefix=api_prefix)
 app.include_router(gestion_flota.router, prefix=api_prefix)
 app.include_router(mensajes.router, prefix=api_prefix)
+app.include_router(ws_chat.router, prefix=api_prefix)
 app.include_router(notificaciones.router, prefix=api_prefix)
+app.include_router(favoritos.router, prefix=api_prefix)
+
+# Montar servidor Socket.IO para chat en tiempo real
+import socketio
+from app.services.socketio_server import sio
+app.mount("/socket.io", socketio.ASGIApp(sio, socketio_path=""))
 
 @app.get("/", tags=["Health"])
 def root():

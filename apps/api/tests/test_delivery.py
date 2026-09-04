@@ -1,4 +1,4 @@
-from app.models.entities import Reserva, Disputa, Usuario
+from app.models.entities import Reserva, Disputa, Usuario, ChecklistAuto
 
 def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
     # 1. Obtener la reserva demo
@@ -37,7 +37,8 @@ def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
             "fotos": ["https://ejemplo.com/foto1.jpg", "https://ejemplo.com/foto2.jpg"],
             "kilometraje": 25000,
             "nivel_combustible": "lleno",
-            "notas": "Auto en perfecto estado sin rayones."
+            "notas": "Auto en perfecto estado sin rayones.",
+            "firma_svg": "M1 1L2 2",
         }
     )
     assert resp_check_antes.status_code == 200
@@ -61,6 +62,91 @@ def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
     assert data_final["monto_cobro_final"] > 0
     assert data_final["cargo_limpieza"] == 15000
     assert data_final["liquidacion_dueno"] > 0
+
+def test_checklist_antes_guarda_la_firma_svg(client, db_session, auth_as):
+    reserva = db_session.query(Reserva).first()
+    dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+
+    trazo = "M10 10 L20 20 L30 10"
+    resp = auth_as(dueno).post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={
+            "tipo": "antes",
+            "fotos": ["https://ejemplo.com/foto1.jpg"],
+            "kilometraje": 25000,
+            "nivel_combustible": "lleno",
+            "firma_svg": trazo,
+        }
+    )
+    assert resp.status_code == 200, resp.text
+
+    checklist = (
+        db_session.query(ChecklistAuto)
+        .filter(ChecklistAuto.reserva_id == reserva.id, ChecklistAuto.tipo == "antes")
+        .first()
+    )
+    assert checklist.firma_svg == trazo
+
+
+def test_checklist_antes_sin_firma_es_rechazado(client, db_session, auth_as):
+    """La app deshabilita el botón de firmar sin trazo — esto es la misma
+    exigencia del lado servidor, para no depender solo del cliente."""
+    reserva = db_session.query(Reserva).first()
+    dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+
+    resp = auth_as(dueno).post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={
+            "tipo": "antes",
+            "fotos": ["https://ejemplo.com/foto1.jpg"],
+            "kilometraje": 25000,
+            "nivel_combustible": "lleno",
+        }
+    )
+    assert resp.status_code == 400
+    assert (
+        db_session.query(ChecklistAuto)
+        .filter(ChecklistAuto.reserva_id == reserva.id, ChecklistAuto.tipo == "antes")
+        .first()
+        is None
+    )
+
+
+def test_checklist_despues_no_necesita_firma(client, db_session, auth_as):
+    """El checklist 'despues' (devolución) no pide firma: solo se firma al
+    entregar, no al devolver."""
+    reserva = db_session.query(Reserva).first()
+    dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    c = auth_as(dueno)
+
+    c.post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={
+            "tipo": "antes",
+            "fotos": ["https://ejemplo.com/foto1.jpg"],
+            "kilometraje": 25000,
+            "nivel_combustible": "lleno",
+            "firma_svg": "M1 1L2 2",
+        }
+    )
+
+    resp = c.post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={
+            "tipo": "despues",
+            "fotos": ["https://ejemplo.com/foto_final.jpg"],
+            "kilometraje": 25100,
+            "nivel_combustible": "lleno",
+        }
+    )
+    assert resp.status_code == 200, resp.text
+    checklist = (
+        db_session.query(ChecklistAuto)
+        .filter(ChecklistAuto.reserva_id == reserva.id, ChecklistAuto.tipo == "despues")
+        .first()
+    )
+    assert checklist.firma_svg is None
+
 
 def test_rechazo_identidad_crea_disputa_y_bloquea(client, db_session, auth_as):
     reserva = db_session.query(Reserva).first()

@@ -94,6 +94,14 @@ def usuario_factory(db_session):
             roles_activos=roles_activos if roles_activos is not None else ["cliente"],
             estado_documentos=kwargs.get("estado_documentos", "verificado"),
             sucursal_id=kwargs.get("sucursal_id"),
+            # Un usuario verificado tiene, por definición, una tarjeta validada:
+            # se registra junto con el KYC y sin ella no puede arrendar ni
+            # publicar. Los tests que prueban justamente esa puerta pasan
+            # `tarjeta_estado` explícito.
+            tarjeta_estado=kwargs.get("tarjeta_estado", "validada"),
+            tarjeta_ultimos4=kwargs.get("tarjeta_ultimos4", "4242"),
+            tarjeta_marca=kwargs.get("tarjeta_marca", "visa"),
+            tarjeta_token=kwargs.get("tarjeta_token", "tok-test"),
         )
         db_session.add(user)
         db_session.commit()

@@ -180,7 +180,7 @@ def seed_demo_data(db: Session):
         tipo="hold_enrolamiento",
         monto=800000,
         estado="capturado",
-        referencia_transbank="TBK-DEMO-ENROL-800K"
+        referencia_pago="MP-DEMO-ENROL-800K"
     )
     pago_reserva = Pago(
         reserva_id=reserva_demo.id,
@@ -188,7 +188,7 @@ def seed_demo_data(db: Session):
         tipo="hold_reserva",
         monto=126000,
         estado="capturado",
-        referencia_transbank="TBK-DEMO-RES-126K"
+        referencia_pago="MP-DEMO-RES-126K"
     )
     db.add_all([pago_enrolamiento, pago_reserva])
 

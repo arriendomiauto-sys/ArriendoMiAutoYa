@@ -47,20 +47,18 @@ class AuthService:
 
         return True
 
-async def get_current_user(
-    authorization: str = Header(None, description="Bearer <supabase_access_token>"),
-    db: Session = Depends(get_db)
-) -> Usuario:
+async def autenticar_token(token: str, db: Session) -> Usuario:
     """
-    Dependency real de autenticación: valida el access token de Supabase Auth
-    (enviado como 'Authorization: Bearer <token>') contra el endpoint
-    /auth/v1/user de Supabase, y auto-provisiona/sincroniza la fila local
-    de Usuario (keyed por el mismo id de Supabase Auth) en el primer request.
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="No autenticado")
+    Valida un access token de Supabase Auth y devuelve el Usuario local,
+    auto-provisionando la fila en el primer request.
 
-    token = authorization.split(" ", 1)[1]
+    Vive aparte de `get_current_user` porque los WebSockets no pueden mandar
+    cabeceras propias desde el navegador ni desde React Native: el token les
+    llega por query string y necesitan la misma validación sin depender de
+    `Header`.
+    """
+    if not token:
+        raise HTTPException(status_code=401, detail="No autenticado")
 
     async with httpx.AsyncClient() as client:
         resp = await client.get(
@@ -86,3 +84,19 @@ async def get_current_user(
         db.refresh(user)
 
     return user
+
+
+async def get_current_user(
+    authorization: str = Header(None, description="Bearer <supabase_access_token>"),
+    db: Session = Depends(get_db)
+) -> Usuario:
+    """
+    Dependency real de autenticación: valida el access token de Supabase Auth
+    (enviado como 'Authorization: Bearer <token>') contra el endpoint
+    /auth/v1/user de Supabase, y auto-provisiona/sincroniza la fila local
+    de Usuario (keyed por el mismo id de Supabase Auth) en el primer request.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="No autenticado")
+
+    return await autenticar_token(authorization.split(" ", 1)[1], db)

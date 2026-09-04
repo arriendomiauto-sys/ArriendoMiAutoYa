@@ -45,13 +45,21 @@ class Settings(BaseSettings):
     # Google Maps
     GOOGLE_MAPS_API_KEY: str = "placeholder-maps-key"
 
-    # Transbank Webpay Plus (Sandbox / Producción)
-    TBK_COMMERCE_CODE: str = "597055555532"
-    TBK_API_KEY: str = "579B532A7440BBAB610796F8393E2D5E"
-    TBK_ENVIRONMENT: str = "INTEGRACION" # INTEGRACION | PRODUCCION
+    # Mercado Pago.
+    #
+    # El entorno no se configura aparte: lo dice el propio token. Los de prueba
+    # empiezan con `TEST-` y los productivos con `APP_USR-`, así que es
+    # imposible creer que estás en sandbox y estar cobrando de verdad.
+    MERCADOPAGO_ACCESS_TOKEN: Optional[str] = None
+    # Pública por definición: la usa el SDK del cliente para tokenizar la
+    # tarjeta sin que el número toque nuestro backend.
+    MERCADOPAGO_PUBLIC_KEY: Optional[str] = None
+    # Firma los webhooks. Sin esto, cualquiera que conozca la URL podría avisar
+    # "el pago 123 fue aprobado" y confirmar reservas gratis.
+    MERCADOPAGO_WEBHOOK_SECRET: Optional[str] = None
 
     # ===== BLOQUE TEMPORAL — PAGOS SIMULADOS ==============================
-    # Mientras la cuenta de Transbank no esté configurada, esto deja pasar el
+    # Mientras la cuenta de Mercado Pago no esté configurada, esto deja pasar el
     # flujo dando el pago y la retención por aprobados, sin salir a la red.
     # Es SOLO para pruebas: se ignora en producción (ver pagos_simulados.py).
     #
@@ -74,8 +82,12 @@ class Settings(BaseSettings):
 
     # URLs de Producción de la Plataforma
     FRONTEND_URL: str = "https://arriendatuauto.com"
+    # URL pública de esta API. Mercado Pago la necesita para avisarnos de los
+    # pagos: sin webhook, un arrendatario que paga y cierra la app antes de
+    # volver deja la reserva colgada en "pendiente" para siempre.
+    API_PUBLIC_URL: str = "https://api.arriendatuauto.com"
     ADMIN_PANEL_ORIGIN: Optional[str] = "https://admin.arriendatuauto.com"
-    WEBPAY_DEFAULT_RETURN_URL: str = "https://arriendatuauto.com/pago/retorno"
+    PAGO_DEFAULT_RETURN_URL: str = "https://arriendatuauto.com/pago/retorno"
 
     # CORS: orígenes explícitos y seguros permitidos en producción y desarrollo
     CORS_ORIGINS: List[str] = [
