@@ -51,6 +51,10 @@ class UserEnrolamiento(UserBase):
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None
     foto_perfil_verificada_url: Optional[str] = None
+    # Payload crudo del QR del reverso de la cédula nueva, si la app lo pudo
+    # leer. No se asume ningún formato — se guarda tal cual para auditoría,
+    # nunca se usa solo para aprobar/rechazar (ver notas en enrolamiento.py).
+    qr_carnet_payload: Optional[str] = None
 
     # Medio de pago. Se pide junto con los documentos, no en una pantalla
     # aparte: así, si algo no se puede verificar, el caso completo viaja a
@@ -117,6 +121,12 @@ class UserOut(UserBase):
     pic_url: Optional[str] = None
     pic_vencimiento: Optional[datetime] = None
     es_residente_chile: Optional[bool] = False
+
+    codigo_referido: Optional[str] = None
+    referido_por_id: Optional[str] = None
+
+class CodigoReferidoUpdate(BaseModel):
+    codigo: str
 
 class CuentaBancariaUpdate(BaseModel):
     banco: str
@@ -338,6 +348,107 @@ class AutoOut(AutoBase):
         return False if v is None else v
 
 # ==============================================================================
+# CONDUCTOR ADICIONAL / SEGUNDO CONDUCTOR
+# ==============================================================================
+class ConductorAdicionalBase(BaseModel):
+    nombre: str
+    email: Optional[EmailStr] = None
+    telefono: Optional[str] = None
+    tipo_documento: Literal["rut", "pasaporte", "dni_extranjero"] = "rut"
+    rut: Optional[str] = None
+    numero_documento: Optional[str] = None
+    pais_documento: Optional[str] = None
+    fecha_nacimiento: Optional[datetime] = None
+
+    licencia_pais_emisor: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_clase: Optional[str] = None
+    licencia_vencimiento: Optional[datetime] = None
+    pic_url: Optional[str] = None
+    pic_vencimiento: Optional[datetime] = None
+    es_residente_chile: bool = False
+    fecha_inicio_residencia: Optional[datetime] = None
+
+    carnet_frontal_url: Optional[str] = None
+    carnet_trasero_url: Optional[str] = None
+    licencia_url: Optional[str] = None
+    selfie_url: Optional[str] = None
+
+    @field_validator("rut")
+    @classmethod
+    def check_rut_conductor(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not validar_rut_chileno(v):
+            raise ValueError("RUT chileno inválido para el segundo conductor (falla Módulo 11)")
+        return v
+
+class ConductorAdicionalCreate(ConductorAdicionalBase):
+    pass
+
+class ConductorAdicionalUpdate(BaseModel):
+    nombre: Optional[str] = None
+    email: Optional[EmailStr] = None
+    telefono: Optional[str] = None
+    tipo_documento: Optional[Literal["rut", "pasaporte", "dni_extranjero"]] = None
+    rut: Optional[str] = None
+    numero_documento: Optional[str] = None
+    pais_documento: Optional[str] = None
+    fecha_nacimiento: Optional[datetime] = None
+    licencia_pais_emisor: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_clase: Optional[str] = None
+    licencia_vencimiento: Optional[datetime] = None
+    pic_url: Optional[str] = None
+    pic_vencimiento: Optional[datetime] = None
+    es_residente_chile: Optional[bool] = None
+    fecha_inicio_residencia: Optional[datetime] = None
+    carnet_frontal_url: Optional[str] = None
+    carnet_trasero_url: Optional[str] = None
+    licencia_url: Optional[str] = None
+    selfie_url: Optional[str] = None
+
+    @field_validator("rut")
+    @classmethod
+    def check_rut_conductor_update(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not validar_rut_chileno(v):
+            raise ValueError("RUT chileno inválido (falla Módulo 11)")
+        return v
+
+class ConductorAdicionalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    reserva_id: str
+    nombre: str
+    email: Optional[str] = None
+    telefono: Optional[str] = None
+    tipo_documento: Optional[str] = "rut"
+    rut: Optional[str] = None
+    numero_documento: Optional[str] = None
+    pais_documento: Optional[str] = None
+    fecha_nacimiento: Optional[datetime] = None
+    licencia_pais_emisor: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_clase: Optional[str] = None
+    licencia_vencimiento: Optional[datetime] = None
+    pic_url: Optional[str] = None
+    pic_vencimiento: Optional[datetime] = None
+    es_residente_chile: Optional[bool] = False
+    fecha_inicio_residencia: Optional[datetime] = None
+    carnet_frontal_url: Optional[str] = None
+    carnet_trasero_url: Optional[str] = None
+    licencia_url: Optional[str] = None
+    selfie_url: Optional[str] = None
+    estado_kyc: str = "pendiente"
+    confianza_ocr: Optional[float] = 1.0
+    notas_auditoria: Optional[str] = None
+    creado_en: datetime
+    actualizado_en: Optional[datetime] = None
+
+# ==============================================================================
 # RESERVAS
 # ==============================================================================
 class BookingCreate(BaseModel):
@@ -346,6 +457,7 @@ class BookingCreate(BaseModel):
     fecha_inicio: datetime
     fecha_fin: datetime
     lugar_entrega_acordado: str
+    segundo_conductor: Optional[ConductorAdicionalCreate] = None
 
     @field_validator("lugar_entrega_acordado")
     @classmethod
@@ -383,6 +495,7 @@ class BookingOut(BaseModel):
     codigo_qr_hash: Optional[str] = None
     lugar_entrega_acordado: str
     contrato_pdf_url: Optional[str] = None
+    segundo_conductor: Optional[ConductorAdicionalOut] = None
 
     # Pre-checkin 24h antes
     precheck_cliente_confirmado: bool = False
@@ -447,6 +560,7 @@ class GenerateQRResponse(BaseModel):
     reserva_id: str
     codigo_qr_hash: str
     foto_perfil_verificada_url: Optional[str] = None
+    segundo_conductor: Optional[Dict[str, Any]] = None
     instrucciones: str
 
 class ValidateQRRequest(BaseModel):
@@ -459,6 +573,7 @@ class ValidateQRResponse(BaseModel):
     auto_patente: str
     cliente_nombre: str
     foto_perfil_verificada_url: Optional[str] = None
+    segundo_conductor: Optional[Dict[str, Any]] = None
     estado_reserva: str
     lugar_entrega_acordado: str
 

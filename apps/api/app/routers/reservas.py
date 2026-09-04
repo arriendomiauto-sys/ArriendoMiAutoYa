@@ -10,13 +10,17 @@ from app.schemas.schemas import (
     PreCheckinRequest,
     PreCheckinResponse,
     AplicarMultaRequest,
+    ConductorAdicionalCreate,
+    ConductorAdicionalUpdate,
+    ConductorAdicionalOut,
 )
-from app.models.entities import Reserva, Auto, Usuario, Pago
+from app.models.entities import Reserva, Auto, Usuario, Pago, ConductorAdicional
 from app.services.pricing import PricingService
 from app.services.contract import ContractService
 from app.services.fines import FinesService
 from app.services.notificaciones import crear_notificacion
 from app.services.auth import get_current_user
+from app.services.conductor_kyc import ConductorKycService
 from app.core.limiter import limiter
 import uuid
 
@@ -100,6 +104,37 @@ def crear_reserva(
         contrato_pdf_url=contrato_url
     )
     db.add(reserva)
+    db.flush()
+
+    # Si se adjuntó un segundo conductor en la creación
+    if payload.segundo_conductor:
+        conductor = ConductorAdicional(
+            reserva_id=reserva.id,
+            nombre=payload.segundo_conductor.nombre,
+            email=payload.segundo_conductor.email,
+            telefono=payload.segundo_conductor.telefono,
+            tipo_documento=payload.segundo_conductor.tipo_documento or "rut",
+            rut=payload.segundo_conductor.rut,
+            numero_documento=payload.segundo_conductor.numero_documento,
+            pais_documento=payload.segundo_conductor.pais_documento,
+            fecha_nacimiento=payload.segundo_conductor.fecha_nacimiento,
+            licencia_pais_emisor=payload.segundo_conductor.licencia_pais_emisor,
+            licencia_numero=payload.segundo_conductor.licencia_numero,
+            licencia_clase=payload.segundo_conductor.licencia_clase,
+            licencia_vencimiento=payload.segundo_conductor.licencia_vencimiento,
+            pic_url=payload.segundo_conductor.pic_url,
+            pic_vencimiento=payload.segundo_conductor.pic_vencimiento,
+            es_residente_chile=payload.segundo_conductor.es_residente_chile,
+            fecha_inicio_residencia=payload.segundo_conductor.fecha_inicio_residencia,
+            carnet_frontal_url=payload.segundo_conductor.carnet_frontal_url,
+            carnet_trasero_url=payload.segundo_conductor.carnet_trasero_url,
+            licencia_url=payload.segundo_conductor.licencia_url,
+            selfie_url=payload.segundo_conductor.selfie_url,
+        )
+        db.add(conductor)
+        db.flush()
+        ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
+
     db.commit()
     db.refresh(reserva)
     return reserva
@@ -181,7 +216,11 @@ def descargar_contrato_pdf(
         dias=dias,
         monto_total_estimado_clp=subtotal,
         valor_uf_clp=float(cfg.valor_uf_clp),
-        dias_cobro_posterior_peajes=getattr(cfg, "dias_cobro_posterior_peajes", None) or 60
+        dias_cobro_posterior_peajes=getattr(cfg, "dias_cobro_posterior_peajes", None) or 60,
+        segundo_conductor_nombre=reserva.segundo_conductor.nombre if reserva.segundo_conductor else None,
+        segundo_conductor_rut=(reserva.segundo_conductor.rut or reserva.segundo_conductor.numero_documento) if reserva.segundo_conductor else None,
+        segundo_conductor_telefono=reserva.segundo_conductor.telefono if reserva.segundo_conductor else None,
+        segundo_conductor_licencia=reserva.segundo_conductor.licencia_numero if reserva.segundo_conductor else None,
     )
 
     filename = f"Contrato-Arriendo-{auto.patente if auto else 'AUTO'}-{reserva.id[:8].upper()}.pdf"
@@ -469,3 +508,157 @@ def aplicar_multa_reserva(
     db.commit()
     db.refresh(reserva)
     return reserva
+
+# ==============================================================================
+# GESTIÓN Y VERIFICACIÓN KYC DE SEGUNDO CONDUCTOR
+# ==============================================================================
+@router.post(
+    "/{reserva_id}/segundo-conductor",
+    response_model=ConductorAdicionalOut,
+    summary="Asignar o registrar segundo conductor a una reserva"
+)
+@limiter.limit("15/minute")
+def asignar_segundo_conductor(
+    request: Request,
+    reserva_id: str,
+    payload: ConductorAdicionalCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=403, detail="Solo el titular de la reserva puede asignar un segundo conductor.")
+
+    if reserva.estado in ["finalizada", "cancelada"]:
+        raise HTTPException(status_code=400, detail=f"No se puede asignar conductor a una reserva en estado '{reserva.estado}'.")
+
+    conductor = db.query(ConductorAdicional).filter(ConductorAdicional.reserva_id == reserva.id).first()
+    if conductor:
+        # Actualizar datos existentes
+        for campo, valor in payload.model_dump(exclude_unset=True).items():
+            setattr(conductor, campo, valor)
+    else:
+        conductor = ConductorAdicional(
+            reserva_id=reserva.id,
+            **payload.model_dump()
+        )
+        db.add(conductor)
+
+    db.commit()
+    db.refresh(conductor)
+
+    # Ejecutar validación KYC de documentos, licencia y biometría
+    ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
+    db.refresh(conductor)
+    return conductor
+
+@router.get(
+    "/{reserva_id}/segundo-conductor",
+    response_model=ConductorAdicionalOut,
+    summary="Consultar datos y estado KYC del segundo conductor"
+)
+def obtener_segundo_conductor(
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    _verificar_acceso_reserva(reserva, current_user, db)
+
+    conductor = db.query(ConductorAdicional).filter(ConductorAdicional.reserva_id == reserva.id).first()
+    if not conductor:
+        raise HTTPException(status_code=404, detail="Esta reserva no tiene segundo conductor asignado.")
+
+    ConductorKycService.renovar_fotos_conductor(conductor, db)
+    return conductor
+
+@router.put(
+    "/{reserva_id}/segundo-conductor",
+    response_model=ConductorAdicionalOut,
+    summary="Actualizar datos o documentos del segundo conductor"
+)
+@limiter.limit("15/minute")
+def actualizar_segundo_conductor(
+    request: Request,
+    reserva_id: str,
+    payload: ConductorAdicionalUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=403, detail="Solo el titular de la reserva puede modificar el segundo conductor.")
+
+    conductor = db.query(ConductorAdicional).filter(ConductorAdicional.reserva_id == reserva.id).first()
+    if not conductor:
+        raise HTTPException(status_code=404, detail="Esta reserva no tiene segundo conductor asignado.")
+
+    for campo, valor in payload.model_dump(exclude_unset=True).items():
+        if valor is not None:
+            setattr(conductor, campo, valor)
+
+    db.commit()
+    db.refresh(conductor)
+
+    # Re-evaluar KYC tras actualización
+    ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
+    db.refresh(conductor)
+    return conductor
+
+@router.delete(
+    "/{reserva_id}/segundo-conductor",
+    summary="Eliminar segundo conductor de la reserva"
+)
+def eliminar_segundo_conductor(
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=403, detail="Solo el titular de la reserva puede remover el segundo conductor.")
+
+    conductor = db.query(ConductorAdicional).filter(ConductorAdicional.reserva_id == reserva.id).first()
+    if not conductor:
+        raise HTTPException(status_code=404, detail="Esta reserva no tiene segundo conductor asignado.")
+
+    db.delete(conductor)
+    db.commit()
+    return {"mensaje": "Segundo conductor eliminado exitosamente", "reserva_id": reserva_id}
+
+@router.post(
+    "/{reserva_id}/segundo-conductor/verificar-kyc",
+    response_model=ConductorAdicionalOut,
+    summary="Re-ejecutar verificación KYC para el segundo conductor"
+)
+@limiter.limit("10/minute")
+def verificar_kyc_segundo_conductor(
+    request: Request,
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    _verificar_acceso_reserva(reserva, current_user, db)
+
+    conductor = db.query(ConductorAdicional).filter(ConductorAdicional.reserva_id == reserva.id).first()
+    if not conductor:
+        raise HTTPException(status_code=404, detail="Esta reserva no tiene segundo conductor asignado.")
+
+    ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
+    db.refresh(conductor)
+    return conductor
+
