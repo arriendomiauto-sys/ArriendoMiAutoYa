@@ -86,6 +86,17 @@ export class ApiClient {
       response = await fetch(url, { ...options, headers, signal: controlador.signal });
     } catch (netErr) {
       seAgotoElTiempo = controlador.signal.aborted;
+      // El mensaje que ve el usuario es siempre genérico ("no se pudo conectar"),
+      // pero acá abajo tragábamos el error real de fetch sin dejar rastro — al
+      // diagnosticar un fallo en KYC/subida de fotos no había forma de saber si
+      // era timeout, DNS, TLS, o el archivo local ilegible. Se loguea el error
+      // crudo tal cual lo tira fetch, en cada intento.
+      console.error(
+        `[ApiClient] fetch falló en ${endpoint} (intento ${intento}, esSubida=${esSubida}, abortado=${seAgotoElTiempo}):`,
+        netErr?.name,
+        netErr?.message,
+        netErr
+      );
       // Si el backend está en cold start (Render despertando) o hubo un microcorte,
       // reintentamos automáticamente antes de lanzar el error a la pantalla.
       if (intento < esperas.length) {

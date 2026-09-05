@@ -162,6 +162,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         setCurrentStep("04_tarjeta");
       }
     } catch (err) {
+      console.error("[KycScreen] handleFotoCapturada:", err);
       showAlert("No se pudo subir la foto", err.message || "Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setCapturing(false);
@@ -186,6 +187,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       setCarnetTraseroUrl(url);
       setCurrentStep(isOwner ? "03_facial" : "02_licencia");
     } catch (err) {
+      console.error("[KycScreen] escanearReversoCedula:", err);
       showAlert("No se pudo escanear el reverso", err.message || "Inténtalo de nuevo.");
     } finally {
       setCapturing(false);
@@ -210,6 +212,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       setCedulaSide("back");
       setMostrarQR(true);
     } catch (err) {
+      console.error("[KycScreen] escanearCedula:", err);
       showAlert("No se pudo escanear la cédula", err.message || "Inténtalo de nuevo.");
     } finally {
       setCapturing(false);
