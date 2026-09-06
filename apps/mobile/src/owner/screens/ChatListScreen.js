@@ -1,17 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient, useConversaciones } from "@rentacar/mobile-shared";
 import { oc } from "../comun";
-
-function formatearFecha(iso) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
-  } catch {
-    return iso;
-  }
-}
 
 const ESTADO_BADGE = {
   confirmada: { variant: "info", label: "Por entregar" },
@@ -19,15 +10,38 @@ const ESTADO_BADGE = {
   finalizada: { variant: "neutral", label: "Finalizada" },
 };
 
-// No hay un endpoint de "conversaciones": se listan las reservas del dueño y
-// desde acá se entra al chat real de cada una.
+// Tiempo relativo corto para la última línea: "ahora", "5 min", "3 h", "ayer",
+// "12 sep".
+function tiempoRelativo(iso) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const min = Math.round(diff / 60000);
+  if (min < 1) return "ahora";
+  if (min < 60) return `${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h`;
+  const d = Math.round(h / 24);
+  if (d === 1) return "ayer";
+  if (d < 7) return `${d} d`;
+  return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+}
+
+// No hay un endpoint único de "conversaciones": se cruza el resumen de mensajes
+// (`/reservas/mensajes/resumen` — última línea + no leídos) con las reservas del
+// dueño, para pintar la lista con vista previa y sin abrir cada chat.
 export function ChatListScreen({ onSelectReserva, onBack }) {
   const insets = useSafeAreaInsets();
+  // El resumen (última línea + no leídos) viene del hook, que se mantiene al
+  // día con el poll de notificaciones — así la lista se refresca sola si llega
+  // un mensaje mientras está abierta.
+  const { conversaciones, refrescar: refrescarResumen } = useConversaciones();
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refrescando, setRefrescando] = useState(false);
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
+  const cargarReservas = useCallback(async () => {
     try {
       const data = await ApiClient.getReservas("dueno");
       setReservas((data || []).filter((r) => r.estado !== "cancelada"));
@@ -35,12 +49,79 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
       setReservas([]);
     } finally {
       setLoading(false);
+      setRefrescando(false);
     }
   }, []);
 
   useEffect(() => {
-    cargar();
-  }, [cargar]);
+    cargarReservas();
+  }, [cargarReservas]);
+
+  const items = useMemo(() => {
+    const porReserva = Object.fromEntries((conversaciones || []).map((r) => [r.reserva_id, r]));
+    const lista = reservas.map((r) => ({ ...r, _resumen: porReserva[r.id] || null }));
+    // Con mensajes primero, por el más reciente; el resto por fecha de inicio.
+    lista.sort((a, b) => {
+      const ta = a._resumen?.ultimo_timestamp;
+      const tb = b._resumen?.ultimo_timestamp;
+      if (ta && tb) return new Date(tb) - new Date(ta);
+      if (ta) return -1;
+      if (tb) return 1;
+      return new Date(a.fecha_inicio || 0) - new Date(b.fecha_inicio || 0);
+    });
+    return lista;
+  }, [reservas, conversaciones]);
+
+  const onRefresh = useCallback(() => {
+    setRefrescando(true);
+    cargarReservas();
+    refrescarResumen();
+  }, [cargarReservas, refrescarResumen]);
+
+  const renderItem = ({ item }) => {
+    const auto = item.auto || {};
+    const nombre = [auto.marca, auto.modelo].filter(Boolean).join(" ") || "Auto";
+    const badge = ESTADO_BADGE[item.estado];
+    const r = item._resumen;
+    const noLeidos = r?.no_leidos || 0;
+    const preview = r?.ultimo_mensaje
+      ? `${r.ultimo_autor_id === item.cliente_id ? "" : "Tú: "}${r.ultimo_mensaje}`
+      : "Sin mensajes aún · toca para coordinar";
+
+    return (
+      <TouchableOpacity style={styles.card} onPress={() => onSelectReserva(item)} activeOpacity={0.8}>
+        <View style={styles.avatar}>
+          <Icon name="user" size={18} color={colors.primary} />
+          {noLeidos > 0 ? (
+            <View style={styles.dot}>
+              <Text style={styles.dotText} allowFontScaling={false}>
+                {noLeidos > 9 ? "9+" : noLeidos}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <View style={{ flex: 1, gap: 3 }}>
+          <View style={styles.cardHead}>
+            <Text style={styles.carName} numberOfLines={1}>
+              {nombre}
+            </Text>
+            {r?.ultimo_timestamp ? (
+              <Text style={styles.time}>{tiempoRelativo(r.ultimo_timestamp)}</Text>
+            ) : badge ? (
+              <Badge variant={badge.variant} label={badge.label} />
+            ) : null}
+          </View>
+          <Text
+            style={[styles.preview, noLeidos > 0 && styles.previewFuerte]}
+            numberOfLines={1}
+          >
+            {preview}
+          </Text>
+        </View>
+        <Icon name="chevron-right" size={16} color={colors.textMuted} />
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -54,35 +135,14 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={reservas}
+          data={items}
           keyExtractor={(item) => item.id}
           contentContainerStyle={[styles.list, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} tintColor={colors.primary} />}
-          renderItem={({ item }) => {
-            const auto = item.auto || {};
-            const nombre = [auto.marca, auto.modelo].filter(Boolean).join(" ") || "Auto";
-            const badge = ESTADO_BADGE[item.estado];
-            return (
-              <TouchableOpacity style={styles.card} onPress={() => onSelectReserva(item)} activeOpacity={0.8}>
-                <View style={styles.avatar}>
-                  <Icon name="user" size={18} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <View style={styles.cardHead}>
-                    <Text style={styles.carName} numberOfLines={1}>
-                      {nombre}
-                    </Text>
-                    {badge ? <Badge variant={badge.variant} label={badge.label} /> : null}
-                  </View>
-                  <Text style={styles.date}>
-                    {formatearFecha(item.fecha_inicio)} – {formatearFecha(item.fecha_fin)}
-                  </Text>
-                </View>
-                <Icon name="chevron-right" size={16} color={colors.textMuted} />
-              </TouchableOpacity>
-            );
-          }}
+          refreshControl={
+            <RefreshControl refreshing={refrescando} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
+          renderItem={renderItem}
           ListEmptyComponent={
             <EmptyState
               icon="chat"
@@ -117,7 +177,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  dot: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: colors.danger,
+    borderWidth: 2,
+    borderColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dotText: { fontSize: 10, fontWeight: "700", color: "#FFFFFF" },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
   carName: { fontSize: 15, fontWeight: "700", color: colors.text, flex: 1 },
-  date: { fontSize: 13, color: colors.textMuted },
+  time: { fontSize: 12, color: colors.textMuted },
+  preview: { fontSize: 13, color: colors.textMuted },
+  previewFuerte: { color: colors.text, fontWeight: "600" },
 });
