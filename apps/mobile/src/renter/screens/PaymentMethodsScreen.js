@@ -83,6 +83,11 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
       onPaymentSuccess(null);
       return;
     }
+    // `processing` se activa ANTES del prompt biométrico: mientras el sistema
+    // muestra Face ID / huella (que puede tardar varios segundos) el botón
+    // queda deshabilitado y no se puede disparar una segunda reserva.
+    setProcessing(true);
+
     // Firma exclusiva de contratos: la huella/Face ID se pide únicamente aquí,
     // al confirmar y firmar el arriendo del vehículo. Si el teléfono no tiene
     // biometría enrolada, `confirmarBiometria` deja pasar (no se puede exigir
@@ -91,13 +96,13 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
       "Confirma con tu huella o Face ID para firmar y reservar este vehículo"
     );
     if (!firmado) {
+      setProcessing(false);
       showAlert(
         "Firma no confirmada",
         "Necesitamos tu confirmación biométrica para firmar el contrato y crear la reserva."
       );
       return;
     }
-    setProcessing(true);
     try {
       const reserva = await ApiClient.crearReserva({
         auto_id: car.id,
