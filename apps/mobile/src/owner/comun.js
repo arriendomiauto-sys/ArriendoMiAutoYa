@@ -39,9 +39,20 @@ export function BotonMensajes({ noLeidos = 0, onPress }) {
  * opcional y (opcional) el botón de Mensajes con su globo. `right` mete un
  * control extra a la izquierda del de mensajes.
  */
-export function CabeceraOwner({ titulo, subtitulo, noLeidos, onMensajes, right }) {
+export function CabeceraOwner({ titulo, subtitulo, noLeidos, onMensajes, onBack, right }) {
   return (
     <View style={oc.header}>
+      {onBack ? (
+        <TouchableOpacity
+          style={oc.backBtn}
+          onPress={onBack}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="Volver"
+        >
+          <Icon name="arrow-left" size={20} color={colors.primary} />
+        </TouchableOpacity>
+      ) : null}
       <View style={{ flex: 1 }}>
         <Text style={oc.title}>{titulo}</Text>
         {subtitulo ? <Text style={oc.subtitle}>{subtitulo}</Text> : null}
@@ -84,6 +95,17 @@ export const oc = StyleSheet.create({
   },
   title: { ...theme.typography.title, color: colors.text },
   subtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   msgBtn: {
     width: 40,

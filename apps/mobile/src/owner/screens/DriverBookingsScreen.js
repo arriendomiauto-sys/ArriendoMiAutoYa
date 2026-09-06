@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
   theme,
@@ -12,6 +13,7 @@ import {
   GPSMapModal,
   RatingModal,
 } from "@rentacar/mobile-shared";
+import { CabeceraOwner, oc } from "../comun";
 
 function formatearFecha(iso) {
   if (!iso) return "—";
@@ -30,16 +32,22 @@ const ESTADO_BADGE = {
   pendiente: { variant: "warning", label: "Pendiente" },
 };
 
+const FILTROS = [
+  { id: "confirmada", label: "Por entregar" },
+  { id: "en_curso", label: "Por devolver" },
+  { id: "todas", label: "Todas" },
+];
+
 // El backend confirma la reserva de inmediato al crearla — esta pantalla
 // lista las reservas reales de los autos del dueño y da entrada al flujo de
 // entrega/devolución con QR.
-export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
+export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenChat, noLeidos }) {
+  const insets = useSafeAreaInsets();
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("confirmada");
   const [gpsReserva, setGpsReserva] = useState(null);
-  // reservaId -> true si el dueño ya calificó al cliente de esa reserva.
   const [calificadas, setCalificadas] = useState({});
   const [reservaACalificar, setReservaACalificar] = useState(null);
 
@@ -61,8 +69,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
 
   const filtered = reservas.filter((r) => (filter === "todas" ? true : r.estado === filter));
 
-  // Solo importa saber si ya se calificó para las finalizadas visibles —
-  // se pregunta al backend recién cuando aparecen en la lista filtrada.
   useEffect(() => {
     const pendientes = filtered.filter(
       (r) => r.estado === "finalizada" && calificadas[r.id] === undefined
@@ -95,13 +101,13 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
     const puedeDevolver = item.estado === "en_curso";
 
     return (
-      <View style={styles.card}>
+      <View style={[oc.card, styles.card]}>
         <View style={styles.cardHead}>
           <Text style={styles.carName}>{nombre}</Text>
           <Badge variant={badge.variant} label={badge.label} />
         </View>
 
-        <View style={styles.detail}>
+        <View style={[oc.seccionSuave, styles.detail]}>
           <View style={styles.row}>
             <Text style={styles.label}>Fechas</Text>
             <Text style={styles.value}>
@@ -110,20 +116,19 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Lugar de entrega</Text>
-            <Text style={styles.value} numberOfLines={1}>{item.lugar_entrega_acordado || "—"}</Text>
+            <Text style={styles.value} numberOfLines={1}>
+              {item.lugar_entrega_acordado || "—"}
+            </Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
-            <Text style={[styles.label, { color: colors.textWhite, fontWeight: "700" }]}>
-              Tu ganancia (80%)
-            </Text>
+            <Text style={[styles.label, { color: colors.text, fontWeight: "700" }]}>Tu ganancia (80%)</Text>
             <Text style={styles.earnings}>${ganancia.toLocaleString("es-CL")}</Text>
           </View>
         </View>
 
         {(puedeEntregar || puedeDevolver) && (
           <Button
-            tone="dark"
             label={puedeEntregar ? "Iniciar entrega con QR" : "Iniciar devolución con QR"}
             iconRight="arrow-right"
             onPress={() => onOpenDelivery?.(item)}
@@ -131,7 +136,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
         )}
         {puedeDevolver && auto.gps_consentimiento && (
           <Button
-            tone="dark"
             variant="secondary"
             size="sm"
             label="Ver ubicación GPS en vivo"
@@ -141,7 +145,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
         )}
         {item.estado === "finalizada" && calificadas[item.id] === false && (
           <Button
-            tone="dark"
             variant="secondary"
             size="sm"
             label="Calificar a este arrendatario"
@@ -150,7 +153,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
           />
         )}
         <Button
-          tone="dark"
           variant="ghost"
           size="sm"
           label="Ver contrato de esta reserva"
@@ -161,19 +163,17 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Reservas de mis autos</Text>
-        <Text style={styles.subtitle}>Entrega y devolución verificadas por QR</Text>
-      </View>
+    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+      <CabeceraOwner
+        titulo="Reservas de mis autos"
+        subtitulo="Entrega y devolución verificadas por QR"
+        noLeidos={noLeidos}
+        onMensajes={onOpenChat}
+      />
 
       <View style={styles.filters}>
-        {[
-          { id: "confirmada", label: "Por entregar" },
-          { id: "en_curso", label: "Por devolver" },
-          { id: "todas", label: "Todas" },
-        ].map((f) => (
-          <Chip key={f.id} tone="dark" label={f.label} selected={filter === f.id} onPress={() => setFilter(f.id)} />
+        {FILTROS.map((f) => (
+          <Chip key={f.id} label={f.label} selected={filter === f.id} onPress={() => setFilter(f.id)} />
         ))}
       </View>
 
@@ -185,18 +185,17 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
       )}
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[oc.listContent, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} tintColor={colors.primary} />}
           renderItem={renderItem}
           ListEmptyComponent={
             <EmptyState
-              tone="dark"
               icon="calendar"
               title={filter === "todas" ? "Sin reservas todavía" : "Nada en este estado"}
               message="Cuando alguien reserve tus autos, las reservas aparecerán aquí para coordinar la entrega."
@@ -229,10 +228,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.darkBg },
-  header: { paddingHorizontal: theme.spacing.screen, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.md },
-  title: { ...theme.typography.title, color: colors.textWhite },
-  subtitle: { fontSize: 13, color: colors.textSilver, marginTop: 2 },
   filters: {
     flexDirection: "row",
     gap: theme.spacing.sm,
@@ -244,26 +239,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginHorizontal: theme.spacing.screen,
-    backgroundColor: "rgba(220,38,38,0.12)",
+    marginBottom: theme.spacing.md,
+    backgroundColor: colors.dangerBg,
     borderRadius: theme.radius.field,
     padding: theme.spacing.md,
   },
-  errorText: { color: colors.danger, fontSize: 13, flex: 1 },
-  list: { paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.xxxl, gap: theme.spacing.lg },
-  card: {
-    backgroundColor: colors.darkCard,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-    gap: theme.spacing.md,
-  },
+  errorText: { color: colors.dangerText, fontSize: 13, flex: 1 },
+  card: { padding: theme.spacing.lg, gap: theme.spacing.md },
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.sm },
-  carName: { fontSize: 16, fontWeight: "700", color: colors.textWhite, flex: 1 },
-  detail: { backgroundColor: colors.darkCardSubtle, borderRadius: theme.radius.field, padding: theme.spacing.md, gap: theme.spacing.sm },
+  carName: { fontSize: 16, fontWeight: "700", color: colors.text, flex: 1 },
+  detail: { gap: theme.spacing.sm },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },
-  label: { fontSize: 13, color: colors.textSilver },
-  value: { fontSize: 13, fontWeight: "600", color: colors.textWhite, flexShrink: 1, textAlign: "right" },
-  divider: { height: 1, backgroundColor: colors.darkBorder, marginVertical: 2 },
-  earnings: { fontSize: 15, fontWeight: "800", color: colors.accent },
+  label: { fontSize: 13, color: colors.textMuted },
+  value: { fontSize: 13, fontWeight: "600", color: colors.text, flexShrink: 1, textAlign: "right" },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 2 },
+  earnings: { fontSize: 15, fontWeight: "800", color: colors.accentDark },
 });
