@@ -32,8 +32,9 @@ function tiempoRelativo(iso) {
 
 export function NotificationsScreen({ onBack, onSelectNotification, variant = "renter" }) {
   const { notifications, cargarNotificaciones, markNotificationAsRead, clearAllNotifications } = useApp();
-  const tone = variant === "owner" ? "dark" : "light";
-  const dark = tone === "dark";
+  // El dueño ya no tiene tema oscuro: misma base clara para los dos roles.
+  const tone = "light";
+  const dark = false;
   const [filter, setFilter] = useState("todas");
   const [refreshing, setRefreshing] = useState(false);
 

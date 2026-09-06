@@ -17,8 +17,8 @@ import { BrandLogo } from "../components/BrandLogo";
  * medio pintar. Con `overlay` se dibuja encima del árbol nuevo, que así puede
  * montarse tapado y aparecer ya completo.
  *
- * El fondo sigue el modo DESTINO (oscuro para dueño, claro para arrendatario)
- * para que la transición ya entregue el color de la experiencia que viene.
+ * Los dos modos comparten la misma base clara, así que la transición es
+ * siempre clara (antes el destino "dueño" entraba en oscuro).
  */
 export function SwitchingScreen({
   mode = "renter",
@@ -26,10 +26,9 @@ export function SwitchingScreen({
   subtitle,
   overlay = false,
 }) {
-  const dark = mode === "owner";
-  const bg = dark ? colors.darkBg : colors.background;
-  const text = dark ? colors.textWhite : colors.text;
-  const muted = dark ? colors.darkTextMuted : colors.textMuted;
+  const bg = colors.background;
+  const text = colors.text;
+  const muted = colors.textMuted;
 
   // Entra con un fundido corto. El título cambia (rol, cuenta, sesión) sin
   // que la pantalla se desmonte, así que también sirve como transición
@@ -51,7 +50,7 @@ export function SwitchingScreen({
         <Text style={[styles.title, { color: text }]}>{title}</Text>
         {subtitle ? <Text style={[styles.subtitle, { color: muted }]}>{subtitle}</Text> : null}
       </View>
-      <ActivityIndicator size="small" color={dark ? colors.accent : colors.primary} />
+      <ActivityIndicator size="small" color={colors.primary} />
     </Animated.View>
   );
 

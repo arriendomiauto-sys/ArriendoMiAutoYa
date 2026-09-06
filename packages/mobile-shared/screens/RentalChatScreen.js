@@ -42,8 +42,10 @@ const nuevoClientId = () =>
 export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const { currentUser } = useApp();
   const insets = useSafeAreaInsets();
-  const tone = variant === "owner" ? "dark" : "light";
-  const dark = tone === "dark";
+  // El dueño ya no tiene tema oscuro: misma base clara que el arrendatario.
+  // `variant` solo decide el texto ("Arrendatario" vs "Dueño del vehículo")
+  // y un acento premium en las burbujas propias.
+  const esOwner = variant === "owner";
 
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -212,27 +214,26 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   };
 
   const auto = reservation?.auto || reservation?.car || {};
-  const interlocutor = dark ? "Arrendatario" : "Dueño del vehículo";
+  const interlocutor = esOwner ? "Arrendatario" : "Dueño del vehículo";
 
   const c = {
-    bg: dark ? colors.darkBg : colors.background,
-    surface: dark ? colors.darkCard : colors.surface,
-    border: dark ? colors.darkBorder : colors.border,
-    text: dark ? colors.textWhite : colors.text,
-    muted: dark ? colors.textSilver : colors.textMuted,
-    input: dark ? colors.darkCardSubtle : colors.surface,
+    bg: colors.background,
+    surface: colors.surface,
+    border: colors.border,
+    text: colors.text,
+    muted: colors.textMuted,
+    input: colors.surface,
   };
 
   if (!reservation?.id) {
     return (
       <View style={[styles.container, { backgroundColor: c.bg }]}>
-        <ScreenHeader tone={tone} title="Mensajes" onBack={onBack} />
+        <ScreenHeader title="Mensajes" onBack={onBack} />
         <EmptyState
-          tone={tone}
           icon="chat"
           title="No tienes una conversación activa"
           message={
-            dark
+            esOwner
               ? "Elige una reserva desde tus solicitudes para chatear con el arrendatario."
               : "Cuando tengas un arriendo activo o confirmado, podrás coordinar aquí con el dueño."
           }
@@ -263,7 +264,11 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
           style={[
             styles.bubble,
             mine
-              ? { backgroundColor: colors.primary, borderBottomRightRadius: 4 }
+              ? {
+                  // Acento premium del dueño: mis burbujas en teal casi negro.
+                  backgroundColor: esOwner ? colors.primary900 : colors.primary,
+                  borderBottomRightRadius: 4,
+                }
               : {
                   backgroundColor: c.surface,
                   borderWidth: 1,
@@ -304,7 +309,6 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
       // "pan" por sí solo no alcanza.
     >
       <ScreenHeader
-        tone={tone}
         title={interlocutor}
         subtitle={
           [auto.marca, auto.modelo, auto.patente].filter(Boolean).join(" · ") ||
@@ -322,7 +326,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         keyboardDismissMode="interactive"
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
       >
-        <View style={[styles.notice, { backgroundColor: dark ? colors.darkCardSubtle : colors.surfaceSubtle }]}>
+        <View style={[styles.notice, { backgroundColor: colors.surfaceSubtle }]}>
           <Icon name="shield" size={12} color={c.muted} />
           <Text style={[styles.noticeText, { color: c.muted }]}>
             Reserva #{reservation.id.slice(0, 8).toUpperCase()}
@@ -380,7 +384,11 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
           multiline
         />
         <TouchableOpacity
-          style={[styles.sendBtn, !input.trim() && { opacity: 0.5 }]}
+          style={[
+            styles.sendBtn,
+            esOwner && { backgroundColor: colors.primary900 },
+            !input.trim() && { opacity: 0.5 },
+          ]}
           onPress={handleSend}
           disabled={!input.trim()}
           accessibilityRole="button"

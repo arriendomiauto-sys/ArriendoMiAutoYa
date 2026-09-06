@@ -120,8 +120,10 @@ async function abrirCanal(url, titulo, datoVisible) {
 }
 
 export function SupportScreen({ onBack, variant = "renter" }) {
-  const tone = variant === "owner" ? "dark" : "light";
-  const dark = tone === "dark";
+  // El dueño ya no tiene tema oscuro: misma base clara para los dos roles.
+  // `variant` solo elige el contenido de las preguntas frecuentes.
+  const tone = "light";
+  const dark = false;
   const faqs = variant === "owner" ? FAQ_OWNER : FAQ_RENTER;
 
   const [tab, setTab] = useState("faq");
