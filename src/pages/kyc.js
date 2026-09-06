@@ -73,7 +73,8 @@ export default function KycPage() {
       (u) =>
         u.estado_documentos === "requiere_revision_manual" ||
         u.estado_documentos === "pendiente" ||
-        u.estado_documentos === "rechazado"
+        u.estado_documentos === "rechazado" ||
+        (u.confianza_ocr ?? 1.0) < 0.8
     );
   }, [usuarios]);
 
@@ -82,7 +83,8 @@ export default function KycPage() {
       (u) =>
         u.licencia_estado === "revision" ||
         u.licencia_estado === "pendiente" ||
-        u.licencia_url != null
+        u.licencia_estado === "rechazada" ||
+        u.licencia_clase != null
     );
   }, [usuarios]);
 
