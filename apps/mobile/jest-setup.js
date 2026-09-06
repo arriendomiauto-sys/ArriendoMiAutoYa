@@ -22,6 +22,9 @@ jest.mock("expo-location", () => ({
   reverseGeocodeAsync: jest.fn(async () => [
     { street: "Av. Alemania", name: "1250", city: "Los Ángeles" },
   ]),
+  geocodeAsync: jest.fn(async () => [
+    { latitude: -37.4697, longitude: -72.3536 },
+  ]),
 }));
 
 // expo-camera es un módulo nativo. Además, useCameraPermissions() consulta el

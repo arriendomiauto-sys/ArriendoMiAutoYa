@@ -17,6 +17,7 @@ import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
 import { DocumentCameraModal } from "../../components/DocumentCameraModal";
+import { SelfieLivenessModal } from "../../components/SelfieLivenessModal";
 import { ApiClient } from "../../api/client";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../../utils/imagenes";
 import {
@@ -31,13 +32,33 @@ import { showAlert } from "../../utils/alert";
 import { CameraView, useCameraPermissions } from "expo-camera";
 
 // Escaneo automático de la cédula: detecta los bordes del documento y
-// dispara sola cuando queda bien encuadrado (frente, luego reverso). Requiere
-// el módulo nativo — build real, ya no corre en Expo Go (ver escanearCedula
-// más abajo).
-import DocumentScanner, {
-  ResponseType as ResponseTypeEscaner,
-  ScanDocumentResponseStatus as EstadoEscaner,
-} from "react-native-document-scanner-plugin";
+// dispara solo cuando queda bien encuadrado (frente, luego reverso).
+// Requiere el módulo nativo `react-native-document-scanner-plugin`.
+//
+// Se carga con require() perezoso, NO con `import` de nivel de módulo:
+// ese paquete corre `TurboModuleRegistry.getEnforcing('DocumentScanner')`
+// apenas se evalúa, y eso TIRA una excepción si el módulo nativo no está
+// en el binario (Expo Go, o un dev build sin la lib compilada). Con el
+// import arriba, esa excepción tumbaba TODA la app al arrancar —
+// KycScreen se re-exporta desde el index de mobile-shared, así que el
+// error explotaba en <global> antes de pintar nada. Perezoso, solo falla
+// el escáner (con aviso al usuario), no la app entera. Mismo patrón que
+// react-native-view-shot en DocumentCameraModal.
+function cargarEscanerCedula() {
+  try {
+    const mod = require("react-native-document-scanner-plugin");
+    const scanner = mod?.default ?? mod;
+    if (typeof scanner?.scanDocument !== "function") return null;
+    return {
+      scanDocument: (opts) => scanner.scanDocument(opts),
+      ResponseType: mod.ResponseType,
+      Estado: mod.ScanDocumentResponseStatus,
+    };
+  } catch (err) {
+    console.warn("[KycScreen] escáner de documentos no disponible:", err?.message);
+    return null;
+  }
+}
 
 // Valida un RUT chileno con el dígito verificador Módulo 11.
 function isRutValid(rutRaw) {
@@ -60,7 +81,7 @@ function isRutValid(rutRaw) {
 }
 
 export function KycScreen({ onBack, onComplete, role = "renter", prefill = null }) {
-  const { currentUser, completeEnrolment } = useApp();
+  const { currentUser, completeEnrolment, syncProfile } = useApp();
   const isOwner = role === "owner";
 
   const yaVerificado = currentUser?.estado_documentos === "verificado";
@@ -101,6 +122,9 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const [carnetTraseroUrl, setCarnetTraseroUrl] = useState(null);
   const [licenciaUrl, setLicenciaUrl] = useState(null);
   const [selfieUrl, setSelfieUrl] = useState(null);
+  // Segunda selfie (cabeza girada) para el control de vida pasivo del backend.
+  const [selfieLivenessUrl, setSelfieLivenessUrl] = useState(null);
+  const [selfieModalAbierto, setSelfieModalAbierto] = useState(false);
 
   // Datos del formulario final, prellenados desde RegisterScreen (prefill)
   // o desde el perfil ya sincronizado (currentUser) cuando existan.
@@ -119,6 +143,20 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   // no pudo leer la fecha de nacimiento).
   const [edadCarnet, setEdadCarnet] = useState(null);
 
+  // Lo que el OCR leyó de la cédula (null = todavía no corrió o no lo pudo
+  // leer). El nombre y el RUT del paso final salen de acá: el usuario ya no
+  // los vuelve a tipear, solo confirma —o corrige si el OCR se equivocó.
+  const [nombreOcr, setNombreOcr] = useState(null);
+  const [rutOcr, setRutOcr] = useState(null);
+  const [identidadEditable, setIdentidadEditable] = useState(false);
+
+  // Dirección particular. Se pide en el paso final (junto con el teléfono) y
+  // se valida contra el geocoder del dispositivo: `direccionValidada` es
+  // null (sin verificar), true (el geocoder la ubicó) o false (no la ubicó).
+  const [direccion, setDireccion] = useState(currentUser?.direccion || "");
+  const [direccionValidada, setDireccionValidada] = useState(null);
+  const [validandoDireccion, setValidandoDireccion] = useState(false);
+
   const rutTouched = rut.trim().length > 0;
   const rutIsValid = isRutValid(rut);
 
@@ -134,6 +172,170 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       bucket: "documentos-kyc",
       ...AJUSTES_DOCUMENTO,
     });
+  };
+
+  // Reinicia el flujo desde la captura de la cédula, borrando lo ya subido.
+  // Se usa cuando las fotos salieron ilegibles o el usuario elige reintentar.
+  const reiniciarKyc = () => {
+    setCarnetFrontalUrl(null);
+    setCarnetTraseroUrl(null);
+    setLicenciaUrl(null);
+    setSelfieUrl(null);
+    setSelfieLivenessUrl(null);
+    setPicUrl(null);
+    setCedulaSide("front");
+    setQrPayload(null);
+    qrYaLeidoRef.current = false;
+    setNombreOcr(null);
+    setRutOcr(null);
+    setEdadCarnet(null);
+    setCurrentStep("01_cedula");
+  };
+
+  // Manda el caso a un ejecutivo (crea el ticket automáticamente) y lleva a
+  // la pantalla de "en revisión". No cobra el hold — eso pasa recién cuando
+  // el ejecutivo apruebe y el usuario complete el enrolamiento.
+  const enviarCasoARevision = async (motivo, descripcion) => {
+    setSubmitting(true);
+    try {
+      await ApiClient.enviarEnrolamientoARevision({
+        motivo,
+        descripcion,
+        carnet_frontal_url: carnetFrontalUrl || undefined,
+        carnet_trasero_url: carnetTraseroUrl || undefined,
+        licencia_url: licenciaUrl || undefined,
+        foto_perfil_verificada_url: selfieUrl || undefined,
+      });
+      await syncProfile();
+      setCurrentStep("06_revision");
+    } catch (err) {
+      showAlert(
+        "No se pudo enviar tu caso",
+        err.message || "Revisa tu conexión e inténtalo de nuevo."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Diálogo de 2 opciones para los rechazos que NO son de calidad de foto
+  // (edad, documento vencido, control facial): enviar a soporte o reintentar.
+  const ofrecerRevisionOReintento = (titulo, mensaje, motivo) => {
+    showAlert(titulo, mensaje, [
+      {
+        text: "Enviar a revisión",
+        onPress: () => enviarCasoARevision(motivo, `${titulo}. ${mensaje}`),
+      },
+      {
+        text: "Volver a tomar las fotos",
+        style: "cancel",
+        onPress: reiniciarKyc,
+      },
+    ]);
+  };
+
+  // Corre el OCR apenas están las dos caras de la cédula subidas, para:
+  //  1. prellenar nombre y RUT — el usuario ya no los vuelve a tipear en el
+  //     paso final, solo confirma (y el nombre alimenta el titular de la
+  //     tarjeta);
+  //  2. validar la edad mínima ANTES de cobrar el hold de garantía.
+  // Best-effort: si el OCR falla (red, servicio caído), el enrolamiento
+  // sigue igual — el backend hace la verificación real en /completar.
+  // Devuelve `false` si detectó un problema y ya reencaminó el flujo
+  // (fotos ilegibles -> re-tomar; edad -> diálogo de 2 opciones).
+  const precargarOcr = async (frontalUrl, traseroUrl) => {
+    if (esExtranjero) return true; // el OCR de cédula chilena no aplica al pasaporte
+    try {
+      let userEmail = currentUser?.email || prefill?.email;
+      if (!userEmail) {
+        try {
+          const { data } = await supabase.auth.getUser();
+          userEmail = data?.user?.email;
+        } catch {
+          /* sin email igual se intenta el OCR */
+        }
+      }
+      const previo = await ApiClient.verifyKyc({
+        nombre,
+        tipo_documento: "rut",
+        rut: rut || undefined,
+        email: userEmail,
+        telefono,
+        carnet_frontal_url: frontalUrl,
+        carnet_trasero_url: traseroUrl,
+      });
+      const datos = previo?.datos_extraidos || {};
+
+      // Fotos ilegibles: no hay nada que un ejecutivo pueda revisar, se
+      // manda derecho a re-tomarlas.
+      if (datos.documentos_legibles === false) {
+        showAlert(
+          "No pudimos leer tu cédula",
+          "La foto salió borrosa o con reflejos. Vuelve a tomarla con buena luz, el documento completo dentro del marco.",
+          [{ text: "Volver a tomar las fotos", onPress: reiniciarKyc }]
+        );
+        return false;
+      }
+
+      if (datos.nombre_extraido) {
+        setNombreOcr(datos.nombre_extraido);
+        // El nombre del carnet manda: es el titular verificado con el que
+        // debe coincidir la tarjeta.
+        setNombre(datos.nombre_extraido);
+      }
+      if (datos.rut_extraido) {
+        setRutOcr(datos.rut_extraido);
+        setRut(datos.rut_extraido);
+      }
+
+      const edad = edadDesdeOcr(datos);
+      if (edad !== null) {
+        setEdadCarnet(edad);
+        if (edad < EDAD_MINIMA_ARRENDATARIO) {
+          ofrecerRevisionOReintento(
+            "Revisión de edad",
+            `Según la fecha de nacimiento de tu cédula tienes ${edad} años, y se necesitan ${EDAD_MINIMA_ARRENDATARIO} cumplidos. Si crees que leímos mal la fecha, envía tu caso a revisión; si no, vuelve a tomar la foto.`,
+            `Edad leída del carnet: ${edad} años (mínimo ${EDAD_MINIMA_ARRENDATARIO}).`
+          );
+          return false;
+        }
+      }
+      return true;
+    } catch (err) {
+      console.warn("[KycScreen] precarga de OCR falló:", err?.message);
+      return true;
+    }
+  };
+
+  // Verifica que la dirección exista, usando el geocoder on-device de
+  // expo-location (no gasta la API de Google, no necesita key). El geocoder
+  // de Android puede devolver vacío para direcciones válidas si Play
+  // Services anda mal, así que un "no la ubicó" avisa pero NO bloquea el
+  // enrolamiento — solo se exige que el campo no esté vacío.
+  const validarDireccion = async () => {
+    const texto = direccion.trim();
+    if (texto.length < 10) {
+      setDireccionValidada(null);
+      return;
+    }
+    setValidandoDireccion(true);
+    try {
+      // require perezoso, igual que AddEditCarScreen: expo-location es
+      // nativo y no todas las pantallas lo necesitan.
+      const Location = require("expo-location");
+      const geocode = Location.geocodeAsync || Location.default?.geocodeAsync;
+      if (typeof geocode !== "function") {
+        setDireccionValidada(null); // sin geocoder no se puede verificar
+        return;
+      }
+      const resultados = await geocode(texto);
+      setDireccionValidada(Array.isArray(resultados) && resultados.length > 0);
+    } catch (err) {
+      console.warn("[KycScreen] geocode de dirección falló:", err?.message);
+      setDireccionValidada(null);
+    } finally {
+      setValidandoDireccion(false);
+    }
   };
 
   // Callback único de la cámara guiada: sabe qué documento se estaba
@@ -154,16 +356,40 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         const url = await subirDocumento(uri, "permiso_internacional");
         setPicUrl(url);
         setCurrentStep("03_facial");
-      } else if (slot === "selfie") {
-        // La selfie queda como foto_perfil_verificada_url; el OCR + control
-        // facial reales corren en /enrolamiento/completar con todo junto.
-        const url = await subirDocumento(uri, "selfie_verificacion");
-        setSelfieUrl(url);
-        setCurrentStep("04_tarjeta");
       }
     } catch (err) {
       console.error("[KycScreen] handleFotoCapturada:", err);
       showAlert("No se pudo subir la foto", err.message || "Revisa tu conexión e inténtalo de nuevo.");
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  // Selfie con liveness: llegan las dos fotos (frente + cabeza girada). Se
+  // suben las dos; la de frente queda como foto de perfil verificada y la
+  // otra la usa el backend para el control de vida. El OCR + match facial
+  // reales corren en /enrolamiento/completar con todo junto.
+  const handleSelfieLiveness = async ({ frontalUri, movimientoUri }) => {
+    setSelfieModalAbierto(false);
+    if (!frontalUri) return;
+    setCapturing(true);
+    try {
+      const frontal = await subirDocumento(frontalUri, "selfie_verificacion");
+      setSelfieUrl(frontal);
+      if (movimientoUri) {
+        try {
+          const mov = await subirDocumento(movimientoUri, "selfie_liveness");
+          setSelfieLivenessUrl(mov);
+        } catch (err) {
+          // Si la segunda no sube, el enrolamiento sigue: el backend lo
+          // manda a revisión manual por falta de control de vida.
+          console.warn("[KycScreen] no se pudo subir la selfie de liveness:", err?.message);
+        }
+      }
+      setCurrentStep("04_tarjeta");
+    } catch (err) {
+      console.error("[KycScreen] handleSelfieLiveness:", err);
+      showAlert("No se pudo subir la selfie", err.message || "Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setCapturing(false);
     }
@@ -174,18 +400,31 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   // escaneo — nunca lo reemplaza, la foto se toma siempre.
   const escanearReversoCedula = async () => {
     setMostrarQR(false);
+    const escaner = cargarEscanerCedula();
+    if (!escaner) {
+      showAlert(
+        "Escáner no disponible",
+        "Esta versión de la app no incluye el escáner de documentos. Actualízala a la última versión para continuar con la verificación."
+      );
+      return;
+    }
     setCapturing(true);
     try {
-      const resultado = await DocumentScanner.scanDocument({
-        responseType: ResponseTypeEscaner.ImageFilePath,
+      const resultado = await escaner.scanDocument({
+        responseType: escaner.ResponseType.ImageFilePath,
         croppedImageQuality: 90,
       });
-      if (resultado.status !== EstadoEscaner.Success || !resultado.scannedImages?.[0]) {
+      if (resultado.status !== escaner.Estado.Success || !resultado.scannedImages?.[0]) {
         return; // cancelado por el usuario: el botón queda para reintentar
       }
       const url = await subirDocumento(resultado.scannedImages[0], "carnet_trasero");
       setCarnetTraseroUrl(url);
-      setCurrentStep(isOwner ? "03_facial" : "02_licencia");
+      // OCR con las dos caras ya subidas: prellena nombre/RUT y corta acá si
+      // no cumple la edad (precargarOcr ya reencamina a 01_cedula en ese caso).
+      const seguir = await precargarOcr(carnetFrontalUrl, url);
+      if (seguir !== false) {
+        setCurrentStep(isOwner ? "03_facial" : "02_licencia");
+      }
     } catch (err) {
       console.error("[KycScreen] escanearReversoCedula:", err);
       showAlert("No se pudo escanear el reverso", err.message || "Inténtalo de nuevo.");
@@ -198,13 +437,21 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   // (ya no la cámara guiada propia). Al terminar, ofrece el intento de QR
   // antes de encadenar automáticamente el escaneo del reverso.
   const escanearCedula = async () => {
+    const escaner = cargarEscanerCedula();
+    if (!escaner) {
+      showAlert(
+        "Escáner no disponible",
+        "Esta versión de la app no incluye el escáner de documentos. Actualízala a la última versión para continuar con la verificación."
+      );
+      return;
+    }
     setCapturing(true);
     try {
-      const resultado = await DocumentScanner.scanDocument({
-        responseType: ResponseTypeEscaner.ImageFilePath,
+      const resultado = await escaner.scanDocument({
+        responseType: escaner.ResponseType.ImageFilePath,
         croppedImageQuality: 90,
       });
-      if (resultado.status !== EstadoEscaner.Success || !resultado.scannedImages?.[0]) {
+      if (resultado.status !== escaner.Estado.Success || !resultado.scannedImages?.[0]) {
         return;
       }
       const url = await subirDocumento(resultado.scannedImages[0], "carnet_frontal");
@@ -280,6 +527,26 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       return;
     }
 
+    if (!direccion.trim() || direccion.trim().length < 10) {
+      showAlert(
+        "Falta tu dirección",
+        "Ingresa tu dirección particular: calle, número y comuna."
+      );
+      return;
+    }
+
+    // Doble red de la edad: `precargarOcr` ya la valida al escanear la
+    // cédula, pero si ese OCR no corrió (servicio caído en ese momento) y
+    // acá ya la conocemos, se corta antes de cobrar el hold.
+    if (edadCarnet !== null && edadCarnet < EDAD_MINIMA_ARRENDATARIO) {
+      ofrecerRevisionOReintento(
+        "Revisión de edad",
+        `Según la fecha de nacimiento de tu cédula tienes ${edadCarnet} años, y se necesitan ${EDAD_MINIMA_ARRENDATARIO} cumplidos. Si crees que leímos mal la fecha, envía tu caso a revisión.`,
+        `Edad leída del carnet: ${edadCarnet} años (mínimo ${EDAD_MINIMA_ARRENDATARIO}).`
+      );
+      return;
+    }
+
     const erroresTarjeta = validarFormularioTarjeta(tarjeta);
     if (Object.keys(erroresTarjeta).length) {
       setTarjetaIntentada(true);
@@ -310,41 +577,9 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         }
       }
 
-      // La edad no puede quedar solo en la casilla que el usuario marcó en el
-      // registro: acá se lee la fecha de nacimiento que el OCR extrae del
-      // carnet y se valida contra el mínimo de los términos ANTES de
-      // completar el enrolamiento (que además cobra el hold de garantía).
-      // Si el OCR no logra leer la fecha no se bloquea a nadie: esos casos
-      // ya terminan en revisión manual del lado del backend.
-      if (userEmail && !esExtranjero) {
-        try {
-          const previo = await ApiClient.verifyKyc({
-            nombre,
-            ...datosIdentidad,
-            email: userEmail,
-            telefono,
-            carnet_frontal_url: carnetFrontalUrl,
-            carnet_trasero_url: carnetTraseroUrl,
-            licencia_url: role === "renter" ? licenciaUrl : undefined,
-            foto_perfil_verificada_url: selfieUrl,
-          });
-          const edad = edadDesdeOcr(previo?.datos_extraidos);
-          setEdadCarnet(edad);
-
-          if (edad !== null && edad < EDAD_MINIMA_ARRENDATARIO) {
-            showAlert(
-              "No cumples la edad mínima",
-              `Según la fecha de nacimiento de tu cédula tienes ${edad} años, y para operar en la plataforma se necesitan ${EDAD_MINIMA_ARRENDATARIO} cumplidos.\n\n` +
-                "Si crees que leímos mal tu cédula, vuelve a fotografiarla con buena luz o escríbenos a soporte."
-            );
-            return;
-          }
-        } catch (err) {
-          // El pre-chequeo es best-effort: si falla (red, OCR caído) no se
-          // frena el enrolamiento, que igual pasa por la verificación real.
-          console.warn("[KycScreen] No se pudo validar la edad con el carnet:", err.message);
-        }
-      }
+      // El OCR (nombre, RUT, edad) ya corrió al escanear la cédula, en
+      // `precargarOcr` — acá no se repite. El backend igual lo vuelve a
+      // correr en /completar para la verificación real + control facial.
 
       // El Dueño completa el mismo enrolamiento (nombre/RUT/carnet) que el
       // Arrendatario — el backend le otorga el rol "dueno" automáticamente
@@ -360,19 +595,43 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         ...tokenizarTarjeta(tarjeta),
         email: userEmail,
         telefono,
+        direccion: direccion.trim(),
         carnet_frontal_url: carnetFrontalUrl,
         carnet_trasero_url: carnetTraseroUrl,
         licencia_url: role === "renter" ? licenciaUrl : undefined,
         foto_perfil_verificada_url: selfieUrl,
+        selfie_liveness_url: selfieLivenessUrl || undefined,
         qr_carnet_payload: qrPayload || undefined,
       });
       setCurrentStep(profile?.estado_documentos === "verificado" ? "05_approved" : "06_revision");
     } catch (err) {
-      showAlert(
-        "No pudimos verificar tus documentos",
-        (err.message || "") +
-          "\n\nVuelve a tomar las fotos: documento completo dentro del marco, enfocado, sin reflejos y con buena luz."
-      );
+      // `categoria` la manda el backend en el detail del 400:
+      //  - "fotos_ilegibles": la foto no se pudo leer -> a re-tomarla, sin
+      //    ofrecer soporte (no hay nada que revisar).
+      //  - "verificacion" / "documento_duplicado": algo de fondo no cuadra
+      //    -> 2 opciones (soporte o reintento).
+      //  - sin categoría: error de datos o de red -> aviso y se queda en el
+      //    paso para corregir/reintentar.
+      if (err?.categoria === "fotos_ilegibles") {
+        showAlert(
+          "No pudimos leer tus documentos",
+          (err.message || "La foto salió ilegible.") +
+            "\n\nVuelve a tomar las fotos: documento completo dentro del marco, enfocado, sin reflejos y con buena luz.",
+          [{ text: "Volver a tomar las fotos", onPress: reiniciarKyc }]
+        );
+      } else if (err?.categoria === "verificacion" || err?.categoria === "documento_duplicado") {
+        ofrecerRevisionOReintento(
+          "No pudimos verificar tu identidad",
+          (err.message || "") +
+            "\n\nPuedes enviar tu caso a un ejecutivo o volver a tomar las fotos.",
+          `Rechazo automático (${err.categoria}): ${err.message || "sin detalle"}`
+        );
+      } else {
+        showAlert(
+          "No pudimos completar tu verificación",
+          err.message || "Revisa tu conexión e inténtalo de nuevo."
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -721,30 +980,54 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             )}
           </View>
 
-          <CaptureGuide
-            shape="face"
-            titulo="Selfie de verificación"
-            tips={[
-              "Cara centrada en el óvalo, mirando de frente",
-              "Sin lentes de sol, gorro ni mascarilla",
-              "Buena luz de frente, fondo neutro",
-            ]}
-            done={selfieUrl ? "Selfie capturada ✓" : null}
-          />
+          <View style={styles.selfieIntro}>
+            <View style={styles.selfieIconCircle}>
+              <Icon name={selfieUrl ? "check" : "camera"} size={34} color="#FFFFFF" />
+            </View>
+            <Text style={styles.guideTitle}>Selfie de verificación</Text>
+            <Text style={styles.selfieIntroSub}>
+              Tomamos dos fotos —una de frente y otra girando la cabeza— para
+              confirmar que eres una persona real, no una foto.
+            </Text>
+            <View style={styles.tipList}>
+              {[
+                "Buena luz de frente, fondo neutro",
+                "Sin lentes de sol, gorro ni mascarilla",
+                "Sigue las instrucciones en pantalla",
+              ].map((t) => (
+                <View key={t} style={styles.tipRow}>
+                  <Icon name="check" size={14} color={colors.accent500} />
+                  <Text style={styles.tipText}>{t}</Text>
+                </View>
+              ))}
+            </View>
+            {selfieUrl ? (
+              <View style={styles.doneChip}>
+                <Text style={styles.doneChipText}>Selfie capturada ✓</Text>
+              </View>
+            ) : null}
+          </View>
 
           <View style={styles.ctaArea}>
             <TouchableOpacity
               style={styles.primaryCta}
-              onPress={() => setCameraFor("selfie")}
+              onPress={() => setSelfieModalAbierto(true)}
               disabled={capturing}
               activeOpacity={0.85}
             >
               {capturing ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.primaryCtaText}>Abrir cámara frontal</Text>
+                <Text style={styles.primaryCtaText}>
+                  {selfieUrl ? "Volver a tomar la selfie" : "Empezar"}
+                </Text>
               )}
             </TouchableOpacity>
+            {selfieUrl ? (
+              <TouchableOpacity onPress={() => setCurrentStep("04_tarjeta")}>
+                <Text style={styles.skipText}>Continuar</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       )}
@@ -783,32 +1066,53 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             </View>
 
             <View style={styles.reviewTextBox}>
-              <Text style={styles.reviewTitle}>Confirma tus Datos</Text>
+              <Text style={styles.reviewTitle}>Último paso</Text>
               <Text style={styles.reviewSub}>
-                Revisa que tu nombre y {esExtranjero ? "número de documento" : "RUT"} sean
-                correctos antes de activar tu cuenta.
+                Confirma tu teléfono y agrega tu dirección particular para activar
+                tu cuenta.
               </Text>
             </View>
 
-            {/* Formulario de confirmación */}
+            {/* Identidad leída de la cédula: solo lectura, con opción de
+                corregir si el OCR se equivocó. */}
             <View style={styles.reviewFormCard}>
+              <View style={styles.reviewLabelRow}>
+                <Text style={styles.reviewFieldLabel}>
+                  {identidadEditable ? "Corrige tu identidad" : "Tu identidad"}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setIdentidadEditable((v) => !v)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.reviewCorregir}>
+                    {identidadEditable ? "Listo" : "Corregir"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.reviewFormGroup}>
-                <Text style={styles.reviewFieldLabel}>NOMBRE COMPLETO</Text>
-                <View style={styles.reviewInputBox}>
-                  <TextInput
-                    style={styles.reviewTextInput}
-                    value={nombre}
-                    onChangeText={setNombre}
-                    placeholder="Ej. Rodrigo Muñoz"
-                    placeholderTextColor={colors.textPlaceholder}
-                    autoCapitalize="words"
-                  />
-                </View>
+                <Text style={styles.reviewFieldLabelSm}>NOMBRE COMPLETO</Text>
+                {identidadEditable ? (
+                  <View style={styles.reviewInputBox}>
+                    <TextInput
+                      style={styles.reviewTextInput}
+                      value={nombre}
+                      onChangeText={setNombre}
+                      placeholder="Ej. Rodrigo Muñoz"
+                      placeholderTextColor={colors.textPlaceholder}
+                      autoCapitalize="words"
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.reviewInputBloqueado}>
+                    <Text style={styles.reviewInputBloqueadoTexto}>{nombre || "—"}</Text>
+                  </View>
+                )}
               </View>
 
               {esExtranjero ? (
                 <View style={styles.reviewFormGroup}>
-                  <Text style={styles.reviewFieldLabel}>
+                  <Text style={styles.reviewFieldLabelSm}>
                     N° DE {tipoDocumento === "pasaporte" ? "PASAPORTE" : "DOCUMENTO"} ({paisDocumento || "??"})
                   </Text>
                   <View style={styles.reviewInputBox}>
@@ -827,32 +1131,49 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 </View>
               ) : (
                 <View style={styles.reviewFormGroup}>
-                  <Text style={styles.reviewFieldLabel}>RUT CHILENO</Text>
-                  <View style={styles.reviewInputBox}>
-                    <TextInput
-                      style={styles.reviewTextInput}
-                      value={rut}
-                      onChangeText={setRut}
-                      placeholder="Ej. 14.234.567-8"
-                      placeholderTextColor={colors.textPlaceholder}
-                      autoCapitalize="characters"
-                    />
-                  </View>
-                  {rutTouched && (
-                    <Text
-                      style={[
-                        styles.rutValidationText,
-                        rutIsValid ? styles.rutValidationOk : styles.rutValidationBad,
-                      ]}
-                    >
-                      {rutIsValid
-                        ? "RUT válido (Módulo 11)"
-                        : "Dígito verificador no coincide"}
-                    </Text>
+                  <Text style={styles.reviewFieldLabelSm}>RUT CHILENO</Text>
+                  {identidadEditable ? (
+                    <>
+                      <View style={styles.reviewInputBox}>
+                        <TextInput
+                          style={styles.reviewTextInput}
+                          value={rut}
+                          onChangeText={setRut}
+                          placeholder="Ej. 14.234.567-8"
+                          placeholderTextColor={colors.textPlaceholder}
+                          autoCapitalize="characters"
+                        />
+                      </View>
+                      {rutTouched && (
+                        <Text
+                          style={[
+                            styles.rutValidationText,
+                            rutIsValid ? styles.rutValidationOk : styles.rutValidationBad,
+                          ]}
+                        >
+                          {rutIsValid
+                            ? "RUT válido (Módulo 11)"
+                            : "Dígito verificador no coincide"}
+                        </Text>
+                      )}
+                    </>
+                  ) : (
+                    <View style={styles.reviewInputBloqueado}>
+                      <Text style={styles.reviewInputBloqueadoTexto}>{rut || "—"}</Text>
+                    </View>
                   )}
                 </View>
               )}
 
+              {(nombreOcr || rutOcr) && !identidadEditable ? (
+                <Text style={styles.reviewFieldHint}>
+                  Datos leídos de tu cédula. Si algo está mal, toca “Corregir”.
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Contacto: lo único que el usuario completa acá. */}
+            <View style={styles.reviewFormCard}>
               <View style={styles.reviewFormGroup}>
                 <Text style={styles.reviewFieldLabel}>TELÉFONO</Text>
                 <View style={styles.reviewInputBox}>
@@ -865,6 +1186,40 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                     keyboardType="phone-pad"
                   />
                 </View>
+              </View>
+
+              <View style={styles.reviewFormGroup}>
+                <Text style={styles.reviewFieldLabel}>DIRECCIÓN PARTICULAR</Text>
+                <View style={styles.reviewInputBox}>
+                  <TextInput
+                    style={styles.reviewTextInput}
+                    value={direccion}
+                    onChangeText={(t) => {
+                      setDireccion(t);
+                      setDireccionValidada(null);
+                    }}
+                    onBlur={validarDireccion}
+                    placeholder="Calle, número y comuna"
+                    placeholderTextColor={colors.textPlaceholder}
+                    autoCapitalize="words"
+                  />
+                </View>
+                {validandoDireccion ? (
+                  <Text style={styles.reviewFieldHint}>Verificando la dirección…</Text>
+                ) : direccionValidada === true ? (
+                  <Text style={[styles.rutValidationText, styles.rutValidationOk]}>
+                    Dirección ubicada ✓
+                  </Text>
+                ) : direccionValidada === false ? (
+                  <Text style={styles.reviewFieldHint}>
+                    No pudimos ubicar esta dirección. Revísala; si está bien igual
+                    puedes continuar.
+                  </Text>
+                ) : (
+                  <Text style={styles.reviewFieldHint}>
+                    La usamos para el contrato de arriendo.
+                  </Text>
+                )}
               </View>
             </View>
 
@@ -926,6 +1281,15 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                   {edadCarnet === null
                     ? `Edad (${EDAD_MINIMA_ARRENDATARIO}+): se valida con tu cédula`
                     : `Edad verificada en tu cédula: ${edadCarnet} años`}
+                </Text>
+              </View>
+
+              <View style={styles.checkItem}>
+                <View style={[styles.checkDone, direccion.trim().length < 10 && styles.checkPending]}>
+                  <Icon name="check" size={14} color="#FFFFFF" />
+                </View>
+                <Text style={styles.checkText}>
+                  {direccion.trim().length < 10 ? "Dirección particular" : "Dirección registrada"}
                 </Text>
               </View>
             </View>
@@ -1036,16 +1400,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           <View style={styles.reviewBottomBar}>
             <TouchableOpacity
               style={[styles.approvedPrimaryBtn, { backgroundColor: colors.primary }]}
-              onPress={() => {
-                setCarnetFrontalUrl(null);
-                setCarnetTraseroUrl(null);
-                setLicenciaUrl(null);
-                setSelfieUrl(null);
-                setCedulaSide("front");
-                setQrPayload(null);
-                qrYaLeidoRef.current = false;
-                setCurrentStep("01_cedula");
-              }}
+              onPress={reiniciarKyc}
               activeOpacity={0.85}
             >
               <Text style={styles.approvedPrimaryBtnText}>Volver a tomar las fotos</Text>
@@ -1064,6 +1419,12 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         variant={cameraFor || "selfie"}
         onClose={() => setCameraFor(null)}
         onCaptured={handleFotoCapturada}
+      />
+
+      <SelfieLivenessModal
+        visible={selfieModalAbierto}
+        onClose={() => setSelfieModalAbierto(false)}
+        onCaptured={handleSelfieLiveness}
       />
 
       {/* Intento breve de QR entre el frente y el reverso de la cédula. */}
@@ -1349,6 +1710,27 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 55,
     backgroundColor: "rgba(255,255,255,0.55)",
   },
+  selfieIntro: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 16,
+  },
+  selfieIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.accent500,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selfieIntroSub: {
+    fontSize: 14,
+    color: "#CBD5E1",
+    textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: 8,
+  },
   guideTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -1515,6 +1897,41 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     color: colors.textMuted,
     textTransform: "uppercase",
+  },
+  reviewFieldLabelSm: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+    color: colors.textMuted,
+    textTransform: "uppercase",
+  },
+  reviewLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reviewCorregir: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  reviewFieldHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 16,
+  },
+  reviewInputBloqueado: {
+    minHeight: 48,
+    borderRadius: 10,
+    backgroundColor: colors.primary100,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: "center",
+  },
+  reviewInputBloqueadoTexto: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
   },
   reviewInputBox: {
     height: 48,

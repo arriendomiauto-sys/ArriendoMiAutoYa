@@ -334,6 +334,18 @@ export function Icon({
     case "add":
       return renderSvg(<Path d="M12 5v14M5 12h14" strokeWidth={2} />);
 
+    case "minus":
+    case "remove":
+      return renderSvg(<Path d="M5 12h14" strokeWidth={2} />);
+
+    case "lock":
+      return renderSvg(
+        <>
+          <Rect x="5" y="11" width="14" height="10" rx="2" />
+          <Path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </>
+      );
+
     case "filter":
       return renderSvg(<Polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />);
 

@@ -49,12 +49,17 @@ export const MOCK_CARS = [
 const ESPERAS_REINTENTO_MS =
   process.env.NODE_ENV === "test" ? [10, 10] : [2000, 3000, 5000, 8000, 13000];
 
-// Subir una foto es distinto: si se corta porque la transferencia va lenta
-// (señal débil, no porque el servidor esté dormido), reintentar con esperas
-// largas de varios segundos no ayuda en nada — es la MISMA foto pesada por
-// la MISMA conexión lenta, va a volver a tardar/cortarse igual. Un solo
-// reintento rápido alcanza; subirImagenOptimizada ya tiene su propio
-// reintento por encima de este.
+// Subir una foto que se ABORTÓ POR TIMEOUT es distinto: se cortó porque la
+// transferencia va lenta (señal débil), así que reintentar con esperas
+// largas no ayuda en nada — es la MISMA foto pesada por la MISMA conexión
+// lenta, va a volver a tardar/cortarse igual. Un solo reintento rápido
+// alcanza; subirImagenOptimizada ya tiene su propio reintento por encima.
+//
+// OJO: esto solo aplica cuando el fetch llegó a abrir la conexión y se
+// abortó. Si el fetch falló de una (no se pudo ni contactar al servidor),
+// la subida usa el mismo backoff largo que el JSON: la foto suele ser la
+// primera request pesada tras abrir la app y Render puede estar en cold
+// start — ahí las esperas largas SÍ sirven (ver selección de `esperas` abajo).
 const ESPERAS_REINTENTO_SUBIDA_MS = process.env.NODE_ENV === "test" ? [10] : [1500];
 
 // Sin esto, una subida en una red lenta puede quedar colgada minutos enteras
@@ -75,7 +80,6 @@ export class ApiClient {
     if (!isFormData) headers["Content-Type"] = "application/json";
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const esperas = esSubida ? ESPERAS_REINTENTO_SUBIDA_MS : ESPERAS_REINTENTO_MS;
     const timeoutMs = esSubida ? TIMEOUT_SUBIDA_MS : TIMEOUT_JSON_MS;
     const controlador = new AbortController();
     const timer = setTimeout(() => controlador.abort(), timeoutMs);
@@ -86,6 +90,13 @@ export class ApiClient {
       response = await fetch(url, { ...options, headers, signal: controlador.signal });
     } catch (netErr) {
       seAgotoElTiempo = controlador.signal.aborted;
+      // Cuánta paciencia para reintentar. Una subida que se abortó por
+      // timeout usa el reintento corto (misma foto, misma red lenta: esperar
+      // más no cambia nada). Todo lo demás — JSON, o una subida que ni pudo
+      // contactar al servidor — usa el backoff largo (~35s), que es lo que
+      // cubre un cold start de Render en la primera request tras abrir la app.
+      const esperas =
+        esSubida && seAgotoElTiempo ? ESPERAS_REINTENTO_SUBIDA_MS : ESPERAS_REINTENTO_MS;
       // El mensaje que ve el usuario es siempre genérico ("no se pudo conectar"),
       // pero acá abajo tragábamos el error real de fetch sin dejar rastro — al
       // diagnosticar un fallo en KYC/subida de fotos no había forma de saber si
@@ -159,6 +170,12 @@ export class ApiClient {
       }
       const err = new Error(msg);
       err.status = response.status;
+      // Categoría de error que algunos endpoints (p. ej. /enrolamiento/completar)
+      // mandan en `detail.categoria` para que la pantalla reaccione distinto
+      // según el tipo de fallo, sin tener que parsear el texto del mensaje.
+      if (errorData.detail && typeof errorData.detail === "object" && errorData.detail.categoria) {
+        err.categoria = errorData.detail.categoria;
+      }
       throw err;
     }
 
@@ -359,10 +376,29 @@ export class ApiClient {
     });
   }
 
+  // Manda el caso a revisión manual (sin cobrar el hold). Lo usa KycScreen
+  // cuando la verificación automática rechaza por edad / algo vencido /
+  // control facial y el usuario elige "enviar a soporte".
+  static async enviarEnrolamientoARevision(datos) {
+    return this.request("/enrolamiento/enviar-a-revision", {
+      method: "POST",
+      body: JSON.stringify(datos),
+    });
+  }
+
   static async completarEnrolamiento(enrolamientoData) {
     return this.request("/enrolamiento/completar", {
       method: "POST",
       body: JSON.stringify(enrolamientoData),
+    });
+  }
+
+  // Valida solo la licencia (usuario ya verificado como dueño que quiere
+  // arrendar). Devuelve el perfil con `licencia_estado` actualizado.
+  static async completarLicencia(datos) {
+    return this.request("/enrolamiento/completar-licencia", {
+      method: "POST",
+      body: JSON.stringify(datos),
     });
   }
 

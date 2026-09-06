@@ -29,6 +29,7 @@ export {
 } from "./components/DateTimeField";
 export { DocumentCameraModal } from "./components/DocumentCameraModal";
 export { ReferralCodeCard } from "./components/ReferralCodeCard";
+export { AccountStatusCard, ModeSwitchRow } from "./components/ProfileStatus";
 export { FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "./vehiculo/fotosAuto";
 export {
   TIPOS_VEHICULO,
@@ -77,6 +78,7 @@ export { RatingModal } from "./components/RatingModal";
 export { SignaturePad } from "./components/SignaturePad";
 export { BiometricLockScreen } from "./screens/BiometricLockScreen";
 export { TarjetaScreen } from "./screens/TarjetaScreen";
+export { EditProfileScreen } from "./screens/EditProfileScreen";
 export { LegalModal } from "./screens/LegalModal";
 export { DOCUMENTOS_LEGALES, EDAD_MINIMA_ARRENDATARIO } from "./legal/documentos";
 export { parsearFechaCarnet, calcularEdad, edadDesdeOcr } from "./utils/edad";
@@ -88,6 +90,7 @@ export { DeliveryScreen } from "./screens/DeliveryScreen";
 export { PreCheckinModal } from "./screens/PreCheckinModal";
 export { ReportFineModal } from "./screens/ReportFineModal";
 export { KycScreen } from "./auth/screens/KycScreen";
+export { CompletarLicenciaScreen } from "./auth/screens/CompletarLicenciaScreen";
 export { SegundoConductorModal } from "./screens/SegundoConductorModal";
 export { showAlert } from "./utils/alert";
 export { traducirErrorAuth } from "./utils/authErrors";

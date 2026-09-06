@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { colors, useApp, showAlert, TarjetaScreen } from "@rentacar/mobile-shared";
+import { colors, useApp, showAlert, TarjetaScreen, EditProfileScreen } from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
@@ -23,6 +23,7 @@ import {
   SupportScreen,
   ContractModal,
   KycScreen,
+  CompletarLicenciaScreen,
   TabBar,
   useConversaciones,
 } from "@rentacar/mobile-shared";
@@ -30,6 +31,11 @@ import {
 export function RenterApp() {
   const { activeReservation, setActiveReservation, currentUser } = useApp();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
+  // Licencia lista para arrendar: "verificada", o una cuenta antigua que ya
+  // tenía la clase cargada antes de que existiera `licencia_estado`.
+  const licenciaListaParaArrendar =
+    currentUser?.licencia_estado === "verificada" ||
+    (!currentUser?.licencia_estado && !!currentUser?.licencia_clase);
 
   // Pestañas de Navegación del Arrendatario
   const [activeTab, setActiveTab] = useState("explore"); // 'explore' | 'rentals' | 'chat' | 'profile'
@@ -53,6 +59,8 @@ export function RenterApp() {
   const [showSupport, setShowSupport] = useState(false);
   const [showContract, setShowContract] = useState(false);
   const [showWallet, setShowWallet] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showLicencia, setShowLicencia] = useState(false);
 
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
@@ -65,6 +73,27 @@ export function RenterApp() {
           role="renter"
           onBack={() => setShowEnrolment(false)}
           onComplete={() => setShowEnrolment(false)}
+        />
+      );
+    }
+
+    // 1c. Validación de licencia para quien se verificó solo como dueño y
+    // ahora quiere arrendar (mini-flujo: solo la licencia, reusa identidad).
+    if (showLicencia) {
+      return (
+        <CompletarLicenciaScreen
+          onCancel={() => setShowLicencia(false)}
+          onDone={() => setShowLicencia(false)}
+        />
+      );
+    }
+
+    // 1b. Editar datos de contacto de la cuenta (nombre / teléfono)
+    if (showEditProfile) {
+      return (
+        <EditProfileScreen
+          onBack={() => setShowEditProfile(false)}
+          onDone={() => setShowEditProfile(false)}
         />
       );
     }
@@ -129,6 +158,24 @@ export function RenterApp() {
                   { text: "Ahora no", style: "cancel" },
                   { text: "Validar identidad", onPress: () => setShowEnrolment(true) },
                 ]
+              );
+              return;
+            }
+            // Verificado como dueño (o antes de que existiera el flujo de
+            // licencia): falta validar la licencia para poder conducir.
+            if (!licenciaListaParaArrendar) {
+              const enRevision = currentUser?.licencia_estado === "revision";
+              showAlert(
+                enRevision ? "Tu licencia está en revisión" : "Falta validar tu licencia",
+                enRevision
+                  ? "Un ejecutivo la está revisando. Te avisamos apenas puedas reservar."
+                  : "Para arrendar necesitamos validar tu licencia de conducir. Son 30 segundos: una foto y listo.",
+                enRevision
+                  ? [{ text: "Entendido", style: "cancel" }]
+                  : [
+                      { text: "Ahora no", style: "cancel" },
+                      { text: "Validar licencia", onPress: () => setShowLicencia(true) },
+                    ]
               );
               return;
             }
@@ -267,12 +314,10 @@ export function RenterApp() {
           <RenterProfileScreen
             onOpenEnrolment={() => setShowEnrolment(true)}
             onOpenPaymentMethods={() => setShowWallet(true)}
-            onOpenRentalHistory={() => setActiveTab("rentals")}
-            onOpenRoadsideClaim={() => setShowRoadsideClaim(true)}
+            onOpenEditProfile={() => setShowEditProfile(true)}
+            onOpenFavorites={() => setShowFavorites(true)}
             onOpenNotifications={() => setShowNotifications(true)}
             onOpenSupport={() => setShowSupport(true)}
-            onOpenContract={() => setShowContract(true)}
-            onOpenChat={() => setActiveTab("chat")}
           />
         );
 
@@ -283,6 +328,7 @@ export function RenterApp() {
 
   const isModalOpen =
     showEnrolment ||
+    showEditProfile ||
     showMap ||
     showFavorites ||
     !!selectedCar ||
