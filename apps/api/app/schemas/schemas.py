@@ -220,6 +220,38 @@ class DocumentReviewRequest(BaseModel):
 # ==============================================================================
 # AUTOS
 # ==============================================================================
+# Tope defensivo: el enrolamiento pide 9 fotos guiadas; se deja holgura para
+# retomas sin abrir la puerta a payloads gigantes.
+MAX_FOTOS_AUTO = 40
+
+
+def _validar_secuencia_fotos(fotos: list) -> list:
+    """
+    Deja la lista de URLs de fotos del auto EXACTAMENTE como la mandó el
+    cliente: mismo orden, mismos elementos (la posición 0 es la foto frontal,
+    la 1 la trasera, etc. — ver FOTOS_AUTO en el móvil). No reordena ni
+    deduplica.
+
+    Solo rechaza lo que rompería esa indexación: un elemento vacío, en blanco
+    o que no sea texto correría todas las fotos siguientes una posición.
+    """
+    if fotos is None:
+        return []
+    if not isinstance(fotos, list):
+        raise ValueError("El campo 'fotos' debe ser una lista de URLs.")
+    if len(fotos) > MAX_FOTOS_AUTO:
+        raise ValueError(f"Demasiadas fotos (máximo {MAX_FOTOS_AUTO}).")
+    limpias = []
+    for i, url in enumerate(fotos):
+        if not isinstance(url, str) or not url.strip():
+            raise ValueError(
+                f"La foto en la posición {i} está vacía o no es una URL válida. "
+                "Vuelve a subir esa toma antes de publicar."
+            )
+        limpias.append(url.strip())
+    return limpias  # orden intacto
+
+
 class AutoBase(BaseModel):
     marca: str
     modelo: str
@@ -247,6 +279,11 @@ class AutoBase(BaseModel):
         if v is None:
             return [] if info.field_name == "fotos" else {}
         return v
+
+    @field_validator("fotos", mode="after")
+    @classmethod
+    def _fotos_en_orden(cls, v):
+        return _validar_secuencia_fotos(v)
 
     # Ficha técnica (opcional; se muestra en el detalle del auto).
     transmision: Optional[Literal["automatica", "mecanica"]] = None
@@ -331,6 +368,12 @@ class AutoUpdate(BaseModel):
     doc_revision_tecnica_url: Optional[str] = None
     doc_seguro_url: Optional[str] = None
     gps_consentimiento: Optional[bool] = None
+
+    @field_validator("fotos", mode="after")
+    @classmethod
+    def _fotos_en_orden(cls, v):
+        # Reemplazar el set completo de fotos también respeta el orden enviado.
+        return None if v is None else _validar_secuencia_fotos(v)
 
 
 class ValidarDocumentosAutoRequest(BaseModel):

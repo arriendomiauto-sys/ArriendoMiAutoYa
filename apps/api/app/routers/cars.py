@@ -197,7 +197,10 @@ def crear_auto(
         ubicacion_base=payload.ubicacion_base,
         latitud=payload.latitud,
         longitud=payload.longitud,
-        fotos=payload.fotos or [],
+        # Copia explícita: se guarda la secuencia tal cual la mandó el cliente
+        # (posición 0 = frontal, 1 = trasera, ...). El schema ya rechazó slots
+        # vacíos que correrían la indexación.
+        fotos=list(payload.fotos or []),
         equipamiento=payload.equipamiento or {},
         transmision=payload.transmision,
         combustible=payload.combustible,
@@ -386,7 +389,7 @@ def actualizar_auto(
     if payload.estado is not None:
         auto.estado = payload.estado
     if payload.fotos is not None:
-        auto.fotos = payload.fotos
+        auto.fotos = list(payload.fotos)  # secuencia verbatim
     if payload.ubicacion_base is not None:
         auto.ubicacion_base = payload.ubicacion_base
     if payload.latitud is not None:
