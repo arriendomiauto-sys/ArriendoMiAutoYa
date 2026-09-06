@@ -471,6 +471,61 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
     }
   };
 
+  // Escaneo automático de la licencia de conducir: usa el mismo motor de
+  // detección de bordes ISO/IEC ID-1 que la cédula.
+  const escanearLicencia = async () => {
+    const escaner = cargarEscanerCedula();
+    if (!escaner) {
+      setCameraFor("licencia");
+      return;
+    }
+    setCapturing(true);
+    try {
+      const resultado = await escaner.scanDocument({
+        responseType: escaner.ResponseType.ImageFilePath,
+        croppedImageQuality: 90,
+      });
+      if (resultado.status !== escaner.Estado.Success || !resultado.scannedImages?.[0]) {
+        return;
+      }
+      const url = await subirDocumento(resultado.scannedImages[0], "licencia_conducir");
+      setLicenciaUrl(url);
+      setCurrentStep("03_facial");
+    } catch (err) {
+      console.error("[KycScreen] escanearLicencia:", err);
+      showAlert("No se pudo escanear la licencia", err.message || "Inténtalo de nuevo.");
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  // Escaneo del Permiso Internacional de Conducir (extranjeros) con detección de bordes
+  const escanearPic = async () => {
+    const escaner = cargarEscanerCedula();
+    if (!escaner) {
+      setCameraFor("pic");
+      return;
+    }
+    setCapturing(true);
+    try {
+      const resultado = await escaner.scanDocument({
+        responseType: escaner.ResponseType.ImageFilePath,
+        croppedImageQuality: 90,
+      });
+      if (resultado.status !== escaner.Estado.Success || !resultado.scannedImages?.[0]) {
+        return;
+      }
+      const url = await subirDocumento(resultado.scannedImages[0], "permiso_internacional");
+      setPicUrl(url);
+      setCurrentStep("03_facial");
+    } catch (err) {
+      console.error("[KycScreen] escanearPic:", err);
+      showAlert("No se pudo escanear el documento", err.message || "Inténtalo de nuevo.");
+    } finally {
+      setCapturing(false);
+    }
+  };
+
   // Botón único del paso 01_cedula: si ya se capturó el frente (p. ej. el
   // usuario volvió a este paso), salta directo a ofrecer el QR + reverso.
   const iniciarEscaneoCedula = () => {
@@ -928,9 +983,9 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             shape="card"
             titulo={esExtranjero ? "Licencia de conducir de tu país" : "Licencia de conducir (Clase B)"}
             tips={[
-              "Licencia completa dentro del marco",
+              "Apunta la cámara a la licencia: los bordes se detectan solos",
               "Plana y sin reflejos; que se lea la clase y la vigencia",
-              "Buena luz, cámara paralela al documento",
+              "Buena luz, mantén el teléfono estable",
             ]}
             done={licenciaUrl ? "Licencia capturada ✓" : null}
           />
@@ -938,27 +993,27 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           <View style={styles.ctaArea}>
             <TouchableOpacity
               style={styles.primaryCta}
-              onPress={() => setCameraFor("licencia")}
+              onPress={escanearLicencia}
               disabled={capturing}
               activeOpacity={0.85}
             >
               {capturing ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.primaryCtaText}>Abrir cámara</Text>
+                <Text style={styles.primaryCtaText}>Escanear licencia</Text>
               )}
             </TouchableOpacity>
             {esExtranjero && (
               <TouchableOpacity
                 style={styles.picCta}
-                onPress={() => setCameraFor("pic")}
+                onPress={escanearPic}
                 disabled={capturing}
                 activeOpacity={0.85}
               >
                 <Text style={styles.picCtaText}>
                   {picUrl
                     ? "Permiso Internacional capturado ✓"
-                    : "Agregar Permiso Internacional (PIC)"}
+                    : "Escanear Permiso Internacional (PIC)"}
                 </Text>
               </TouchableOpacity>
             )}

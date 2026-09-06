@@ -18,6 +18,7 @@ import {
   showAlert,
   PreCheckinModal,
   SegundoConductorModal,
+  urlWeb,
 } from "@rentacar/mobile-shared";
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
@@ -69,7 +70,7 @@ export function ActiveRentalScreen({
     if (!res.id) return;
     setPagando(true);
     try {
-      const returnUrl = WEB_URL ? `${WEB_URL}/pago/retorno` : "https://arriendatuauto.cl/pago/retorno";
+      const returnUrl = urlWeb("pago/retorno");
       const inicio = await ApiClient.iniciarPago(montoHold, "hold_reserva", res.id, returnUrl);
       if (!inicio?.url) throw new Error("La pasarela de pago no está disponible.");
       const redirect = Linking.createURL("pago-retorno");

@@ -56,12 +56,8 @@ const montar = async (onPaymentSuccess = () => {}) => {
   return tr;
 };
 
-// Un solo `it`: montar esta pantalla dos veces en el mismo archivo deja trabajo
-// asíncrono cruzado entre tests (ver PaymentMethodsScreenPasarelaReal.test.js).
-describe("Pantalla de pago · firma biométrica", () => {
-  it("pide la biometría al confirmar y solo reserva si el usuario firma", async () => {
-    // 1) Cancela la biometría → no se crea la reserva.
-    mockAuthenticate.mockResolvedValue({ success: false });
+describe("Pantalla de pago · sin solicitud biométrica", () => {
+  it("crea la reserva y avanza al pago directamente sin pedir huella/biometría", async () => {
     const onPaymentSuccess = jest.fn();
     const tr = await montar(onPaymentSuccess);
 
@@ -69,21 +65,10 @@ describe("Pantalla de pago · firma biométrica", () => {
       pressText(tr, "Simular pago exitoso");
     });
     await asentar();
-
-    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
-    expect(mockApi.crearReserva).not.toHaveBeenCalled();
-    expect(onPaymentSuccess).not.toHaveBeenCalled();
-    expect(mockShowAlert).toHaveBeenCalledWith("Firma no confirmada", expect.any(String));
-
-    // 2) Ahora firma correctamente → avanza y crea la reserva.
-    mockAuthenticate.mockResolvedValue({ success: true });
-    await act(async () => {
-      pressText(tr, "Simular pago exitoso");
-    });
-    await asentar();
     await asentar();
     await asentar();
 
+    expect(mockAuthenticate).not.toHaveBeenCalled();
     expect(mockApi.crearReserva).toHaveBeenCalled();
     expect(onPaymentSuccess).toHaveBeenCalledWith(
       expect.objectContaining({ id: "res-1", estado: "confirmada" })

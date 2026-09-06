@@ -18,6 +18,21 @@ import { ApiClient } from "../../api/client";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../../utils/imagenes";
 import { showAlert } from "../../utils/alert";
 
+function cargarEscanerDocumento() {
+  try {
+    const mod = require("react-native-document-scanner-plugin");
+    const scanner = mod?.default ?? mod;
+    if (typeof scanner?.scanDocument !== "function") return null;
+    return {
+      scanDocument: (opts) => scanner.scanDocument(opts),
+      ResponseType: mod.ResponseType,
+      Estado: mod.ScanDocumentResponseStatus,
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
 /**
  * Mini-flujo de licencia para un usuario YA verificado (típicamente se
  * enroló como dueño, que no pide licencia) que ahora quiere arrendar.
@@ -47,10 +62,39 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
 
   const enRevision = currentUser?.licencia_estado === "revision";
 
+  const escanearSlot = async (slot) => {
+    const escaner = cargarEscanerDocumento();
+    if (!escaner) {
+      setCamara(slot);
+      return;
+    }
+    setSubiendo(true);
+    try {
+      const resultado = await escaner.scanDocument({
+        responseType: escaner.ResponseType.ImageFilePath,
+        croppedImageQuality: 90,
+      });
+      if (resultado.status !== escaner.Estado.Success || !resultado.scannedImages?.[0]) {
+        return;
+      }
+      const url = await subirImagenOptimizada(resultado.scannedImages[0], {
+        filename: `${slot === "pic" ? "permiso_internacional" : "licencia_conducir"}_${Date.now()}.jpg`,
+        bucket: "documentos-kyc",
+        ...AJUSTES_DOCUMENTO,
+      });
+      if (slot === "pic") setPicUrl(url);
+      else setLicenciaUrl(url);
+    } catch (err) {
+      showAlert("No se pudo escanear", err.message || "Inténtalo de nuevo.");
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
   const handleCaptura = async (uri) => {
-    const slot = camara;
+    const slot = camara || "licencia";
     setCamara(null);
-    if (!uri || !slot) return;
+    if (!uri) return;
     setSubiendo(true);
     try {
       const url = await subirImagenOptimizada(uri, {
@@ -152,7 +196,7 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
         <View style={styles.card}>
           <TouchableOpacity
             style={[styles.docSlot, licenciaUrl && styles.docSlotDone]}
-            onPress={() => setCamara("licencia")}
+            onPress={() => escanearSlot("licencia")}
             disabled={subiendo || enviando}
             activeOpacity={0.85}
           >
@@ -196,7 +240,7 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
 
               <TouchableOpacity
                 style={[styles.docSlot, picUrl && styles.docSlotDone]}
-                onPress={() => setCamara("pic")}
+                onPress={() => escanearSlot("pic")}
                 disabled={subiendo || enviando}
                 activeOpacity={0.85}
               >
