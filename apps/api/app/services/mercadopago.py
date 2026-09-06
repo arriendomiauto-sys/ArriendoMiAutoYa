@@ -125,6 +125,11 @@ class MercadoPagoService:
         la redirección, y es lo que permite reconocer a qué reserva
         corresponde un aviso de Mercado Pago.
         """
+        url_segura = (
+            return_url
+            or getattr(settings, "PAGO_DEFAULT_RETURN_URL", None)
+            or "https://arriendomiautoya.cl/pago/retorno"
+        ).strip()
         cuerpo = {
             "items": [
                 {
@@ -135,7 +140,7 @@ class MercadoPagoService:
                 }
             ],
             "external_reference": referencia_externa,
-            "back_urls": {"success": return_url, "pending": return_url, "failure": return_url},
+            "back_urls": {"success": url_segura, "pending": url_segura, "failure": url_segura},
             # Vuelve solo a la app apenas se aprueba, sin obligar al usuario a
             # tocar "volver al sitio".
             "auto_return": "approved",

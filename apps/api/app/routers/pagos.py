@@ -137,10 +137,12 @@ def iniciar_pago(
                 ),
             )
 
-    # Nuestro id de pago viaja como external_reference y vuelve en el webhook:
-    # es lo que permite reconocer a qué reserva corresponde un aviso.
     pago_id = str(uuid.uuid4())
-    url_retorno = return_url or settings.PAGO_DEFAULT_RETURN_URL
+    url_retorno = (
+        return_url
+        or getattr(settings, "PAGO_DEFAULT_RETURN_URL", None)
+        or "https://arriendomiautoya.cl/pago/retorno"
+    ).strip()
     titulo = {
         "hold_reserva": "Garantía de arriendo",
         "hold_enrolamiento": "Garantía de enrolamiento",
