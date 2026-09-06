@@ -5,6 +5,7 @@ import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Button, Field, ScreenHeader, BottomBar } from "../../components/ui";
+import { BotonesOAuth } from "../../components/BotonesOAuth";
 import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
 
@@ -98,6 +99,8 @@ export function LoginScreen({ onNavigate }) {
 
       <BottomBar>
         <Button label="Entrar" onPress={handleLogin} loading={loading} />
+
+        <BotonesOAuth />
 
         <TouchableOpacity
           style={styles.registerLink}

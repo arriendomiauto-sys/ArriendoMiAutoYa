@@ -21,6 +21,11 @@ export const supabase = createClient(SUPABASE_URL || "https://placeholder.supaba
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE: el login social abre el navegador y vuelve con `?code=`, que se
+    // canjea por sesión con exchangeCodeForSession() usando el code_verifier
+    // que este flujo guarda en AsyncStorage. Sin esto el default es
+    // "implicit" y el canje falla en React Native.
+    flowType: "pkce",
   },
 });
 

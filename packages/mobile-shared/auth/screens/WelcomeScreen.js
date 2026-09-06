@@ -5,6 +5,7 @@ import { theme } from "../../theme/tokens";
 import { Icon } from "../../components/Icon";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Button, Card, BottomBar } from "../../components/ui";
+import { BotonesOAuth } from "../../components/BotonesOAuth";
 
 // La app es un solo binario con dos experiencias. Acá el usuario elige con
 // cuál partir; después alterna entre modos desde su perfil.
@@ -71,6 +72,8 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
 
       <BottomBar bordered={false} style={styles.bottomBar}>
         <Button label="Crear mi cuenta" onPress={() => onNavigate("register")} />
+
+        <BotonesOAuth preferredMode={role} />
 
         <TouchableOpacity
           style={styles.loginLink}

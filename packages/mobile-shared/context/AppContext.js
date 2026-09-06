@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, useCallback, use
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiClient, MOCK_CARS } from "../api/client";
 import { supabase, vigilarSesionEnPrimerPlano } from "../api/supabase";
+import { iniciarSesionConProveedor } from "../utils/oauth";
 import { urlWeb } from "../utils/webUrl";
 
 const AppContext = createContext();
@@ -317,6 +318,30 @@ export function AppProvider({ children }) {
     return data;
   };
 
+  /**
+   * Login/registro con un proveedor social (Google, Apple, Facebook).
+   * `onAuthStateChange` de este contexto ya reacciona a la sesión nueva;
+   * acá solo se dispara el flujo, se fija el modo elegido y se espera al
+   * perfil para no pintar el dashboard antes de tiempo.
+   */
+  const loginConProveedor = async (provider, preferredMode) => {
+    const sesion = await iniciarSesionConProveedor(provider);
+
+    if (VALID_MODES.includes(preferredMode)) setMode(preferredMode, { silent: true });
+
+    setTransition({
+      mode: modeRef.current,
+      title: "Entrando a tu cuenta",
+      subtitle: "Cargando tu perfil y tus arriendos.",
+    });
+    try {
+      await syncProfile();
+    } finally {
+      endTransition();
+    }
+    return sesion;
+  };
+
   const resetPassword = async (email) => {
     // El enlace viaja por correo y se abre en el navegador del usuario, no en
     // la app: siempre tiene que apuntar a la web pública. Sin `redirectTo`
@@ -394,6 +419,7 @@ export function AppProvider({ children }) {
         setMode,
         transition,
         login,
+        loginConProveedor,
         logout,
         register,
         resetPassword,

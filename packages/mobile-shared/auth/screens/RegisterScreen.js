@@ -6,6 +6,7 @@ import { useApp } from "../../context/AppContext";
 import { ApiClient } from "../../api/client";
 import { Icon } from "../../components/Icon";
 import { Button, Field, Checkbox, ScreenHeader, BottomBar } from "../../components/ui";
+import { BotonesOAuth } from "../../components/BotonesOAuth";
 import { LegalModal } from "../../screens/LegalModal";
 import { EDAD_MINIMA_ARRENDATARIO } from "../../legal/documentos";
 import { showAlert } from "../../utils/alert";
@@ -253,6 +254,8 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
           onPress={handleRegister}
           loading={loading}
         />
+
+        <BotonesOAuth preferredMode={role} />
       </BottomBar>
     </KeyboardAvoidingView>
   );

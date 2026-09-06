@@ -91,6 +91,8 @@ export { PreCheckinModal } from "./screens/PreCheckinModal";
 export { ReportFineModal } from "./screens/ReportFineModal";
 export { KycScreen } from "./auth/screens/KycScreen";
 export { CompletarLicenciaScreen } from "./auth/screens/CompletarLicenciaScreen";
+export { BotonesOAuth } from "./components/BotonesOAuth";
+export { PROVEEDORES_OAUTH, redirectUriOAuth, iniciarSesionConProveedor } from "./utils/oauth";
 export { SegundoConductorModal } from "./screens/SegundoConductorModal";
 export { showAlert } from "./utils/alert";
 export { traducirErrorAuth } from "./utils/authErrors";

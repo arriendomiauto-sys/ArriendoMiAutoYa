@@ -47,6 +47,7 @@ jest.mock("expo-camera", () => {
 });
 
 jest.mock("expo-web-browser", () => ({
+  maybeCompleteAuthSession: jest.fn(),
   openAuthSessionAsync: jest.fn(async () => ({ type: "cancel" })),
   openBrowserAsync: jest.fn(async () => ({ type: "opened" })),
 }));
