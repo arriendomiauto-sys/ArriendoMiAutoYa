@@ -14,6 +14,7 @@ import {
   DeliveryScreen,
   KycScreen,
   TarjetaScreen,
+  EditProfileScreen,
 } from "@rentacar/mobile-shared";
 
 // Screens del Dueño
@@ -60,6 +61,7 @@ export function OwnerApp() {
   const [showAddCar, setShowAddCar] = useState(false);
   const [showEnrolment, setShowEnrolment] = useState(false);
   const [showTarjeta, setShowTarjeta] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showMaintenance, setShowMaintenance] = useState(false);
   const [showDeliveryFlow, setShowDeliveryFlow] = useState(false);
@@ -120,6 +122,15 @@ export function OwnerApp() {
 
     if (showTarjeta) {
       return <TarjetaScreen onBack={() => setShowTarjeta(false)} onDone={() => setShowTarjeta(false)} />;
+    }
+
+    if (showEditProfile) {
+      return (
+        <EditProfileScreen
+          onBack={() => setShowEditProfile(false)}
+          onDone={() => setShowEditProfile(false)}
+        />
+      );
     }
 
     if (showDeliveryFlow) {
@@ -236,17 +247,12 @@ export function OwnerApp() {
         return (
           <OwnerProfileScreen
             cars={misAutos}
-            onOpenMyCars={() => setActiveTab("cars")}
-            onOpenEarnings={() => setActiveTab("earnings")}
-            onOpenMaintenance={() => {
-              if (misAutos?.[0]) setSelectedCarForModal(misAutos[0]);
-              setShowMaintenance(true);
-            }}
+            noLeidos={noLeidos}
+            onOpenChat={abrirMensajes}
+            onOpenEditProfile={() => setShowEditProfile(true)}
             onOpenDisputes={() => setShowDisputes(true)}
             onOpenNotifications={() => setShowNotifications(true)}
             onOpenSupport={() => setShowSupport(true)}
-            onOpenContract={() => setActiveTab("bookings")}
-            onOpenChat={abrirMensajes}
             onOpenEnrolment={() => setShowEnrolment(true)}
             onOpenTarjeta={() => setShowTarjeta(true)}
           />
@@ -260,6 +266,7 @@ export function OwnerApp() {
   const barraOculta =
     showEnrolment ||
     showTarjeta ||
+    showEditProfile ||
     showDeliveryFlow ||
     showCalendar ||
     showMaintenance ||
