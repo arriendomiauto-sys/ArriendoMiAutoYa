@@ -11,7 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { colors, theme, Icon, Button, Badge, ScreenHeader, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, theme, Icon, Button, Badge, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { CabeceraOwner, oc } from "../comun";
 
 function fmtFecha(iso) {
   if (!iso) return null;
@@ -23,6 +25,7 @@ function fmtFecha(iso) {
 }
 
 export function CarMaintenanceScreen({ car, onBack }) {
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -75,8 +78,8 @@ export function CarMaintenanceScreen({ car, onBack }) {
   };
 
   const Seccion = ({ titulo, lista, tipo, render }) => (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>{titulo}</Text>
+    <View style={[oc.card, oc.cardPadded, styles.sec]}>
+      <Text style={oc.cardTitle}>{titulo}</Text>
       {lista.length === 0 ? (
         <Text style={styles.empty}>Sin registros todavía.</Text>
       ) : (
@@ -91,7 +94,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
         ))
       )}
       <TouchableOpacity style={styles.addBtn} onPress={() => setForm({ tipo })} activeOpacity={0.85}>
-        <Icon name="plus" size={15} color={colors.accent} />
+        <Icon name="plus" size={15} color={colors.accentDark} />
         <Text style={styles.addBtnText}>
           {tipo === "documento_legal" ? "Registrar documento" : "Registrar mantención"}
         </Text>
@@ -100,17 +103,16 @@ export function CarMaintenanceScreen({ car, onBack }) {
   );
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader
-        tone="dark"
-        title="Mantenimientos"
-        subtitle={car ? `${car.marca} ${car.modelo} · ${car.patente || "—"}` : "Selecciona un auto"}
+    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+      <CabeceraOwner
+        titulo="Mantenimientos"
+        subtitulo={car ? `${car.marca} ${car.modelo} · ${car.patente || "—"}` : "Selecciona un auto"}
         onBack={onBack}
       />
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         {loading ? (
-          <ActivityIndicator color={colors.accent} style={{ marginTop: 30 }} />
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 30 }} />
         ) : error ? (
           <Text style={styles.errorText}>{error}</Text>
         ) : (
@@ -140,7 +142,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
             <TextInput
               style={styles.input}
               placeholder={form?.tipo === "documento_legal" ? "ej. Revisión técnica" : "ej. Cambio de aceite"}
-              placeholderTextColor={colors.textSilver}
+              placeholderTextColor={colors.textPlaceholder}
               value={f.nombre}
               onChangeText={(v) => setF((p) => ({ ...p, nombre: v }))}
             />
@@ -148,7 +150,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
               <TextInput
                 style={styles.input}
                 placeholder="Vencimiento (AAAA-MM-DD)"
-                placeholderTextColor={colors.textSilver}
+                placeholderTextColor={colors.textPlaceholder}
                 value={f.fecha}
                 onChangeText={(v) => setF((p) => ({ ...p, fecha: v }))}
               />
@@ -156,7 +158,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
               <TextInput
                 style={styles.input}
                 placeholder="Kilometraje (opcional)"
-                placeholderTextColor={colors.textSilver}
+                placeholderTextColor={colors.textPlaceholder}
                 value={f.km}
                 onChangeText={(v) => setF((p) => ({ ...p, km: v }))}
                 keyboardType="number-pad"
@@ -165,14 +167,14 @@ export function CarMaintenanceScreen({ car, onBack }) {
             <TextInput
               style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
               placeholder="Notas (opcional)"
-              placeholderTextColor={colors.textSilver}
+              placeholderTextColor={colors.textPlaceholder}
               value={f.notas}
               onChangeText={(v) => setF((p) => ({ ...p, notas: v }))}
               multiline
             />
             <View style={styles.modalActions}>
-              <Button tone="dark" variant="secondary" label="Cancelar" onPress={() => setForm(null)} style={{ flex: 1 }} />
-              <Button tone="dark" label="Guardar" onPress={guardar} loading={saving} style={{ flex: 1 }} />
+              <Button variant="secondary" label="Cancelar" onPress={() => setForm(null)} style={{ flex: 1 }} />
+              <Button label="Guardar" onPress={guardar} loading={saving} style={{ flex: 1 }} />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -182,19 +184,10 @@ export function CarMaintenanceScreen({ car, onBack }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.darkBg },
   body: { padding: theme.spacing.screen, gap: theme.spacing.lg, paddingBottom: theme.spacing.xxxl },
   errorText: { color: colors.danger, fontSize: 13, marginTop: 20, textAlign: "center" },
-  card: {
-    backgroundColor: colors.darkCard,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-    gap: theme.spacing.sm,
-  },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: colors.textWhite },
-  empty: { fontSize: 13, color: colors.darkTextMuted, paddingVertical: 6 },
+  sec: { gap: theme.spacing.sm },
+  empty: { fontSize: 13, color: colors.textMuted, paddingVertical: 6 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -202,10 +195,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.darkBorder,
+    borderBottomColor: colors.border,
   },
-  rowName: { fontSize: 14, fontWeight: "600", color: colors.textWhite },
-  rowMeta: { fontSize: 12, color: colors.darkTextMuted, marginTop: 2 },
+  rowName: { fontSize: 14, fontWeight: "600", color: colors.text },
+  rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -214,31 +207,31 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingVertical: 11,
     borderRadius: theme.radius.field,
-    backgroundColor: colors.darkCardSubtle,
+    backgroundColor: colors.surfaceSubtle,
     borderWidth: 1,
-    borderColor: colors.darkBorderStrong,
+    borderColor: colors.borderDark,
     borderStyle: "dashed",
   },
-  addBtnText: { color: colors.accent, fontSize: 13, fontWeight: "600" },
-  overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.75)", justifyContent: "center", padding: theme.spacing.xl },
+  addBtnText: { color: colors.accentDark, fontSize: 13, fontWeight: "600" },
+  overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.45)", justifyContent: "center", padding: theme.spacing.xl },
   modalCard: {
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.card,
     padding: theme.spacing.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorderStrong,
+    borderColor: colors.border,
     gap: theme.spacing.md,
   },
-  modalTitle: { fontSize: 17, fontWeight: "700", color: colors.textWhite },
+  modalTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
   input: {
-    backgroundColor: colors.darkCardSubtle,
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.field,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: colors.textWhite,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
+    color: colors.text,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   modalActions: { flexDirection: "row", gap: theme.spacing.md, marginTop: 4 },
 });

@@ -5,14 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Chip, Badge, Button, EmptyState, ScreenHeader, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, theme, Chip, Badge, Button, EmptyState, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { CabeceraOwner, oc } from "../comun";
 
 const MOTIVOS = [
   { id: "multa_tag", label: "Peaje / TAG" },
@@ -94,17 +94,19 @@ export function DisputesScreen({ onBack }) {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScreenHeader
-        tone="dark"
-        title="Disputas y garantías"
-        subtitle="Cobro de multas, TAG o daños contra el hold"
+    <KeyboardAvoidingView
+      style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <CabeceraOwner
+        titulo="Disputas y garantías"
+        subtitulo="Cobro de multas, TAG o daños contra el hold"
         onBack={onBack}
       />
 
       <View style={styles.tabs}>
-        <Chip tone="dark" label={`Mis reclamos (${tickets.length})`} selected={tab === "activas"} onPress={() => setTab("activas")} />
-        <Chip tone="dark" label="Ingresar disputa" selected={tab === "nueva"} onPress={() => setTab("nueva")} />
+        <Chip label={`Mis reclamos (${tickets.length})`} selected={tab === "activas"} onPress={() => setTab("activas")} />
+        <Chip label="Ingresar disputa" selected={tab === "nueva"} onPress={() => setTab("nueva")} />
       </View>
 
       <ScrollView
@@ -113,16 +115,15 @@ export function DisputesScreen({ onBack }) {
         keyboardShouldPersistTaps="handled"
         refreshControl={
           tab === "activas" ? (
-            <RefreshControl refreshing={cargando} onRefresh={cargarTickets} tintColor={colors.accent} />
+            <RefreshControl refreshing={cargando} onRefresh={cargarTickets} tintColor={colors.primary} />
           ) : undefined
         }
       >
         {tab === "activas" ? (
           cargando && tickets.length === 0 ? (
-            <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+            <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
           ) : error && tickets.length === 0 ? (
             <EmptyState
-              tone="dark"
               icon="alert"
               title="No pudimos cargar tus reclamos"
               message={error}
@@ -131,7 +132,6 @@ export function DisputesScreen({ onBack }) {
             />
           ) : tickets.length === 0 ? (
             <EmptyState
-              tone="dark"
               icon="document"
               title="Sin reclamos todavía"
               message="Usa 'Ingresar disputa' para reportar un cobro pendiente contra la garantía."
@@ -142,14 +142,14 @@ export function DisputesScreen({ onBack }) {
             tickets.map((d) => {
               const badge = ESTADO_BADGE[d.estado] || { variant: "warning", label: d.estado };
               return (
-                <View key={d.id} style={styles.card}>
+                <View key={d.id} style={[oc.card, oc.cardPadded, styles.crd]}>
                   <View style={styles.cardHead}>
                     <Text style={styles.ticketId}>Ticket #{d.id.slice(0, 8).toUpperCase()}</Text>
                     <Badge variant={badge.variant} label={badge.label} />
                   </View>
                   <Text style={styles.asunto}>{d.asunto}</Text>
                   <Text style={styles.fecha}>{new Date(d.timestamp).toLocaleDateString("es-CL")}</Text>
-                  <View style={styles.detalle}>
+                  <View style={[oc.seccionSuave, { marginTop: 2 }]}>
                     <Text style={styles.detalleText}>{d.descripcion}</Text>
                   </View>
                 </View>
@@ -157,14 +157,14 @@ export function DisputesScreen({ onBack }) {
             })
           )
         ) : (
-          <View style={styles.card}>
+          <View style={[oc.card, oc.cardPadded, styles.crd]}>
             <Text style={styles.formTitle}>Nuevo reclamo de garantía</Text>
 
             <View style={{ gap: 8 }}>
-              <SectionLabel tone="dark">Tipo de cobro</SectionLabel>
+              <SectionLabel>Tipo de cobro</SectionLabel>
               <View style={styles.motivos}>
                 {MOTIVOS.map((m) => (
-                  <Chip key={m.id} tone="dark" label={m.label} selected={motivo === m.id} onPress={() => setMotivo(m.id)} />
+                  <Chip key={m.id} label={m.label} selected={motivo === m.id} onPress={() => setMotivo(m.id)} />
                 ))}
               </View>
             </View>
@@ -179,7 +179,7 @@ export function DisputesScreen({ onBack }) {
                 <TextInput
                   style={styles.input}
                   placeholder={fi.ph}
-                  placeholderTextColor={colors.textSilver}
+                  placeholderTextColor={colors.textPlaceholder}
                   value={form[fi.k]}
                   onChangeText={set(fi.k)}
                   keyboardType={fi.kb || "default"}
@@ -193,14 +193,14 @@ export function DisputesScreen({ onBack }) {
               <TextInput
                 style={styles.textarea}
                 placeholder="Fecha, autopista o circunstancias de la infracción…"
-                placeholderTextColor={colors.textSilver}
+                placeholderTextColor={colors.textPlaceholder}
                 value={form.descripcion}
                 onChangeText={set("descripcion")}
                 multiline
               />
             </View>
 
-            <Button tone="dark" label="Enviar a mediación" onPress={crear} loading={enviando} style={{ marginTop: theme.spacing.lg }} />
+            <Button label="Enviar a mediación" onPress={crear} loading={enviando} style={{ marginTop: theme.spacing.lg }} />
           </View>
         )}
       </ScrollView>
@@ -209,45 +209,36 @@ export function DisputesScreen({ onBack }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.darkBg },
   tabs: { flexDirection: "row", gap: theme.spacing.sm, paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.md },
   body: { padding: theme.spacing.screen, gap: theme.spacing.md, paddingBottom: theme.spacing.xxxl },
-  card: {
-    backgroundColor: colors.darkCard,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-    gap: theme.spacing.sm,
-  },
+  crd: { gap: theme.spacing.sm },
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  ticketId: { fontSize: 12, color: colors.darkTextMuted, fontWeight: "700" },
-  asunto: { fontSize: 14, fontWeight: "700", color: colors.textWhite },
-  fecha: { fontSize: 12, color: colors.darkTextMuted },
-  detalle: { backgroundColor: colors.darkCardSubtle, borderRadius: theme.radius.field, padding: theme.spacing.md },
-  detalleText: { fontSize: 12, color: colors.textSilver, lineHeight: 17 },
-  formTitle: { fontSize: 15, fontWeight: "700", color: colors.textWhite },
+  ticketId: { fontSize: 12, color: colors.textMuted, fontWeight: "700" },
+  asunto: { fontSize: 14, fontWeight: "700", color: colors.text },
+  fecha: { fontSize: 12, color: colors.textMuted },
+  detalleText: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
+  formTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
   motivos: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  label: { fontSize: 12, fontWeight: "600", color: colors.textSilver, textTransform: "uppercase", letterSpacing: 0.4 },
+  label: { fontSize: 12, fontWeight: "600", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.4 },
   input: {
-    backgroundColor: colors.darkCardSubtle,
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.field,
     paddingHorizontal: 14,
-    height: theme.control.heightSm,
+    height: theme.control.height,
     fontSize: 15,
-    color: colors.textWhite,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
+    color: colors.text,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
   textarea: {
-    backgroundColor: colors.darkCardSubtle,
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.field,
     padding: 14,
     minHeight: 90,
     fontSize: 15,
-    color: colors.textWhite,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
+    color: colors.text,
+    borderWidth: 1.5,
+    borderColor: colors.border,
     textAlignVertical: "top",
   },
 });

@@ -10,6 +10,10 @@ import { act } from "react-test-renderer";
 import { CarCalendarScreen } from "../src/owner/screens/CarCalendarScreen";
 import { renderTree, textOf, pressText } from "../test-utils";
 
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 const mockGetReservas = jest.fn(async () => []);

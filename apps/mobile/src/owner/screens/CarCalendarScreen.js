@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { colors, theme, useApp, Chip, Icon, ScreenHeader, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, theme, useApp, Chip, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { CabeceraOwner, oc } from "../comun";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -8,6 +10,7 @@ const mismoDia = (a, b) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 export function CarCalendarScreen({ car, onBack }) {
+  const insets = useSafeAreaInsets();
   const { cars } = useApp();
   const [selectedCarId, setSelectedCarId] = useState(car?.id || cars[0]?.id || null);
   const [reservas, setReservas] = useState([]);
@@ -90,20 +93,14 @@ export function CarCalendarScreen({ car, onBack }) {
   };
 
   return (
-    <View style={styles.container}>
-      <ScreenHeader
-        tone="dark"
-        title="Calendario"
-        subtitle="Bloquea días de uso personal"
-        onBack={onBack}
-      />
+    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+      <CabeceraOwner titulo="Calendario" subtitulo="Bloquea días de uso personal" onBack={onBack} />
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carChips}>
           {cars.map((c) => (
             <Chip
               key={c.id}
-              tone="dark"
               label={`${c.marca} ${c.modelo}`}
               selected={selectedCarId === c.id}
               onPress={() => setSelectedCarId(c.id)}
@@ -111,7 +108,7 @@ export function CarCalendarScreen({ car, onBack }) {
           ))}
         </ScrollView>
 
-        <View style={styles.calCard}>
+        <View style={[oc.card, oc.cardPadded]}>
           <View style={styles.monthNav}>
             <TouchableOpacity
               onPress={irMesAnterior}
@@ -122,7 +119,7 @@ export function CarCalendarScreen({ car, onBack }) {
               accessibilityLabel="Mes anterior"
               accessibilityState={{ disabled: enMesActual }}
             >
-              <Icon name="chevron-left" size={18} color={enMesActual ? colors.darkTextMuted : colors.textWhite} />
+              <Icon name="chevron-left" size={18} color={enMesActual ? colors.textPlaceholder : colors.primary} />
             </TouchableOpacity>
             <Text style={styles.month}>{MESES[mes]} {anio}</Text>
             <TouchableOpacity
@@ -132,12 +129,12 @@ export function CarCalendarScreen({ car, onBack }) {
               accessibilityRole="button"
               accessibilityLabel="Mes siguiente"
             >
-              <Icon name="chevron-right" size={18} color={colors.textWhite} />
+              <Icon name="chevron-right" size={18} color={colors.primary} />
             </TouchableOpacity>
           </View>
 
           {loading ? (
-            <ActivityIndicator color={colors.accent} style={{ marginVertical: 30 }} />
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: 30 }} />
           ) : (
             <>
               <View style={styles.weekRow}>
@@ -163,8 +160,8 @@ export function CarCalendarScreen({ car, onBack }) {
                       <Text
                         style={[
                           styles.dayNum,
-                          booked && { color: colors.primary200, fontWeight: "800" },
-                          blocked && { color: "#F98080", textDecorationLine: "line-through" },
+                          booked && { color: colors.primary, fontWeight: "800" },
+                          blocked && { color: colors.danger, textDecorationLine: "line-through" },
                         ]}
                       >
                         {day}
@@ -176,8 +173,8 @@ export function CarCalendarScreen({ car, onBack }) {
               <View style={styles.legend}>
                 {[
                   { c: colors.accent, l: "Disponible" },
-                  { c: colors.primary200, l: "Arrendado" },
-                  { c: "#F98080", l: "Bloqueado" },
+                  { c: colors.primary, l: "Arrendado" },
+                  { c: colors.danger, l: "Bloqueado" },
                 ].map((it) => (
                   <View key={it.l} style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: it.c }]} />
@@ -194,16 +191,8 @@ export function CarCalendarScreen({ car, onBack }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.darkBg },
   body: { padding: theme.spacing.screen, gap: theme.spacing.lg, paddingBottom: theme.spacing.xxxl },
   carChips: { gap: theme.spacing.sm, paddingRight: theme.spacing.screen },
-  calCard: {
-    backgroundColor: colors.darkCard,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
   monthNav: {
     flexDirection: "row",
     alignItems: "center",
@@ -216,12 +205,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.darkCardSubtle,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   monthNavBtnDisabled: { opacity: 0.4 },
-  month: { fontSize: 16, fontWeight: "700", color: colors.textWhite },
+  month: { fontSize: 16, fontWeight: "700", color: colors.text },
   weekRow: { flexDirection: "row", marginBottom: theme.spacing.sm },
-  weekday: { flex: 1, fontSize: 11, fontWeight: "700", color: colors.darkTextMuted, textAlign: "center" },
+  weekday: { flex: 1, fontSize: 11, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   cellEmpty: { width: `${100 / 7}%`, height: 44 },
   cell: {
@@ -231,18 +222,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: theme.radius.sm,
   },
-  cellBooked: { backgroundColor: colors.primary600 },
-  cellBlocked: { backgroundColor: "rgba(220,38,38,0.14)" },
-  dayNum: { fontSize: 13, fontWeight: "600", color: colors.textWhite },
+  cellBooked: { backgroundColor: colors.primary100 },
+  cellBlocked: { backgroundColor: colors.dangerBg },
+  dayNum: { fontSize: 13, fontWeight: "600", color: colors.text },
   legend: {
     flexDirection: "row",
     justifyContent: "space-around",
     marginTop: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.darkBorder,
+    borderTopColor: colors.border,
   },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 7, height: 7, borderRadius: 4 },
-  legendText: { fontSize: 12, color: colors.textSilver },
+  legendText: { fontSize: 12, color: colors.textMuted },
 });
