@@ -76,15 +76,15 @@ describe("AddEditCarScreen · paso de fotos", () => {
     )[0];
     act(() => mapa.props.onPress({ nativeEvent: { coordinate: { latitude: -37.47, longitude: -72.35 } } }));
     escribir(tr, "ej. Copec Av. Alemania / Plaza de Armas", "Copec Av. Alemania");
-    pressText(tr, "Continuar"); // paso 1 -> 2
-    pressText(tr, "Continuar"); // paso 2 -> 3
+    pressText(tr, "Siguiente: tarifa"); // paso 1 -> 2
+    pressText(tr, "Siguiente: fotos"); // paso 2 -> 3
     return tr;
   };
 
   it("pide las 9 fotos con una casilla guiada cada una", () => {
     const t = textOf(irAFotos());
     FOTOS_AUTO.forEach((slot) => expect(t).toContain(slot.titulo));
-    expect(t).toContain(`0 de ${TOTAL_FOTOS_AUTO} fotos`);
+    expect(t).toContain(`0 de ${TOTAL_FOTOS_AUTO} listas`);
   });
 
   it("avisa que la patente se tapa antes de publicar", () => {
@@ -93,8 +93,9 @@ describe("AddEditCarScreen · paso de fotos", () => {
 
   it("no deja avanzar a documentos sin las fotos", () => {
     const tr = irAFotos();
-    pressText(tr, "Continuar");
+    pressText(tr, "Siguiente: documentos");
     // Sigue en el paso de fotos: los documentos no aparecieron.
-    expect(textOf(tr)).not.toContain("Documentos del vehiculo");
+    expect(textOf(tr)).toContain("Paso 3 de 4");
+    expect(textOf(tr)).not.toContain("Documentos del auto");
   });
 });

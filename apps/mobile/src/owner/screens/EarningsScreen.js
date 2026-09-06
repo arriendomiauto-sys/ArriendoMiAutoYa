@@ -303,6 +303,7 @@ export function EarningsScreen({ onBack, onOpenDisputes }) {
             <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
               <View style={{ marginBottom: theme.spacing.md }}>
                 <CampoConSugerencias
+                  tone="dark"
                   etiqueta="Banco"
                   valor={form.banco}
                   onChange={(v) => setForm((p) => ({ ...p, banco: v }))}

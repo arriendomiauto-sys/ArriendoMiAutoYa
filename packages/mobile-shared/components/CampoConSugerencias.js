@@ -12,10 +12,23 @@ import { theme } from "../theme/tokens";
  * "Banco Estado", no "bco estado" ni "BancoEstado" — que es justo lo que un
  * campo libre no garantiza.
  *
- * Tono oscuro fijo: hoy solo se usa en pantallas del dueño (fondo oscuro).
- * Si el día de mañana hace falta en una pantalla clara, se le agrega un
- * prop `tone` en vez de duplicar el componente.
+ * `tone`: "light" (default, pantallas claras) | "dark" (superficies teal).
  */
+
+function palette(tone) {
+  const dark = tone === "dark";
+  return {
+    dark,
+    surface: dark ? colors.darkCardSubtle : colors.surface,
+    surfaceList: dark ? colors.darkCard : colors.surface,
+    border: dark ? colors.darkBorder : colors.border,
+    borderStrong: dark ? colors.darkBorderStrong : colors.borderLight,
+    text: dark ? colors.textWhite : colors.text,
+    textMuted: dark ? colors.textSilver : colors.textMuted,
+    placeholder: dark ? colors.textSilver : colors.textPlaceholder,
+  };
+}
+
 export function CampoConSugerencias({
   etiqueta,
   valor,
@@ -26,7 +39,9 @@ export function CampoConSugerencias({
   ayuda,
   error,
   autoCapitalize = "words",
+  tone = "light",
 }) {
+  const p = palette(tone);
   const [abierto, setAbierto] = useState(false);
   const opciones = buscar(valor);
   const yaEsExacta =
@@ -35,11 +50,17 @@ export function CampoConSugerencias({
 
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{etiqueta}</Text>
+      {etiqueta ? (
+        <Text style={[styles.fieldLabel, { color: p.textMuted }]}>{etiqueta}</Text>
+      ) : null}
       <TextInput
-        style={[styles.input, error && styles.inputError]}
+        style={[
+          styles.input,
+          { backgroundColor: p.surface, borderColor: p.border, color: p.text },
+          error && styles.inputError,
+        ]}
         placeholder={placeholder}
-        placeholderTextColor={colors.textSilver}
+        placeholderTextColor={p.placeholder}
         value={valor}
         onChangeText={(t) => {
           onChange(t);
@@ -56,21 +77,23 @@ export function CampoConSugerencias({
         autoCorrect={false}
         accessibilityLabel={etiqueta}
       />
-      {ayuda && !error ? <Text style={styles.fieldHint}>{ayuda}</Text> : null}
+      {ayuda && !error ? (
+        <Text style={[styles.fieldHint, { color: p.textMuted }]}>{ayuda}</Text>
+      ) : null}
       {mostrarLista && (
-        <View style={styles.suggestBox}>
+        <View style={[styles.suggestBox, { backgroundColor: p.surfaceList, borderColor: p.borderStrong }]}>
           <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled style={styles.suggestScroll}>
             {opciones.slice(0, 8).map((opcion) => (
               <TouchableOpacity
                 key={opcion}
-                style={styles.suggestRow}
+                style={[styles.suggestRow, { borderBottomColor: p.border }]}
                 onPress={() => {
                   onChange(opcion);
                   setAbierto(false);
                 }}
                 accessibilityRole="button"
               >
-                <Text style={styles.suggestText}>{opcion}</Text>
+                <Text style={[styles.suggestText, { color: p.text }]}>{opcion}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -86,27 +109,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     letterSpacing: 0.4,
-    color: colors.textSilver,
     textTransform: "uppercase",
   },
   input: {
-    backgroundColor: colors.darkCardSubtle,
     borderRadius: theme.radius.field,
     paddingHorizontal: 14,
     height: theme.control.height,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
+    borderWidth: 1.5,
     fontSize: 15,
-    color: colors.textWhite,
   },
   inputError: { borderColor: colors.danger },
-  fieldHint: { fontSize: 12, lineHeight: 16, color: colors.textSilver },
+  fieldHint: { fontSize: 12, lineHeight: 16 },
   suggestBox: {
     marginTop: 4,
-    backgroundColor: colors.darkCard,
     borderRadius: theme.radius.field,
     borderWidth: 1,
-    borderColor: colors.darkBorderStrong,
     overflow: "hidden",
   },
   suggestScroll: { maxHeight: 220 },
@@ -114,7 +131,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.darkBorder,
   },
-  suggestText: { color: colors.textWhite, fontSize: 15, fontWeight: "500" },
+  suggestText: { fontSize: 15, fontWeight: "500" },
 });
