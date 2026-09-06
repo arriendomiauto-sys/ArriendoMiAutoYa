@@ -11,6 +11,7 @@ import { LegalModal } from "../../screens/LegalModal";
 import { EDAD_MINIMA_ARRENDATARIO } from "../../legal/documentos";
 import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
+import { formatearTelefonoInput, normalizarTelefonoCompleto } from "../../utils/formato";
 
 // El rol ("renter" | "owner") viene elegido desde la bienvenida y solo
 // define el copy y el modo con el que arranca la app — no crea cuentas
@@ -40,7 +41,13 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
   // antes de marcar la casilla.
   const [documentoLegal, setDocumentoLegal] = useState(null);
 
-  const set = (campo) => (text) => setForm((f) => ({ ...f, [campo]: text }));
+  const set = (campo) => (text) => {
+    if (campo === "telefono") {
+      setForm((f) => ({ ...f, telefono: formatearTelefonoInput(text) }));
+    } else {
+      setForm((f) => ({ ...f, [campo]: text }));
+    }
+  };
 
   const handleRegister = async () => {
     if (!form.nombre.trim()) {
@@ -87,8 +94,8 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         // no hace falta forzar ningún paso más acá.
         try {
           await ApiClient.actualizarPerfilBasico({
-            nombre: form.nombre,
-            telefono: `+56 9 ${form.telefono}`,
+            nombre: form.nombre.trim(),
+            telefono: normalizarTelefonoCompleto(form.telefono),
           });
         } catch (err) {
           // No bloquea la creación de cuenta: el usuario puede completar

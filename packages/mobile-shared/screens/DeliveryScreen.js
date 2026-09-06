@@ -20,6 +20,7 @@ import { Icon } from "../components/Icon";
 import { Button, Card, Badge, Chip, ScreenHeader, SectionLabel } from "../components/ui";
 import { SignaturePad } from "../components/SignaturePad";
 import { SuccessCheck, SuccessFlash } from "../components/SuccessCheck";
+import { QRScannerModal } from "../components/QRScannerModal";
 import { ApiClient } from "../api/client";
 import { elegirImagen, subirImagenOptimizada } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
@@ -50,8 +51,9 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   const [stage, setStage] = useState("05_code");
 
-  // 05: validar código QR
+  // 05: validar código QR (escaneado con la cámara o escrito a mano)
   const [codigoInput, setCodigoInput] = useState("");
+  const [scanQR, setScanQR] = useState(false);
   const [validando, setValidando] = useState(false);
   const [datosValidados, setDatosValidados] = useState(null);
   const [reservaIdActiva, setReservaIdActiva] = useState(reserva?.id || null);
@@ -104,11 +106,13 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   const angle = ANGLES[currentAngleIdx] || ANGLES[0];
 
   // ---------------------------------------------------------------- handlers
-  const handleValidarCodigo = async () => {
-    if (!codigoInput.trim()) return;
+  const handleValidarCodigo = async (codigoDirecto) => {
+    // El escáner pasa el string leído directo; el botón manual usa el input.
+    const codigo = (typeof codigoDirecto === "string" ? codigoDirecto : codigoInput).trim();
+    if (!codigo || validando) return;
     setValidando(true);
     try {
-      const resultado = await ApiClient.validarCodigoQR(codigoInput.trim());
+      const resultado = await ApiClient.validarCodigoQR(codigo);
       if (reservaIdActiva && resultado.reserva_id !== reservaIdActiva) {
         hapticoError();
         showAlert("Código de otra reserva", "Este código corresponde a otra reserva. Verifica con el cliente.");
@@ -469,7 +473,8 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           <View style={styles.noticeTeal}>
             <Icon name="shield" size={18} color={colors.primary} />
             <Text style={styles.noticeTealText}>
-              Pídele al cliente el código de su reserva y escríbelo aquí para validar su identidad.
+              Escanea el código QR que el cliente muestra en su celular para validar su identidad. Si
+              hay poca luz, escríbelo a mano.
             </Text>
           </View>
 
@@ -481,8 +486,15 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
             </Card>
           ) : null}
 
+          <Button
+            label="Escanear QR del cliente"
+            iconLeft="camera"
+            onPress={() => setScanQR(true)}
+            loading={validando}
+          />
+
           <View style={{ gap: 6 }}>
-            <SectionLabel>Código de la reserva</SectionLabel>
+            <SectionLabel>¿Sin cámara? Escribe el código</SectionLabel>
             <TextInput
               style={styles.input}
               value={codigoInput}
@@ -490,12 +502,31 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
               placeholder="Código mostrado en el celular del cliente"
               placeholderTextColor={colors.textPlaceholder}
               autoCapitalize="none"
+              onSubmitEditing={() => handleValidarCodigo()}
+              returnKeyType="go"
             />
           </View>
         </ScrollView>
         <Footer>
-          <Button label="Validar código" onPress={handleValidarCodigo} loading={validando} disabled={!codigoInput.trim()} />
+          <Button
+            label="Validar código escrito"
+            variant="secondary"
+            onPress={() => handleValidarCodigo()}
+            loading={validando}
+            disabled={!codigoInput.trim()}
+          />
         </Footer>
+
+        <QRScannerModal
+          visible={scanQR}
+          titulo={tipo === "antes" ? "Escanear código de entrega" : "Escanear código de devolución"}
+          onClose={() => setScanQR(false)}
+          onLeido={(data) => {
+            setScanQR(false);
+            setCodigoInput(data);
+            handleValidarCodigo(data);
+          }}
+        />
       </KeyboardAvoidingView>
     );
   }

@@ -30,6 +30,11 @@ import { EDAD_MINIMA_ARRENDATARIO } from "../../legal/documentos";
 import { edadDesdeOcr } from "../../utils/edad";
 import { showAlert } from "../../utils/alert";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import {
+  formatearRutEnVivo,
+  formatearTelefonoInput,
+  normalizarTelefonoCompleto,
+} from "../../utils/formato";
 
 // Escaneo automático de la cédula: detecta los bordes del documento y
 // dispara solo cuando queda bien encuadrado (frente, luego reverso).
@@ -590,11 +595,11 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       //  - 200 estado_documentos="requiere_revision_manual" -> queda en revisión
       //  - 400 (rechazado)                              -> vuelve a intentar
       const profile = await completeEnrolment({
-        nombre,
+        nombre: nombre.trim(),
         ...datosIdentidad,
         ...tokenizarTarjeta(tarjeta),
         email: userEmail,
-        telefono,
+        telefono: normalizarTelefonoCompleto(telefono),
         direccion: direccion.trim(),
         carnet_frontal_url: carnetFrontalUrl,
         carnet_trasero_url: carnetTraseroUrl,
@@ -1150,7 +1155,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                         <TextInput
                           style={styles.reviewTextInput}
                           value={rut}
-                          onChangeText={setRut}
+                          onChangeText={(t) => setRut(formatearRutEnVivo(t))}
                           placeholder="Ej. 14.234.567-8"
                           placeholderTextColor={colors.textPlaceholder}
                           autoCapitalize="characters"
@@ -1192,8 +1197,8 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                   <TextInput
                     style={styles.reviewTextInput}
                     value={telefono}
-                    onChangeText={setTelefono}
-                    placeholder="+56 9 7734 1208"
+                    onChangeText={(t) => setTelefono(formatearTelefonoInput(t))}
+                    placeholder="7734 1208"
                     placeholderTextColor={colors.textPlaceholder}
                     keyboardType="phone-pad"
                   />

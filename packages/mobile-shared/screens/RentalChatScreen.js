@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { useApp } from "../context/AppContext";
@@ -18,6 +19,38 @@ import { Icon } from "../components/Icon";
 import { ScreenHeader, EmptyState } from "../components/ui";
 import { ApiClient } from "../api/client";
 import { conectarChat } from "../api/chatSocket";
+
+// Outbox persistente: lo que el usuario escribió y el servidor todavía no
+// confirmó se guarda en disco por reserva. Si cierra la app (o la mata el SO)
+// con un mensaje a medio enviar, al volver lo ve como "no se envió" y se
+// reintenta solo al recuperar el canal. Se limpia cuando ya no queda nada
+// pendiente.
+const outboxKey = (reservaId) => `@rentacar/chat_outbox/${reservaId}`;
+
+async function leerOutbox(reservaId) {
+  try {
+    const raw = await AsyncStorage.getItem(outboxKey(reservaId));
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+async function guardarOutbox(reservaId, mensajes) {
+  try {
+    const pendientes = mensajes.filter(
+      (m) => m._estado === "enviando" || m._estado === "fallido"
+    );
+    if (pendientes.length === 0) {
+      await AsyncStorage.removeItem(outboxKey(reservaId));
+    } else {
+      await AsyncStorage.setItem(outboxKey(reservaId), JSON.stringify(pendientes));
+    }
+  } catch {
+    /* si el almacenamiento falla, la cola sigue viva en memoria */
+  }
+}
 
 // Red de seguridad, no el mecanismo principal: los mensajes llegan por
 // WebSocket. Este intervalo solo corre mientras el canal en vivo no esté
@@ -58,6 +91,11 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   // arrastrarlo de vuelta al fondo. Solo se autodesplaza cuando ya estaba abajo.
   const alFondoRef = useRef(true);
   const canalRef = useRef(null);
+  // Espejo de `messages` para leerlo desde callbacks del canal sin recrearlos.
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const escribirRef = useRef({ activo: false, timer: null });
   const otroEscribeTimerRef = useRef(null);
 
@@ -150,6 +188,45 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     [reservation?.id, marcarEstado, marcarFallidoSiPendiente, conciliarMensaje]
   );
 
+  // Reintenta todo lo que quedó sin enviar (de esta sesión o rehidratado del
+  // outbox de una sesión anterior). Se llama al recuperar el canal en vivo.
+  const reintentarPendientes = useCallback(() => {
+    messagesRef.current
+      .filter((m) => m._estado === "fallido")
+      .forEach((m) => intentarEnviar(m));
+  }, [intentarEnviar]);
+
+  // ---- persistencia offline del outbox --------------------------------------
+
+  // Al abrir la conversación se rehidrata lo que quedó pendiente en disco. Se
+  // marca "fallido" (no "enviando"): ya no hay ningún envío en curso, así que
+  // el usuario puede tocar para reintentar y `reintentarPendientes` lo reenvía
+  // solo en cuanto haya canal. `cargar()` los descarta si el texto ya está en
+  // el servidor (se envió pero se perdió el ACK antes de cerrar la app).
+  useEffect(() => {
+    if (!reservation?.id) return;
+    let vivo = true;
+    leerOutbox(reservation.id).then((pend) => {
+      if (!vivo || pend.length === 0) return;
+      setMessages((prev) => {
+        const conocidos = new Set(prev.map((m) => m._clientId));
+        const nuevos = pend
+          .filter((m) => m._clientId && !conocidos.has(m._clientId))
+          .map((m) => ({ ...m, _estado: "fallido" }));
+        return nuevos.length ? [...nuevos, ...prev] : prev;
+      });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [reservation?.id]);
+
+  // Cada cambio en la lista persiste (o limpia) el subconjunto pendiente.
+  useEffect(() => {
+    if (!reservation?.id) return;
+    guardarOutbox(reservation.id, messages);
+  }, [messages, reservation?.id]);
+
   // ---- escritura en vivo -------------------------------------------------
 
   const dejarDeEscribir = useCallback(() => {
@@ -182,8 +259,12 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
       onMensaje: conciliarMensaje,
       onEstado: (estado) => {
         setEnVivo(estado === "conectado");
-        // Al reconectar puede haberse perdido algo mientras no había canal.
-        if (estado === "conectado") cargar();
+        // Al reconectar puede haberse perdido algo mientras no había canal:
+        // se refresca el historial y se reintenta lo que quedó pendiente.
+        if (estado === "conectado") {
+          cargar();
+          reintentarPendientes();
+        }
       },
       onEnvioResuelto: ({ clientId, ok }) => {
         if (!ok) marcarFallidoSiPendiente(clientId);
@@ -203,7 +284,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
       canal.cerrar();
       canalRef.current = null;
     };
-  }, [reservation?.id, conciliarMensaje, marcarFallidoSiPendiente, cargar, dejarDeEscribir]);
+  }, [reservation?.id, conciliarMensaje, marcarFallidoSiPendiente, cargar, dejarDeEscribir, reintentarPendientes]);
 
   useEffect(() => {
     cargar();

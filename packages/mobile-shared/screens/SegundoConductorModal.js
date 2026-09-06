@@ -17,6 +17,11 @@ import { DocumentCameraModal } from "../components/DocumentCameraModal";
 import { ApiClient } from "../api/client";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
+import {
+  formatearRutEnVivo,
+  formatearTelefonoInput,
+  normalizarTelefonoCompleto,
+} from "../utils/formato";
 
 function isRutValid(rutRaw) {
   if (!rutRaw) return false;
@@ -153,14 +158,14 @@ export function SegundoConductorModal({
       const payload = {
         nombre: nombre.trim(),
         email: email.trim() || undefined,
-        telefono: telefono.trim() || undefined,
+        telefono: telefono.trim() ? normalizarTelefonoCompleto(telefono) : undefined,
         tipo_documento: tipoDocumento,
-        rut: esChileno ? rut.trim() : undefined,
+        rut: esChileno ? formatearRutEnVivo(rut) : undefined,
         numero_documento: !esChileno ? numeroDocumento.trim() : undefined,
         pais_documento: paisDocumento.trim().toUpperCase(),
         fecha_nacimiento: fechaNacimiento ? `${fechaNacimiento}T00:00:00Z` : undefined,
         licencia_pais_emisor: licenciaPais.trim().toUpperCase(),
-        licencia_numero: licenciaNumero.trim() || (esChileno ? rut.trim() : undefined),
+        licencia_numero: licenciaNumero.trim() || (esChileno ? formatearRutEnVivo(rut) : undefined),
         licencia_clase: licenciaClase.trim().toUpperCase(),
         licencia_vencimiento: licenciaVencimiento ? `${licenciaVencimiento}T00:00:00Z` : undefined,
         carnet_frontal_url: carnetFrontalUrl,
@@ -293,7 +298,7 @@ export function SegundoConductorModal({
                     label="RUT (con guión y dígito verificador)"
                     placeholder="18.456.789-K"
                     value={rut}
-                    onChangeText={setRut}
+                    onChangeText={(t) => setRut(formatearRutEnVivo(t))}
                   />
                 ) : (
                   <>
@@ -329,10 +334,11 @@ export function SegundoConductorModal({
 
                 <Field
                   label="Teléfono de contacto"
-                  placeholder="+56 9 1234 5678"
+                  placeholder="7734 1208"
+                  prefix="+56 9"
                   keyboardType="phone-pad"
                   value={telefono}
-                  onChangeText={setTelefono}
+                  onChangeText={(t) => setTelefono(formatearTelefonoInput(t))}
                 />
 
                 <Button

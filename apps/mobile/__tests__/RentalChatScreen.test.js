@@ -44,6 +44,9 @@ jest.mock("@rentacar/mobile-shared/context/AppContext", () => ({
   useApp: () => ({ currentUser: { id: "u-yo" } }),
 }));
 
+const AsyncStorage = require("@react-native-async-storage/async-storage");
+const limpiarStorage = () => (AsyncStorage.default || AsyncStorage).clear();
+
 const asentar = () => new Promise((r) => setTimeout(r, 0));
 const reserva = { id: "res-12345678", auto: { marca: "Kia", modelo: "Rio" } };
 
@@ -59,11 +62,12 @@ const escribirYEnviar = async (tr, texto) => {
   });
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   mockEnviar.mockReset().mockReturnValue(true);
   mockGetMensajes.mockReset().mockResolvedValue([]);
   mockEnviarMensajeREST.mockReset().mockResolvedValue({});
   mockCanal = null;
+  await limpiarStorage();
 });
 
 describe("RentalChatScreen · cola optimista", () => {
@@ -166,6 +170,42 @@ describe("RentalChatScreen · cola optimista", () => {
     expect(t).not.toContain("No se envió");
     expect(t).not.toContain("Enviando…");
     expect(t.match(/Confirmado/g)).toHaveLength(1);
+  });
+
+  it("un mensaje sin enviar sobrevive a cerrar y reabrir la conversación", async () => {
+    // Primera sesión: se envía algo y el envío nunca se resuelve → "fallido".
+    let tr1;
+    await act(async () => {
+      tr1 = renderTree(<RentalChatScreen reservation={reserva} onBack={() => {}} />);
+      await asentar();
+    });
+    await escribirYEnviar(tr1, "Voy en camino");
+    const clientId = mockEnviar.mock.calls[0][1];
+    await act(async () => {
+      mockCanal.cbs.onEnvioResuelto({ clientId, ok: false });
+      await asentar();
+    });
+    expect(textOf(tr1)).toContain("No se envió");
+
+    // Se cierra la pantalla.
+    await act(async () => {
+      tr1.unmount();
+      await asentar();
+    });
+
+    // Segunda sesión (misma reserva): el mensaje pendiente se rehidrata del
+    // outbox aunque el historial del servidor venga vacío.
+    mockEnviar.mockClear();
+    let tr2;
+    await act(async () => {
+      tr2 = renderTree(<RentalChatScreen reservation={reserva} onBack={() => {}} />);
+      await asentar();
+      await asentar();
+    });
+
+    expect(textOf(tr2)).toContain("Voy en camino");
+    // Y al haber canal en vivo, se reintenta solo.
+    expect(mockEnviar).toHaveBeenCalledWith("Voy en camino", expect.any(String));
   });
 
   it("con el canal caído manda por REST sin bloquear la interfaz", async () => {

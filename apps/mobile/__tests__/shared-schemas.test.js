@@ -1,5 +1,7 @@
 const {
   validarRutChileno,
+  formatearRut,
+  formatearTelefonoChileno,
   validarPatenteChilena,
   PublicarAutoSchema,
   CrearReservaSchema,
@@ -17,6 +19,23 @@ describe("validarRutChileno (Módulo 11)", () => {
     expect(validarRutChileno("")).toBe(false);
     expect(validarRutChileno("hola")).toBe(false);
     expect(validarRutChileno(null)).toBe(false);
+  });
+});
+
+describe("formatearRut", () => {
+  it("formatea RUTs sin formato a estándar con puntos y guion", () => {
+    expect(formatearRut("18456789k")).toBe("18.456.789-K");
+    expect(formatearRut("213772856")).toBe("21.377.285-6");
+    expect(formatearRut("11.111.111-1")).toBe("11.111.111-1");
+  });
+});
+
+describe("formatearTelefonoChileno", () => {
+  it("formatea teléfonos móviles al estándar +56 9 XXXX XXXX", () => {
+    expect(formatearTelefonoChileno("932114494")).toBe("+56 9 3211 4494");
+    expect(formatearTelefonoChileno("+56932114494")).toBe("+56 9 3211 4494");
+    expect(formatearTelefonoChileno("56932114494")).toBe("+56 9 3211 4494");
+    expect(formatearTelefonoChileno("32114494")).toBe("+56 9 3211 4494");
   });
 });
 

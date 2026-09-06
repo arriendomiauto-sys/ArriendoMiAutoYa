@@ -60,9 +60,57 @@ function validarPatenteChilena(patente) {
 }
 
 /**
+ * Formatea un RUT chileno en el estándar oficial '11.111.111-1' o '1.111.111-1'.
+ * @param {string} rutRaw
+ * @returns {string}
+ */
+function formatearRut(rutRaw) {
+  if (!rutRaw || typeof rutRaw !== "string") return "";
+  const limpio = rutRaw.replace(/[^0-9kK]/g, "").toUpperCase();
+  if (limpio.length < 2) return limpio;
+
+  const cuerpo = limpio.slice(0, -1);
+  const dv = limpio.slice(-1);
+
+  if (!/^\d+$/.test(cuerpo)) return limpio;
+
+  const cuerpoFmt = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${cuerpoFmt}-${dv}`;
+}
+
+/**
+ * Formatea un teléfono chileno al estándar '+56 9 1111 1111'.
+ * @param {string} telRaw
+ * @returns {string}
+ */
+function formatearTelefonoChileno(telRaw) {
+  if (!telRaw || typeof telRaw !== "string") return "";
+  const digitos = telRaw.replace(/\D/g, "");
+  if (!digitos) return "";
+
+  let movil = digitos;
+  if (digitos.startsWith("569") && digitos.length >= 11) {
+    movil = digitos.slice(3, 11);
+  } else if (digitos.startsWith("56") && digitos.length === 10) {
+    movil = digitos.slice(2, 10);
+  } else if (digitos.startsWith("9") && digitos.length >= 9) {
+    movil = digitos.slice(1, 9);
+  } else if (digitos.length >= 8) {
+    movil = digitos.slice(-8);
+  }
+
+  if (movil.length === 8) {
+    return `+56 9 ${movil.slice(0, 4)} ${movil.slice(4, 8)}`;
+  } else if (movil.length > 4) {
+    return `+56 9 ${movil.slice(0, 4)} ${movil.slice(4)}`;
+  }
+  return `+56 9 ${movil}`;
+}
+
+/**
  * Validador de teléfono móvil chileno.
  */
-const telefonoChilenoRegex = /^(\+?56)?(\s?)(9)(\s?)[0-9]{8}$/;
+const telefonoChilenoRegex = /^(\+?56\s?)?(9\s?)?[0-9]{4}\s?[0-9]{4}$|^(\+?56\s?9\s?)?[0-9]{8}$/;
 
 // ==============================================================================
 // ESQUEMAS ZOD
@@ -214,6 +262,8 @@ const ConductorAdicionalSchema = z.object({
 
 module.exports = {
   validarRutChileno,
+  formatearRut,
+  formatearTelefonoChileno,
   validarPatenteChilena,
   EnrolamientoSchema,
   PublicarAutoSchema,

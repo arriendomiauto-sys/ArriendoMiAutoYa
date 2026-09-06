@@ -1,26 +1,31 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, StatusBar, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  StatusBar,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Button, Field, ScreenHeader, SectionLabel } from "../components/ui";
+import { Icon } from "../components/Icon";
 import { ApiClient } from "../api/client";
 import { useApp } from "../context/AppContext";
 import { showAlert } from "../utils/alert";
+import {
+  formatearTelefonoInput,
+  normalizarTelefonoCompleto,
+  extraerMovilSinPrefijo,
+} from "../utils/formato";
 
-/**
- * Editar los datos de contacto de la cuenta (nombre y teléfono) después del
- * registro. RegisterScreen los guarda con `actualizarPerfilBasico` y deja
- * dicho en un comentario que "el usuario puede completarlos después desde el
- * perfil" — esta es esa pantalla, que antes no existía.
- *
- * NO toca RUT / documento / dirección: esos son datos de identidad y los
- * maneja KycScreen (cambiarlos exige re-verificación).
- */
-
-// El teléfono se guarda como "+56 9 XXXX XXXX". Acá se muestra sin el prefijo
-// (el Field ya lo pinta fijo) y se vuelve a anteponer al guardar.
-const quitarPrefijoCL = (tel) => (tel || "").replace(/^\s*\+?56\s*9?\s*/, "").trim();
 const soloDigitos = (s) => (s || "").replace(/\D/g, "");
 
 export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
@@ -29,13 +34,62 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
   const { currentUser, setCurrentUser, syncProfile } = useApp();
 
   const [nombre, setNombre] = useState(currentUser?.nombre || "");
-  const [telefono, setTelefono] = useState(quitarPrefijoCL(currentUser?.telefono));
+  const [telefono, setTelefono] = useState(extraerMovilSinPrefijo(currentUser?.telefono));
+  const [fotoUrl, setFotoUrl] = useState(currentUser?.foto_perfil_verificada_url || null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [intentado, setIntentado] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
   const errorNombre = intentado && !nombre.trim() ? "Ingresa tu nombre." : undefined;
   const errorTelefono =
     intentado && soloDigitos(telefono).length < 8 ? "Ingresa un móvil de 8 dígitos." : undefined;
+
+  const cambiarFoto = async () => {
+    try {
+      const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permiso.granted) {
+        showAlert("Permiso requerido", "Necesitamos acceso a tus fotos para cambiar tu avatar.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+
+      setSubiendoFoto(true);
+      const uri = result.assets[0].uri;
+      const subida = await ApiClient.subirArchivoStorage(
+        uri,
+        `avatar_${currentUser?.id || "user"}_${Date.now()}.jpg`,
+        "general"
+      );
+
+      const urlFinal = subida?.url || uri;
+      setFotoUrl(urlFinal);
+      
+      // Actualizar de inmediato en el perfil
+      const perfilActualizado = await ApiClient.actualizarPerfilBasico({
+        nombre: (nombre || currentUser?.nombre || "Usuario").trim(),
+        telefono: normalizarTelefonoCompleto(telefono || currentUser?.telefono || ""),
+        foto_perfil_verificada_url: urlFinal,
+      });
+
+      if (perfilActualizado && perfilActualizado.id) {
+        setCurrentUser(perfilActualizado);
+      }
+      await syncProfile();
+      showAlert("Foto actualizada", "Tu foto de perfil ha sido actualizada.");
+    } catch (err) {
+      showAlert("Error al subir foto", err.message || "No se pudo subir la foto.");
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
 
   const guardar = async () => {
     setIntentado(true);
@@ -45,7 +99,8 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
     try {
       const perfil = await ApiClient.actualizarPerfilBasico({
         nombre: nombre.trim(),
-        telefono: `+56 9 ${telefono.trim()}`,
+        telefono: normalizarTelefonoCompleto(telefono),
+        foto_perfil_verificada_url: fotoUrl || currentUser?.foto_perfil_verificada_url || undefined,
       });
       if (perfil && perfil.id) setCurrentUser(perfil);
       else await syncProfile();
@@ -69,6 +124,36 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* AVATAR SELECTOR */}
+          <View style={styles.avatarSection}>
+            <TouchableOpacity
+              style={styles.avatarWrapper}
+              onPress={cambiarFoto}
+              activeOpacity={0.8}
+              disabled={subiendoFoto}
+            >
+              {subiendoFoto ? (
+                <View style={[styles.avatar, styles.avatarLoading]}>
+                  <ActivityIndicator color={colors.primary} size="small" />
+                </View>
+              ) : fotoUrl ? (
+                <Image source={{ uri: fotoUrl }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, styles.avatarEmpty]}>
+                  <Icon name="user" size={32} color={colors.textMuted} />
+                </View>
+              )}
+              <View style={styles.cameraBadge}>
+                <Icon name="camera" size={14} color={colors.white} />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={cambiarFoto} disabled={subiendoFoto}>
+              <Text style={[styles.changePhotoText, dark && { color: colors.mint }]}>
+                {subiendoFoto ? "Subiendo foto..." : "Cambiar foto de perfil"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <Field
             tone={tone}
             label="Nombre completo"
@@ -83,7 +168,7 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
             tone={tone}
             label="Teléfono"
             value={telefono}
-            onChangeText={setTelefono}
+            onChangeText={(t) => setTelefono(formatearTelefonoInput(t))}
             placeholder="7734 1208"
             prefix="+56 9"
             keyboardType="phone-pad"
@@ -120,6 +205,25 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
+  avatarSection: { alignItems: "center", justifyContent: "center", marginVertical: 8, gap: 8 },
+  avatarWrapper: { position: "relative" },
+  avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.surfaceMuted },
+  avatarEmpty: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
+  avatarLoading: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.primary },
+  cameraBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  changePhotoText: { fontSize: 13, fontWeight: "600", color: colors.primary },
   readonly: { gap: 6 },
   readonlyValue: { fontSize: 15, color: colors.text, fontWeight: "500" },
   readonlyHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },

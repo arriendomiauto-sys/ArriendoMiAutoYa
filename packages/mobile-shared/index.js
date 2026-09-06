@@ -28,6 +28,7 @@ export {
   aISOLocal,
 } from "./components/DateTimeField";
 export { DocumentCameraModal } from "./components/DocumentCameraModal";
+export { QRScannerModal } from "./components/QRScannerModal";
 export { ReferralCodeCard } from "./components/ReferralCodeCard";
 export { AccountStatusCard, ModeSwitchRow } from "./components/ProfileStatus";
 export { FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "./vehiculo/fotosAuto";

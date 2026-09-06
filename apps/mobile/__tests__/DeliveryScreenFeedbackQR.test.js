@@ -115,6 +115,36 @@ describe("DeliveryScreen · feedback al escanear y verificar", () => {
     expect(mockNotificationAsync).toHaveBeenCalledWith("warning");
   });
 
+  it("escanear el QR valida el código leído sin escribir nada", async () => {
+    mockValidarCodigoQR.mockResolvedValue({
+      reserva_id: "res-1",
+      cliente_nombre: "Juan Pérez",
+    });
+
+    const tr = renderTree(<DeliveryScreen reserva={reserva} onBack={() => {}} onCompleteDelivery={() => {}} />);
+    arbol = tr;
+
+    // Abrir el escáner.
+    await act(async () => {
+      const abrir = tr.root.findAll(
+        (n) => n.props?.accessibilityRole === "button" && n.props?.accessibilityLabel === "Escanear QR del cliente"
+      )[0];
+      abrir.props.onPress();
+      await asentar();
+    });
+
+    // La cámara mockeada expone `onBarcodeScanned`: simular la lectura.
+    await act(async () => {
+      const camara = tr.root.findAll((n) => typeof n.props?.onBarcodeScanned === "function")[0];
+      camara.props.onBarcodeScanned({ data: "QR-DESDE-CAMARA" });
+      await asentar();
+    });
+
+    expect(mockValidarCodigoQR).toHaveBeenCalledWith("QR-DESDE-CAMARA");
+    expect(mockNotificationAsync).toHaveBeenCalledWith("success");
+    expect(textOf(tr)).toContain("Confirmar identidad");
+  });
+
   it("identidad confirmada: vibra en éxito y muestra 'Identidad verificada'", async () => {
     mockValidarCodigoQR.mockResolvedValue({ reserva_id: "res-1", cliente_nombre: "Juan Pérez" });
     mockConfirmarVerificacion.mockResolvedValue({ siguiente_paso: "checklist_fotos" });
