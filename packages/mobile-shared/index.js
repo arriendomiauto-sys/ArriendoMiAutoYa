@@ -75,6 +75,7 @@ export {
 export { ContractModal } from "./screens/ContractModal";
 export { RatingModal } from "./components/RatingModal";
 export { SignaturePad } from "./components/SignaturePad";
+export { SuccessCheck, SuccessFlash } from "./components/SuccessCheck";
 export { TarjetaScreen } from "./screens/TarjetaScreen";
 export { EditProfileScreen } from "./screens/EditProfileScreen";
 export { LegalModal } from "./screens/LegalModal";

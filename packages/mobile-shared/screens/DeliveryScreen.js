@@ -19,9 +19,11 @@ import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Button, Card, Badge, Chip, ScreenHeader, SectionLabel } from "../components/ui";
 import { SignaturePad } from "../components/SignaturePad";
+import { SuccessCheck, SuccessFlash } from "../components/SuccessCheck";
 import { ApiClient } from "../api/client";
 import { elegirImagen, subirImagenOptimizada } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
+import { hapticoExito, hapticoError } from "../utils/haptics";
 import { guardarColaFotos, leerColaFotos, borrarColaFotos } from "../utils/colaFotosOffline";
 
 const ANGLES = [
@@ -57,6 +59,11 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   // 06: confirmar/rechazar identidad
   const [confirmando, setConfirmando] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState("");
+
+  // Destello de confirmación (check animado + vibración) tras validar el
+  // código QR y tras verificar la identidad. Es una capa no bloqueante: la
+  // pantalla siguiente ya está montada debajo y el destello se retira solo.
+  const [flashExito, setFlashExito] = useState(null);
 
   // Fotos del checklist. `colaFotos` es la fuente de verdad — cada entrada
   // es { uriLocal, url, estado: "subiendo"|"subida"|"error" } — y `fotos`
@@ -103,13 +110,17 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
     try {
       const resultado = await ApiClient.validarCodigoQR(codigoInput.trim());
       if (reservaIdActiva && resultado.reserva_id !== reservaIdActiva) {
+        hapticoError();
         showAlert("Código de otra reserva", "Este código corresponde a otra reserva. Verifica con el cliente.");
         return;
       }
       setDatosValidados(resultado);
       setReservaIdActiva(resultado.reserva_id);
+      hapticoExito();
+      setFlashExito("Código verificado");
       setStage("06_confirm");
     } catch (error) {
+      hapticoError();
       showAlert("Código inválido", error.message);
     } finally {
       setValidando(false);
@@ -124,11 +135,15 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
         tipo: tipo === "antes" ? "entrega" : "devolucion",
       });
       if (resultado.siguiente_paso !== "checklist_fotos") {
+        hapticoError();
         showAlert("No se pudo continuar", resultado.mensaje);
         return;
       }
+      hapticoExito();
+      setFlashExito("Identidad verificada");
       setStage(tipo === "antes" ? "20_camera" : "25_return_cam");
     } catch (error) {
+      hapticoError();
       showAlert("Error", error.message);
     } finally {
       setConfirmando(false);
@@ -147,6 +162,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
         tipo: tipo === "antes" ? "entrega" : "devolucion",
         motivo_rechazo: motivoRechazo.trim(),
       });
+      hapticoError();
       showAlert(
         "Identidad rechazada",
         "Se bloqueó la reserva y se abrió una disputa formal para revisión de soporte.",
@@ -303,8 +319,10 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       });
       setResultadoChecklist(resultado);
       borrarColaFotos(reservaIdActiva, tipo);
+      hapticoExito();
       setStage(tipo === "antes" ? "24_signed" : "28_done");
     } catch (error) {
+      hapticoError();
       showAlert("No se pudo registrar el checklist", error.message);
     } finally {
       setEnviandoChecklist(false);
@@ -433,6 +451,10 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
         </View>
         <Text style={styles.camNote}>{nota}</Text>
       </View>
+
+      {flashExito ? (
+        <SuccessFlash label={flashExito} onDone={() => setFlashExito(null)} />
+      ) : null}
     </View>
   );
 
@@ -544,6 +566,10 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           <Button label="Confirmar identidad" onPress={handleConfirmarIdentidad} loading={confirmando} />
           <Button variant="danger" label="No coincide" onPress={handleRechazarIdentidad} disabled={confirmando} />
         </Footer>
+
+        {flashExito ? (
+          <SuccessFlash label={flashExito} onDone={() => setFlashExito(null)} />
+        ) : null}
       </KeyboardAvoidingView>
     );
   }
@@ -716,9 +742,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       <View style={styles.light}>
         <StatusBar barStyle="dark-content" />
         <ScrollView contentContainerStyle={styles.centerBody} showsVerticalScrollIndicator={false}>
-          <View style={styles.successCircle}>
-            <Icon name="check" size={36} color={colors.accent700} />
-          </View>
+          <SuccessCheck style={styles.successMark} />
           <View style={styles.centerText}>
             <Text style={styles.bigTitle}>Contrato firmado</Text>
             <Text style={styles.bigSub}>
@@ -818,9 +842,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <StatusBar barStyle="dark-content" />
         <ScrollView contentContainerStyle={styles.centerBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={styles.successCircle}>
-            <Icon name="check" size={36} color={colors.accent700} />
-          </View>
+          <SuccessCheck style={styles.successMark} />
           <View style={styles.centerText}>
             <Text style={styles.bigTitle}>Devolución confirmada</Text>
             <Text style={styles.bigSub}>El arriendo quedó cerrado y liquidado.</Text>
@@ -891,15 +913,7 @@ const styles = StyleSheet.create({
   centerText: { alignItems: "center", gap: theme.spacing.sm },
   bigTitle: { ...theme.typography.title, color: colors.text, textAlign: "center" },
   bigSub: { fontSize: 15, color: colors.textMuted, lineHeight: 22, textAlign: "center" },
-  successCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: theme.spacing.sm,
-  },
+  successMark: { marginTop: theme.spacing.sm },
   perfilFoto: { width: 96, height: 96, borderRadius: 48, alignSelf: "center" },
   cardTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
   infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },

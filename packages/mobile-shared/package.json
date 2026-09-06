@@ -15,6 +15,7 @@
     "expo-constants": "*",
     "expo-device": "*",
     "expo-image-manipulator": "*",
+    "expo-haptics": "*",
     "expo-image-picker": "*",
     "expo-local-authentication": "*",
     "expo-notifications": "*",
