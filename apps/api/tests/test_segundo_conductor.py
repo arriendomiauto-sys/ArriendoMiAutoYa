@@ -1,13 +1,16 @@
 from datetime import datetime, timedelta, timezone
-import pytest
-from fastapi.testclient import TestClient
 
 from app.main import app
-from app.core.database import Base, engine, get_db
 from app.models.entities import Usuario, Auto, Reserva, ConductorAdicional, TicketSoporte
 from app.services.auth import get_current_user
 
-client = TestClient(app)
+# El `client` y `db_session` los aporta conftest.py: arma el esquema en
+# SQLite :memory:, siembra los datos demo y hace el override de get_db para
+# que las llamadas HTTP y la sesión de este archivo compartan la misma
+# transacción. Antes este archivo traía su propio `TestClient(app)` y un
+# `db_session` que hacía `next(get_db())` — eso pegaba contra la base real
+# (Postgres) y `_crear_datos_base` reventaba con ForeignKeyViolation al
+# borrar `reservas` que `pagos` todavía referenciaba.
 
 
 def _crear_datos_base(db):
@@ -86,16 +89,7 @@ def _crear_datos_base(db):
     return dueno, cliente, cliente2, auto
 
 
-@pytest.fixture
-def db_session():
-    db = next(get_db())
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def test_crear_reserva_con_segundo_conductor_chileno(db_session):
+def test_crear_reserva_con_segundo_conductor_chileno(client, db_session):
     dueno, cliente, _, auto = _crear_datos_base(db_session)
     app.dependency_overrides[get_current_user] = lambda: cliente
 
@@ -136,7 +130,7 @@ def test_crear_reserva_con_segundo_conductor_chileno(db_session):
     app.dependency_overrides.clear()
 
 
-def test_asignar_y_obtener_segundo_conductor(db_session):
+def test_asignar_y_obtener_segundo_conductor(client, db_session):
     dueno, cliente, _, auto = _crear_datos_base(db_session)
     app.dependency_overrides[get_current_user] = lambda: cliente
 
@@ -187,7 +181,7 @@ def test_asignar_y_obtener_segundo_conductor(db_session):
     app.dependency_overrides.clear()
 
 
-def test_segundo_conductor_menor_de_edad_deriva_a_soporte(db_session):
+def test_segundo_conductor_menor_de_edad_deriva_a_soporte(client, db_session):
     dueno, cliente, _, auto = _crear_datos_base(db_session)
     app.dependency_overrides[get_current_user] = lambda: cliente
 
@@ -238,7 +232,7 @@ def test_segundo_conductor_menor_de_edad_deriva_a_soporte(db_session):
     app.dependency_overrides.clear()
 
 
-def test_segundo_conductor_licencia_vencida_deriva_a_soporte(db_session):
+def test_segundo_conductor_licencia_vencida_deriva_a_soporte(client, db_session):
     dueno, cliente, _, auto = _crear_datos_base(db_session)
     app.dependency_overrides[get_current_user] = lambda: cliente
 
@@ -283,7 +277,7 @@ def test_segundo_conductor_licencia_vencida_deriva_a_soporte(db_session):
     app.dependency_overrides.clear()
 
 
-def test_eliminar_segundo_conductor(db_session):
+def test_eliminar_segundo_conductor(client, db_session):
     dueno, cliente, _, auto = _crear_datos_base(db_session)
     app.dependency_overrides[get_current_user] = lambda: cliente
 
@@ -318,7 +312,7 @@ def test_eliminar_segundo_conductor(db_session):
     app.dependency_overrides.clear()
 
 
-def test_segundo_conductor_en_contrato_pdf(db_session):
+def test_segundo_conductor_en_contrato_pdf(client, db_session):
     dueno, cliente, _, auto = _crear_datos_base(db_session)
     app.dependency_overrides[get_current_user] = lambda: cliente
 
@@ -354,7 +348,7 @@ def test_segundo_conductor_en_contrato_pdf(db_session):
     app.dependency_overrides.clear()
 
 
-def test_segundo_conductor_en_qr_entrega(db_session):
+def test_segundo_conductor_en_qr_entrega(client, db_session):
     dueno, cliente, _, auto = _crear_datos_base(db_session)
     app.dependency_overrides[get_current_user] = lambda: cliente
 
@@ -398,7 +392,7 @@ def test_segundo_conductor_en_qr_entrega(db_session):
     app.dependency_overrides.clear()
 
 
-def test_segundo_conductor_idor_seguridad(db_session):
+def test_segundo_conductor_idor_seguridad(client, db_session):
     dueno, cliente, cliente_otro, auto = _crear_datos_base(db_session)
 
     reserva = Reserva(
