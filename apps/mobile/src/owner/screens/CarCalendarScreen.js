@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, theme, useApp, Chip, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
@@ -6,14 +6,16 @@ import { CabeceraOwner, oc } from "../comun";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-const mismoDia = (a, b) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+// Clave local de un día ("año-mes-día", mes 0-based) para indexar sin comparar Date.
+const claveDia = (y, m, d) => `${y}-${m}-${d}`;
 
 export function CarCalendarScreen({ car, onBack }) {
   const insets = useSafeAreaInsets();
   const { cars } = useApp();
   const [selectedCarId, setSelectedCarId] = useState(car?.id || cars[0]?.id || null);
+  // Las reservas del dueño no dependen del auto elegido: se piden una sola vez.
   const [reservas, setReservas] = useState([]);
+  // Los bloqueos sí son por-auto y se recargan al cambiar de auto.
   const [bloqueos, setBloqueos] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,16 +32,24 @@ export function CarCalendarScreen({ car, onBack }) {
   const irMesAnterior = () => setMesOffset((o) => Math.max(0, o - 1));
   const irMesSiguiente = () => setMesOffset((o) => o + 1);
 
-  const cargar = useCallback(async () => {
+  // Reservas del dueño: una sola vez. No cambian al cambiar de auto ni de mes,
+  // y traerlas de nuevo en cada toque era parte de la lentitud.
+  useEffect(() => {
+    let vivo = true;
+    ApiClient.getReservas("dueno")
+      .then((todas) => vivo && setReservas(Array.isArray(todas) ? todas : []))
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const cargarBloqueos = useCallback(async () => {
     if (!selectedCarId) return;
     setLoading(true);
     try {
-      const [todas, bloq] = await Promise.all([
-        ApiClient.getReservas("dueno"),
-        ApiClient.getBloqueosCalendario(selectedCarId),
-      ]);
-      setReservas((todas || []).filter((r) => r.auto_id === selectedCarId));
-      setBloqueos(bloq || []);
+      const bloq = await ApiClient.getBloqueosCalendario(selectedCarId);
+      setBloqueos(Array.isArray(bloq) ? bloq : []);
     } catch (err) {
       showAlert("No se pudo cargar el calendario", err.message);
     } finally {
@@ -48,48 +58,81 @@ export function CarCalendarScreen({ car, onBack }) {
   }, [selectedCarId]);
 
   useEffect(() => {
-    cargar();
-  }, [cargar]);
+    cargarBloqueos();
+  }, [cargarBloqueos]);
 
-  const estadoDelDia = (day) => {
-    const fecha = new Date(anio, mes, day);
-    const reservado = reservas.some((r) => {
-      if (!["confirmada", "en_curso"].includes(r.estado)) return false;
+  // Índices O(1) por día. Se rearman solo cuando cambian los datos o el auto,
+  // NO al navegar de mes: antes `estadoDelDia` recorría todas las reservas
+  // (con 4 `new Date` cada una) por cada una de las 31 celdas, en cada render.
+  const { diasReservados, diasBloqueados } = useMemo(() => {
+    const reservados = new Set();
+    const bloqueados = new Map();
+
+    for (const r of reservas) {
+      if (r.auto_id !== selectedCarId) continue;
+      if (!["confirmada", "en_curso"].includes(r.estado)) continue;
       const ini = new Date(r.fecha_inicio);
       const fin = new Date(r.fecha_fin);
-      return (
-        fecha >= new Date(ini.getFullYear(), ini.getMonth(), ini.getDate()) &&
-        fecha < new Date(fin.getFullYear(), fin.getMonth(), fin.getDate() + 1)
-      );
-    });
-    if (reservado) return "booked";
-    const bloqueo = bloqueos.find((b) => mismoDia(new Date(b.fecha), fecha));
+      const cursor = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate());
+      const tope = new Date(fin.getFullYear(), fin.getMonth(), fin.getDate() + 1);
+      let guarda = 0;
+      while (cursor < tope && guarda++ < 400) {
+        reservados.add(claveDia(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+
+    for (const b of bloqueos) {
+      const f = new Date(b.fecha);
+      bloqueados.set(claveDia(f.getFullYear(), f.getMonth(), f.getDate()), b);
+    }
+
+    return { diasReservados: reservados, diasBloqueados: bloqueados };
+  }, [reservas, bloqueos, selectedCarId]);
+
+  const estadoDelDia = (day) => {
+    const k = claveDia(anio, mes, day);
+    if (diasReservados.has(k)) return "booked";
+    const bloqueo = diasBloqueados.get(k);
     if (bloqueo) return { state: "blocked", bloqueo };
     return "available";
   };
 
-  const toggleDay = async (day) => {
+  // Update optimista: el estado cambia YA y la API va en segundo plano. Con el
+  // backend de Render dormido, esperar la respuesta eran 10-40s de nada.
+  const toggleDay = (day) => {
     const estado = estadoDelDia(day);
     if (estado === "booked") {
       showAlert("Día con arriendo activo", "Este día tiene una reserva confirmada y no se puede bloquear.");
       return;
     }
     const fecha = new Date(anio, mes, day);
+
     if (typeof estado === "object" && estado.state === "blocked") {
-      try {
-        await ApiClient.eliminarBloqueoCalendario(estado.bloqueo.id);
-        setBloqueos((p) => p.filter((b) => b.id !== estado.bloqueo.id));
-      } catch (err) {
+      const bloqueo = estado.bloqueo;
+      // Un bloqueo recién creado que todavía no volvió del backend: sin id
+      // real no se puede borrar, se ignora el toque hasta que llegue.
+      if (String(bloqueo.id).startsWith("tmp-")) return;
+      setBloqueos((p) => p.filter((b) => b.id !== bloqueo.id));
+      ApiClient.eliminarBloqueoCalendario(bloqueo.id).catch((err) => {
+        setBloqueos((p) => [...p, bloqueo]);
         showAlert("No se pudo desbloquear", err.message);
-      }
+      });
       return;
     }
-    try {
-      const nuevo = await ApiClient.crearBloqueoCalendario(selectedCarId, fecha.toISOString(), "Uso personal");
-      setBloqueos((p) => [...p, nuevo]);
-    } catch (err) {
-      showAlert("No se pudo bloquear el día", err.message);
-    }
+
+    const tempId = `tmp-${fecha.getTime()}`;
+    const optimista = { id: tempId, fecha: fecha.toISOString(), motivo: "Uso personal" };
+    setBloqueos((p) => [...p, optimista]);
+    ApiClient.crearBloqueoCalendario(selectedCarId, fecha.toISOString(), "Uso personal")
+      .then((nuevo) => {
+        // Se reemplaza el temporal por el real (trae el id que usa el DELETE).
+        setBloqueos((p) => p.map((b) => (b.id === tempId ? nuevo || optimista : b)));
+      })
+      .catch((err) => {
+        setBloqueos((p) => p.filter((b) => b.id !== tempId));
+        showAlert("No se pudo bloquear el día", err.message);
+      });
   };
 
   return (
