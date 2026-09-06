@@ -203,7 +203,7 @@ export function SegundoConductorModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.modalOverlay}
       >
         <View style={styles.modalContent}>
@@ -250,7 +250,12 @@ export function SegundoConductorModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 30 }}>
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={{ paddingBottom: 30 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+          >
             {step === "identidad" && (
               <View style={styles.section}>
                 <Text style={styles.sectionDesc}>

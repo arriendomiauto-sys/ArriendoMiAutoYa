@@ -140,6 +140,8 @@ export function OwnerProfileScreen({
       <ScrollView
         contentContainerStyle={[oc.content, { paddingBottom: Math.max(insets.bottom, 16) + 32 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         <View style={oc.card}>
           <TouchableOpacity

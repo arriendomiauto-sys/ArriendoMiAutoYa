@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   ScrollView,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
@@ -128,7 +130,11 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+    >
       <TouchableOpacity onPress={onCancel} style={styles.backBtn} hitSlop={12}>
         <Icon name="arrow-left" size={20} color={colors.primary} />
       </TouchableOpacity>
@@ -237,7 +243,7 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
         onClose={() => setCamara(null)}
         onCaptured={handleCaptura}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

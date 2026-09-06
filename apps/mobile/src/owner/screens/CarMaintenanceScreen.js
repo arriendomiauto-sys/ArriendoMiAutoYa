@@ -151,39 +151,46 @@ export function CarMaintenanceScreen({ car, onBack }) {
             <Text style={styles.modalTitle}>
               {form?.tipo === "documento_legal" ? "Nuevo documento legal" : "Nueva mantención"}
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder={form?.tipo === "documento_legal" ? "ej. Revisión técnica" : "ej. Cambio de aceite"}
-              placeholderTextColor={colors.textPlaceholder}
-              value={f.nombre}
-              onChangeText={(v) => setF((p) => ({ ...p, nombre: v }))}
-            />
-            {form?.tipo === "documento_legal" ? (
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <TextInput
                 style={styles.input}
-                placeholder="Vencimiento (AAAA-MM-DD)"
+                placeholder={form?.tipo === "documento_legal" ? "ej. Revisión técnica" : "ej. Cambio de aceite"}
                 placeholderTextColor={colors.textPlaceholder}
-                value={f.fecha}
-                onChangeText={(v) => setF((p) => ({ ...p, fecha: v }))}
+                value={f.nombre}
+                onChangeText={(v) => setF((p) => ({ ...p, nombre: v }))}
               />
-            ) : (
+              {form?.tipo === "documento_legal" ? (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Vencimiento (AAAA-MM-DD)"
+                  placeholderTextColor={colors.textPlaceholder}
+                  value={f.fecha}
+                  onChangeText={(v) => setF((p) => ({ ...p, fecha: v }))}
+                />
+              ) : (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Kilometraje (opcional)"
+                  placeholderTextColor={colors.textPlaceholder}
+                  value={f.km}
+                  onChangeText={(v) => setF((p) => ({ ...p, km: v }))}
+                  keyboardType="number-pad"
+                />
+              )}
               <TextInput
-                style={styles.input}
-                placeholder="Kilometraje (opcional)"
+                style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
+                placeholder="Notas (opcional)"
                 placeholderTextColor={colors.textPlaceholder}
-                value={f.km}
-                onChangeText={(v) => setF((p) => ({ ...p, km: v }))}
-                keyboardType="number-pad"
+                value={f.notas}
+                onChangeText={(v) => setF((p) => ({ ...p, notas: v }))}
+                multiline
               />
-            )}
-            <TextInput
-              style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
-              placeholder="Notas (opcional)"
-              placeholderTextColor={colors.textPlaceholder}
-              value={f.notas}
-              onChangeText={(v) => setF((p) => ({ ...p, notas: v }))}
-              multiline
-            />
+            </ScrollView>
             <View style={styles.modalActions}>
               <Button variant="secondary" label="Cancelar" onPress={() => setForm(null)} style={{ flex: 1 }} />
               <Button label="Guardar" onPress={guardar} loading={saving} style={{ flex: 1 }} />
@@ -235,6 +242,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   modalTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
+  modalScroll: { maxHeight: 300 },
+  modalScrollContent: { gap: theme.spacing.md, paddingVertical: 2 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: theme.radius.field,
