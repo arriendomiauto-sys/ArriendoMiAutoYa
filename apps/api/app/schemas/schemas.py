@@ -219,7 +219,6 @@ class PerfilBasicoUpdate(BaseModel):
     nombre: str
     telefono: Optional[str] = None
     direccion: Optional[str] = Field(default=None, max_length=300)
-    foto_perfil_verificada_url: Optional[str] = None
 
     @field_validator("nombre", "direccion")
     @classmethod
