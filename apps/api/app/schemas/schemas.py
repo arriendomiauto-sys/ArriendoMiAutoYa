@@ -262,6 +262,10 @@ class AutoBase(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    # Póliza de seguro comercial: OPCIONAL. Si viene, el router la pasa por OCR
+    # y solo la guarda si se lee como un documento contractual de seguro; una
+    # imagen genérica se descarta (el auto se publica igual).
+    doc_seguro_url: Optional[str] = None
 
     # Instalar un GPS en el auto de otra persona exige su consentimiento
     # expreso: sin él el router no acepta la publicación.
@@ -325,6 +329,7 @@ class AutoUpdate(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    doc_seguro_url: Optional[str] = None
     gps_consentimiento: Optional[bool] = None
 
 
@@ -339,15 +344,18 @@ class ValidarDocumentosAutoRequest(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    doc_seguro_url: Optional[str] = None
 
 
 class VeredictoDocumentoAuto(BaseModel):
     tipo: str
     estado: str
     motivo: Optional[str] = None
-    # Siempre False: esta lectura es informativa. Quien de verdad decide si
-    # se puede publicar es POST /autos, que ante duda deriva a soporte en vez
-    # de rechazar — bloquear acá sería más estricto que el propio publicar.
+    # Para los 4 documentos obligatorios es siempre False: la lectura es
+    # informativa y POST /autos deriva a soporte ante duda en vez de rechazar.
+    # La EXCEPCIÓN es el seguro comercial opcional (`tipo == "seguro"`): si el
+    # dueño sube una imagen que no es una póliza, `bloquea=True` para que la
+    # app no lo deje publicar con ese archivo (o lo quita, o sube el contrato).
     bloquea: bool = False
 
 

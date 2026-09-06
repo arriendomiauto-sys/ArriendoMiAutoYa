@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -16,6 +17,8 @@ from app.services.auth import get_current_user
 from app.services import tarjetas
 from app.features.verificacion_vehiculos.car_doc_validator import CarDocValidator
 from app.core.limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/autos", tags=["Autos y Marketplace"])
 
@@ -162,8 +165,24 @@ def crear_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_seguro_url=payload.doc_seguro_url,
     )
     doc_verificados = bool(resultado_validacion.get("verificado", False))
+
+    # Póliza de seguro comercial (opcional): solo se guarda si el OCR la
+    # reconoció como un documento contractual de seguro. Una imagen genérica
+    # subida en esa casilla se descarta en silencio — el seguro es opcional y
+    # el auto se publica igual, pero nunca se aprueba una foto cualquiera como
+    # "póliza". La app ya bloquea antes de llegar acá vía /autos/validar-
+    # documentos (bloquea=True), esto es el resguardo del lado servidor.
+    doc_seguro_a_guardar = payload.doc_seguro_url
+    if payload.doc_seguro_url and not resultado_validacion.get("seguro_valido", False):
+        logger.info(
+            "Auto %s: doc_seguro_url descartado, no valida como póliza (%s).",
+            payload.patente.upper(),
+            resultado_validacion.get("seguro_motivo") or "sin lenguaje contractual",
+        )
+        doc_seguro_a_guardar = None
 
     # dueno_id siempre es el usuario autenticado: no se confía en el valor
     # que venga en el payload (evita que un cliente atribuya el auto a otro
@@ -190,6 +209,7 @@ def crear_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_seguro_url=doc_seguro_a_guardar,
         documentos_verificados=doc_verificados,
         gps_consentimiento=True,
         gps_consentimiento_fecha=datetime.now(timezone.utc),
@@ -259,13 +279,14 @@ def validar_documentos_auto(
 ):
     """
     Se llama apenas se sube CADA documento (padrón, permiso, SOAP, revisión
-    técnica), para mostrar de inmediato si el OCR lo reconoció, en vez de que
-    el dueño se entere recién al intentar publicar.
+    técnica y — opcional — la póliza de seguro), para mostrar de inmediato si
+    el OCR lo reconoció, en vez de que el dueño se entere al intentar publicar.
 
-    Nunca bloquea: la decisión real de si un auto se publica es de POST
-    /autos, que ante un documento que el OCR no pudo confirmar lo deriva a
-    revisión manual en vez de rechazarlo. Esta lectura es solo informativa —
-    bloquear acá sería más estricto que el propio flujo de publicación.
+    Para los 4 obligatorios nunca bloquea: POST /autos deriva a revisión
+    manual ante duda en vez de rechazar. La póliza de seguro OPCIONAL es la
+    excepción: si se sube una imagen que no es un documento contractual de
+    seguro, `bloquea=True` — no tiene sentido "aprobar" una foto cualquiera
+    como póliza.
     """
     resultado = CarDocValidator.validar_documentos_vehiculo(
         patente=payload.patente,
@@ -273,6 +294,7 @@ def validar_documentos_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_seguro_url=payload.doc_seguro_url,
     )
 
     # En modo mock (USE_OCR_MOCK) no hay desglose por documento, solo folios:
@@ -314,6 +336,33 @@ def validar_documentos_auto(
                 "bloquea": False,
             }
         )
+
+    # Seguro comercial opcional: a diferencia de los 4 obligatorios, acá SÍ se
+    # bloquea. Si el dueño sube algo que no se lee como una póliza, la app no
+    # lo deja publicar con ese archivo (que lo quite o suba el contrato real).
+    if payload.doc_seguro_url:
+        if resultado.get("seguro_valido"):
+            documentos.append(
+                {
+                    "tipo": "seguro",
+                    "estado": "vigente",
+                    "motivo": "Póliza de seguro reconocida.",
+                    "bloquea": False,
+                }
+            )
+        else:
+            documentos.append(
+                {
+                    "tipo": "seguro",
+                    "estado": "tipo_incorrecto",
+                    "motivo": (
+                        resultado.get("seguro_motivo")
+                        or "Esto no parece una póliza de seguro. Sube el contrato o "
+                        "certificado de cobertura de tu aseguradora."
+                    ),
+                    "bloquea": True,
+                }
+            )
 
     return {"verificado": bool(resultado.get("verificado", False)), "documentos": documentos}
 

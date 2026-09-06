@@ -115,6 +115,7 @@ class Auto(Base):
     doc_permiso_circulacion_url = Column(String, nullable=True)  # Permiso de circulación vigente
     doc_soap_url = Column(String, nullable=True)                 # Seguro Obligatorio (SOAP) vigente
     doc_revision_tecnica_url = Column(String, nullable=True)     # Revisión técnica al día
+    doc_seguro_url = Column(String, nullable=True)               # Póliza de seguro comercial (opcional; validada por OCR)
     documentos_verificados = Column(Boolean, default=False)     # Los revisó un ejecutivo
 
     # Rastreo GPS. Instalar un equipo en el auto de un tercero exige
