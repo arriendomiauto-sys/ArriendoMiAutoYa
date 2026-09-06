@@ -69,7 +69,9 @@ def test_completar_enrolamiento_sin_foto_carnet_es_rechazado(usuario_factory, au
         }
     )
     assert resp.status_code == 400
-    assert "cámara" in resp.json()["detail"] or "cedula" in resp.json()["detail"].lower() or "cédula" in resp.json()["detail"]
+    detalle = resp.json()["detail"]
+    assert detalle["categoria"] == "fotos_ilegibles"
+    assert "cámara" in detalle["motivo"] or "cédula" in detalle["motivo"].lower()
 
 def test_enrolamiento_rut_invalido_rechazado(usuario_factory, auth_as):
     nuevo_usuario = usuario_factory(roles_activos=["cliente"], rut=None, nombre=None, estado_documentos="pendiente")
@@ -112,7 +114,9 @@ def test_enrolamiento_rut_duplicado_da_400_no_500(usuario_factory, auth_as):
         }
     )
     assert resp.status_code == 400
-    assert "ya está registrado" in resp.json()["detail"].lower()
+    detalle = resp.json()["detail"]
+    assert detalle["categoria"] == "documento_duplicado"
+    assert "ya está registrado" in detalle["motivo"].lower()
 
 
 def test_completar_enrolamiento_sin_email_usa_sesion(usuario_factory, auth_as):

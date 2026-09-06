@@ -111,7 +111,9 @@ def test_ocr_rechazado_no_otorga_rol_ni_cobra_hold(
         },
     )
     assert resp.status_code == 400
-    assert "cédula" in resp.json()["detail"].lower()
+    detalle = resp.json()["detail"]
+    assert detalle["categoria"] == "fotos_ilegibles"
+    assert "cédula" in detalle["motivo"].lower()
 
     db_session.expire_all()
     holds = (
