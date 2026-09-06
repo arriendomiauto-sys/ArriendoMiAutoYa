@@ -23,12 +23,21 @@ import { conectarChat } from "../api/chatSocket";
 // WebSocket. Este intervalo solo corre mientras el canal en vivo no esté
 // arriba (sin sesión, backend viejo, o señal cortada).
 const POLL_MS = 4000;
+// Cada cuánto se reafirma "estoy escribiendo" mientras se teclea, y cuánto se
+// espera sin teclas para avisar que se dejó de escribir.
+const ESCRIBIR_MS = 2500;
 const QUICK = [
   "Ya llegué al punto de encuentro",
   "Estoy a 5 minutos",
   "¿Me envías la ubicación exacta?",
   "Listo para la entrega",
 ];
+
+let contadorClientId = 0;
+const nuevoClientId = () =>
+  `c${Date.now().toString(36)}${(contadorClientId++).toString(36)}${Math.random()
+    .toString(36)
+    .slice(2, 6)}`;
 
 export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const { currentUser } = useApp();
@@ -39,27 +48,65 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
   const [enVivo, setEnVivo] = useState(false);
+  const [otroEscribiendo, setOtroEscribiendo] = useState(false);
+
   const scrollRef = useRef(null);
   const canalRef = useRef(null);
+  const escribirRef = useRef({ activo: false, timer: null });
+  const otroEscribeTimerRef = useRef(null);
 
-  // Un mensaje puede llegar dos veces: por el WebSocket y por el refresco
-  // REST que corre al reconectar. Se agrega por id para que no se duplique en
-  // pantalla.
-  const agregarMensaje = useCallback((nuevo) => {
-    if (!nuevo?.id) return;
-    setMessages((prev) => (prev.some((m) => m.id === nuevo.id) ? prev : [...prev, nuevo]));
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+  // ---- cola optimista ------------------------------------------------------
+
+  const marcarEstado = useCallback((clientId, estado) => {
+    setMessages((prev) =>
+      prev.map((m) => (m._clientId === clientId ? { ...m, _estado: estado } : m))
+    );
   }, []);
 
-  const auto = reservation?.auto || reservation?.car || {};
-  const interlocutor = dark ? "Arrendatario" : "Dueño del vehículo";
+  // Un mensaje puede llegar por varios caminos (ACK del envío, broadcast
+  // `nuevo_mensaje`, refresco REST). Se concilia contra el optimista en vez de
+  // agregarlo aparte, para que no aparezca dos veces.
+  const conciliarMensaje = useCallback((nuevo) => {
+    if (!nuevo?.id) return;
+    setMessages((prev) => {
+      const cid = nuevo._clientId;
+      const idxOptimista = prev.findIndex(
+        (m) =>
+          m._estado === "enviando" &&
+          ((cid && m._clientId === cid) ||
+            (!cid && m.autor_id === nuevo.autor_id && m.texto === nuevo.texto))
+      );
+      if (idxOptimista !== -1) {
+        const copia = prev.slice();
+        copia[idxOptimista] = {
+          ...nuevo,
+          _clientId: prev[idxOptimista]._clientId,
+          _estado: "enviado",
+        };
+        return copia;
+      }
+      if (prev.some((m) => m.id === nuevo.id)) return prev;
+      return [...prev, { ...nuevo, _estado: "enviado" }];
+    });
+  }, []);
 
   const cargar = useCallback(async () => {
     if (!reservation?.id) return;
     try {
-      setMessages((await ApiClient.getMensajes(reservation.id)) || []);
+      const server = (await ApiClient.getMensajes(reservation.id)) || [];
+      setMessages((prev) => {
+        // Se conservan los optimistas que todavía no llegaron al servidor
+        // (enviando / fallido), para no perder lo que el usuario escribió
+        // cuando el canal estaba caído.
+        const optimistasVivos = prev.filter(
+          (m) =>
+            m._estado &&
+            m._estado !== "enviado" &&
+            !server.some((s) => s.autor_id === m.autor_id && s.texto === m.texto)
+        );
+        return [...server, ...optimistasVivos];
+      });
     } catch {
       /* el polling reintenta */
     } finally {
@@ -67,25 +114,76 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     }
   }, [reservation?.id]);
 
-  // Canal en vivo. Si no levanta, `enVivo` queda en false y abajo se
-  // enciende el polling: el chat sigue funcionando igual, solo más lento.
+  const intentarEnviar = useCallback(
+    (msg) => {
+      marcarEstado(msg._clientId, "enviando");
+      const canal = canalRef.current;
+      // 1) Canal en vivo: el ACK / broadcast concilian; si no llega, el propio
+      //    canal avisa por `onEnvioResuelto` y se marca "fallido".
+      if (canal && canal.enviar(msg.texto, msg._clientId)) return;
+      // 2) REST (canal caído). Sin `await` que bloquee la interfaz: el mensaje
+      //    ya está en pantalla como "enviando".
+      ApiClient.enviarMensaje(reservation.id, msg.texto)
+        .then((real) => conciliarMensaje({ ...real, _clientId: msg._clientId }))
+        .catch(() => marcarEstado(msg._clientId, "fallido"));
+    },
+    [reservation?.id, marcarEstado, conciliarMensaje]
+  );
+
+  // ---- escritura en vivo -------------------------------------------------
+
+  const dejarDeEscribir = useCallback(() => {
+    clearTimeout(escribirRef.current.timer);
+    if (escribirRef.current.activo) {
+      escribirRef.current.activo = false;
+      canalRef.current?.escribir(false);
+    }
+  }, []);
+
+  const avisarEscribiendo = useCallback(
+    (texto) => {
+      const canal = canalRef.current;
+      if (!canal) return;
+      if (texto && !escribirRef.current.activo) {
+        escribirRef.current.activo = true;
+        canal.escribir(true);
+      }
+      clearTimeout(escribirRef.current.timer);
+      escribirRef.current.timer = setTimeout(dejarDeEscribir, ESCRIBIR_MS);
+    },
+    [dejarDeEscribir]
+  );
+
+  // ---- canal en vivo ----------------------------------------------------
+
   useEffect(() => {
     if (!reservation?.id) return undefined;
     const canal = conectarChat(reservation.id, {
-      onMensaje: agregarMensaje,
+      onMensaje: conciliarMensaje,
       onEstado: (estado) => {
         setEnVivo(estado === "conectado");
-        // Al reconectar puede haberse perdido algo mientras no había canal:
-        // se vuelve a pedir el historial completo.
+        // Al reconectar puede haberse perdido algo mientras no había canal.
         if (estado === "conectado") cargar();
+      },
+      onEnvioResuelto: ({ clientId, ok }) => {
+        if (!ok) marcarEstado(clientId, "fallido");
+      },
+      onEscribiendo: (activo) => {
+        setOtroEscribiendo(activo);
+        clearTimeout(otroEscribeTimerRef.current);
+        if (activo) {
+          otroEscribeTimerRef.current = setTimeout(() => setOtroEscribiendo(false), 5000);
+        }
       },
     });
     canalRef.current = canal;
     return () => {
+      dejarDeEscribir();
+      clearTimeout(otroEscribeTimerRef.current);
       canal.cerrar();
       canalRef.current = null;
     };
-  }, [reservation?.id, agregarMensaje, cargar]);
+  }, [reservation?.id, conciliarMensaje, marcarEstado, cargar, dejarDeEscribir]);
 
   useEffect(() => {
     cargar();
@@ -94,28 +192,27 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     return () => clearInterval(t);
   }, [cargar, enVivo]);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     const texto = input.trim();
     if (!texto || !reservation?.id) return;
-
-    // Por el canal en vivo el mensaje vuelve difundido por el backend, así que
-    // no hay que agregarlo a mano: llega por `onMensaje` con su id real.
-    if (canalRef.current?.enviar(texto)) {
-      setInput("");
-      return;
-    }
-
-    setSending(true);
+    const clientId = nuevoClientId();
+    const optimista = {
+      id: clientId,
+      _clientId: clientId,
+      _estado: "enviando",
+      reserva_id: reservation.id,
+      autor_id: currentUser?.id,
+      texto,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimista]);
     setInput("");
-    try {
-      agregarMensaje(await ApiClient.enviarMensaje(reservation.id, texto));
-    } catch {
-      // Devolver el texto al campo es la única forma de no perder lo escrito.
-      setInput(texto);
-    } finally {
-      setSending(false);
-    }
+    dejarDeEscribir();
+    intentarEnviar(optimista);
   };
+
+  const auto = reservation?.auto || reservation?.car || {};
+  const interlocutor = dark ? "Arrendatario" : "Dueño del vehículo";
 
   const c = {
     bg: dark ? colors.darkBg : colors.background,
@@ -144,6 +241,60 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     );
   }
 
+  const renderBurbuja = (m) => {
+    const mine = m.autor_id === currentUser?.id;
+    const fallido = m._estado === "fallido";
+    const enviando = m._estado === "enviando";
+    const Wrapper = fallido ? TouchableOpacity : View;
+    return (
+      <Wrapper
+        key={m._clientId || m.id}
+        style={[styles.bubbleWrap, mine ? styles.wrapMine : styles.wrapThem]}
+        {...(fallido
+          ? {
+              onPress: () => intentarEnviar(m),
+              accessibilityRole: "button",
+              accessibilityLabel: "Reintentar enviar el mensaje",
+              activeOpacity: 0.8,
+            }
+          : {})}
+      >
+        <View
+          style={[
+            styles.bubble,
+            mine
+              ? { backgroundColor: colors.primary, borderBottomRightRadius: 4 }
+              : {
+                  backgroundColor: c.surface,
+                  borderWidth: 1,
+                  borderColor: c.border,
+                  borderBottomLeftRadius: 4,
+                },
+            enviando && styles.bubbleEnviando,
+            fallido && styles.bubbleFallido,
+          ]}
+        >
+          <Text style={[styles.bubbleText, { color: mine && !fallido ? "#FFFFFF" : fallido ? colors.dangerText : c.text }]}>
+            {m.texto}
+          </Text>
+          <Text
+            style={[
+              styles.time,
+              { color: mine && !fallido ? "rgba(255,255,255,0.7)" : c.muted },
+              fallido && { color: colors.dangerText, fontWeight: "700" },
+            ]}
+          >
+            {fallido
+              ? "No se envió · toca para reintentar"
+              : enviando
+                ? "Enviando…"
+                : new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </Text>
+        </View>
+      </Wrapper>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: c.bg }]}
@@ -155,7 +306,10 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
       <ScreenHeader
         tone={tone}
         title={interlocutor}
-        subtitle={[auto.marca, auto.modelo, auto.patente].filter(Boolean).join(" · ")}
+        subtitle={
+          [auto.marca, auto.modelo, auto.patente].filter(Boolean).join(" · ") ||
+          (enVivo ? "En línea" : "Reconectando…")
+        }
         onBack={onBack}
       />
 
@@ -164,7 +318,9 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         style={{ flex: 1 }}
         contentContainerStyle={styles.msgs}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
       >
         <View style={[styles.notice, { backgroundColor: dark ? colors.darkCardSubtle : colors.surfaceSubtle }]}>
           <Icon name="shield" size={12} color={c.muted} />
@@ -178,30 +334,24 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         ) : messages.length === 0 ? (
           <Text style={[styles.emptyMsg, { color: c.muted }]}>Aún no hay mensajes. Escribe el primero.</Text>
         ) : (
-          messages.map((m) => {
-            const mine = m.autor_id === currentUser?.id;
-            return (
-              <View key={m.id} style={[styles.bubbleWrap, mine ? styles.wrapMine : styles.wrapThem]}>
-                <View
-                  style={[
-                    styles.bubble,
-                    mine
-                      ? { backgroundColor: colors.primary, borderBottomRightRadius: 4 }
-                      : { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderBottomLeftRadius: 4 },
-                  ]}
-                >
-                  <Text style={[styles.bubbleText, { color: mine ? "#FFFFFF" : c.text }]}>{m.texto}</Text>
-                  <Text style={[styles.time, { color: mine ? "rgba(255,255,255,0.7)" : c.muted }]}>
-                    {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </Text>
-                </View>
-              </View>
-            );
-          })
+          messages.map(renderBurbuja)
         )}
+
+        {otroEscribiendo ? (
+          <View style={[styles.bubbleWrap, styles.wrapThem]}>
+            <View
+              style={[
+                styles.bubble,
+                { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderBottomLeftRadius: 4 },
+              ]}
+            >
+              <Text style={[styles.bubbleText, { color: c.muted, fontStyle: "italic" }]}>escribiendo…</Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.quickWrap, { borderTopColor: c.border }]} contentContainerStyle={styles.quickRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.quickWrap, { borderTopColor: c.border }]} contentContainerStyle={styles.quickRow} keyboardShouldPersistTaps="handled">
         {QUICK.map((q) => (
           <TouchableOpacity
             key={q}
@@ -219,16 +369,24 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
           placeholder="Escribe un mensaje…"
           placeholderTextColor={c.muted}
           value={input}
-          onChangeText={setInput}
+          onChangeText={(t) => {
+            setInput(t);
+            avisarEscribiendo(t);
+          }}
           onSubmitEditing={handleSend}
+          onBlur={dejarDeEscribir}
           returnKeyType="send"
+          blurOnSubmit={false}
+          multiline
         />
         <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.5 }]}
+          style={[styles.sendBtn, !input.trim() && { opacity: 0.5 }]}
           onPress={handleSend}
-          disabled={sending || !input.trim()}
+          disabled={!input.trim()}
+          accessibilityRole="button"
+          accessibilityLabel="Enviar mensaje"
         >
-          {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="arrow-right" size={18} color="#FFFFFF" />}
+          <Icon name="arrow-right" size={18} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -255,6 +413,8 @@ const styles = StyleSheet.create({
   wrapMine: { alignSelf: "flex-end" },
   wrapThem: { alignSelf: "flex-start" },
   bubble: { paddingVertical: 9, paddingHorizontal: 13, borderRadius: theme.radius.card },
+  bubbleEnviando: { opacity: 0.6 },
+  bubbleFallido: { backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder },
   bubbleText: { fontSize: 14, lineHeight: 19 },
   time: { fontSize: 10, marginTop: 3, textAlign: "right" },
   quickWrap: { borderTopWidth: 1, maxHeight: 46 },
@@ -263,7 +423,7 @@ const styles = StyleSheet.create({
   quickText: { fontSize: 12, fontWeight: "500" },
   inputBar: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.screen,
     paddingTop: theme.spacing.md,
@@ -271,10 +431,13 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: theme.control.heightSm,
-    borderRadius: theme.radius.pill,
+    minHeight: theme.control.heightSm,
+    maxHeight: 120,
+    borderRadius: theme.radius.lg,
     borderWidth: 1.5,
     paddingHorizontal: theme.spacing.lg,
+    paddingTop: Platform.OS === "ios" ? 11 : 8,
+    paddingBottom: Platform.OS === "ios" ? 11 : 8,
     fontSize: 15,
   },
   sendBtn: {

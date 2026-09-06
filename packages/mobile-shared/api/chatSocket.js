@@ -7,11 +7,21 @@ import { getAccessToken } from "./supabase";
  * Conecta al servidor de Socket.IO en tiempo real con soporte para reconexión
  * automática, fallback a polling si el WebSocket nativo tiene problemas de red,
  * y salas privadas por reserva (`reserva_{id}`).
+ *
+ * `enviar(texto, clientId)` usa el ACK del servidor: el emit lleva un callback
+ * y el backend responde `{ ok, mensaje }` con el mensaje ya persistido. Así la
+ * pantalla puede conciliar el mensaje optimista con el real sin esperar a que
+ * llegue por el broadcast `nuevo_mensaje` (que también llega, y se deduplica).
  */
 
 const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
   "https://arriendomiautoya.onrender.com/api/v1";
+
+// Cuánto se espera el ACK de un `enviar_mensaje` antes de dar el mensaje por
+// no entregado. El backend en frío (Render) puede tardar, pero pasado esto es
+// mejor marcar "fallido" y ofrecer reintentar que dejar el reloj girando.
+const ACK_TIMEOUT_MS = 12000;
 
 /** Obtiene el origen base del servidor (quitando el path /api/v1) */
 function getSocketBaseUrl() {
@@ -23,7 +33,10 @@ function getSocketBaseUrl() {
   }
 }
 
-export function conectarChat(reservaId, { onMensaje, onEstado, onEscribiendo } = {}) {
+export function conectarChat(
+  reservaId,
+  { onMensaje, onEstado, onEscribiendo, onEnvioResuelto } = {}
+) {
   let socket = null;
   let cerradoAProposito = false;
 
@@ -60,11 +73,9 @@ export function conectarChat(reservaId, { onMensaje, onEstado, onEscribiendo } =
       });
 
       socket.on("connect", () => {
-        // Al conectar, unirse a la sala de la reserva
+        // Al (re)conectar, unirse a la sala de la reserva.
         socket.emit("unir_reserva", { reserva_id: reservaId }, (resp) => {
-          if (resp && resp.ok) {
-            avisar("conectado");
-          }
+          if (resp && resp.ok) avisar("conectado");
         });
       });
 
@@ -75,7 +86,7 @@ export function conectarChat(reservaId, { onMensaje, onEstado, onEscribiendo } =
       socket.on("nuevo_mensaje", (datos) => {
         const msg = datos?.mensaje || datos;
         if (msg && onMensaje) {
-          onMensaje(msg);
+          onMensaje({ ...msg, _clientId: datos?.client_id });
         }
       });
 
@@ -91,12 +102,10 @@ export function conectarChat(reservaId, { onMensaje, onEstado, onEscribiendo } =
         avisar("error");
       });
 
-      socket.on("disconnect", (reason) => {
-        if (!cerradoAProposito) {
-          avisar("desconectado");
-        }
+      socket.on("disconnect", () => {
+        if (!cerradoAProposito) avisar("desconectado");
       });
-    } catch (err) {
+    } catch {
       avisar("error");
     }
   };
@@ -104,13 +113,40 @@ export function conectarChat(reservaId, { onMensaje, onEstado, onEscribiendo } =
   iniciar();
 
   return {
-    /** `true` si el mensaje se emitió por Socket.IO; `false` para mandar por REST. */
-    enviar(texto) {
+    /**
+     * Emite el mensaje por Socket.IO. Devuelve `true` si el canal estaba
+     * arriba (y por tanto el ACK / broadcast conciliarán el optimista) o
+     * `false` para que la pantalla lo mande por REST.
+     */
+    enviar(texto, clientId) {
       if (!socket || !socket.connected) return false;
+      let resuelto = false;
+      const resolver = (ok, mensaje, error) => {
+        if (resuelto) return;
+        resuelto = true;
+        clearTimeout(temporizador);
+        onEnvioResuelto && onEnvioResuelto({ clientId, ok, mensaje, error });
+      };
+      const temporizador = setTimeout(
+        () => resolver(false, null, "timeout"),
+        ACK_TIMEOUT_MS
+      );
       try {
-        socket.emit("enviar_mensaje", { reserva_id: reservaId, texto });
+        socket.emit(
+          "enviar_mensaje",
+          { reserva_id: reservaId, texto, client_id: clientId },
+          (ack) => {
+            if (ack && ack.ok && ack.mensaje) {
+              if (onMensaje) onMensaje({ ...ack.mensaje, _clientId: clientId });
+              resolver(true, ack.mensaje);
+            } else {
+              resolver(false, null, (ack && ack.error) || "rechazado");
+            }
+          }
+        );
         return true;
       } catch {
+        resolver(false, null, "emit-error");
         return false;
       }
     },
@@ -123,6 +159,9 @@ export function conectarChat(reservaId, { onMensaje, onEstado, onEscribiendo } =
       } catch {
         /* ignora si se desconecta */
       }
+    },
+    conectado() {
+      return !!socket && socket.connected;
     },
     cerrar() {
       cerradoAProposito = true;
