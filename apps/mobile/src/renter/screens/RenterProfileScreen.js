@@ -12,8 +12,6 @@ import {
   MenuRow,
   ApiClient,
   showAlert,
-  useBloqueoBiometrico,
-  hayHardwareBiometrico,
   ReferralCodeCard,
   LegalModal,
   AccountStatusCard,
@@ -36,28 +34,10 @@ export function RenterProfileScreen({
   onOpenSupport,
 }) {
   const insets = useSafeAreaInsets();
-  const { currentUser, reservations, logout, setMode, isLoggedIn } = useApp();
+  const { currentUser, reservations, logout, setMode } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
   const [showLegal, setShowLegal] = useState(false);
   const [eliminando, setEliminando] = useState(false);
-  const bio = useBloqueoBiometrico(isLoggedIn);
-  const [hardwareBiometrico, setHardwareBiometrico] = useState(false);
-
-  useEffect(() => {
-    hayHardwareBiometrico().then(setHardwareBiometrico);
-  }, []);
-
-  const toggleBloqueoBiometrico = async () => {
-    if (bio.activado) {
-      await bio.setActivado(false);
-      return;
-    }
-    // Antes de activarlo, se confirma que la huella/Face ID funciona en este
-    // teléfono — si no, quedaría activado un candado que nadie puede abrir.
-    const ok = await bio.intentarDesbloquear();
-    if (ok) await bio.setActivado(true);
-    else showAlert("No se pudo verificar", "Inténtalo de nuevo para activar el bloqueo biométrico.");
-  };
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -189,14 +169,6 @@ export function RenterProfileScreen({
         <MenuList>
           <MenuRow icon="heart" label="Autos guardados" onPress={onOpenFavorites} />
           <MenuRow icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
-          {hardwareBiometrico ? (
-            <MenuRow
-              icon="shield"
-              label="Bloqueo con Face ID / huella"
-              meta={bio.activado ? "Activado" : "Desactivado"}
-              onPress={toggleBloqueoBiometrico}
-            />
-          ) : null}
           <MenuRow icon="help" label="Centro de ayuda y soporte" onPress={onOpenSupport} />
           <MenuRow icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
         </MenuList>

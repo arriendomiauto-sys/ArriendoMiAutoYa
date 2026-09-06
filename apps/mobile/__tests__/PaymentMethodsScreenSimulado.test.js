@@ -17,6 +17,14 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
+// Sin biometría enrolada en el entorno de test: la confirmación de firma deja
+// pasar (no se puede exigir lo que el dispositivo no ofrece).
+jest.mock("expo-local-authentication", () => ({
+  hasHardwareAsync: jest.fn(async () => false),
+  isEnrolledAsync: jest.fn(async () => false),
+  authenticateAsync: jest.fn(async () => ({ success: false })),
+}));
+
 // El factory de jest.mock se iza sobre los imports, así que los jest.fn() se
 // crean adentro y recién después se toma la referencia para configurarlos.
 jest.mock("@rentacar/mobile-shared", () => {
@@ -97,6 +105,7 @@ describe("Pantalla de pago · pasarela simulada", () => {
     await asentar();
 
     pressText(tr, "Simular pago exitoso");
+    await asentar();
     await asentar();
     await asentar();
 

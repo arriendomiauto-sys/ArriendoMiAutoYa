@@ -8,8 +8,6 @@ import {
   colors,
   AuthFlow,
   SwitchingScreen,
-  BiometricLockScreen,
-  useBloqueoBiometrico,
 } from "@rentacar/mobile-shared";
 import { RenterApp } from "./src/renter/RenterApp";
 import { OwnerApp } from "./src/owner/OwnerApp";
@@ -22,19 +20,13 @@ import { OwnerApp } from "./src/owner/OwnerApp";
 // desde su perfil. La verificación de identidad (KYC) no bloquea el acceso:
 // se pide recién al publicar o reservar un auto de verdad.
 function Root() {
-  const { isLoggedIn, authLoading, mode, transition, logout } = useApp();
-  const bio = useBloqueoBiometrico(isLoggedIn);
+  const { isLoggedIn, authLoading, mode, transition } = useApp();
 
-  // Arranque: mientras se rehidrata la sesión de Supabase, o (ya con sesión)
-  // mientras se lee si el bloqueo biométrico está activado, se muestra la
-  // pantalla de carga — así el usuario que nunca activó el bloqueo no ve un
-  // parpadeo de la pantalla de candado en cada apertura.
-  if (authLoading || (isLoggedIn && !bio.cargado)) {
+  // Arranque: mientras se rehidrata la sesión de Supabase se muestra la
+  // pantalla de carga. La biometría ya no bloquea el acceso general — solo se
+  // pide al firmar y confirmar el arriendo de un vehículo.
+  if (authLoading) {
     return <SwitchingScreen mode={mode} title="Cargando tu sesión" subtitle="Un segundo, estamos abriendo la app." />;
-  }
-
-  if (isLoggedIn && bio.activado && !bio.desbloqueada) {
-    return <BiometricLockScreen onIntentarDesbloquear={bio.intentarDesbloquear} onLogout={logout} />;
   }
 
   return (

@@ -11,8 +11,6 @@ import {
   MenuRow,
   ApiClient,
   showAlert,
-  useBloqueoBiometrico,
-  hayHardwareBiometrico,
   ReferralCodeCard,
   LegalModal,
   AccountStatusCard,
@@ -38,26 +36,10 @@ export function OwnerProfileScreen({
   onOpenTarjeta,
 }) {
   const insets = useSafeAreaInsets();
-  const { currentUser, logout, setMode, isLoggedIn } = useApp();
+  const { currentUser, logout, setMode } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
   const [showLegal, setShowLegal] = useState(false);
   const [eliminando, setEliminando] = useState(false);
-  const bio = useBloqueoBiometrico(isLoggedIn);
-  const [hardwareBiometrico, setHardwareBiometrico] = useState(false);
-
-  useEffect(() => {
-    hayHardwareBiometrico().then(setHardwareBiometrico);
-  }, []);
-
-  const toggleBloqueoBiometrico = async () => {
-    if (bio.activado) {
-      await bio.setActivado(false);
-      return;
-    }
-    const ok = await bio.intentarDesbloquear();
-    if (ok) await bio.setActivado(true);
-    else showAlert("No se pudo verificar", "Inténtalo de nuevo para activar el bloqueo biométrico.");
-  };
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -196,14 +178,6 @@ export function OwnerProfileScreen({
         <MenuList>
           <MenuRow icon="shield" label="Garantías y reclamos" onPress={onOpenDisputes} />
           <MenuRow icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
-          {hardwareBiometrico ? (
-            <MenuRow
-              icon="shield"
-              label="Bloqueo con Face ID / huella"
-              meta={bio.activado ? "Activado" : "Desactivado"}
-              onPress={toggleBloqueoBiometrico}
-            />
-          ) : null}
           <MenuRow icon="help" label="Soporte para anfitriones 24/7" onPress={onOpenSupport} />
           <MenuRow icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
         </MenuList>

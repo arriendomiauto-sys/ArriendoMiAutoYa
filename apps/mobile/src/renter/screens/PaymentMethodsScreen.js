@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, StatusBar, ScrollView, Image } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
-import { colors, theme, Icon, Button, Card, ScreenHeader, ApiClient, showAlert, urlWeb } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, Button, Card, ScreenHeader, ApiClient, showAlert, urlWeb, confirmarBiometria } from "@rentacar/mobile-shared";
 
 export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess }) {
   const insets = useSafeAreaInsets();
@@ -81,6 +81,20 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
   const handlePay = async () => {
     if (!esReservaReal) {
       onPaymentSuccess(null);
+      return;
+    }
+    // Firma exclusiva de contratos: la huella/Face ID se pide únicamente aquí,
+    // al confirmar y firmar el arriendo del vehículo. Si el teléfono no tiene
+    // biometría enrolada, `confirmarBiometria` deja pasar (no se puede exigir
+    // lo que el dispositivo no ofrece); si el usuario cancela, no se reserva.
+    const firmado = await confirmarBiometria(
+      "Confirma con tu huella o Face ID para firmar y reservar este vehículo"
+    );
+    if (!firmado) {
+      showAlert(
+        "Firma no confirmada",
+        "Necesitamos tu confirmación biométrica para firmar el contrato y crear la reserva."
+      );
       return;
     }
     setProcessing(true);
