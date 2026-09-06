@@ -665,6 +665,8 @@ class PlatformConfigOut(BaseModel):
     periodo_gracia_minutos: int
     dias_cobro_posterior_peajes: int = 60
     edad_minima_arriendo: int = 21
+    # { "<categoria>": {"base": int, "min": int} } — tarifas por categoría.
+    tarifas_categoria: Optional[Dict[str, Dict[str, int]]] = {}
     actualizado_en: Optional[datetime] = None
 
 class PlatformConfigUpdate(BaseModel):
@@ -679,6 +681,7 @@ class PlatformConfigUpdate(BaseModel):
     periodo_gracia_minutos: Optional[int] = None
     dias_cobro_posterior_peajes: Optional[int] = None
     edad_minima_arriendo: Optional[int] = None
+    tarifas_categoria: Optional[Dict[str, Dict[str, int]]] = None
 
 # ==============================================================================
 # DISPUTAS Y SOPORTE

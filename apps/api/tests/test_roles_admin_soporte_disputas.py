@@ -119,6 +119,26 @@ def test_actualizar_configuracion_requiere_admin(usuario_factory, auth_as):
     assert resp.status_code == 403
 
 
+def test_tarifas_por_categoria_default_y_edicion(client, usuario_factory, auth_as):
+    # De fábrica trae las 5 categorías con base y mínimo. La app móvil las lee
+    # en el asistente de publicación.
+    data = client.get("/api/v1/admin/configuracion").json()
+    tarifas = data["tarifas_categoria"]
+    assert set(tarifas) == {"economico", "sedan", "suv", "camioneta", "premium"}
+    assert tarifas["sedan"] == {"base": 55000, "min": 35000}
+
+    # Un admin puede reajustarlas y quedan guardadas.
+    admin = usuario_factory(roles_activos=["admin"])
+    nuevas = {**tarifas, "sedan": {"base": 60000, "min": 40000}}
+    resp = auth_as(admin).put("/api/v1/admin/configuracion", json={"tarifas_categoria": nuevas})
+    assert resp.status_code == 200
+    assert resp.json()["tarifas_categoria"]["sedan"] == {"base": 60000, "min": 40000}
+    assert client.get("/api/v1/admin/configuracion").json()["tarifas_categoria"]["sedan"] == {
+        "base": 60000,
+        "min": 40000,
+    }
+
+
 # --------------------------- soporte.py ---------------------------
 
 def test_listar_tickets_requiere_admin_o_manager(usuario_factory, auth_as):
