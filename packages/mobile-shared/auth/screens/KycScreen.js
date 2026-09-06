@@ -657,6 +657,11 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       {/* 04: MEDIO DE PAGO */}
       {/* ========================================================================= */}
       {currentStep === "04_tarjeta" && (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+        >
         <ScrollView
           contentContainerStyle={[styles.reviewCenter, { paddingBottom: 60 }]}
           keyboardShouldPersistTaps="handled"
@@ -708,12 +713,18 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             </TouchableOpacity>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
       )}
 
       {/* ========================================================================= */}
       {/* 00: NACIONALIDAD Y TIPO DE DOCUMENTO */}
       {/* ========================================================================= */}
       {currentStep === "00_nacionalidad" && (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+        >
         <ScrollView
           contentContainerStyle={[styles.reviewCenter, { paddingBottom: 60 }]}
           keyboardShouldPersistTaps="handled"
@@ -809,6 +820,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
             </TouchableOpacity>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
       )}
 
       {/* ========================================================================= */}

@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   Switch,
   Image,
@@ -249,30 +250,37 @@ export function MyCarsScreen({
               {editingCar?.marca} {editingCar?.modelo} · {editingCar?.patente}
             </Text>
 
-            <Text style={styles.fieldLabel}>Tarifa por día (CLP)</Text>
-            <TextInput
-              style={styles.input}
-              value={newTarifa}
-              onChangeText={setNewTarifa}
-              keyboardType="number-pad"
-              placeholder="42000"
-              placeholderTextColor={colors.textPlaceholder}
-            />
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.fieldLabel}>Tarifa por día (CLP)</Text>
+              <TextInput
+                style={styles.input}
+                value={newTarifa}
+                onChangeText={setNewTarifa}
+                keyboardType="number-pad"
+                placeholder="42000"
+                placeholderTextColor={colors.textPlaceholder}
+              />
 
-            {newTarifa && !isNaN(parseInt(newTarifa, 10)) ? (
-              <View style={[oc.seccionSuave, styles.simBox]}>
-                <View style={styles.simRow}>
-                  <Text style={styles.simLabel}>Se cobra en tramos de $5.000</Text>
-                  <Text style={styles.simValue}>{fmt(aTramo(newTarifa))}</Text>
+              {newTarifa && !isNaN(parseInt(newTarifa, 10)) ? (
+                <View style={[oc.seccionSuave, styles.simBox]}>
+                  <View style={styles.simRow}>
+                    <Text style={styles.simLabel}>Se cobra en tramos de $5.000</Text>
+                    <Text style={styles.simValue}>{fmt(aTramo(newTarifa))}</Text>
+                  </View>
+                  <View style={styles.simRow}>
+                    <Text style={styles.simLabel}>Tu ingreso líquido (80%)</Text>
+                    <Text style={[styles.simValue, { color: colors.accentDark }]}>
+                      {fmt(Math.round(aTramo(newTarifa) * 0.8))}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.simRow}>
-                  <Text style={styles.simLabel}>Tu ingreso líquido (80%)</Text>
-                  <Text style={[styles.simValue, { color: colors.accentDark }]}>
-                    {fmt(Math.round(aTramo(newTarifa) * 0.8))}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
+              ) : null}
+            </ScrollView>
 
             <View style={styles.modalActions}>
               <Button variant="secondary" label="Cancelar" onPress={() => setEditingCar(null)} style={{ flex: 1 }} />
@@ -371,6 +379,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
   modalSub: { fontSize: 13, color: colors.textMuted, marginTop: -6 },
+  modalScroll: { maxHeight: 260 },
+  modalScrollContent: { gap: theme.spacing.md, paddingVertical: 2 },
   fieldLabel: {
     fontSize: 12,
     fontWeight: "600",
