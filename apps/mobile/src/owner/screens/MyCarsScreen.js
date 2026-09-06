@@ -24,6 +24,10 @@ import {
   VerifyIdentityBanner,
   GPSMapModal,
 } from "@rentacar/mobile-shared";
+import { CabeceraOwner, FranjaResumen, oc } from "../comun";
+
+const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
+const aTramo = (n) => Math.max(15000, Math.round((parseInt(n, 10) || 0) / 5000) * 5000);
 
 // `cars`/`setCars` vienen como props (la flota real del dueño, desde
 // OwnerApp) — no del contexto global, que es el marketplace público completo.
@@ -35,6 +39,9 @@ export function MyCarsScreen({
   onAddNewCar,
   onOpenCalendar,
   onOpenMaintenance,
+  onOpenChat,
+  onOpenEarnings,
+  noLeidos,
   identidadVerificada,
   onVerifyIdentity,
 }) {
@@ -43,6 +50,11 @@ export function MyCarsScreen({
   const [newTarifa, setNewTarifa] = useState("");
   const [saving, setSaving] = useState(false);
   const [gpsCar, setGpsCar] = useState(null);
+
+  const disponibles = (cars || []).filter((c) => c.estado === "activo").length;
+  const potencialDia = (cars || [])
+    .filter((c) => c.estado === "activo")
+    .reduce((s, c) => s + Math.round((c.tarifa_dia || 0) * 0.8), 0);
 
   const toggleCarAvailability = async (car) => {
     const nuevoEstado = car.estado === "pausado" ? "activo" : "pausado";
@@ -57,9 +69,9 @@ export function MyCarsScreen({
 
   const handleSaveRate = async () => {
     if (!editingCar || !newTarifa) return;
-    const tarifaNum = parseInt(newTarifa, 10);
-    if (isNaN(tarifaNum) || tarifaNum < 15000) {
-      showAlert("Tarifa inválida", "La tarifa mínima sugerida es $15.000 CLP por día.");
+    const tarifaNum = aTramo(newTarifa);
+    if (tarifaNum < 15000) {
+      showAlert("Tarifa inválida", "La tarifa mínima es $15.000 CLP por día.");
       return;
     }
     setSaving(true);
@@ -67,7 +79,7 @@ export function MyCarsScreen({
       const actualizado = await ApiClient.actualizarAuto(editingCar.id, { tarifa_dia: tarifaNum });
       setCars((prev) => prev.map((c) => (c.id === editingCar.id ? actualizado : c)));
       setEditingCar(null);
-      showAlert("Tarifa actualizada", `Nueva tarifa: $${tarifaNum.toLocaleString("es-CL")} por día.`);
+      showAlert("Tarifa actualizada", `Nueva tarifa: ${fmt(tarifaNum)} por día.`);
     } catch (err) {
       showAlert("No se pudo guardar la tarifa", err.message);
     } finally {
@@ -82,17 +94,18 @@ export function MyCarsScreen({
     const docsOk = item.documentos_verificados;
 
     return (
-      <View style={styles.card}>
+      <View style={[oc.card, styles.card]}>
         <View style={styles.imageWrap}>
-          <Image
-            source={{
-              uri: item.fotos?.[0] || "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800",
-            }}
-            style={styles.image}
-          />
-          <View style={[styles.statusPill, disponible ? styles.pillActive : styles.pillPaused]}>
-            <View style={[styles.pillDot, { backgroundColor: disponible ? colors.accent500 : colors.textSilver }]} />
-            <Text style={[styles.pillText, { color: disponible ? colors.accent : colors.textSilver }]}>
+          {item.fotos?.[0] ? (
+            <Image source={{ uri: item.fotos[0] }} style={styles.image} />
+          ) : (
+            <View style={[styles.image, styles.imageEmpty]}>
+              <Icon name="car" size={44} color={colors.primary200} />
+            </View>
+          )}
+          <View style={[oc.pill, styles.statusPill]}>
+            <View style={[oc.pillDot, { backgroundColor: disponible ? colors.accent : colors.textMuted }]} />
+            <Text style={[oc.pillText, { color: disponible ? colors.accentDark : colors.textMuted }]}>
               {disponible ? "Disponible" : "Pausado"}
             </Text>
           </View>
@@ -108,50 +121,56 @@ export function MyCarsScreen({
             </Text>
           </View>
 
-          <View style={styles.rateBox}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rateLabel}>Tarifa / día</Text>
-              <Text style={styles.rateValue}>${tarifa.toLocaleString("es-CL")}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rateLabel}>Recibes (80%)</Text>
-              <Text style={[styles.rateValue, { color: colors.accent }]}>${ganancia.toLocaleString("es-CL")}</Text>
-            </View>
-            <TouchableOpacity style={styles.editBtn} onPress={() => { setEditingCar(item); setNewTarifa(String(tarifa)); }}>
-              <Icon name="settings" size={14} color={colors.textWhite} />
-              <Text style={styles.editBtnText}>Editar</Text>
-            </TouchableOpacity>
-          </View>
-
           {!docsOk && (
             <View style={styles.docsWarn}>
-              <Icon name="warning" size={14} color="#F2C879" />
+              <Icon name="warning" size={14} color={colors.warning} />
               <Text style={styles.docsWarnText}>Documentos en revisión</Text>
             </View>
           )}
+
+          <View style={[oc.seccionMarca, styles.rateBox]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rateLabel}>Tarifa / día</Text>
+              <Text style={styles.rateValue}>{fmt(tarifa)}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rateLabel}>Recibes (80%)</Text>
+              <Text style={[styles.rateValue, { color: colors.accentDark }]}>{fmt(ganancia)}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => {
+                setEditingCar(item);
+                setNewTarifa(String(tarifa));
+              }}
+            >
+              <Icon name="settings" size={14} color="#FFFFFF" />
+              <Text style={styles.editBtnText}>Editar</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>Disponible para arriendos</Text>
             <Switch
               value={disponible}
               onValueChange={() => toggleCarAvailability(item)}
-              trackColor={{ false: colors.darkBorderStrong, true: colors.accent }}
-              thumbColor={colors.white}
+              trackColor={{ false: colors.border, true: colors.accent }}
+              thumbColor="#FFFFFF"
             />
           </View>
 
           <View style={styles.tools}>
             <TouchableOpacity style={styles.tool} onPress={() => onOpenCalendar?.(item)} activeOpacity={0.8}>
-              <Icon name="calendar" size={15} color={colors.accent} />
+              <Icon name="calendar" size={15} color={colors.primary} />
               <Text style={styles.toolText}>Calendario</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.tool} onPress={() => onOpenMaintenance?.(item)} activeOpacity={0.8}>
-              <Icon name="settings" size={15} color={colors.accent} />
+              <Icon name="settings" size={15} color={colors.primary} />
               <Text style={styles.toolText}>Mantenciones</Text>
             </TouchableOpacity>
             {item.gps_consentimiento && (
               <TouchableOpacity style={styles.tool} onPress={() => setGpsCar(item)} activeOpacity={0.8}>
-                <Icon name="location" size={15} color={colors.accent} />
+                <Icon name="location" size={15} color={colors.primary} />
                 <Text style={styles.toolText}>GPS</Text>
               </TouchableOpacity>
             )}
@@ -162,23 +181,19 @@ export function MyCarsScreen({
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Mi flota</Text>
-          <Text style={styles.subtitle}>
-            {cars?.length
-              ? `${cars.length} ${cars.length === 1 ? "vehículo" : "vehículos"}`
-              : error
-                ? "No pudimos cargar tu flota"
-                : "Publica tu primer auto"}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.addBtn} onPress={onAddNewCar} activeOpacity={0.85}>
-          <Icon name="plus" size={16} color={colors.primary900} />
-          <Text style={styles.addBtnText}>Publicar</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+      <CabeceraOwner
+        titulo="Mi flota"
+        subtitulo={
+          cars?.length
+            ? `${cars.length} ${cars.length === 1 ? "vehículo" : "vehículos"} · ${disponibles} disponible${disponibles === 1 ? "" : "s"}`
+            : error
+              ? "No pudimos cargar tu flota"
+              : "Publica tu primer auto"
+        }
+        noLeidos={noLeidos}
+        onMensajes={onOpenChat}
+      />
 
       {!identidadVerificada && (
         <View style={styles.banner}>
@@ -189,14 +204,25 @@ export function MyCarsScreen({
       <FlatList
         data={cars}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.list, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+        contentContainerStyle={[oc.listContent, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          cars?.length ? (
+            <TouchableOpacity onPress={onOpenEarnings} activeOpacity={0.9} accessibilityRole="button">
+              <FranjaResumen
+                items={[
+                  { value: cars.length, label: "Autos" },
+                  { value: disponibles, label: "Disponibles" },
+                  { value: `$${Math.round(potencialDia / 1000)}k`, label: "Potencial / día" },
+                ]}
+              />
+            </TouchableOpacity>
+          ) : null
+        }
         renderItem={renderCar}
         ListEmptyComponent={
           error ? (
-            // La flota no se pudo traer: no es lo mismo que no tener autos.
             <EmptyState
-              tone="dark"
               icon="alert"
               title="No pudimos cargar tu flota"
               message={`${error} Tus autos siguen publicados; vuelve a intentarlo.`}
@@ -205,7 +231,6 @@ export function MyCarsScreen({
             />
           ) : (
             <EmptyState
-              tone="dark"
               icon="car"
               title="Todavía no tienes autos publicados"
               message="Publica tu vehículo con fotos y documentos para empezar a recibir arriendos."
@@ -231,27 +256,27 @@ export function MyCarsScreen({
               onChangeText={setNewTarifa}
               keyboardType="number-pad"
               placeholder="42000"
-              placeholderTextColor={colors.textSilver}
+              placeholderTextColor={colors.textPlaceholder}
             />
 
             {newTarifa && !isNaN(parseInt(newTarifa, 10)) ? (
-              <View style={styles.simBox}>
+              <View style={[oc.seccionSuave, styles.simBox]}>
                 <View style={styles.simRow}>
-                  <Text style={styles.simLabel}>Cobro al cliente</Text>
-                  <Text style={styles.simValue}>${parseInt(newTarifa, 10).toLocaleString("es-CL")}</Text>
+                  <Text style={styles.simLabel}>Se cobra en tramos de $5.000</Text>
+                  <Text style={styles.simValue}>{fmt(aTramo(newTarifa))}</Text>
                 </View>
                 <View style={styles.simRow}>
                   <Text style={styles.simLabel}>Tu ingreso líquido (80%)</Text>
-                  <Text style={[styles.simValue, { color: colors.accent }]}>
-                    ${Math.round(parseInt(newTarifa, 10) * 0.8).toLocaleString("es-CL")}
+                  <Text style={[styles.simValue, { color: colors.accentDark }]}>
+                    {fmt(Math.round(aTramo(newTarifa) * 0.8))}
                   </Text>
                 </View>
               </View>
             ) : null}
 
             <View style={styles.modalActions}>
-              <Button tone="dark" variant="secondary" label="Cancelar" onPress={() => setEditingCar(null)} style={{ flex: 1 }} />
-              <Button tone="dark" label="Guardar" onPress={handleSaveRate} loading={saving} style={{ flex: 1 }} />
+              <Button variant="secondary" label="Cancelar" onPress={() => setEditingCar(null)} style={{ flex: 1 }} />
+              <Button label="Guardar" onPress={handleSaveRate} loading={saving} style={{ flex: 1 }} />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -268,67 +293,23 @@ export function MyCarsScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.darkBg },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.md,
-  },
-  title: { ...theme.typography.title, color: colors.textWhite },
-  subtitle: { fontSize: 13, color: colors.textSilver, marginTop: 2 },
-  addBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: colors.accent,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: theme.radius.field,
-  },
-  addBtnText: { color: colors.primary900, fontWeight: "700", fontSize: 14 },
+  card: { overflow: "hidden", padding: 0 },
   banner: { paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.md },
-  list: { paddingHorizontal: theme.spacing.screen, gap: theme.spacing.lg },
-  card: {
-    backgroundColor: colors.darkCard,
-    borderRadius: theme.radius.card,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-  },
-  imageWrap: { height: 150, backgroundColor: colors.darkCardHover },
+  imageWrap: { height: 150, backgroundColor: colors.surfaceSecondary },
   image: { width: "100%", height: "100%" },
+  imageEmpty: { alignItems: "center", justifyContent: "center", backgroundColor: colors.primary100 },
   statusPill: {
     position: "absolute",
     top: theme.spacing.md,
     left: theme.spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: theme.radius.pill,
-    backgroundColor: "rgba(6,30,31,0.78)",
+    backgroundColor: "rgba(255,255,255,0.94)",
   },
-  pillActive: {},
-  pillPaused: {},
-  pillDot: { width: 6, height: 6, borderRadius: 3 },
-  pillText: { fontSize: 12, fontWeight: "700" },
   body: { padding: theme.spacing.lg, gap: theme.spacing.md },
-  carName: { fontSize: 16, fontWeight: "700", color: colors.textWhite },
-  carMeta: { fontSize: 13, color: colors.textSilver, marginTop: 2 },
-  rateBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    backgroundColor: colors.darkCardSubtle,
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.field,
-  },
-  rateLabel: { fontSize: 11, color: colors.darkTextMuted, fontWeight: "600" },
-  rateValue: { fontSize: 15, fontWeight: "800", color: colors.textWhite, marginTop: 2 },
+  carName: { fontSize: 16, fontWeight: "700", color: colors.text },
+  carMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  rateBox: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
+  rateLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
+  rateValue: { fontSize: 15, fontWeight: "800", color: colors.text, marginTop: 2 },
   editBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -336,28 +317,30 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: theme.radius.sm,
-    backgroundColor: colors.primary600,
+    backgroundColor: colors.primary,
   },
-  editBtnText: { fontSize: 12, fontWeight: "700", color: colors.textWhite },
+  editBtnText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
   docsWarn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(242,200,121,0.12)",
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
     borderRadius: theme.radius.sm,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  docsWarnText: { fontSize: 12, color: "#F2C879", fontWeight: "600" },
+  docsWarnText: { fontSize: 12, color: colors.warningText, fontWeight: "600" },
   switchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: theme.spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.darkBorder,
+    borderTopColor: colors.border,
   },
-  switchLabel: { fontSize: 13, color: colors.textWhite },
+  switchLabel: { fontSize: 13, color: colors.text },
   tools: { flexDirection: "row", gap: theme.spacing.sm },
   tool: {
     flex: 1,
@@ -365,55 +348,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: colors.darkCardSubtle,
+    backgroundColor: colors.surfaceSubtle,
     paddingVertical: 10,
     borderRadius: theme.radius.field,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
+    borderColor: colors.border,
   },
-  toolText: { fontSize: 12, fontWeight: "600", color: colors.textWhite },
+  toolText: { fontSize: 12, fontWeight: "600", color: colors.text },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(6,30,31,0.75)",
+    backgroundColor: "rgba(6,30,31,0.45)",
     justifyContent: "center",
     padding: theme.spacing.xl,
   },
   modalCard: {
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.card,
     padding: theme.spacing.xl,
     borderWidth: 1,
-    borderColor: colors.darkBorderStrong,
+    borderColor: colors.border,
     gap: theme.spacing.md,
   },
-  modalTitle: { fontSize: 17, fontWeight: "700", color: colors.textWhite },
-  modalSub: { fontSize: 13, color: colors.textSilver, marginTop: -6 },
+  modalTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
+  modalSub: { fontSize: 13, color: colors.textMuted, marginTop: -6 },
   fieldLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: colors.textSilver,
+    color: colors.textMuted,
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
   input: {
-    backgroundColor: colors.darkCardSubtle,
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.field,
     paddingHorizontal: 14,
     height: theme.control.height,
     fontSize: 16,
-    color: colors.textWhite,
+    color: colors.text,
     fontWeight: "700",
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
-  simBox: {
-    backgroundColor: colors.darkCardSubtle,
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.field,
-    gap: 6,
-  },
+  simBox: { gap: 6 },
   simRow: { flexDirection: "row", justifyContent: "space-between" },
-  simLabel: { fontSize: 13, color: colors.textSilver },
-  simValue: { fontSize: 13, color: colors.textWhite, fontWeight: "700" },
+  simLabel: { fontSize: 13, color: colors.textMuted },
+  simValue: { fontSize: 13, color: colors.text, fontWeight: "700" },
   modalActions: { flexDirection: "row", gap: theme.spacing.md, marginTop: 4 },
 });

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
-import { colors, theme, Icon, Badge, EmptyState, ApiClient } from "@rentacar/mobile-shared";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient } from "@rentacar/mobile-shared";
+import { oc } from "../comun";
 
 function formatearFecha(iso) {
   if (!iso) return "—";
@@ -19,7 +21,8 @@ const ESTADO_BADGE = {
 
 // No hay un endpoint de "conversaciones": se listan las reservas del dueño y
 // desde acá se entra al chat real de cada una.
-export function ChatListScreen({ onSelectReserva }) {
+export function ChatListScreen({ onSelectReserva, onBack }) {
+  const insets = useSafeAreaInsets();
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,21 +43,22 @@ export function ChatListScreen({ onSelectReserva }) {
   }, [cargar]);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Mensajes</Text>
-        <Text style={styles.subtitle}>Coordina la entrega con cada arrendatario</Text>
-      </View>
+    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+      <ScreenHeader
+        title="Mensajes"
+        subtitle="Coordina la entrega con cada arrendatario"
+        onBack={onBack}
+      />
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={reservas}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} tintColor={colors.primary} />}
           renderItem={({ item }) => {
             const auto = item.auto || {};
             const nombre = [auto.marca, auto.modelo].filter(Boolean).join(" ") || "Auto";
@@ -62,24 +66,25 @@ export function ChatListScreen({ onSelectReserva }) {
             return (
               <TouchableOpacity style={styles.card} onPress={() => onSelectReserva(item)} activeOpacity={0.8}>
                 <View style={styles.avatar}>
-                  <Icon name="user" size={18} color={colors.accent} />
+                  <Icon name="user" size={18} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1, gap: 3 }}>
                   <View style={styles.cardHead}>
-                    <Text style={styles.carName} numberOfLines={1}>{nombre}</Text>
+                    <Text style={styles.carName} numberOfLines={1}>
+                      {nombre}
+                    </Text>
                     {badge ? <Badge variant={badge.variant} label={badge.label} /> : null}
                   </View>
                   <Text style={styles.date}>
                     {formatearFecha(item.fecha_inicio)} – {formatearFecha(item.fecha_fin)}
                   </Text>
                 </View>
-                <Icon name="chevron-right" size={16} color={colors.textSilver} />
+                <Icon name="chevron-right" size={16} color={colors.textMuted} />
               </TouchableOpacity>
             );
           }}
           ListEmptyComponent={
             <EmptyState
-              tone="dark"
               icon="chat"
               title="Sin conversaciones aún"
               message="Cuando tengas reservas confirmadas, podrás coordinar aquí con cada arrendatario."
@@ -92,30 +97,27 @@ export function ChatListScreen({ onSelectReserva }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.darkBg },
-  header: { paddingHorizontal: theme.spacing.screen, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.md },
-  title: { ...theme.typography.title, color: colors.textWhite },
-  subtitle: { fontSize: 13, color: colors.textSilver, marginTop: 2 },
-  list: { paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.xxxl, gap: theme.spacing.sm },
+  list: { paddingHorizontal: theme.spacing.screen, gap: theme.spacing.sm },
   card: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.md,
-    backgroundColor: colors.darkCard,
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.card,
     padding: theme.spacing.md,
     borderWidth: 1,
-    borderColor: colors.darkBorder,
+    borderColor: colors.border,
+    ...theme.shadow.sm,
   },
   avatar: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "rgba(47,191,155,0.14)",
+    backgroundColor: colors.primary100,
     alignItems: "center",
     justifyContent: "center",
   },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
-  carName: { fontSize: 15, fontWeight: "700", color: colors.textWhite, flex: 1 },
-  date: { fontSize: 13, color: colors.textSilver },
+  carName: { fontSize: 15, fontWeight: "700", color: colors.text, flex: 1 },
+  date: { fontSize: 13, color: colors.textMuted },
 });

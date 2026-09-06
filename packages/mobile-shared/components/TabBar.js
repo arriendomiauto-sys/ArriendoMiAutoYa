@@ -14,6 +14,10 @@ import { Icon } from "./Icon";
  * Un aviso que nunca se apaga deja de ser un aviso — la gente aprende a
  * ignorarlo y también se pierde el mensaje que sí importaba. Acá el globo
  * muestra un número real y desaparece en cero.
+ *
+ * `centerAction` (opcional): botón redondo elevado al centro, para la acción
+ * principal de esa app (el dueño lo usa para "Publicar un auto"). Es
+ * `{ icon, label, onPress }`. Si no se pasa, la barra se ve como siempre.
  */
 
 const MAXIMO_VISIBLE = 9;
@@ -70,7 +74,34 @@ function Item({ tab, activa, apagado, onPress }) {
   );
 }
 
-export function TabBar({ tabs, activeTab, onChange, tone = "light" }) {
+function BotonCentral({ accion, fondo }) {
+  const escala = useRef(new Animated.Value(1)).current;
+  const onPressIn = () =>
+    Animated.spring(escala, { toValue: 0.9, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+  const onPressOut = () =>
+    Animated.spring(escala, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
+
+  return (
+    <View style={styles.centro}>
+      <Animated.View style={{ transform: [{ scale: escala }] }}>
+        <TouchableOpacity
+          onPress={accion.onPress}
+          onPressIn={onPressIn}
+          onPressOut={onPressOut}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel={accion.label || "Agregar"}
+          style={[styles.fab, { borderColor: fondo }]}
+        >
+          <Icon name={accion.icon || "plus"} size={28} color="#FFFFFF" strokeWidth={2.4} />
+        </TouchableOpacity>
+      </Animated.View>
+      {accion.label ? <Text style={styles.centroLabel}>{accion.label}</Text> : null}
+    </View>
+  );
+}
+
+export function TabBar({ tabs, activeTab, onChange, tone = "light", centerAction }) {
   const insets = useSafeAreaInsets();
   const oscuro = tone === "dark";
 
@@ -80,6 +111,31 @@ export function TabBar({ tabs, activeTab, onChange, tone = "light" }) {
     apagado: oscuro ? colors.textSilver : colors.textMuted,
   };
 
+  const renderItem = (tab) => (
+    <Item
+      key={tab.id}
+      tab={tab}
+      activa={tab.id === activeTab}
+      apagado={c.apagado}
+      onPress={() => onChange(tab.id)}
+    />
+  );
+
+  let contenido;
+  if (centerAction) {
+    // 4 tabs → 2 + botón + 2. El botón sobresale de la barra.
+    const mitad = Math.ceil(tabs.length / 2);
+    contenido = (
+      <>
+        {tabs.slice(0, mitad).map(renderItem)}
+        <BotonCentral accion={centerAction} fondo={c.fondo} />
+        {tabs.slice(mitad).map(renderItem)}
+      </>
+    );
+  } else {
+    contenido = tabs.map(renderItem);
+  }
+
   return (
     <View
       style={[
@@ -88,15 +144,7 @@ export function TabBar({ tabs, activeTab, onChange, tone = "light" }) {
       ]}
       accessibilityRole="tablist"
     >
-      {tabs.map((tab) => (
-        <Item
-          key={tab.id}
-          tab={tab}
-          activa={tab.id === activeTab}
-          apagado={c.apagado}
-          onPress={() => onChange(tab.id)}
-        />
-      ))}
+      {contenido}
     </View>
   );
 }
@@ -106,7 +154,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     flexDirection: "row",
     justifyContent: "space-around",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingTop: 10,
   },
   // 48 de alto es el mínimo cómodo para tocar sin apuntar. Antes el área
@@ -127,4 +175,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   globoTexto: { fontSize: 10, fontWeight: "700", color: "#FFFFFF" },
+  centro: { alignItems: "center", gap: 4, minWidth: 60, marginTop: -24 },
+  fab: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 4,
+    ...theme.shadow.lg,
+  },
+  centroLabel: { fontSize: 11, fontWeight: "700", color: colors.primary },
 });

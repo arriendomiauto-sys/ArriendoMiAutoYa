@@ -31,19 +31,16 @@ export function OwnerApp() {
   const { currentUser } = useApp();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
-  // Pestañas de Navegación del Dueño
-  const [activeTab, setActiveTab] = useState("cars"); // 'cars' | 'bookings' | 'earnings' | 'chat' | 'profile'
+  // Pestañas de Navegación del Dueño. "Mensajes" ya no es pestaña: se abre
+  // desde el ícono del header de cada pantalla (ver `showChat`).
+  const [activeTab, setActiveTab] = useState("cars"); // 'cars' | 'bookings' | 'earnings' | 'profile'
+  const [showChat, setShowChat] = useState(false);
 
-  // No leídos reales para el globo de "Mensajes". Antes el punto rojo estaba
-  // pintado a mano y se veía encendido siempre, hubiera mensajes o no.
+  // No leídos reales para el globo de "Mensajes".
   const { noLeidos, refrescar: refrescarConversaciones } = useConversaciones();
 
-  // Flota real del dueño autenticado (cualquier estado, no solo activos) —
-  // separada del listado público del marketplace.
+  // Flota real del dueño autenticado (cualquier estado, no solo activos).
   const [misAutos, setMisAutos] = useState([]);
-  // Motivo del último fallo al traer la flota (o null). Antes solo se
-  // registraba en consola: si GET /autos/mios fallaba, "Mi flota" quedaba
-  // vacía y parecía que el dueño no tenía autos publicados.
   const [errorFlota, setErrorFlota] = useState(null);
   const cargarMisAutos = useCallback(async () => {
     try {
@@ -55,9 +52,6 @@ export function OwnerApp() {
       setErrorFlota(err?.message || "No pudimos cargar tu flota.");
     }
   }, []);
-  // Se reintenta cuando aparece el perfil: el primer render puede ocurrir
-  // antes de que la sesión de Supabase esté disponible, y ahí la petición
-  // se iba sin token y volvía 401 dejando la flota vacía para siempre.
   useEffect(() => {
     cargarMisAutos();
   }, [cargarMisAutos, currentUser?.id]);
@@ -78,6 +72,15 @@ export function OwnerApp() {
   const [selectedReservaForChat, setSelectedReservaForChat] = useState(null);
   const [selectedReservaForContract, setSelectedReservaForContract] = useState(null);
 
+  const abrirMensajes = () => setShowChat(true);
+  const cerrarMensajes = () => {
+    setShowChat(false);
+    setSelectedReservaForChat(null);
+    // Al salir de Mensajes el backend ya marcó como leídos los que se
+    // abrieron: es el momento de refrescar el contador del globo.
+    refrescarConversaciones();
+  };
+
   const handleAddNewCar = () => {
     if (!identidadVerificada) {
       showAlert(
@@ -90,9 +93,6 @@ export function OwnerApp() {
       );
       return;
     }
-    // Sin tarjeta validada, el backend igual va a rechazar la publicación —
-    // mejor avisar ANTES de que llene todo el formulario del auto, con una
-    // salida directa a agregarla, en vez de que se entere recién al final.
     if (currentUser?.tarjeta_estado !== "validada") {
       showAlert(
         "Necesitas una tarjeta registrada",
@@ -107,9 +107,7 @@ export function OwnerApp() {
     setShowAddCar(true);
   };
 
-  // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
-    // Verificación de Identidad KYC (mismo componente que usa el registro)
     if (showEnrolment) {
       return (
         <KycScreen
@@ -124,7 +122,6 @@ export function OwnerApp() {
       return <TarjetaScreen onBack={() => setShowTarjeta(false)} onDone={() => setShowTarjeta(false)} />;
     }
 
-    // Flujo Crítico de Entrega y Devolución 360°
     if (showDeliveryFlow) {
       return (
         <DeliveryScreen
@@ -138,32 +135,18 @@ export function OwnerApp() {
       );
     }
 
-    // Modal de Calendario de Disponibilidad
     if (showCalendar) {
-      return (
-        <CarCalendarScreen
-          car={selectedCarForModal}
-          onBack={() => setShowCalendar(false)}
-        />
-      );
+      return <CarCalendarScreen car={selectedCarForModal} onBack={() => setShowCalendar(false)} />;
     }
 
-    // Modal de Mantenimiento y Alertas Técnicas
     if (showMaintenance) {
-      return (
-        <CarMaintenanceScreen
-          car={selectedCarForModal}
-          onBack={() => setShowMaintenance(false)}
-        />
-      );
+      return <CarMaintenanceScreen car={selectedCarForModal} onBack={() => setShowMaintenance(false)} />;
     }
 
-    // Modal de Disputas y Daños
     if (showDisputes) {
       return <DisputesScreen onBack={() => setShowDisputes(false)} />;
     }
 
-    // Publicar / editar auto
     if (showAddCar) {
       return (
         <AddEditCarScreen
@@ -184,6 +167,20 @@ export function OwnerApp() {
       return <SupportScreen variant="owner" onBack={() => setShowSupport(false)} />;
     }
 
+    // Mensajes: fuera del navbar, se abre desde el header.
+    if (showChat) {
+      if (selectedReservaForChat) {
+        return (
+          <RentalChatScreen
+            variant="owner"
+            reservation={selectedReservaForChat}
+            onBack={() => setSelectedReservaForChat(null)}
+          />
+        );
+      }
+      return <ChatListScreen onSelectReserva={setSelectedReservaForChat} onBack={cerrarMensajes} />;
+    }
+
     switch (activeTab) {
       case "cars":
         return (
@@ -195,6 +192,9 @@ export function OwnerApp() {
             onAddNewCar={handleAddNewCar}
             identidadVerificada={identidadVerificada}
             onVerifyIdentity={() => setShowEnrolment(true)}
+            noLeidos={noLeidos}
+            onOpenChat={abrirMensajes}
+            onOpenEarnings={() => setActiveTab("earnings")}
             onOpenCalendar={(car) => {
               setSelectedCarForModal(car);
               setShowCalendar(true);
@@ -209,6 +209,8 @@ export function OwnerApp() {
       case "bookings":
         return (
           <DriverBookingsScreen
+            noLeidos={noLeidos}
+            onOpenChat={abrirMensajes}
             onOpenDelivery={(reserva) => {
               setSelectedReservaForDelivery(reserva);
               setShowDeliveryFlow(true);
@@ -223,22 +225,12 @@ export function OwnerApp() {
       case "earnings":
         return (
           <EarningsScreen
+            noLeidos={noLeidos}
+            onOpenChat={abrirMensajes}
             onOpenDisputes={() => setShowDisputes(true)}
             onBack={() => setActiveTab("cars")}
           />
         );
-
-      case "chat":
-        if (selectedReservaForChat) {
-          return (
-            <RentalChatScreen
-              variant="owner"
-              reservation={selectedReservaForChat}
-              onBack={() => setSelectedReservaForChat(null)}
-            />
-          );
-        }
-        return <ChatListScreen onSelectReserva={setSelectedReservaForChat} />;
 
       case "profile":
         return (
@@ -254,7 +246,7 @@ export function OwnerApp() {
             onOpenNotifications={() => setShowNotifications(true)}
             onOpenSupport={() => setShowSupport(true)}
             onOpenContract={() => setActiveTab("bookings")}
-            onOpenChat={() => setActiveTab("chat")}
+            onOpenChat={abrirMensajes}
             onOpenEnrolment={() => setShowEnrolment(true)}
             onOpenTarjeta={() => setShowTarjeta(true)}
           />
@@ -265,41 +257,37 @@ export function OwnerApp() {
     }
   };
 
+  const barraOculta =
+    showEnrolment ||
+    showTarjeta ||
+    showDeliveryFlow ||
+    showCalendar ||
+    showMaintenance ||
+    showDisputes ||
+    showAddCar ||
+    showNotifications ||
+    showSupport ||
+    showContract ||
+    showChat;
+
   return (
     <View style={styles.appContainer}>
-      {/* Pantalla Activa */}
       <View style={styles.screenContainer}>{renderContent()}</View>
 
-      {/* Barra de Navegación Inferior Exclusiva del Dueño */}
-      {!showEnrolment &&
-        !showTarjeta &&
-        !showDeliveryFlow &&
-        !showCalendar &&
-        !showMaintenance &&
-        !showDisputes &&
-        !showAddCar &&
-        !showNotifications &&
-        !showSupport &&
-        !showContract && (
-          <TabBar
-            tabs={[
-              { id: "cars", icon: "car", label: "Mi Flota" },
-              { id: "bookings", icon: "calendar", label: "Solicitudes" },
-              { id: "earnings", icon: "card", label: "Ganancias" },
-              { id: "chat", icon: "chat", label: "Mensajes", badge: noLeidos },
-              { id: "profile", icon: "profile", label: "Mi Perfil" },
-            ]}
-            activeTab={activeTab}
-            onChange={(id) => {
-              setActiveTab(id);
-              // Salir de Mensajes es el momento en que los no leídos
-              // cambiaron: el backend los marcó al abrir la conversación.
-              if (activeTab === "chat" && id !== "chat") refrescarConversaciones();
-            }}
-          />
-        )}
+      {!barraOculta && (
+        <TabBar
+          tabs={[
+            { id: "cars", icon: "car", label: "Mi Flota" },
+            { id: "bookings", icon: "calendar", label: "Solicitudes" },
+            { id: "earnings", icon: "card", label: "Ganancias" },
+            { id: "profile", icon: "profile", label: "Mi Perfil" },
+          ]}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          centerAction={{ icon: "plus", label: "Publicar", onPress: handleAddNewCar }}
+        />
+      )}
 
-      {/* Modal de Contrato (RN Modal: se monta en su propia capa) */}
       {showContract && (
         <ContractModal
           visible={showContract}
@@ -317,7 +305,7 @@ export function OwnerApp() {
 const styles = StyleSheet.create({
   appContainer: {
     flex: 1,
-    backgroundColor: colors.darkBg,
+    backgroundColor: colors.background,
   },
   screenContainer: {
     flex: 1,
