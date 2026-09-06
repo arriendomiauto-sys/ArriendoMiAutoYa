@@ -62,6 +62,12 @@ def enviar_enrolamiento_a_revision(
     nota = payload.motivo or "El usuario solicitó revisión manual desde el enrolamiento."
     current_user.notas_auditoria = nota[:1000]
 
+    if payload.foto_perfil_verificada_url:
+        current_user.foto_perfil_verificada_url = payload.foto_perfil_verificada_url
+    if payload.licencia_url:
+        current_user.licencia_url = payload.licencia_url
+        current_user.licencia_estado = "revision"
+
     enlaces = "\n".join(
         f"- {etiqueta}: {url}"
         for etiqueta, url in (
