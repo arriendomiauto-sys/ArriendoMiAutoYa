@@ -117,4 +117,104 @@ describe("CompletarLicenciaScreen", () => {
 
     expect(mockCompletarLicencia).not.toHaveBeenCalled();
   });
+
+  it("extranjero: exige el país de la licencia y lo manda en el payload", async () => {
+    contexto.currentUser = {
+      id: "u2",
+      nombre: "Bruno",
+      tipo_documento: "pasaporte",
+      estado_documentos: "verificado",
+    };
+    mockCompletarLicencia.mockResolvedValueOnce({ licencia_estado: "revision" });
+    let tr;
+    await act(async () => {
+      tr = renderTree(<CompletarLicenciaScreen onDone={() => {}} onCancel={() => {}} />);
+      await asentar();
+    });
+
+    await act(async () => {
+      pressText(tr, "Fotografiar licencia de conducir");
+      await asentar();
+    });
+    await act(async () => {
+      capturarFoto("file:///tmp/licencia.jpg");
+      await asentar();
+    });
+
+    // Sin país todavía: no debe llamar al backend.
+    await act(async () => {
+      pressText(tr, "Validar licencia");
+      await asentar();
+    });
+    expect(mockCompletarLicencia).not.toHaveBeenCalled();
+
+    // Cargar el país (2 letras) y reenviar.
+    const campoPais = tr.root.findAll(
+      (n) => n.props?.placeholder === "Ej. AR" && typeof n.props?.onChangeText === "function"
+    )[0];
+    await act(async () => {
+      campoPais.props.onChangeText("ar");
+      await asentar();
+    });
+    await act(async () => {
+      pressText(tr, "Validar licencia");
+      await asentar();
+    });
+
+    expect(mockCompletarLicencia).toHaveBeenCalledTimes(1);
+    expect(mockCompletarLicencia.mock.calls[0][0]).toMatchObject({
+      licencia_url: "https://storage/kyc/licencia.jpg",
+      licencia_pais_emisor: "AR",
+    });
+  });
+
+  it("si el backend deja la licencia en revisión no confirma como validada", async () => {
+    mockCompletarLicencia.mockResolvedValueOnce({ licencia_estado: "revision" });
+    const onDone = jest.fn();
+    let tr;
+    await act(async () => {
+      tr = renderTree(<CompletarLicenciaScreen onDone={onDone} onCancel={() => {}} />);
+      await asentar();
+    });
+
+    await act(async () => {
+      pressText(tr, "Fotografiar licencia de conducir");
+      await asentar();
+    });
+    await act(async () => {
+      capturarFoto("file:///tmp/licencia.jpg");
+      await asentar();
+    });
+    await act(async () => {
+      pressText(tr, "Validar licencia");
+      await asentar();
+      await asentar();
+    });
+
+    expect(mockCompletarLicencia).toHaveBeenCalledTimes(1);
+    expect(mockCompletarLicencia.mock.calls[0][0]).toMatchObject({
+      licencia_url: "https://storage/kyc/licencia.jpg",
+    });
+    // No se le dice al usuario "ya puedes reservar" mientras está en revisión.
+    expect(textOf(tr)).not.toMatch(/Ya puedes reservar/i);
+  });
+
+  it("con la licencia ya en revisión muestra la espera y no pide otra foto", async () => {
+    contexto.currentUser = {
+      id: "u1",
+      nombre: "Pía",
+      tipo_documento: "rut",
+      estado_documentos: "verificado",
+      licencia_estado: "revision",
+    };
+    let tr;
+    await act(async () => {
+      tr = renderTree(<CompletarLicenciaScreen onDone={() => {}} onCancel={() => {}} />);
+      await asentar();
+    });
+
+    const t = textOf(tr);
+    expect(t).toMatch(/en revisión/i);
+    expect(t).not.toContain("Fotografiar licencia de conducir");
+  });
 });
