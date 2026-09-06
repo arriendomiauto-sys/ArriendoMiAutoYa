@@ -407,6 +407,20 @@ class ConfiguracionPlataforma(Base):
     bono_referente_dias_t1 = Column(Integer, default=30)
     bono_referente_dias_t2 = Column(Integer, default=60)
 
+    # Tarifas de referencia por categoría de vehículo, editables desde el
+    # panel (Configuración → "Tarifas por categoría"). Por categoría:
+    # `base` = precio que fija la plataforma y tope para el dueño;
+    # `min` = piso hasta donde puede descontar (de $5.000 en $5.000). La app
+    # móvil lo lee en el asistente de publicación; si viene vacío usa sus
+    # propios defaults (packages/mobile-shared/vehiculo/catalogoPrecios.js).
+    tarifas_categoria = Column(JSON, default=lambda: {
+        "economico": {"base": 40000, "min": 25000},
+        "sedan": {"base": 55000, "min": 35000},
+        "suv": {"base": 80000, "min": 45000},
+        "camioneta": {"base": 95000, "min": 55000},
+        "premium": {"base": 180000, "min": 80000},
+    })
+
     actualizado_en = Column(DateTime, default=utc_now, onupdate=utc_now)
     actualizado_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
 

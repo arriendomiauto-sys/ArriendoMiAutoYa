@@ -124,7 +124,6 @@ class UserOut(UserBase):
     # app lo usa para exigir la validación de licencia antes de reservar a
     # quien se verificó solo como dueño.
     licencia_estado: Optional[str] = None
-    licencia_clase: Optional[str] = None
     confianza_ocr: Optional[float] = 1.0
     notas_auditoria: Optional[str] = None
     roles_activos: List[str]
