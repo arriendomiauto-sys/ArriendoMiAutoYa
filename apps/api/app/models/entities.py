@@ -18,6 +18,7 @@ class Usuario(Base):
     rut = Column(String, unique=True, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
     telefono = Column(String, nullable=True)
+    direccion = Column(String, nullable=True)  # dirección particular declarada en el enrolamiento
     foto_perfil_verificada_url = Column(String, nullable=True)
     estado_documentos = Column(String, default="pendiente") # pendiente, verificado, rechazado, requiere_revision_manual
     confianza_ocr = Column(Float, default=1.0)
@@ -43,6 +44,11 @@ class Usuario(Base):
     licencia_numero = Column(String, nullable=True)
     licencia_clase = Column(String, nullable=True)
     licencia_vencimiento = Column(DateTime, nullable=True)
+    # Estado de la licencia para ARRENDAR: None/"pendiente" (nunca se validó
+    # — típico de una cuenta verificada solo como dueño), "verificada",
+    # "revision" (un ejecutivo la está mirando). El renter no puede reservar
+    # sin esto en "verificada".
+    licencia_estado = Column(String, nullable=True)
     pic_url = Column(String, nullable=True)               # Permiso Internacional de Conducir
     pic_vencimiento = Column(DateTime, nullable=True)
     es_residente_chile = Column(Boolean, default=False)

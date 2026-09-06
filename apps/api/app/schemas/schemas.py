@@ -28,6 +28,10 @@ class UserBase(BaseModel):
     rut: Optional[str] = None
     email: EmailStr
     telefono: Optional[str] = None
+    # Dirección particular declarada en el enrolamiento. La app la valida
+    # contra el geocoder del dispositivo antes de mandarla (que exista de
+    # verdad); acá solo se guarda como texto para el contrato y soporte.
+    direccion: Optional[str] = Field(default=None, max_length=300)
 
     @field_validator("rut")
     @classmethod
@@ -51,6 +55,10 @@ class UserEnrolamiento(UserBase):
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None
     foto_perfil_verificada_url: Optional[str] = None
+    # Segunda selfie con la cabeza girada. El motor compara el ángulo de la
+    # cabeza entre esta y la de frente: si rotó de verdad es una persona en
+    # vivo; si son idénticas, sospechamos foto-de-foto -> revisión manual.
+    selfie_liveness_url: Optional[str] = None
     # Payload crudo del QR del reverso de la cédula nueva, si la app lo pudo
     # leer. No se asume ningún formato — se guarda tal cual para auditoría,
     # nunca se usa solo para aprobar/rechazar (ver notas en enrolamiento.py).
@@ -81,12 +89,42 @@ class UserEnrolamiento(UserBase):
     es_residente_chile: bool = False
     fecha_inicio_residencia: Optional[datetime] = None
 
+class CompletarLicencia(BaseModel):
+    """
+    Solo la licencia de conducir, para un usuario ya verificado que se
+    enroló como dueño (sin licencia) y ahora quiere arrendar. Reusa la
+    identidad que ya tiene en ficha — acá va únicamente lo de conducción.
+    """
+    licencia_url: str
+    pic_url: Optional[str] = None
+    licencia_pais_emisor: Optional[str] = None
+    es_residente_chile: Optional[bool] = None
+    fecha_inicio_residencia: Optional[datetime] = None
+
+class EnrolamientoARevision(BaseModel):
+    """
+    El usuario pide que un ejecutivo revise su caso a mano cuando la
+    verificación automática lo rechazó por algo que no es calidad de foto
+    (edad, documento vencido, control facial). No cobra el hold todavía.
+    """
+    motivo: Optional[str] = Field(default=None, max_length=200)
+    descripcion: str = Field(min_length=1, max_length=4000)
+    carnet_frontal_url: Optional[str] = None
+    carnet_trasero_url: Optional[str] = None
+    licencia_url: Optional[str] = None
+    foto_perfil_verificada_url: Optional[str] = None
+
 class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
     foto_perfil_verificada_url: Optional[str] = None
     estado_documentos: str
+    # Estado de la licencia para arrendar (ver Usuario.licencia_estado). La
+    # app lo usa para exigir la validación de licencia antes de reservar a
+    # quien se verificó solo como dueño.
+    licencia_estado: Optional[str] = None
+    licencia_clase: Optional[str] = None
     confianza_ocr: Optional[float] = 1.0
     notas_auditoria: Optional[str] = None
     roles_activos: List[str]
@@ -169,8 +207,9 @@ class PerfilBasicoUpdate(BaseModel):
     """
     nombre: str
     telefono: Optional[str] = None
+    direccion: Optional[str] = Field(default=None, max_length=300)
 
-    @field_validator("nombre", "telefono")
+    @field_validator("nombre", "telefono", "direccion")
     @classmethod
     def sanitize_perfil(cls, v: Optional[str]) -> Optional[str]:
         return sanitize_text(v)

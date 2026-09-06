@@ -2,11 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.config import settings
-from app.schemas.schemas import UserEnrolamiento, UserOut
+from app.schemas.schemas import (
+    UserEnrolamiento, UserOut, EnrolamientoARevision, CompletarLicencia,
+)
 from app.models.entities import Usuario, Pago, TicketSoporte
 from app.features.verificacion_identidad.ocr_engine import OCRService
 from app.services.auth import get_current_user
 from app.core.limiter import limiter
+from datetime import datetime
 import uuid
 
 from app.core.validators import validar_documento_identidad
@@ -27,6 +30,7 @@ def procesar_documentos_ocr(payload: UserEnrolamiento):
         licencia_url=payload.licencia_url,
         rut_usuario=payload.rut,
         selfie_url=payload.foto_perfil_verificada_url,
+        selfie_liveness_url=payload.selfie_liveness_url,
         tipo_documento=payload.tipo_documento,
         pais_documento=payload.pais_documento,
     )
@@ -34,6 +38,61 @@ def procesar_documentos_ocr(payload: UserEnrolamiento):
         "mensaje": "Documentos procesados exitosamente",
         "datos_extraidos": resultado_ocr
     }
+
+@router.post("/enviar-a-revision", summary="Manda el enrolamiento a revisión manual de un ejecutivo (no cobra el hold)")
+@limiter.limit("5/minute")
+def enviar_enrolamiento_a_revision(
+    request: Request,
+    payload: EnrolamientoARevision,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Se usa cuando la verificación automática rechazó al usuario por algo que
+    un ejecutivo puede resolver mirando la foto (el OCR leyó mal la edad, un
+    documento que parece vencido pero no lo está, control facial dudoso).
+    Deja la cuenta en `requiere_revision_manual` —sigue sin poder reservar ni
+    publicar— y abre UN ticket con los enlaces a los documentos. No cobra el
+    hold: eso pasa recién en /completar, cuando el ejecutivo apruebe.
+    """
+    if current_user.estado_documentos == "verificado":
+        return {"estado_documentos": "verificado"}
+
+    current_user.estado_documentos = "requiere_revision_manual"
+    nota = payload.motivo or "El usuario solicitó revisión manual desde el enrolamiento."
+    current_user.notas_auditoria = nota[:1000]
+
+    enlaces = "\n".join(
+        f"- {etiqueta}: {url}"
+        for etiqueta, url in (
+            ("Cédula frente", payload.carnet_frontal_url),
+            ("Cédula reverso", payload.carnet_trasero_url),
+            ("Licencia", payload.licencia_url),
+            ("Selfie", payload.foto_perfil_verificada_url),
+        )
+        if url
+    )
+    db.add(TicketSoporte(
+        usuario_id=current_user.id,
+        sucursal_id=current_user.sucursal_id,
+        asunto="Revisión manual de enrolamiento (solicitada por el usuario)",
+        descripcion=f"{payload.descripcion.strip()}\n\nDocumentos:\n{enlaces or '(sin enlaces)'}",
+    ))
+    db.commit()
+    db.refresh(current_user)
+
+    from app.services.notificaciones import crear_notificacion
+    crear_notificacion(
+        db,
+        usuario_id=current_user.id,
+        tipo="kyc",
+        titulo="Tu caso está en revisión",
+        mensaje="Un ejecutivo revisa tus documentos a mano. Te avisamos apenas quede lista tu cuenta.",
+        entidad_tipo="usuario",
+        entidad_id=current_user.id,
+    )
+    return {"estado_documentos": current_user.estado_documentos}
+
 
 @router.post("/completar", response_model=UserOut, summary="Completa el enrolamiento y realiza el hold de seguridad de $800.000")
 @limiter.limit("10/minute")
@@ -87,7 +146,7 @@ def completar_enrolamiento(
     if documento_en_uso:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=detalle_duplicado
+            detail={"motivo": detalle_duplicado, "categoria": "documento_duplicado"},
         )
 
     # La tarjeta es requisito para operar y se pide acá, junto con los
@@ -116,6 +175,7 @@ def completar_enrolamiento(
         licencia_url=payload.licencia_url,
         rut_usuario=payload.rut,
         selfie_url=payload.foto_perfil_verificada_url,
+        selfie_liveness_url=payload.selfie_liveness_url,
         tipo_documento=payload.tipo_documento,
         pais_documento=payload.pais_documento,
     )
@@ -123,10 +183,24 @@ def completar_enrolamiento(
     # Un rechazo del OCR bloquea el enrolamiento de verdad: no se otorga el
     # rol "cliente" ni se cobra el hold de garantía sobre documentos que la
     # verificación marcó como no válidos.
+    #
+    # `categoria` le dice a la app cómo reaccionar:
+    #  - "fotos_ilegibles": la foto no se pudo leer -> la app manda a
+    #    re-tomarlas directamente, sin ofrecer soporte (no hay nada que
+    #    revisar).
+    #  - "verificacion": la foto se leyó pero algo no cuadra (control facial,
+    #    etc.) -> la app ofrece 2 opciones: enviar a soporte o reintentar.
     if resultado_ocr.get("estado_recomendado") == "rechazado":
+        legible = resultado_ocr.get("documentos_legibles", False)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=resultado_ocr.get("motivo") or "No se pudo verificar tus documentos. Vuelve a tomar las fotos con buena iluminación."
+            detail={
+                "motivo": (
+                    resultado_ocr.get("motivo")
+                    or "No se pudo verificar tus documentos. Vuelve a tomar las fotos con buena iluminación."
+                ),
+                "categoria": "verificacion" if legible else "fotos_ilegibles",
+            },
         )
 
     current_user.nombre = payload.nombre
@@ -159,6 +233,8 @@ def completar_enrolamiento(
         current_user.email = payload.email
     if payload.telefono is not None:
         current_user.telefono = payload.telefono
+    if payload.direccion is not None:
+        current_user.direccion = payload.direccion
     if payload.foto_perfil_verificada_url:
         current_user.foto_perfil_verificada_url = payload.foto_perfil_verificada_url
     current_user.confianza_ocr = resultado_ocr.get("confianza_ocr", 0.95)
@@ -186,6 +262,13 @@ def completar_enrolamiento(
         current_user,
         edad_minima=getattr(config, "edad_minima_arriendo", None) or 21,
     )
+
+    # Estado de la licencia para ARRENDAR. Solo se fija si en este
+    # enrolamiento se subió una licencia (flujo renter); el dueño la deja en
+    # None y la completa aparte con POST /completar-licencia si luego arrienda.
+    if payload.licencia_url:
+        licencia_ok = evaluacion_licencia["permitido"] and not resultado_ocr.get("licencia_a_soporte")
+        current_user.licencia_estado = "verificada" if licencia_ok else "revision"
 
     # Todo lo que no se pudo verificar automáticamente se junta acá y sale en
     # UN SOLO ticket. Antes se abría uno por cada problema: el ejecutivo veía
@@ -255,4 +338,100 @@ def completar_enrolamiento(
         entidad_id=current_user.id,
     )
 
+    return current_user
+
+
+@router.post("/completar-licencia", response_model=UserOut, summary="Valida solo la licencia de conducir (usuario ya verificado como dueño que quiere arrendar)")
+@limiter.limit("10/minute")
+def completar_licencia(
+    request: Request,
+    payload: CompletarLicencia,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    El usuario ya pasó el KYC de identidad (como dueño, sin licencia) y ahora
+    quiere arrendar. Acá se sube y valida SOLO la licencia — no se repite
+    cédula, selfie ni tarjeta, y no se cobra ningún hold nuevo.
+    """
+    if current_user.estado_documentos != "verificado":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"motivo": "Primero completa la verificación de identidad.", "categoria": "sin_kyc"},
+        )
+
+    # OCR solo de la licencia (no se re-procesa el carnet).
+    lic_bytes = OCRService.descargar_imagen_bytes(payload.licencia_url)
+    texto_lic, _ = OCRService.llamar_google_vision_api(lic_bytes) if lic_bytes else (None, 0.0)
+    api_key, tiene_creds = OCRService._credenciales_vision()
+    vision_disponible = bool(api_key or tiene_creds) and not settings.USE_OCR_MOCK
+    # Con Vision activo pero sin texto legible en la foto, no se aprueba a
+    # ciegas: se deriva a revisión (mismo criterio que el flujo de identidad).
+    licencia_ilegible = vision_disponible and bool(lic_bytes) and not texto_lic
+    licencia_no_reconocida = bool(texto_lic) and OCRService.clasificar_documento(texto_lic) != "licencia"
+    datos_lic = OCRService.extraer_datos_licencia(texto_lic or "")
+
+    es_chileno = (current_user.tipo_documento or "rut") == "rut"
+    current_user.licencia_pais_emisor = (
+        payload.licencia_pais_emisor
+        or current_user.licencia_pais_emisor
+        or current_user.pais_documento
+        or ("CL" if es_chileno else None)
+    )
+    current_user.licencia_clase = datos_lic.get("licencia_clase") or current_user.licencia_clase or "B"
+    venc_str = datos_lic.get("fecha_vencimiento_licencia")
+    if venc_str:
+        try:
+            current_user.licencia_vencimiento = datetime.fromisoformat(str(venc_str)[:10])
+        except ValueError:
+            pass  # formato raro del OCR: se deja sin fecha, igual que el flujo renter
+    if payload.pic_url:
+        current_user.pic_url = payload.pic_url
+    if payload.es_residente_chile is not None:
+        current_user.es_residente_chile = payload.es_residente_chile
+    if payload.fecha_inicio_residencia:
+        current_user.fecha_inicio_residencia = payload.fecha_inicio_residencia
+
+    config = PricingService.obtener_configuracion(db)
+    evaluacion = evaluar_licencia_usuario(
+        current_user,
+        edad_minima=getattr(config, "edad_minima_arriendo", None) or 21,
+    )
+
+    a_revision = licencia_ilegible or licencia_no_reconocida or not evaluacion["permitido"]
+    current_user.licencia_estado = "revision" if a_revision else "verificada"
+
+    from app.services.notificaciones import crear_notificacion
+    if a_revision:
+        if licencia_ilegible or licencia_no_reconocida:
+            motivo = "El OCR no pudo leer la licencia en la foto."
+        else:
+            motivo = evaluacion.get("motivo") or "La licencia requiere revisión manual."
+        db.add(TicketSoporte(
+            usuario_id=current_user.id,
+            sucursal_id=current_user.sucursal_id,
+            asunto="Validación de licencia para arrendar",
+            descripcion=(
+                f"{current_user.nombre or current_user.email} (ya verificado) quiere arrendar "
+                f"y subió su licencia para validar.\n\n"
+                f"Licencia: {payload.licencia_url}\nPIC: {payload.pic_url or '—'}\n"
+                f"Motivo de revisión: {motivo}"
+            ),
+        ))
+        crear_notificacion(
+            db, usuario_id=current_user.id, tipo="kyc",
+            titulo="Tu licencia está en revisión",
+            mensaje="Un ejecutivo la revisa a mano. Te avisamos apenas puedas reservar.",
+            entidad_tipo="usuario", entidad_id=current_user.id,
+        )
+    else:
+        crear_notificacion(
+            db, usuario_id=current_user.id, tipo="kyc",
+            titulo="Licencia validada",
+            mensaje="Ya puedes reservar autos.",
+            entidad_tipo="usuario", entidad_id=current_user.id,
+        )
+
+    db.commit()
+    db.refresh(current_user)
     return current_user

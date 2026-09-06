@@ -101,6 +101,8 @@ def actualizar_perfil_basico(
     current_user.nombre = payload.nombre
     if payload.telefono is not None:
         current_user.telefono = payload.telefono
+    if payload.direccion is not None:
+        current_user.direccion = payload.direccion
     db.commit()
     db.refresh(current_user)
     return current_user

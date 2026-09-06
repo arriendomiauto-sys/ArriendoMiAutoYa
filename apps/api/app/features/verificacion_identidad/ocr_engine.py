@@ -209,6 +209,10 @@ class OCRService:
                         "detectionConfidence": float(f.detection_confidence or 0.0),
                         "blurredLikelihood": vision.Likelihood(f.blurred_likelihood).name,
                         "underExposedLikelihood": vision.Likelihood(f.under_exposed_likelihood).name,
+                        # Ángulos de la cabeza — los usa el control de vida.
+                        "panAngle": float(f.pan_angle),
+                        "rollAngle": float(f.roll_angle),
+                        "tiltAngle": float(f.tilt_angle),
                     })
                 return caras
             except Exception as e:
@@ -256,6 +260,50 @@ class OCRService:
 
         return {"estado": "ok", "motivo": None, "confianza_facial": conf,
                 "metodo": "vision_face_detection"}
+
+    # Umbral de rotación de cabeza (grados) entre las dos selfies para
+    # aceptar el movimiento como real. ~12° es un giro leve pero inequívoco;
+    # más bajo dispara falsos positivos por el ruido de la detección.
+    LIVENESS_PAN_MIN_GRADOS = 12.0
+
+    @classmethod
+    def verificar_liveness(
+        cls,
+        frontal_bytes: Optional[bytes],
+        movimiento_bytes: Optional[bytes],
+    ) -> Dict[str, Any]:
+        """
+        Liveness pasivo por variación de pose. Compara el `panAngle` (giro
+        horizontal de la cabeza) entre la selfie de frente y la de "cabeza
+        girada". Si rotó de verdad, es una persona en vivo; si están casi
+        idénticas, sospechamos foto-de-foto.
+
+        Nunca RECHAZA: lo peor que devuelve es "revision" (un ejecutivo mira
+        las dos fotos), porque Vision no siempre entrega los ángulos.
+        """
+        if not movimiento_bytes:
+            return {"estado": "no_evaluado", "motivo": "Falta la segunda selfie del control de vida."}
+
+        caras_a = cls._vision_face_detection(frontal_bytes) if frontal_bytes else None
+        caras_b = cls._vision_face_detection(movimiento_bytes)
+        if caras_a is None or caras_b is None:
+            # Vision no está disponible (mock / sin credenciales): no se evalúa.
+            return {"estado": "no_evaluado", "motivo": None}
+        if len(caras_a) != 1 or len(caras_b) != 1:
+            return {"estado": "revision",
+                    "motivo": "No pudimos confirmar el control de vida de la selfie (rostro no detectado en ambas fotos)."}
+
+        pan_a = caras_a[0].get("panAngle")
+        pan_b = caras_b[0].get("panAngle")
+        if pan_a is None or pan_b is None:
+            return {"estado": "revision",
+                    "motivo": "No pudimos medir el movimiento de la cabeza en la selfie."}
+
+        if abs(float(pan_a) - float(pan_b)) < cls.LIVENESS_PAN_MIN_GRADOS:
+            return {"estado": "revision",
+                    "motivo": "La selfie no mostró movimiento de cabeza; un ejecutivo la revisará para descartar una foto de una foto."}
+
+        return {"estado": "ok", "motivo": None}
 
     @classmethod
     def llamar_google_vision_api(cls, image_bytes: bytes) -> Tuple[Optional[str], float]:
@@ -446,6 +494,7 @@ class OCRService:
         selfie_url: Optional[str] = None,
         tipo_documento: str = "rut",
         pais_documento: Optional[str] = None,
+        selfie_liveness_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         # 0. Cédula frontal obligatoria.
         if not carnet_frontal_url:
@@ -501,13 +550,18 @@ class OCRService:
             txt, conf = cls.llamar_google_vision_api(b)
             return b, txt, conf
 
-        with ThreadPoolExecutor(max_workers=3) as _ex:
+        with ThreadPoolExecutor(max_workers=4) as _ex:
             f_carnet = _ex.submit(_descargar_y_ocr, carnet_frontal_url)
             f_lic = _ex.submit(_descargar_y_ocr, licencia_url)
             f_selfie = _ex.submit(cls.descargar_imagen_bytes, selfie_url) if selfie_url else None
+            f_liveness = (
+                _ex.submit(cls.descargar_imagen_bytes, selfie_liveness_url)
+                if selfie_liveness_url else None
+            )
             bytes_carnet, texto_carnet, confianza_vision = f_carnet.result()
             bytes_licencia, texto_licencia, _ = f_lic.result()
             bytes_selfie_pre = f_selfie.result() if f_selfie else None
+            bytes_liveness_pre = f_liveness.result() if f_liveness else None
 
         api_key, tiene_creds = cls._credenciales_vision()
         vision_disponible = bool(api_key or tiene_creds) and not settings.USE_OCR_MOCK
@@ -587,6 +641,12 @@ class OCRService:
             if facial["estado"] in ("rechazado", "revision") and facial.get("motivo"):
                 motivos.append(facial["motivo"])
 
+            # Control de vida: compara la pose de la cabeza entre las dos
+            # selfies. Nunca rechaza; a lo sumo deriva a revisión manual.
+            liveness = cls.verificar_liveness(bytes_selfie_pre, bytes_liveness_pre)
+            if liveness["estado"] == "revision" and liveness.get("motivo"):
+                motivos.append(liveness["motivo"])
+
             if facial["estado"] == "rechazado":
                 estado_recomendado = "rechazado"
             elif (
@@ -594,6 +654,7 @@ class OCRService:
                 or not coincide_rut
                 or confianza_final < 0.80
                 or facial["estado"] == "revision"
+                or liveness["estado"] == "revision"
                 or licencia_no_valida
             ):
                 estado_recomendado = "requiere_revision_manual"
@@ -610,6 +671,7 @@ class OCRService:
                 "confianza_ocr": confianza_final,
                 "confianza_facial": facial.get("confianza_facial"),
                 "verificacion_facial": facial["estado"],
+                "liveness": liveness["estado"],
                 "documentos_legibles": True,
                 "coincide_rut_declarado": coincide_rut,
                 "estado_recomendado": estado_recomendado,
