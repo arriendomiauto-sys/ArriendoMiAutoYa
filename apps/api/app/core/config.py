@@ -74,16 +74,19 @@ class Settings(BaseSettings):
     STORAGE_LOCAL_PRIVATE_DIR: str = "./uploads_privados"
 
     # URLs de Producción de la Plataforma
-    FRONTEND_URL: str = "https://arriendatuauto.com"
+    FRONTEND_URL: str = "https://arriendomiautoya.cl"
     # URL pública de esta API. Mercado Pago la necesita para avisarnos de los
     # pagos: sin webhook, un arrendatario que paga y cierra la app antes de
     # volver deja la reserva colgada en "pendiente" para siempre.
     API_PUBLIC_URL: str = "https://arriendomiautoya.onrender.com"
-    ADMIN_PANEL_ORIGIN: Optional[str] = "https://admin.arriendatuauto.com"
-    PAGO_DEFAULT_RETURN_URL: str = "https://arriendatuauto.com/pago/retorno"
+    ADMIN_PANEL_ORIGIN: Optional[str] = "https://admin.arriendomiautoya.cl"
+    PAGO_DEFAULT_RETURN_URL: str = "https://arriendomiautoya.cl/pago/retorno"
 
     # CORS: orígenes explícitos y seguros permitidos en producción y desarrollo
     CORS_ORIGINS: List[str] = [
+        "https://arriendomiautoya.cl",
+        "https://www.arriendomiautoya.cl",
+        "https://admin.arriendomiautoya.cl",
         "https://arriendatuauto.com",
         "https://www.arriendatuauto.com",
         "https://app.arriendatuauto.com",
@@ -105,6 +108,15 @@ class Settings(BaseSettings):
     # Celery & Redis
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+
+    @property
+    def allowed_cors_origins(self) -> List[str]:
+        origins = list(self.CORS_ORIGINS)
+        if self.ADMIN_PANEL_ORIGIN and self.ADMIN_PANEL_ORIGIN not in origins:
+            origins.append(self.ADMIN_PANEL_ORIGIN)
+        if self.ENVIRONMENT == "production":
+            origins = [o for o in origins if not ("localhost" in o or "127.0.0.1" in o)]
+        return origins
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
