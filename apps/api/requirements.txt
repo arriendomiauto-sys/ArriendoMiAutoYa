@@ -21,6 +21,10 @@ slowapi>=0.1.9
 # OCR real (opcional): sólo se importa si hay GOOGLE_APPLICATION_CREDENTIALS.
 # El feature funciona sin esto usando la API REST con API key o el mock.
 google-cloud-vision>=3.7.0
+# Edición de imagen para app/services/image_privacy.py: tapar las patentes
+# detectadas por OCR en las fotos de autos antes de guardarlas. Sin esto, la
+# censura falla en silencio (except ImportError -> se guarda la foto original).
+Pillow>=10.2.0
 # Socket.IO para chat en tiempo real
 python-socketio>=5.11.0
 
