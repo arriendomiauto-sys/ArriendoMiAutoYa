@@ -302,6 +302,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.chips}
         >
           {CATEGORIES.map((c) => (
@@ -313,6 +314,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.chips}
           >
             {orden !== "recientes" && (
@@ -371,6 +373,8 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
       <ScrollView
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl refreshing={!!loading} onRefresh={loadData} tintColor={colors.primary} />
         }
