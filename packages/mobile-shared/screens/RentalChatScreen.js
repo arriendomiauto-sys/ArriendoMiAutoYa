@@ -54,6 +54,9 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const [otroEscribiendo, setOtroEscribiendo] = useState(false);
 
   const scrollRef = useRef(null);
+  // Si el usuario se desplazó hacia arriba a releer, un mensaje nuevo NO debe
+  // arrastrarlo de vuelta al fondo. Solo se autodesplaza cuando ya estaba abajo.
+  const alFondoRef = useRef(true);
   const canalRef = useRef(null);
   const escribirRef = useRef({ activo: false, timer: null });
   const otroEscribeTimerRef = useRef(null);
@@ -63,6 +66,21 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const marcarEstado = useCallback((clientId, estado) => {
     setMessages((prev) =>
       prev.map((m) => (m._clientId === clientId ? { ...m, _estado: estado } : m))
+    );
+  }, []);
+
+  // Degrada a "fallido" SOLO un mensaje que sigue "enviando". Si el broadcast
+  // `nuevo_mensaje` o el ACK ya lo conciliaron como "enviado", un ACK que llega
+  // tarde —o su timeout de 12 s— no debe resucitarlo como fallido: se vería
+  // "No se envió" en un mensaje que sí llegó y el reintento lo duplicaría en el
+  // servidor.
+  const marcarFallidoSiPendiente = useCallback((clientId) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m._clientId === clientId && m._estado === "enviando"
+          ? { ...m, _estado: "fallido" }
+          : m
+      )
     );
   }, []);
 
@@ -127,9 +145,9 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
       //    ya está en pantalla como "enviando".
       ApiClient.enviarMensaje(reservation.id, msg.texto)
         .then((real) => conciliarMensaje({ ...real, _clientId: msg._clientId }))
-        .catch(() => marcarEstado(msg._clientId, "fallido"));
+        .catch(() => marcarFallidoSiPendiente(msg._clientId));
     },
-    [reservation?.id, marcarEstado, conciliarMensaje]
+    [reservation?.id, marcarEstado, marcarFallidoSiPendiente, conciliarMensaje]
   );
 
   // ---- escritura en vivo -------------------------------------------------
@@ -168,7 +186,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         if (estado === "conectado") cargar();
       },
       onEnvioResuelto: ({ clientId, ok }) => {
-        if (!ok) marcarEstado(clientId, "fallido");
+        if (!ok) marcarFallidoSiPendiente(clientId);
       },
       onEscribiendo: (activo) => {
         setOtroEscribiendo(activo);
@@ -185,7 +203,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
       canal.cerrar();
       canalRef.current = null;
     };
-  }, [reservation?.id, conciliarMensaje, marcarEstado, cargar, dejarDeEscribir]);
+  }, [reservation?.id, conciliarMensaje, marcarFallidoSiPendiente, cargar, dejarDeEscribir]);
 
   useEffect(() => {
     cargar();
@@ -210,6 +228,8 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     setMessages((prev) => [...prev, optimista]);
     setInput("");
     dejarDeEscribir();
+    // Mandar un mensaje propio siempre baja la vista al fondo.
+    alFondoRef.current = true;
     intentarEnviar(optimista);
   };
 
@@ -324,7 +344,15 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+        scrollEventThrottle={100}
+        onScroll={(e) => {
+          const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+          alFondoRef.current =
+            contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
+        }}
+        onContentSizeChange={() => {
+          if (alFondoRef.current) scrollRef.current?.scrollToEnd({ animated: true });
+        }}
       >
         <View style={[styles.notice, { backgroundColor: colors.surfaceSubtle }]}>
           <Icon name="shield" size={12} color={c.muted} />

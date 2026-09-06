@@ -136,6 +136,38 @@ describe("RentalChatScreen · cola optimista", () => {
     expect(mockEnviar).toHaveBeenCalledWith("¿Hay señal?", clientId);
   });
 
+  it("un ACK que llega tarde no marca 'No se envió' un mensaje que ya se concilió", async () => {
+    let tr;
+    await act(async () => {
+      tr = renderTree(<RentalChatScreen reservation={reserva} onBack={() => {}} />);
+      await asentar();
+    });
+    await escribirYEnviar(tr, "Confirmado");
+
+    const clientId = mockEnviar.mock.calls[0][1];
+    // El broadcast concilia el optimista como "enviado"…
+    await act(async () => {
+      mockCanal.cbs.onMensaje({
+        id: "real-9",
+        reserva_id: reserva.id,
+        autor_id: "u-yo",
+        texto: "Confirmado",
+        timestamp: "2026-09-06T12:00:00Z",
+      });
+      await asentar();
+    });
+    // …y recién después el envío "se resuelve" como no-ACK (timeout de 12 s).
+    await act(async () => {
+      mockCanal.cbs.onEnvioResuelto({ clientId, ok: false, error: "timeout" });
+      await asentar();
+    });
+
+    const t = textOf(tr);
+    expect(t).not.toContain("No se envió");
+    expect(t).not.toContain("Enviando…");
+    expect(t.match(/Confirmado/g)).toHaveLength(1);
+  });
+
   it("con el canal caído manda por REST sin bloquear la interfaz", async () => {
     mockEnviar.mockReturnValue(false); // canal no disponible
     mockEnviarMensajeREST.mockResolvedValue({
