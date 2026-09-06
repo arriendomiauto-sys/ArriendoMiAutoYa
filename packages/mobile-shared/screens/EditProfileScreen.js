@@ -9,10 +9,8 @@ import {
   Platform,
   Image,
   TouchableOpacity,
-  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as ImagePicker from "expo-image-picker";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Button, Field, ScreenHeader, SectionLabel } from "../components/ui";
@@ -28,15 +26,13 @@ import {
 
 const soloDigitos = (s) => (s || "").replace(/\D/g, "");
 
-export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
+export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" }) {
   const insets = useSafeAreaInsets();
   const dark = tone === "dark";
   const { currentUser, setCurrentUser, syncProfile } = useApp();
 
   const [nombre, setNombre] = useState(currentUser?.nombre || "");
   const [telefono, setTelefono] = useState(extraerMovilSinPrefijo(currentUser?.telefono));
-  const [fotoUrl, setFotoUrl] = useState(currentUser?.foto_perfil_verificada_url || null);
-  const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [intentado, setIntentado] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -44,51 +40,21 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
   const errorTelefono =
     intentado && soloDigitos(telefono).length < 8 ? "Ingresa un móvil de 8 dígitos." : undefined;
 
-  const cambiarFoto = async () => {
-    try {
-      const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permiso.granted) {
-        showAlert("Permiso requerido", "Necesitamos acceso a tus fotos para cambiar tu avatar.");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (result.canceled || !result.assets?.[0]?.uri) return;
-
-      setSubiendoFoto(true);
-      const uri = result.assets[0].uri;
-      const subida = await ApiClient.subirArchivoStorage(
-        uri,
-        `avatar_${currentUser?.id || "user"}_${Date.now()}.jpg`,
-        "general"
-      );
-
-      const urlFinal = subida?.url || uri;
-      setFotoUrl(urlFinal);
-      
-      // Actualizar de inmediato en el perfil
-      const perfilActualizado = await ApiClient.actualizarPerfilBasico({
-        nombre: (nombre || currentUser?.nombre || "Usuario").trim(),
-        telefono: normalizarTelefonoCompleto(telefono || currentUser?.telefono || ""),
-        foto_perfil_verificada_url: urlFinal,
-      });
-
-      if (perfilActualizado && perfilActualizado.id) {
-        setCurrentUser(perfilActualizado);
-      }
-      await syncProfile();
-      showAlert("Foto actualizada", "Tu foto de perfil ha sido actualizada.");
-    } catch (err) {
-      showAlert("Error al subir foto", err.message || "No se pudo subir la foto.");
-    } finally {
-      setSubiendoFoto(false);
-    }
+  const handleFotoPress = () => {
+    showAlert(
+      "Foto de verificación de identidad",
+      "Por seguridad en el traspaso del auto, tu foto de perfil proviene de tu selfie biométrica validada con tu cédula de identidad.\n\nPara actualizarla, debes realizar una nueva toma de verificación.",
+      [
+        {
+          text: "Actualizar selfie",
+          onPress: () => {
+            (onDone || onBack)?.();
+            onOpenKyc?.();
+          },
+        },
+        { text: "Entendido", style: "cancel" },
+      ]
+    );
   };
 
   const guardar = async () => {
@@ -100,7 +66,6 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
       const perfil = await ApiClient.actualizarPerfilBasico({
         nombre: nombre.trim(),
         telefono: normalizarTelefonoCompleto(telefono),
-        foto_perfil_verificada_url: fotoUrl || currentUser?.foto_perfil_verificada_url || undefined,
       });
       if (perfil && perfil.id) setCurrentUser(perfil);
       else await syncProfile();
@@ -114,6 +79,8 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
     }
   };
 
+  const tieneFotoVerificada = !!currentUser?.foto_perfil_verificada_url;
+
   return (
     <View style={[styles.container, dark && { backgroundColor: colors.darkBg }]}>
       <StatusBar barStyle={dark ? "light-content" : "dark-content"} />
@@ -124,32 +91,45 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* AVATAR SELECTOR */}
+          {/* AVATAR KYC (FOTO DE IDENTIDAD VERIFICADA) */}
           <View style={styles.avatarSection}>
             <TouchableOpacity
               style={styles.avatarWrapper}
-              onPress={cambiarFoto}
+              onPress={handleFotoPress}
               activeOpacity={0.8}
-              disabled={subiendoFoto}
             >
-              {subiendoFoto ? (
-                <View style={[styles.avatar, styles.avatarLoading]}>
-                  <ActivityIndicator color={colors.primary} size="small" />
-                </View>
-              ) : fotoUrl ? (
-                <Image source={{ uri: fotoUrl }} style={styles.avatar} />
+              {tieneFotoVerificada ? (
+                <Image
+                  source={{ uri: currentUser.foto_perfil_verificada_url }}
+                  style={styles.avatar}
+                />
               ) : (
                 <View style={[styles.avatar, styles.avatarEmpty]}>
-                  <Icon name="user" size={32} color={colors.textMuted} />
+                  <Icon name="user" size={34} color={colors.textMuted} />
                 </View>
               )}
-              <View style={styles.cameraBadge}>
-                <Icon name="camera" size={14} color={colors.white} />
+              <View
+                style={[
+                  styles.shieldBadge,
+                  tieneFotoVerificada ? styles.badgeVerified : styles.badgePending,
+                ]}
+              >
+                <Icon
+                  name={tieneFotoVerificada ? "check" : "shield"}
+                  size={12}
+                  color={colors.white}
+                />
               </View>
             </TouchableOpacity>
-            <TouchableOpacity onPress={cambiarFoto} disabled={subiendoFoto}>
-              <Text style={[styles.changePhotoText, dark && { color: colors.mint }]}>
-                {subiendoFoto ? "Subiendo foto..." : "Cambiar foto de perfil"}
+
+            <TouchableOpacity onPress={handleFotoPress} style={styles.hintContainer}>
+              <Text style={[styles.verifiedBadgeText, dark && { color: colors.mint }]}>
+                {tieneFotoVerificada
+                  ? "✓ Foto verificada con tu cédula"
+                  : "Foto de identidad pendiente"}
+              </Text>
+              <Text style={[styles.verifiedSubText, dark && { color: colors.textSilver }]}>
+                (Toca para renovar mediante selfie biométrica)
               </Text>
             </TouchableOpacity>
           </View>
@@ -182,8 +162,7 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
               {currentUser?.email || "—"}
             </Text>
             <Text style={[styles.readonlyHint, dark && { color: colors.textSilver }]}>
-              El correo y los datos de identidad (RUT, dirección) se cambian desde Verificación de
-              identidad.
+              El correo y los datos de identidad (RUT, dirección y foto biométrica) se validan mediante Verificación de identidad.
             </Text>
           </View>
         </ScrollView>
@@ -205,25 +184,27 @@ export function EditProfileScreen({ onBack, onDone, tone = "light" }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  avatarSection: { alignItems: "center", justifyContent: "center", marginVertical: 8, gap: 8 },
+  avatarSection: { alignItems: "center", justifyContent: "center", marginVertical: 8, gap: 6 },
   avatarWrapper: { position: "relative" },
-  avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.surfaceMuted },
+  avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.surfaceMuted },
   avatarEmpty: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  avatarLoading: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.primary },
-  cameraBadge: {
+  shieldBadge: {
     position: "absolute",
     bottom: 0,
     right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
     borderColor: colors.surface,
   },
-  changePhotoText: { fontSize: 13, fontWeight: "600", color: colors.primary },
+  badgeVerified: { backgroundColor: colors.success },
+  badgePending: { backgroundColor: colors.warning },
+  hintContainer: { alignItems: "center", gap: 2 },
+  verifiedBadgeText: { fontSize: 13, fontWeight: "700", color: colors.primary },
+  verifiedSubText: { fontSize: 11, color: colors.textMuted },
   readonly: { gap: 6 },
   readonlyValue: { fontSize: 15, color: colors.text, fontWeight: "500" },
   readonlyHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
