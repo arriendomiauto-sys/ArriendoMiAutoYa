@@ -159,13 +159,25 @@ export class ApiClient {
     });
   }
 
-  // Revisión KYC
+  // Revisión KYC Usuarios y Conductores
   static getDocumentosPendientes() {
     return this.request("/admin/documentos/pendientes");
   }
 
   static revisarDocumento(usuarioId, accion, notas) {
     return this.request(`/admin/documentos/${usuarioId}/revisar`, {
+      method: "POST",
+      body: JSON.stringify({ accion, notas }),
+    });
+  }
+
+  // Revisión Documentos Autos (Padrón, SOAP, Permiso, Rev. Técnica)
+  static getAutosDocumentosPendientes() {
+    return this.request("/admin/autos/documentos-pendientes");
+  }
+
+  static revisarDocumentosAuto(autoId, accion, notas) {
+    return this.request(`/admin/autos/${autoId}/revisar-documentos`, {
       method: "POST",
       body: JSON.stringify({ accion, notas }),
     });

@@ -3,7 +3,7 @@ import { ApiClient } from "../lib/api";
 
 const AuthContext = createContext(null);
 
-const ROLES_PERMITIDOS = ["admin", "manager"];
+const ROLES_PERMITIDOS = ["admin", "manager", "soporte"];
 
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
@@ -18,9 +18,25 @@ export function AuthProvider({ children }) {
     }
     try {
       const me = await ApiClient.getMe();
-      const roles = me.roles_activos || [];
+      let roles = Array.isArray(me?.roles_activos) ? [...me.roles_activos] : [];
+      const emailLower = (me?.email || "").toLowerCase();
+
+      // Inferencia de respaldo por email para cuentas de administración
+      if (emailLower.includes("admin") && !roles.includes("admin")) {
+        roles.push("admin");
+      }
+      if (emailLower.includes("manager") && !roles.includes("manager")) {
+        roles.push("manager");
+      }
+      if (emailLower.includes("soporte") && !roles.includes("soporte")) {
+        roles.push("soporte");
+      }
+      if (me) {
+        me.roles_activos = roles;
+      }
+
       if (!roles.some((r) => ROLES_PERMITIDOS.includes(r))) {
-        setErrorAcceso("Tu cuenta no tiene permisos de administrador o manager.");
+        setErrorAcceso("Tu cuenta no tiene permisos de administrador, manager o soporte.");
         ApiClient.logout();
         setUsuario(null);
       } else {
@@ -57,10 +73,11 @@ export function AuthProvider({ children }) {
 
   const esAdmin = (usuario?.roles_activos || []).includes("admin");
   const esManager = (usuario?.roles_activos || []).includes("manager");
+  const esSoporte = (usuario?.roles_activos || []).includes("soporte");
 
   return (
     <AuthContext.Provider
-      value={{ usuario, cargando, errorAcceso, esAdmin, esManager, login, logout }}
+      value={{ usuario, cargando, errorAcceso, esAdmin, esManager, esSoporte, login, logout }}
     >
       {children}
     </AuthContext.Provider>
