@@ -12,12 +12,6 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-jest.mock("expo-local-authentication", () => ({
-  hasHardwareAsync: jest.fn(async () => false),
-  isEnrolledAsync: jest.fn(async () => false),
-  authenticateAsync: jest.fn(async () => ({ success: false })),
-}));
-
 const mockShowAlert = jest.fn();
 jest.mock("@rentacar/mobile-shared/utils/alert", () => ({
   showAlert: (...a) => mockShowAlert(...a),
