@@ -10,7 +10,6 @@ import {
   Button,
   EmptyState,
   ApiClient,
-  GPSMapModal,
   RatingModal,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc } from "../comun";
@@ -47,7 +46,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("confirmada");
-  const [gpsReserva, setGpsReserva] = useState(null);
   const [calificadas, setCalificadas] = useState({});
   const [reservaACalificar, setReservaACalificar] = useState(null);
 
@@ -134,15 +132,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
             onPress={() => onOpenDelivery?.(item)}
           />
         )}
-        {puedeDevolver && auto.gps_consentimiento && (
-          <Button
-            variant="secondary"
-            size="sm"
-            label="Ver ubicación GPS en vivo"
-            iconLeft="location"
-            onPress={() => setGpsReserva(item)}
-          />
-        )}
         {item.estado === "finalizada" && calificadas[item.id] === false && (
           <Button
             variant="secondary"
@@ -203,13 +192,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
           }
         />
       )}
-
-      <GPSMapModal
-        visible={!!gpsReserva}
-        onClose={() => setGpsReserva(null)}
-        autoId={gpsReserva?.auto?.id || gpsReserva?.auto_id}
-        nombreAuto={[gpsReserva?.auto?.marca, gpsReserva?.auto?.modelo].filter(Boolean).join(" ")}
-      />
 
       <RatingModal
         visible={!!reservaACalificar}

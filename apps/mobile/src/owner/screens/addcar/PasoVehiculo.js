@@ -192,7 +192,7 @@ export function PasoVehiculo({ wizard }) {
             ) : (
               <>
                 <Icon name="pin" size={13} color={colors.accentDark} />
-                <Text style={estilos.gpsBtnText}>Mi ubicación GPS</Text>
+                <Text style={estilos.gpsBtnText}>Usar mi ubicación</Text>
               </>
             )}
           </TouchableOpacity>
@@ -245,7 +245,7 @@ export function PasoVehiculo({ wizard }) {
             <Text style={estilos.sinMapaTexto}>
               {tienePunto
                 ? `Coordenadas fijadas: ${form.latitud.toFixed(5)}, ${form.longitud.toFixed(5)}`
-                : 'Usa "Mi ubicación GPS" para fijar el punto de entrega.'}
+                : 'Usa "Usar mi ubicación" para fijar el punto de entrega.'}
             </Text>
           </View>
         )}

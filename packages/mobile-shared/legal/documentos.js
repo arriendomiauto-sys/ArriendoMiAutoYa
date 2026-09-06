@@ -84,55 +84,6 @@ export const DOCUMENTOS_LEGALES = {
     ],
   },
 
-  gps: {
-    id: "gps",
-    tab: "GPS",
-    titulo: "Consentimiento de Monitoreo GPS",
-    subtitulo: "Enrolamiento del vehículo · Propietarios",
-    actualizado: "Última actualización: septiembre de 2026",
-    url: `${WEB_URL}/terminos`,
-    secciones: [
-      {
-        h: "1. Instalación del dispositivo",
-        p:
-          "Para publicar un vehículo en la plataforma, el propietario autoriza expresamente la " +
-          "instalación de un dispositivo de rastreo GPS en su vehículo. El equipo se entrega en " +
-          "comodato: sigue siendo propiedad del proveedor del servicio y su uso está incluido en " +
-          "la suscripción mensual de la flota, sin costo inicial para el dueño.",
-      },
-      {
-        h: "2. Qué datos se registran y quién los ve",
-        items: [
-          "Posición del vehículo, velocidad y estado del equipo mientras el auto está enrolado.",
-          "El propietario puede consultar la posición de su propio vehículo desde la app.",
-          "El equipo de la plataforma accede a esos datos solo para resolver incidentes, disputas y recuperación del vehículo.",
-        ],
-      },
-      {
-        h: "3. Corte remoto de motor",
-        p:
-          "El corte remoto de motor es un recurso de última instancia frente a la no devolución del " +
-          "vehículo o a una disputa formal abierta. Solo puede ordenarlo un administrador de la " +
-          "plataforma, con motivo registrado y auditable, y el proveedor lo ejecuta únicamente con " +
-          "el vehículo detenido. Nunca se activa desde la app del dueño ni con el auto en marcha.",
-      },
-      {
-        h: "4. Retiro del dispositivo",
-        p:
-          "Si el propietario retira su vehículo de la plataforma, puede solicitar la desinstalación " +
-          "del equipo sin costo. El retiro lo coordina la plataforma con el proveedor y, hecha la " +
-          "desinstalación, cesa todo registro de posición del vehículo.",
-      },
-      {
-        h: "5. Revocación del consentimiento",
-        p:
-          "El propietario puede revocar este consentimiento en cualquier momento. Revocarlo implica " +
-          "pausar la publicación del vehículo, porque el monitoreo es condición para operar en la " +
-          "plataforma. Las reservas ya confirmadas se mantienen hasta su término.",
-      },
-    ],
-  },
-
   privacidad: {
     id: "privacidad",
     tab: "Privacidad",
@@ -156,7 +107,6 @@ export const DOCUMENTOS_LEGALES = {
           "Datos de contacto: número de teléfono móvil y correo electrónico.",
           "Registro fotográfico del checklist: las 9 fotos obligatorias del estado inicial y final del vehículo.",
           "Datos transaccionales: tokens seguros de la pasarela de pago (no almacenamos números de tarjeta).",
-          "Datos de ubicación del vehículo: posición reportada por el dispositivo GPS instalado con consentimiento del propietario.",
         ],
       },
       {
@@ -178,4 +128,57 @@ export const DOCUMENTOS_LEGALES = {
       },
     ],
   },
+};
+
+// Limpieza de UI de GPS: el "Consentimiento de Monitoreo GPS" se retira de la
+// pestañera del visor legal hasta la nueva definición formal del módulo GPS del
+// vehículo. Se conserva el texto acá para poder reponerlo tal cual cuando se
+// defina; hoy NO se muestra en ninguna parte de la app.
+export const CONSENTIMIENTO_MONITOREO_GPS = {
+  id: "gps",
+  tab: "GPS",
+  titulo: "Consentimiento de Monitoreo GPS",
+  subtitulo: "Enrolamiento del vehículo · Propietarios",
+  actualizado: "Última actualización: septiembre de 2026",
+  url: `${WEB_URL}/terminos`,
+  secciones: [
+    {
+      h: "1. Instalación del dispositivo",
+      p:
+        "Para publicar un vehículo en la plataforma, el propietario autoriza expresamente la " +
+        "instalación de un dispositivo de rastreo GPS en su vehículo. El equipo se entrega en " +
+        "comodato: sigue siendo propiedad del proveedor del servicio y su uso está incluido en " +
+        "la suscripción mensual de la flota, sin costo inicial para el dueño.",
+    },
+    {
+      h: "2. Qué datos se registran y quién los ve",
+      items: [
+        "Posición del vehículo, velocidad y estado del equipo mientras el auto está enrolado.",
+        "El propietario puede consultar la posición de su propio vehículo desde la app.",
+        "El equipo de la plataforma accede a esos datos solo para resolver incidentes, disputas y recuperación del vehículo.",
+      ],
+    },
+    {
+      h: "3. Corte remoto de motor",
+      p:
+        "El corte remoto de motor es un recurso de última instancia frente a la no devolución del " +
+        "vehículo o a una disputa formal abierta. Solo puede ordenarlo un administrador de la " +
+        "plataforma, con motivo registrado y auditable, y el proveedor lo ejecuta únicamente con " +
+        "el vehículo detenido. Nunca se activa desde la app del dueño ni con el auto en marcha.",
+    },
+    {
+      h: "4. Retiro del dispositivo",
+      p:
+        "Si el propietario retira su vehículo de la plataforma, puede solicitar la desinstalación " +
+        "del equipo sin costo. El retiro lo coordina la plataforma con el proveedor y, hecha la " +
+        "desinstalación, cesa todo registro de posición del vehículo.",
+    },
+    {
+      h: "5. Revocación del consentimiento",
+      p:
+        "El propietario puede revocar este consentimiento en cualquier momento. Revocarlo implica " +
+        "pausar la publicación del vehículo, porque el monitoreo es condición para operar en la " +
+        "plataforma. Las reservas ya confirmadas se mantienen hasta su término.",
+    },
+  ],
 };

@@ -14,7 +14,7 @@ const mockGetCalificacionesDeReserva = jest.fn();
 const mockCrearCalificacion = jest.fn();
 
 // RatingModal vive dentro de mobile-shared e importa ApiClient por su
-// propia ruta relativa, no por el barrel — igual que GPSMapModal.
+// propia ruta relativa, no por el barrel.
 jest.mock("@rentacar/mobile-shared/api/client", () => {
   const real = jest.requireActual("@rentacar/mobile-shared/api/client");
   return {

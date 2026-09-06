@@ -24,12 +24,14 @@ describe("LegalModal", () => {
     expect(t).toContain("Ley N° 19.628");
   });
 
-  it("incluye el consentimiento de monitoreo GPS del dueño", () => {
+  it("no muestra el consentimiento de monitoreo GPS (retirado hasta nueva definición)", () => {
+    // Se pide doc="gps" a propósito: aunque el enlace ya no existe, el visor
+    // no debe caer en ese documento ni ofrecer la pestaña "GPS".
     const t = textOf(renderTree(<LegalModal visible doc="gps" onClose={() => {}} />));
-    expect(t).toContain("Consentimiento de Monitoreo GPS");
-    expect(t).toContain("comodato");
-    expect(t).toContain("Corte remoto de motor");
-    expect(t).toContain("Revocación del consentimiento");
+    expect(t).not.toContain("Consentimiento de Monitoreo GPS");
+    expect(t).not.toContain("Corte remoto de motor");
+    // Cae al documento por defecto (términos).
+    expect(t).toContain("Términos y Condiciones");
   });
 
   it("los términos autorizan el cobro posterior de peajes y fotomultas", () => {

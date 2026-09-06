@@ -23,7 +23,6 @@ import {
   ApiClient,
   showAlert,
   VerifyIdentityBanner,
-  GPSMapModal,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, FranjaResumen, oc } from "../comun";
 
@@ -50,7 +49,6 @@ export function MyCarsScreen({
   const [editingCar, setEditingCar] = useState(null);
   const [newTarifa, setNewTarifa] = useState("");
   const [saving, setSaving] = useState(false);
-  const [gpsCar, setGpsCar] = useState(null);
 
   const disponibles = (cars || []).filter((c) => c.estado === "activo").length;
   const potencialDia = (cars || [])
@@ -169,12 +167,6 @@ export function MyCarsScreen({
               <Icon name="settings" size={15} color={colors.primary} />
               <Text style={styles.toolText}>Mantenciones</Text>
             </TouchableOpacity>
-            {item.gps_consentimiento && (
-              <TouchableOpacity style={styles.tool} onPress={() => setGpsCar(item)} activeOpacity={0.8}>
-                <Icon name="location" size={15} color={colors.primary} />
-                <Text style={styles.toolText}>GPS</Text>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
       </View>
@@ -289,13 +281,6 @@ export function MyCarsScreen({
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      <GPSMapModal
-        visible={!!gpsCar}
-        onClose={() => setGpsCar(null)}
-        autoId={gpsCar?.id}
-        nombreAuto={gpsCar ? `${gpsCar.marca} ${gpsCar.modelo}` : ""}
-      />
     </View>
   );
 }

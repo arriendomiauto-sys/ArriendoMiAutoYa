@@ -113,7 +113,10 @@ export function useCarWizard({ onComplete }) {
     puertas: "4",
     equipamiento: { ac: true, bluetooth: true, isofix: false, doble_traccion: false, camara_retroceso: true },
     docs: {},
-    gps_consentimiento: false,
+    // Limpieza de UI de GPS: la casilla de consentimiento se ocultó hasta la
+    // nueva definición formal del módulo. Se deja en `true` para no romper la
+    // publicación con el backend actual, que aún lo exige.
+    gps_consentimiento: true,
   }));
 
   const setField = (key, valor) => setForm((prev) => ({ ...prev, [key]: valor }));
@@ -171,7 +174,7 @@ export function useCarWizard({ onComplete }) {
 
     if (!form.ubicacion_base.trim()) e.ubicacion_base = "Escribe una referencia del punto de entrega.";
     if (PUEDE_FIJAR_PUNTO && !tienePunto) {
-      e.punto = "Fija el punto en el mapa o usa tu ubicación GPS.";
+      e.punto = "Fija el punto en el mapa o usa tu ubicación actual.";
     }
 
     return e;
@@ -197,7 +200,7 @@ export function useCarWizard({ onComplete }) {
 
   // --- Ubicación --------------------------------------------------------
   const describirPunto = async (lat, lon) => {
-    const respaldo = `Punto GPS (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
+    const respaldo = `Punto (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
     if (!Location) return respaldo;
     try {
       const [rev] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
@@ -218,7 +221,7 @@ export function useCarWizard({ onComplete }) {
     setLocatingGps(true);
     try {
       if (!Location) {
-        showAlert("GPS no disponible", "El módulo de ubicación no está disponible en este dispositivo.");
+        showAlert("Ubicación no disponible", "El módulo de ubicación no está disponible en este dispositivo.");
         return;
       }
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -456,13 +459,6 @@ export function useCarWizard({ onComplete }) {
       showAlert(
         "Faltan documentos",
         `Sube ${faltan.map((d) => d.titulo.toLowerCase()).join(", ")} para publicar el auto.`
-      );
-      return;
-    }
-    if (!form.gps_consentimiento) {
-      showAlert(
-        "Falta autorizar el GPS",
-        "Para publicar tu auto necesitamos tu autorización para instalar y monitorear el dispositivo GPS."
       );
       return;
     }

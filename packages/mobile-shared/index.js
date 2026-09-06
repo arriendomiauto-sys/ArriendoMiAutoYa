@@ -73,7 +73,6 @@ export {
   vencimientoValido,
 } from "./components/FormularioTarjeta";
 export { ContractModal } from "./screens/ContractModal";
-export { GPSMapModal } from "./components/GPSMapModal";
 export { RatingModal } from "./components/RatingModal";
 export { SignaturePad } from "./components/SignaturePad";
 export { TarjetaScreen } from "./screens/TarjetaScreen";

@@ -1,6 +1,6 @@
 import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
-import { colors, theme, Icon } from "@rentacar/mobile-shared";
+import { ScrollView, StyleSheet } from "react-native";
+import { theme } from "@rentacar/mobile-shared";
 import { TituloPaso, BarraProgreso } from "./comun";
 import { RanuraDocumento } from "./RanuraDocumento";
 import { DOCS, DOCS_OBLIGATORIOS } from "./useCarWizard";
@@ -8,6 +8,10 @@ import { DOCS, DOCS_OBLIGATORIOS } from "./useCarWizard";
 export function PasoDocumentos({ wizard }) {
   const { form, validacionDocs, validandoDoc, uploadingDoc, subirDocumento, quitarDocumento, docsCargados } =
     wizard;
+  // NOTA (Limpieza de UI de GPS): la casilla "Autorizo la instalación del GPS"
+  // se ocultó hasta la nueva definición formal del módulo GPS. El
+  // consentimiento se sigue enviando por defecto en useCarWizard para no
+  // romper la publicación con el backend actual.
 
   return (
     <ScrollView contentContainerStyle={estilos.scroll} showsVerticalScrollIndicator={false}>
@@ -31,26 +35,6 @@ export function PasoDocumentos({ wizard }) {
           onClear={() => quitarDocumento(doc.key)}
         />
       ))}
-
-      <TouchableOpacity
-        style={[estilos.gps, form.gps_consentimiento && estilos.gpsOn]}
-        onPress={() => wizard.setField("gps_consentimiento", !form.gps_consentimiento)}
-        activeOpacity={0.85}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: form.gps_consentimiento }}
-      >
-        <View style={[estilos.gpsBox, form.gps_consentimiento && estilos.gpsBoxOn]}>
-          {form.gps_consentimiento ? <Icon name="check" size={13} color="#FFFFFF" /> : null}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={estilos.gpsTitulo}>Autorizo la instalación del GPS</Text>
-          <Text style={estilos.gpsTexto}>
-            Equipo en comodato, sin costo. Ves la posición de tu auto desde la app y pides el retiro
-            del equipo cuando salgas de la plataforma. El corte remoto de motor es exclusivo de la
-            plataforma y solo ante no devolución o disputa formal.
-          </Text>
-        </View>
-      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -62,30 +46,4 @@ const estilos = StyleSheet.create({
     paddingBottom: 40,
     gap: theme.spacing.md,
   },
-  gps: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    marginTop: 4,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.primary100,
-  },
-  gpsOn: { borderColor: colors.primary },
-  gpsBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: colors.borderLight,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 1,
-  },
-  gpsBoxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  gpsTitulo: { fontSize: 13, fontWeight: "700", color: colors.primary },
-  gpsTexto: { fontSize: 11.5, color: colors.textMuted, lineHeight: 16, marginTop: 3 },
 });

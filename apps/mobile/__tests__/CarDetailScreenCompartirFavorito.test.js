@@ -17,8 +17,8 @@ const mockMarcarFavorito = jest.fn();
 const mockQuitarFavorito = jest.fn();
 
 // useFavoritos vive dentro de mobile-shared e importa ApiClient por su
-// propia ruta relativa ("../api/client"), no por el barrel — igual que
-// GPSMapModal (ver GPSBotonesFlota.test.js). Hacen falta los dos mocks.
+// propia ruta relativa ("../api/client"), no por el barrel. Hacen falta
+// los dos mocks.
 jest.mock("@rentacar/mobile-shared/api/client", () => {
   const real = jest.requireActual("@rentacar/mobile-shared/api/client");
   return {
