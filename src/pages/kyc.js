@@ -5,6 +5,7 @@ import DocumentViewerModal from "../components/DocumentViewerModal";
 import { useAuth } from "../context/AuthContext";
 import { ApiClient } from "../lib/api";
 import {
+  User,
   UserCheck,
   CreditCard,
   Car,
