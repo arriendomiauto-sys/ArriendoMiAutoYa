@@ -240,6 +240,14 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
       <DocumentCameraModal
         visible={!!camara}
         variant="licencia"
+        config={
+          camara === "pic"
+            ? {
+                titulo: "Permiso Internacional (PIC)",
+                hint: "Fotografía la página con tu foto y tus datos, plana y sin reflejos.",
+              }
+            : undefined
+        }
         onClose={() => setCamara(null)}
         onCaptured={handleCaptura}
       />

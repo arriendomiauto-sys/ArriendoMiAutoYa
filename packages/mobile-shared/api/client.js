@@ -70,6 +70,71 @@ const ESPERAS_REINTENTO_SUBIDA_MS = process.env.NODE_ENV === "test" ? [10] : [15
 const TIMEOUT_JSON_MS = 20000;
 const TIMEOUT_SUBIDA_MS = 45000;
 
+// ---------------------------------------------------------------------------
+// Subida de archivos (multipart) por XMLHttpRequest
+// ---------------------------------------------------------------------------
+// Desde Expo SDK 54 el `fetch` global es el del runtime "winter" (expo/fetch),
+// que NO sabe subir un archivo con el shorthand de React Native
+// `FormData.append("file", { uri, name, type })`: revienta con "Unsupported
+// FormDataPart implementation" y la subida a POST /storage/upload nunca sale
+// del teléfono. Se notaba justo acá — el cargador de licencia / fotos KYC:
+// la captura se veía bien pero el archivo nunca llegaba y la validación
+// quedaba trancada en "Falta tu licencia".
+//
+// XMLHttpRequest (el mismo que usaba el `fetch` clásico por debajo) sí soporta
+// el shorthand. Las subidas multipart van por ahí salvo que se desactive con
+// EXPO_PUBLIC_USE_RN_FETCH=0. En web no aplica (ahí el FormData ya es el real
+// del navegador y `subirArchivoStorage` sube un Blob).
+function usarXhrParaMultipart() {
+  return (
+    Platform.OS !== "web" &&
+    typeof XMLHttpRequest === "function" &&
+    (typeof process === "undefined" || process.env?.EXPO_PUBLIC_USE_RN_FETCH !== "0")
+  );
+}
+
+// Envía un cuerpo multipart y devuelve un objeto con la misma forma mínima que
+// una Response de fetch (`ok`, `status`, `json()`) para que `request()` lo
+// trate igual.
+function enviarMultipartXHR(url, { headers = {}, body, signal }) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    // No se fija Content-Type: al detectar el FormData, XHR pone el
+    // `multipart/form-data; boundary=…` correcto. Fijarlo a mano lo rompe.
+    for (const [k, v] of Object.entries(headers)) {
+      if (k.toLowerCase() !== "content-type") xhr.setRequestHeader(k, v);
+    }
+    xhr.onload = () => {
+      const texto = xhr.responseText || "";
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        status: xhr.status,
+        json: async () => {
+          try {
+            return texto ? JSON.parse(texto) : {};
+          } catch {
+            return {};
+          }
+        },
+      });
+    };
+    // Mismo error que tira `fetch` para que el retry/backoff de `request()`
+    // lo reconozca igual.
+    xhr.onerror = () => reject(new TypeError("Network request failed"));
+    xhr.onabort = () => {
+      const e = new Error("La subida se canceló.");
+      e.name = "AbortError";
+      reject(e);
+    };
+    if (signal) {
+      if (signal.aborted) return xhr.abort();
+      signal.addEventListener("abort", () => xhr.abort());
+    }
+    xhr.send(body);
+  });
+}
+
 export class ApiClient {
   static async request(endpoint, options = {}, { reintentoDeAuth = false, intento = 0, esSubida = false } = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
@@ -87,7 +152,10 @@ export class ApiClient {
     let response;
     let seAgotoElTiempo = false;
     try {
-      response = await fetch(url, { ...options, headers, signal: controlador.signal });
+      response =
+        isFormData && usarXhrParaMultipart()
+          ? await enviarMultipartXHR(url, { headers, body: options.body, signal: controlador.signal })
+          : await fetch(url, { ...options, headers, signal: controlador.signal });
     } catch (netErr) {
       seAgotoElTiempo = controlador.signal.aborted;
       // Cuánta paciencia para reintentar. Una subida que se abortó por
