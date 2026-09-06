@@ -1,7 +1,12 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 from typing import List, Optional, Literal, Dict, Any, ClassVar
 from datetime import datetime
-from app.core.validators import validar_rut_chileno, validar_patente_chilena
+from app.core.validators import (
+    validar_rut_chileno,
+    validar_patente_chilena,
+    formatear_rut,
+    formatear_telefono_chileno,
+)
 from app.core.sanitizer import sanitize_text
 
 # ==============================================================================
@@ -33,14 +38,21 @@ class UserBase(BaseModel):
     # verdad); acá solo se guarda como texto para el contrato y soporte.
     direccion: Optional[str] = Field(default=None, max_length=300)
 
-    @field_validator("rut")
+    @field_validator("rut", mode="before")
     @classmethod
-    def check_rut(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if not validar_rut_chileno(v):
+    def check_and_format_rut(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or not str(v).strip():
+            return None
+        if not validar_rut_chileno(str(v)):
             raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
-        return v
+        return formatear_rut(str(v))
+
+    @field_validator("telefono", mode="before")
+    @classmethod
+    def check_and_format_telefono(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or not str(v).strip():
+            return None
+        return formatear_telefono_chileno(str(v))
 
 class UserCreate(UserBase):
     pass
@@ -172,12 +184,12 @@ class CuentaBancariaUpdate(BaseModel):
     titular: str
     rut: str
 
-    @field_validator("rut")
+    @field_validator("rut", mode="before")
     @classmethod
     def check_rut_titular(cls, v: str) -> str:
-        if not validar_rut_chileno(v):
+        if not validar_rut_chileno(str(v)):
             raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
-        return v
+        return formatear_rut(str(v)) or str(v)
 
 class TarjetaUpdate(BaseModel):
     """
@@ -208,14 +220,51 @@ class PerfilBasicoUpdate(BaseModel):
     telefono: Optional[str] = None
     direccion: Optional[str] = Field(default=None, max_length=300)
 
-    @field_validator("nombre", "telefono", "direccion")
+    @field_validator("nombre", "direccion")
     @classmethod
     def sanitize_perfil(cls, v: Optional[str]) -> Optional[str]:
         return sanitize_text(v)
 
+    @field_validator("telefono", mode="before")
+    @classmethod
+    def format_perfil_telefono(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or not str(v).strip():
+            return None
+        return formatear_telefono_chileno(str(v))
+
 class DocumentReviewRequest(BaseModel):
     accion: Literal["aprobar", "rechazar"]
     notas: str
+
+class AutoDocumentosReviewRequest(BaseModel):
+    accion: Literal["aprobar", "rechazar"]
+    notas: Optional[str] = ""
+
+class AutoPendienteKycOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    marca: str
+    modelo: str
+    anio: int
+    patente: str
+    tarifa_dia: int
+    estado: str
+    ubicacion_base: str
+    fotos: List[str] = []
+    
+    doc_inscripcion_url: Optional[str] = None
+    doc_permiso_circulacion_url: Optional[str] = None
+    doc_soap_url: Optional[str] = None
+    doc_revision_tecnica_url: Optional[str] = None
+    doc_seguro_url: Optional[str] = None
+    documentos_verificados: bool = False
+
+    dueno_id: str
+    dueno_nombre: Optional[str] = None
+    dueno_rut: Optional[str] = None
+    dueno_email: Optional[str] = None
+    dueno_telefono: Optional[str] = None
 
 # ==============================================================================
 # AUTOS
@@ -463,14 +512,21 @@ class ConductorAdicionalBase(BaseModel):
     licencia_url: Optional[str] = None
     selfie_url: Optional[str] = None
 
-    @field_validator("rut")
+    @field_validator("rut", mode="before")
     @classmethod
     def check_rut_conductor(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if not validar_rut_chileno(v):
+        if v is None or not str(v).strip():
+            return None
+        if not validar_rut_chileno(str(v)):
             raise ValueError("RUT chileno inválido para el segundo conductor (falla Módulo 11)")
-        return v
+        return formatear_rut(str(v))
+
+    @field_validator("telefono", mode="before")
+    @classmethod
+    def format_conductor_telefono(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or not str(v).strip():
+            return None
+        return formatear_telefono_chileno(str(v))
 
 class ConductorAdicionalCreate(ConductorAdicionalBase):
     pass
@@ -497,14 +553,21 @@ class ConductorAdicionalUpdate(BaseModel):
     licencia_url: Optional[str] = None
     selfie_url: Optional[str] = None
 
-    @field_validator("rut")
+    @field_validator("rut", mode="before")
     @classmethod
     def check_rut_conductor_update(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if not validar_rut_chileno(v):
+        if v is None or not str(v).strip():
+            return None
+        if not validar_rut_chileno(str(v)):
             raise ValueError("RUT chileno inválido (falla Módulo 11)")
-        return v
+        return formatear_rut(str(v))
+
+    @field_validator("telefono", mode="before")
+    @classmethod
+    def format_conductor_update_telefono(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or not str(v).strip():
+            return None
+        return formatear_telefono_chileno(str(v))
 
 class ConductorAdicionalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -584,6 +647,8 @@ class BookingOut(BaseModel):
     codigo_qr_hash: Optional[str] = None
     lugar_entrega_acordado: str
     contrato_pdf_url: Optional[str] = None
+    hash_contrato_sha256: Optional[str] = None
+    fecha_firma_biometrica: Optional[datetime] = None
     segundo_conductor: Optional[ConductorAdicionalOut] = None
 
     # Pre-checkin 24h antes

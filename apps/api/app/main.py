@@ -107,9 +107,7 @@ app.add_middleware(RequestSizeLimitMiddleware)
 # (RentACar-admin, proyecto aparte) se agrega por separado vía
 # ADMIN_PANEL_ORIGIN — no vive en CORS_ORIGINS porque es un cliente
 # administrativo distinto, no una app de cara al público.
-_cors_origins = list(settings.CORS_ORIGINS)
-if settings.ADMIN_PANEL_ORIGIN:
-    _cors_origins.append(settings.ADMIN_PANEL_ORIGIN)
+_cors_origins = settings.allowed_cors_origins
 
 app.add_middleware(
     CORSMiddleware,

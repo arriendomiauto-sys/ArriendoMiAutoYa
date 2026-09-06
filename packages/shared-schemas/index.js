@@ -60,9 +60,57 @@ function validarPatenteChilena(patente) {
 }
 
 /**
+ * Formatea un RUT chileno en el estándar oficial '11.111.111-1' o '1.111.111-1'.
+ * @param {string} rutRaw
+ * @returns {string}
+ */
+function formatearRut(rutRaw) {
+  if (!rutRaw || typeof rutRaw !== "string") return "";
+  const limpio = rutRaw.replace(/[^0-9kK]/g, "").toUpperCase();
+  if (limpio.length < 2) return limpio;
+
+  const cuerpo = limpio.slice(0, -1);
+  const dv = limpio.slice(-1);
+
+  if (!/^\d+$/.test(cuerpo)) return limpio;
+
+  const cuerpoFmt = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${cuerpoFmt}-${dv}`;
+}
+
+/**
+ * Formatea un teléfono chileno al estándar '+56 9 1111 1111'.
+ * @param {string} telRaw
+ * @returns {string}
+ */
+function formatearTelefonoChileno(telRaw) {
+  if (!telRaw || typeof telRaw !== "string") return "";
+  const digitos = telRaw.replace(/\D/g, "");
+  if (!digitos) return "";
+
+  let movil = digitos;
+  if (digitos.startsWith("569") && digitos.length >= 11) {
+    movil = digitos.slice(3, 11);
+  } else if (digitos.startsWith("56") && digitos.length === 10) {
+    movil = digitos.slice(2, 10);
+  } else if (digitos.startsWith("9") && digitos.length >= 9) {
+    movil = digitos.slice(1, 9);
+  } else if (digitos.length >= 8) {
+    movil = digitos.slice(-8);
+  }
+
+  if (movil.length === 8) {
+    return `+56 9 ${movil.slice(0, 4)} ${movil.slice(4, 8)}`;
+  } else if (movil.length > 4) {
+    return `+56 9 ${movil.slice(0, 4)} ${movil.slice(4)}`;
+  }
+  return `+56 9 ${movil}`;
+}
+
+/**
  * Validador de teléfono móvil chileno.
  */
-const telefonoChilenoRegex = /^(\+?56)?(\s?)(9)(\s?)[0-9]{8}$/;
+const telefonoChilenoRegex = /^(\+?56\s?)?(9\s?)?[0-9]{4}\s?[0-9]{4}$|^(\+?56\s?9\s?)?[0-9]{8}$/;
 
 // ==============================================================================
 // ESQUEMAS ZOD
@@ -88,13 +136,28 @@ const PublicarAutoSchema = z.object({
   patente: z.string().refine(validarPatenteChilena, {
     message: "Patente chilena inválida (ej. ABCD-12 o AB-12-34)",
   }),
-  tarifa_dia: z.number().positive("La tarifa diaria debe ser mayor a 0"),
-  ubicacion_base: z.string().min(3, "Ubicación base requerida en Los Ángeles"),
+  categoria: z.enum(["economico", "sedan", "suv", "camioneta", "premium"]).optional(),
+  tarifa_dia: z
+    .number()
+    .positive("La tarifa diaria debe ser mayor a 0")
+    .min(15000, "La tarifa mínima es de $15.000 CLP")
+    .refine((val) => val % 5000 === 0, {
+      message: "La tarifa diaria debe ser en tramos de $5.000 CLP",
+    }),
+  ubicacion_base: z.string().min(3, "Ubicación base requerida"),
   fotos: z.array(z.string().url()).min(1, "Debe incluir al menos una foto del vehículo").optional(),
 });
 
 const EditarAutoSchema = z.object({
-  tarifa_dia: z.number().positive("La tarifa debe ser positiva").optional(),
+  categoria: z.enum(["economico", "sedan", "suv", "camioneta", "premium"]).optional(),
+  tarifa_dia: z
+    .number()
+    .positive("La tarifa debe ser positiva")
+    .min(15000, "La tarifa mínima es de $15.000 CLP")
+    .refine((val) => val % 5000 === 0, {
+      message: "La tarifa diaria debe ser en tramos de $5.000 CLP",
+    })
+    .optional(),
   estado: z.enum(["activo", "pausado", "mantenimiento"]).optional(),
   ubicacion_base: z.string().min(3).optional(),
   fotos: z.array(z.string().url()).optional(),
@@ -175,8 +238,32 @@ const CalificacionSchema = z.object({
   comentario: z.string().optional(),
 });
 
+const ConductorAdicionalSchema = z.object({
+  nombre: z.string().min(3, "El nombre completo es requerido"),
+  email: z.string().email("Correo electrónico inválido").optional().or(z.literal("")),
+  telefono: z.string().min(8, "Teléfono debe tener al menos 8 dígitos").optional().or(z.literal("")),
+  tipo_documento: z.enum(["rut", "pasaporte", "dni_extranjero"]).default("rut"),
+  rut: z.string().optional().refine((val) => !val || validarRutChileno(val), {
+    message: "RUT chileno inválido (falla Módulo 11)",
+  }),
+  numero_documento: z.string().optional(),
+  pais_documento: z.string().optional(),
+  fecha_nacimiento: z.string().or(z.date()).optional(),
+  licencia_pais_emisor: z.string().optional(),
+  licencia_numero: z.string().optional(),
+  licencia_clase: z.string().optional(),
+  licencia_vencimiento: z.string().or(z.date()).optional(),
+  pic_url: z.string().url().optional().or(z.literal("")),
+  carnet_frontal_url: z.string().url().optional(),
+  carnet_trasero_url: z.string().url().optional(),
+  licencia_url: z.string().url().optional(),
+  selfie_url: z.string().url().optional(),
+});
+
 module.exports = {
   validarRutChileno,
+  formatearRut,
+  formatearTelefonoChileno,
   validarPatenteChilena,
   EnrolamientoSchema,
   PublicarAutoSchema,
@@ -189,4 +276,5 @@ module.exports = {
   ResolverDisputaSchema,
   TicketSoporteSchema,
   CalificacionSchema,
+  ConductorAdicionalSchema,
 };

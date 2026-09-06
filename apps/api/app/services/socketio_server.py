@@ -59,7 +59,7 @@ async def connect(sid, environ, auth=None):
             sid,
             {
                 "usuario_id": usuario.id,
-                "nombre": usuario.nombre_completo,
+                "nombre": getattr(usuario, "nombre", "") or "",
                 "roles": usuario.roles_activos or [],
             },
         )

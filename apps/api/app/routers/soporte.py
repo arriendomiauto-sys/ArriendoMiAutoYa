@@ -34,8 +34,8 @@ def listar_mis_tickets(
 
 def _requerir_admin_o_manager(current_user: Usuario):
     roles = current_user.roles_activos or []
-    if "admin" not in roles and "manager" not in roles:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Manager o Admin.")
+    if "admin" not in roles and "manager" not in roles and "soporte" not in roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Soporte, Manager o Admin.")
 
 @router.get("/tickets", response_model=List[TicketOut], summary="Listar tickets (con filtro por sucursal)")
 def listar_tickets(

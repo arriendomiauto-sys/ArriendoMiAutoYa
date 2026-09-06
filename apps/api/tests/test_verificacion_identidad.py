@@ -126,7 +126,7 @@ def test_actualizar_perfil_basico_no_requiere_kyc_previo(usuario_factory, auth_a
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["nombre"] == "Juan Cuenta Simple"
-    assert data["telefono"] == "+56911112222"
+    assert data["telefono"] == "+56 9 1111 2222"
     # No toca nada relacionado a identidad/KYC.
     assert data["rut"] is None
     assert data["estado_documentos"] == "pendiente"

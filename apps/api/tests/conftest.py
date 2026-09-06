@@ -8,7 +8,7 @@ from app.core.database import Base, get_db
 from app.main import app
 from app.core.seed import seed_demo_data
 from app.models.entities import Usuario
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, get_optional_current_user
 from app.core.limiter import limiter
 
 # En memoria: create_all()/drop_all() corren ~80 veces en la suite y un
@@ -102,6 +102,7 @@ def usuario_factory(db_session):
             tarjeta_ultimos4=kwargs.get("tarjeta_ultimos4", "4242"),
             tarjeta_marca=kwargs.get("tarjeta_marca", "visa"),
             tarjeta_token=kwargs.get("tarjeta_token", "tok-test"),
+            expo_push_token=kwargs.get("expo_push_token"),
         )
         db_session.add(user)
         db_session.commit()
@@ -121,5 +122,6 @@ def auth_as(client):
     """
     def _auth_as(usuario):
         app.dependency_overrides[get_current_user] = lambda: usuario
+        app.dependency_overrides[get_optional_current_user] = lambda: usuario
         return client
     return _auth_as

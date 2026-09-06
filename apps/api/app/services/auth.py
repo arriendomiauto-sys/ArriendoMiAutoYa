@@ -77,11 +77,56 @@ async def autenticar_token(token: str, db: Session) -> Usuario:
     supa_email = data.get("email")
 
     user = db.query(Usuario).filter(Usuario.id == supa_id).first()
+    if not user and supa_email:
+        user = db.query(Usuario).filter(Usuario.email == supa_email).first()
+        if user:
+            # Si el registro local tenía un id provisional, sincronizar con supa_id
+            user.id = supa_id
+            db.commit()
+            db.refresh(user)
+
+    def _inferir_roles_staff(email: Optional[str]) -> List[str]:
+        e = (email or "").lower()
+        if "admin" in e:
+            return ["admin"]
+        if "manager" in e:
+            return ["manager"]
+        if "soporte" in e:
+            return ["soporte"]
+        if "dueno" in e:
+            return ["dueno", "cliente"]
+        return ["cliente"]
+
     if not user:
-        user = Usuario(id=supa_id, email=supa_email, roles_activos=["cliente"])
+        roles = _inferir_roles_staff(supa_email)
+        user = Usuario(
+            id=supa_id,
+            email=supa_email,
+            nombre="Usuario Staff" if any(r in ("admin", "manager", "soporte") for r in roles) else None,
+            roles_activos=roles,
+            estado_documentos="verificado" if any(r in ("admin", "manager", "soporte") for r in roles) else "pendiente",
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
+    else:
+        # Promover roles si es una cuenta staff reconocida
+        email_str = (supa_email or user.email or "").lower()
+        roles_actuales = list(user.roles_activos or [])
+        cambio = False
+        if ("admin" in email_str) and "admin" not in roles_actuales:
+            roles_actuales.append("admin")
+            cambio = True
+        if ("manager" in email_str) and "manager" not in roles_actuales:
+            roles_actuales.append("manager")
+            cambio = True
+        if ("soporte" in email_str) and "soporte" not in roles_actuales:
+            roles_actuales.append("soporte")
+            cambio = True
+        if cambio:
+            user.roles_activos = roles_actuales
+            db.commit()
+            db.refresh(user)
 
     return user
 
@@ -100,3 +145,18 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="No autenticado")
 
     return await autenticar_token(authorization.split(" ", 1)[1], db)
+
+
+async def get_optional_current_user(
+    authorization: Optional[str] = Header(None, description="Bearer <supabase_access_token>"),
+    db: Session = Depends(get_db)
+) -> Optional[Usuario]:
+    """
+    Dependency opcional: devuelve el Usuario si el token es válido, o None si no hay token.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        return await autenticar_token(authorization.split(" ", 1)[1], db)
+    except Exception:
+        return None

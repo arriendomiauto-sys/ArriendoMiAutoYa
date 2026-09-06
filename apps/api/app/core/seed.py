@@ -9,21 +9,22 @@ def seed_demo_data(db: Session):
         return
 
     # 0. Configuración Dinámica de Plataforma (RF-33)
-    config = ConfiguracionPlataforma(
-        id="default",
-        valor_uf_clp=38000.0,
-        comision_plataforma_pct=20.0,
-        hold_enrolamiento_clp=800000,
-        cargo_limpieza_estandar_clp=15000,
-        cargo_limpieza_profunda_clp=35000,
-        cargo_combustible_cuarto_clp=15000,
-        cargo_km_extra_clp=120,
-        km_diarios_incluidos=250,
-        periodo_gracia_minutos=30,
-        dias_cobro_posterior_peajes=60,
-        edad_minima_arriendo=21
-    )
-    db.add(config)
+    if not db.query(ConfiguracionPlataforma).filter(ConfiguracionPlataforma.id == "default").first():
+        config = ConfiguracionPlataforma(
+            id="default",
+            valor_uf_clp=38000.0,
+            comision_plataforma_pct=20.0,
+            hold_enrolamiento_clp=800000,
+            cargo_limpieza_estandar_clp=15000,
+            cargo_limpieza_profunda_clp=35000,
+            cargo_combustible_cuarto_clp=15000,
+            cargo_km_extra_clp=120,
+            km_diarios_incluidos=250,
+            periodo_gracia_minutos=30,
+            dias_cobro_posterior_peajes=60,
+            edad_minima_arriendo=21
+        )
+        db.add(config)
 
     # 1. Sucursal Los Ángeles, Chile
     sucursal_la = Sucursal(
@@ -89,9 +90,28 @@ def seed_demo_data(db: Session):
         telefono="+56912345678",
         estado_documentos="verificado",
         confianza_ocr=1.0,
-        roles_activos=["admin"]
+        roles_activos=["admin"],
     )
-    db.add_all([dueno, cliente, cliente_pendiente, manager, admin])
+    qa_admin = Usuario(
+        nombre="QA Admin",
+        rut="20.333.444-3",
+        email="qa.admin@arriendatuauto.cl",
+        telefono="+56912345678",
+        estado_documentos="verificado",
+        confianza_ocr=1.0,
+        roles_activos=["admin"],
+    )
+    qa_manager = Usuario(
+        nombre="QA Manager",
+        rut="20.444.555-9",
+        email="qa.manager@arriendatuauto.cl",
+        telefono="+56955443322",
+        estado_documentos="verificado",
+        confianza_ocr=1.0,
+        roles_activos=["manager"],
+        sucursal_id=sucursal_la.id,
+    )
+    db.add_all([dueno, cliente, cliente_pendiente, manager, admin, qa_admin, qa_manager])
     db.flush()
 
     # 3. Autos demo en Los Ángeles

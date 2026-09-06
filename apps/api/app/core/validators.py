@@ -43,11 +43,63 @@ def validar_rut_chileno(rut_completo: str) -> bool:
 
     return dv == dv_calculado
 
+def formatear_rut(rut_completo: Optional[str]) -> Optional[str]:
+    """
+    Formatea un RUT chileno en el estándar oficial '11.111.111-1' o '1.111.111-1'.
+    Limpia puntos y guiones previos y formatea con separadores de miles y guion con DV en mayúscula.
+    """
+    if not rut_completo or not isinstance(rut_completo, str):
+        return None
+
+    limpio = re.sub(r"[\.\-\s]", "", rut_completo).upper()
+    if len(limpio) < 2:
+        return limpio
+
+    cuerpo = limpio[:-1]
+    dv = limpio[-1]
+
+    if not cuerpo.isdigit():
+        return limpio
+
+    cuerpo_fmt = f"{int(cuerpo):,}".replace(",", ".")
+    return f"{cuerpo_fmt}-{dv}"
+
 def normalizar_rut(rut_completo: Optional[str]) -> Optional[str]:
     """Limpia puntos, guiones y espacios del RUT para comparaciones seguras."""
     if not rut_completo or not isinstance(rut_completo, str):
         return None
     return re.sub(r"[\.\-\s]", "", rut_completo).upper()
+
+def formatear_telefono_chileno(telefono: Optional[str]) -> Optional[str]:
+    """
+    Formatea un teléfono móvil chileno al formato estándar '+56 9 1111 1111'.
+    Acepta '912345678', '+56912345678', '56912345678', '12345678', etc.
+    """
+    if not telefono or not isinstance(telefono, str):
+        return None
+
+    digitos = re.sub(r"\D", "", telefono)
+    if not digitos:
+        return None
+
+    if digitos.startswith("569") and len(digitos) >= 11:
+        movil = digitos[3:11]
+    elif digitos.startswith("56") and len(digitos) == 10:
+        movil = digitos[2:10]
+    elif digitos.startswith("9") and len(digitos) >= 9:
+        movil = digitos[1:9]
+    elif len(digitos) == 8:
+        movil = digitos
+    elif len(digitos) > 8:
+        movil = digitos[-8:]
+    else:
+        movil = digitos
+
+    if len(movil) == 8:
+        return f"+56 9 {movil[:4]} {movil[4:]}"
+    elif len(movil) > 4:
+        return f"+56 9 {movil[:4]} {movil[4:]}"
+    return f"+56 9 {movil}"
 
 def validar_documento_identidad(
     tipo_documento: Optional[str],

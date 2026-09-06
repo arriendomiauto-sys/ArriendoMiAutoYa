@@ -159,6 +159,8 @@ class Reserva(Base):
     codigo_qr_hash = Column(String, index=True, nullable=True)
     lugar_entrega_acordado = Column(String, nullable=False)
     contrato_pdf_url = Column(String, nullable=True)
+    hash_contrato_sha256 = Column(String(64), nullable=True)
+    fecha_firma_biometrica = Column(DateTime, nullable=True)
 
     # Verificación / Pre-checkin 24 horas antes
     precheck_cliente_confirmado = Column(Boolean, default=False)

@@ -3,7 +3,9 @@ from app.core.validators import (
     validar_rut_chileno,
     validar_patente_chilena,
     validar_telefono_chileno,
-    validar_disponibilidad_reserva
+    validar_disponibilidad_reserva,
+    formatear_rut,
+    formatear_telefono_chileno,
 )
 from app.models.entities import Auto, Reserva, Usuario
 
@@ -23,6 +25,24 @@ def test_validador_rut_chileno_modulo_11():
     assert validar_rut_chileno("12345") is False
     assert validar_rut_chileno("abcdefgh-k") is False
     assert validar_rut_chileno("") is False
+
+def test_formatear_rut():
+    assert formatear_rut("18456789k") == "18.456.789-K"
+    assert formatear_rut("18456789-K") == "18.456.789-K"
+    assert formatear_rut("213772856") == "21.377.285-6"
+    assert formatear_rut("111111111") == "11.111.111-1"
+    assert formatear_rut("11.111.111-1") == "11.111.111-1"
+    assert formatear_rut("") is None
+    assert formatear_rut(None) is None
+
+def test_formatear_telefono_chileno():
+    assert formatear_telefono_chileno("932114494") == "+56 9 3211 4494"
+    assert formatear_telefono_chileno("+56932114494") == "+56 9 3211 4494"
+    assert formatear_telefono_chileno("56932114494") == "+56 9 3211 4494"
+    assert formatear_telefono_chileno("+56 9 3211 4494") == "+56 9 3211 4494"
+    assert formatear_telefono_chileno("32114494") == "+56 9 3211 4494"
+    assert formatear_telefono_chileno("") is None
+    assert formatear_telefono_chileno(None) is None
 
 def test_validador_patente_chilena():
     # Patentes formato nuevo (4 letras + 2 números)

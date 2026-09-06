@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.entities import Pago, Reserva, Usuario, Disputa, Auto, Sucursal, ConfiguracionPlataforma
-from app.schemas.schemas import UserOut, DocumentReviewRequest, PlatformConfigOut, PlatformConfigUpdate
+from app.schemas.schemas import (
+    UserOut, DocumentReviewRequest, PlatformConfigOut, PlatformConfigUpdate,
+    AutoPendienteKycOut, AutoDocumentosReviewRequest,
+)
 from app.services.pricing import PricingService
 from app.services.auth import get_current_user
 
@@ -32,7 +35,7 @@ def obtener_configuracion_plataforma(db: Session = Depends(get_db)):
         db.refresh(config)
     return config
 
-@router.put("/configuracion", response_model=PlatformConfigOut, summary="Actualizar parámetros dinámicos de la plataforma (Admin RF-33)")
+@router.put("/configuracion", response_model=PlatformConfigOut, summary="Actualizar parámetros dinámicos de la plataforma (RF-33)")
 def actualizar_configuracion_plataforma(
     payload: PlatformConfigUpdate,
     db: Session = Depends(get_db),
@@ -41,27 +44,23 @@ def actualizar_configuracion_plataforma(
     if "admin" not in (current_user.roles_activos or []):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso restringido: Solo administradores pueden modificar parámetros de plataforma."
+            detail="Acceso restringido: Solo el Administrador puede modificar los parámetros de la plataforma (RF-33)."
         )
-
     config = db.query(ConfiguracionPlataforma).first()
     if not config:
         config = ConfiguracionPlataforma(id="default")
         db.add(config)
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        if value is not None:
-            setattr(config, field, value)
+    for field, val in payload.model_dump(exclude_unset=True).items():
+        setattr(config, field, val)
 
-    config.actualizado_por_id = current_user.id
     db.commit()
     db.refresh(config)
     return config
 
-@router.get("/deducible-info", summary="Información del cálculo de deducible de seguros (15 UF, 50/50)")
-def obtener_deducible_info(db: Session = Depends(get_db)):
+@router.get("/tarifa-seguro", summary="Obtener el cálculo del deducible de seguro")
+def obtener_tarifa_seguro(db: Session = Depends(get_db)):
     """
-    Retorna el desglose del seguro conforme a la regla de negocio:
     Deducible 15 UF dividido 50% empresa y 50% dueño.
     """
     return PricingService.calcular_deducible_seguro(db)
@@ -107,11 +106,6 @@ def listar_flota_sucursal(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    """
-    Autos cuyos dueños pertenecen a la misma sucursal del Manager autenticado,
-    con el nombre/RUT del dueño incluido (visible solo para Admin/Manager).
-    Un Admin ve la flota completa de la plataforma.
-    """
     roles = current_user.roles_activos or []
     if "admin" not in roles and "manager" not in roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin o Manager.")
@@ -130,8 +124,8 @@ def listar_flota_sucursal(
             "tarifa_dia": auto.tarifa_dia,
             "estado": auto.estado,
             "ubicacion_base": auto.ubicacion_base,
-            "dueno_nombre": auto.dueno.nombre,
-            "dueno_rut": auto.dueno.rut,
+            "dueno_nombre": auto.dueno.nombre if auto.dueno else None,
+            "dueno_rut": auto.dueno.rut if auto.dueno else None,
         }
         for auto in query.all()
     ]
@@ -142,13 +136,18 @@ def listar_documentos_pendientes(
     current_user: Usuario = Depends(get_current_user),
 ):
     """
-    Devuelve los usuarios con score de confianza OCR bajo (< 80%) o inconsistencias para revisión humana.
+    Devuelve los usuarios con score de confianza OCR bajo (< 80%), en revisión manual o pendientes.
     Contiene datos personales (RUT, teléfono) — solo Admin o Manager.
     """
     roles = current_user.roles_activos or []
     if "admin" not in roles and "manager" not in roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin o Manager.")
-    return db.query(Usuario).filter(Usuario.estado_documentos == "requiere_revision_manual").all()
+    
+    return db.query(Usuario).filter(
+        (Usuario.estado_documentos.in_(["requiere_revision_manual", "pendiente", "rechazado"])) |
+        (Usuario.confianza_ocr < 0.8) |
+        (Usuario.licencia_estado.in_(["revision", "pendiente"]))
+    ).all()
 
 @router.post("/documentos/{usuario_id}/revisar", response_model=UserOut, summary="Aprobar o rechazar manualmente documentos de enrolamiento (Admin exclusivo RF-31)")
 def revisar_documentos_usuario(
@@ -169,19 +168,17 @@ def revisar_documentos_usuario(
 
     if payload.accion == "aprobar":
         usuario.estado_documentos = "verificado"
+        usuario.licencia_estado = "verificada"
         usuario.notas_auditoria = f"[Aprobado por Admin {current_user.nombre}]: {payload.notas}"
     else:
         usuario.estado_documentos = "rechazado"
+        usuario.licencia_estado = "rechazada"
         usuario.notas_auditoria = f"[Rechazado por Admin {current_user.nombre}]: {payload.notas}"
 
     db.commit()
     db.refresh(usuario)
 
-    # El enrolamiento ya avisa "en revisión" al completarse; este es el aviso
-    # que faltaba — el resultado real de esa revisión, que hasta ahora el
-    # usuario solo podía descubrir volviendo a abrir la app.
     from app.services.notificaciones import crear_notificacion
-
     crear_notificacion(
         db,
         usuario_id=usuario.id,
@@ -197,3 +194,107 @@ def revisar_documentos_usuario(
     )
 
     return usuario
+
+@router.get("/autos/documentos-pendientes", response_model=List[AutoPendienteKycOut], summary="Listar autos pendientes de revisión documental (Admin/Manager)")
+def listar_autos_documentos_pendientes(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    roles = current_user.roles_activos or []
+    if "admin" not in roles and "manager" not in roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin o Manager.")
+
+    autos = db.query(Auto).filter(Auto.documentos_verificados == False).all()
+    resultado = []
+    for a in autos:
+        resultado.append(
+            AutoPendienteKycOut(
+                id=a.id,
+                marca=a.marca,
+                modelo=a.modelo,
+                anio=a.anio,
+                patente=a.patente,
+                tarifa_dia=a.tarifa_dia,
+                estado=a.estado,
+                ubicacion_base=a.ubicacion_base,
+                fotos=a.fotos or [],
+                doc_inscripcion_url=a.doc_inscripcion_url,
+                doc_permiso_circulacion_url=a.doc_permiso_circulacion_url,
+                doc_soap_url=a.doc_soap_url,
+                doc_revision_tecnica_url=a.doc_revision_tecnica_url,
+                doc_seguro_url=a.doc_seguro_url,
+                documentos_verificados=a.documentos_verificados or False,
+                dueno_id=a.dueno_id,
+                dueno_nombre=a.dueno.nombre if a.dueno else None,
+                dueno_rut=a.dueno.rut if a.dueno else None,
+                dueno_email=a.dueno.email if a.dueno else None,
+                dueno_telefono=a.dueno.telefono if a.dueno else None,
+            )
+        )
+    return resultado
+
+@router.post("/autos/{auto_id}/revisar-documentos", response_model=AutoPendienteKycOut, summary="Aprobar o rechazar documentos del auto (Admin)")
+def revisar_documentos_auto(
+    auto_id: str,
+    payload: AutoDocumentosReviewRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso restringido: Solo el Administrador tiene facultad para aprobar o rechazar documentos de autos."
+        )
+
+    auto = db.query(Auto).filter(Auto.id == auto_id).first()
+    if not auto:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
+
+    if payload.accion == "aprobar":
+        auto.documentos_verificados = True
+        auto.estado = "activo"
+    else:
+        auto.documentos_verificados = False
+        auto.estado = "pausado"
+
+    db.commit()
+    db.refresh(auto)
+
+    if auto.dueno_id:
+        from app.services.notificaciones import crear_notificacion
+        crear_notificacion(
+            db,
+            usuario_id=auto.dueno_id,
+            tipo="auto_documentos",
+            titulo="Documentos del vehículo aprobados" if payload.accion == "aprobar" else "Documentos del vehículo observados",
+            mensaje=(
+                f"Tu auto {auto.marca} {auto.modelo} ({auto.patente}) ya está verificado y disponible para arriendo."
+                if payload.accion == "aprobar"
+                else f"Los documentos de tu auto {auto.marca} {auto.modelo} ({auto.patente}) fueron observados: {payload.notas}. Por favor actualízalos."
+            ),
+            entidad_tipo="auto",
+            entidad_id=auto.id,
+        )
+
+    return AutoPendienteKycOut(
+        id=auto.id,
+        marca=auto.marca,
+        modelo=auto.modelo,
+        anio=auto.anio,
+        patente=auto.patente,
+        tarifa_dia=auto.tarifa_dia,
+        estado=auto.estado,
+        ubicacion_base=auto.ubicacion_base,
+        fotos=auto.fotos or [],
+        doc_inscripcion_url=auto.doc_inscripcion_url,
+        doc_permiso_circulacion_url=auto.doc_permiso_circulacion_url,
+        doc_soap_url=auto.doc_soap_url,
+        doc_revision_tecnica_url=auto.doc_revision_tecnica_url,
+        doc_seguro_url=auto.doc_seguro_url,
+        documentos_verificados=auto.documentos_verificados or False,
+        dueno_id=auto.dueno_id,
+        dueno_nombre=auto.dueno.nombre if auto.dueno else None,
+        dueno_rut=auto.dueno.rut if auto.dueno else None,
+        dueno_email=auto.dueno.email if auto.dueno else None,
+        dueno_telefono=auto.dueno.telefono if auto.dueno else None,
+    )

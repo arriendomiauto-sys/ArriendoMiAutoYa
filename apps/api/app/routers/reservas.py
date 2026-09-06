@@ -221,13 +221,22 @@ def descargar_contrato_pdf(
         segundo_conductor_rut=(reserva.segundo_conductor.rut or reserva.segundo_conductor.numero_documento) if reserva.segundo_conductor else None,
         segundo_conductor_telefono=reserva.segundo_conductor.telefono if reserva.segundo_conductor else None,
         segundo_conductor_licencia=reserva.segundo_conductor.licencia_numero if reserva.segundo_conductor else None,
+        fecha_firma_biometrica=reserva.fecha_firma_biometrica,
     )
+
+    pdf_hash = ContractService.calcular_hash_contrato(pdf_bytes)
+    if reserva.hash_contrato_sha256 != pdf_hash:
+        reserva.hash_contrato_sha256 = pdf_hash
+        db.commit()
 
     filename = f"Contrato-Arriendo-{auto.patente if auto else 'AUTO'}-{reserva.id[:8].upper()}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "X-Contract-SHA256": pdf_hash
+        }
     )
 
 @router.patch("/{reserva_id}/estado", response_model=BookingOut, summary="Actualizar estado de reserva (Aceptar/Rechazar)")

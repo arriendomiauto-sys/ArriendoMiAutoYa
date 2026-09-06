@@ -251,6 +251,8 @@ class DeliveryService:
         cobro_info = None
         if tipo == "antes":
             reserva.estado = "en_curso"
+            if not reserva.fecha_firma_biometrica:
+                reserva.fecha_firma_biometrica = datetime.now(timezone.utc)
             mensaje = "Checklist inicial completado con éxito. Arriendo iniciado (en_curso)."
         else: # "despues" (devolución)
             reserva.estado = "finalizada"

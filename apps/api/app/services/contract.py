@@ -1,5 +1,6 @@
 import os
 import io
+import hashlib
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -31,6 +32,15 @@ def clausula_peajes_tag(dias_cobro_posterior_peajes: int) -> str:
 
 class ContractService:
     @staticmethod
+    def calcular_hash_contrato(pdf_bytes: bytes) -> str:
+        """
+        Calcula el hash criptográfico SHA-256 inmutable de los bytes del PDF del contrato.
+        """
+        if not pdf_bytes:
+            return ""
+        return hashlib.sha256(pdf_bytes).hexdigest()
+
+    @staticmethod
     def generar_contrato_pdf(
         reserva_id: str,
         dueno_nombre: str,
@@ -55,6 +65,7 @@ class ContractService:
         segundo_conductor_rut: str = None,
         segundo_conductor_telefono: str = None,
         segundo_conductor_licencia: str = None,
+        fecha_firma_biometrica: datetime = None,
         output_path: str = None
     ) -> bytes:
         """
@@ -249,10 +260,15 @@ class ContractService:
         story.append(Spacer(1, 14))
 
         # 5. Firmas Digitales
+        bio_stamp = (
+            f"<i>Firmado Digitalmente con Verificación Biométrica<br/>({fecha_firma_biometrica.strftime('%d/%m/%Y %H:%M')} UTC)</i>"
+            if fecha_firma_biometrica else
+            "<i>Firmado Digitalmente tras Enrolamiento OCR y Biometría</i>"
+        )
         firmas_data = [
             [
                 Paragraph(f"____________________________________<br/><b>ARRENDADOR (DUEÑO)</b><br/>{dueno_nombre}<br/>RUT: {dueno_rut}<br/><i>Firmado Digitalmente con Clave / OTP</i>", body_style),
-                Paragraph(f"____________________________________<br/><b>ARRENDATARIO (CLIENTE)</b><br/>{cliente_nombre}<br/>RUT: {cliente_rut}<br/><i>Firmado Digitalmente tras Enrolamiento OCR</i>", body_style)
+                Paragraph(f"____________________________________<br/><b>ARRENDATARIO (CLIENTE)</b><br/>{cliente_nombre}<br/>RUT: {cliente_rut}<br/>{bio_stamp}", body_style)
             ]
         ]
         t_firmas = Table(firmas_data, colWidths=[270, 270])

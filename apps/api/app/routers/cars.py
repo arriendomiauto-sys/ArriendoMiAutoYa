@@ -13,7 +13,7 @@ from app.schemas.schemas import (
     ValidarDocumentosAutoResponse,
 )
 from app.models.entities import Auto, Usuario, TicketSoporte, Calificacion
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, get_optional_current_user
 from app.services import tarjetas
 from app.features.verificacion_vehiculos.car_doc_validator import CarDocValidator
 from app.core.limiter import limiter
@@ -21,6 +21,21 @@ from app.core.limiter import limiter
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/autos", tags=["Autos y Marketplace"])
+
+def _sanear_auto_out(auto: Auto, current_user: Optional[Usuario] = None) -> AutoOut:
+    """
+    Sanitiza los documentos sensibles del vehículo para que no queden expuestos
+    en el marketplace público ni ante usuarios que no sean su dueño o admin.
+    """
+    es_dueno = bool(current_user and (current_user.id == auto.dueno_id or "admin" in (current_user.roles_activos or [])))
+    out = AutoOut.model_validate(auto)
+    if not es_dueno:
+        out.doc_inscripcion_url = None
+        out.doc_permiso_circulacion_url = None
+        out.doc_soap_url = None
+        out.doc_revision_tecnica_url = None
+        out.doc_seguro_url = None
+    return out
 
 def _adjuntar_calificaciones(db: Session, autos: List[Auto]) -> List[Auto]:
     """
@@ -60,7 +75,8 @@ def listar_autos(
     estado: str = Query("activo", description="Estado de publicación"),
     tarifa_max: Optional[int] = Query(None, description="Tarifa máxima por día"),
     dueno_id: Optional[str] = Query(None, description="Filtrar por ID del dueño"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_optional_current_user)
 ):
     query = db.query(Auto).filter(Auto.estado == estado)
     if ubicacion:
@@ -73,7 +89,8 @@ def listar_autos(
     # el orden se resuelven en la app, igual que la categoría: ya trae todo
     # el catálogo a memoria y filtrar ahí evita un round-trip por cada toque
     # de filtro.
-    return _adjuntar_calificaciones(db, query.all())
+    autos = _adjuntar_calificaciones(db, query.all())
+    return [_sanear_auto_out(a, current_user) for a in autos]
 
 @router.get("/mios", response_model=List[AutoOut], summary="Autos publicados por el dueño autenticado (cualquier estado)")
 def listar_mis_autos(
@@ -89,14 +106,19 @@ def listar_mis_autos(
     Nota de rutas: debe declararse antes de /{auto_id} para que FastAPI no
     intente interpretar "mios" como un auto_id.
     """
-    return db.query(Auto).filter(Auto.dueno_id == current_user.id).all()
+    autos = db.query(Auto).filter(Auto.dueno_id == current_user.id).all()
+    return [_sanear_auto_out(a, current_user) for a in autos]
 
 @router.get("/{auto_id}", response_model=AutoOut, summary="Obtener detalle de un auto")
-def obtener_auto(auto_id: str, db: Session = Depends(get_db)):
+def obtener_auto(
+    auto_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[Usuario] = Depends(get_optional_current_user)
+):
     auto = db.query(Auto).filter(Auto.id == auto_id).first()
     if not auto:
         raise HTTPException(status_code=404, detail="Auto no encontrado")
-    return auto
+    return _sanear_auto_out(auto, current_user)
 
 @router.post("", response_model=AutoOut, summary="Publicar un nuevo auto (Dueño)")
 @limiter.limit("20/minute")
