@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,33 @@ function fmtFecha(iso) {
   } catch {
     return iso;
   }
+}
+
+// A nivel de módulo: si vive dentro del componente, cada tecleo en el modal
+// recrea el tipo y React desmonta y vuelve a montar las dos secciones enteras.
+function SeccionMantencion({ titulo, lista, render, onAdd, ctaLabel }) {
+  return (
+    <View style={[oc.card, oc.cardPadded, styles.sec]}>
+      <Text style={oc.cardTitle}>{titulo}</Text>
+      {lista.length === 0 ? (
+        <Text style={styles.empty}>Sin registros todavía.</Text>
+      ) : (
+        lista.map((m, i) => (
+          <View key={m.id} style={[styles.row, i === lista.length - 1 && { borderBottomWidth: 0 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowName}>{m.nombre}</Text>
+              <Text style={styles.rowMeta}>{render(m)}</Text>
+            </View>
+            <Badge variant="success" label="Registrado" />
+          </View>
+        ))
+      )}
+      <TouchableOpacity style={styles.addBtn} onPress={onAdd} activeOpacity={0.85}>
+        <Icon name="plus" size={15} color={colors.accentDark} />
+        <Text style={styles.addBtnText}>{ctaLabel}</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export function CarMaintenanceScreen({ car, onBack }) {
@@ -50,8 +77,13 @@ export function CarMaintenanceScreen({ car, onBack }) {
     cargar();
   }, [cargar]);
 
-  const documentos = items.filter((m) => m.tipo === "documento_legal");
-  const servicios = items.filter((m) => m.tipo === "servicio_mecanico");
+  const { documentos, servicios } = useMemo(
+    () => ({
+      documentos: items.filter((m) => m.tipo === "documento_legal"),
+      servicios: items.filter((m) => m.tipo === "servicio_mecanico"),
+    }),
+    [items]
+  );
 
   const guardar = async () => {
     if (!f.nombre.trim()) {
@@ -60,7 +92,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
     }
     setSaving(true);
     try {
-      await ApiClient.crearMantencion(car.id, {
+      const nuevo = await ApiClient.crearMantencion(car.id, {
         tipo: form.tipo,
         nombre: f.nombre.trim(),
         fecha_vencimiento: form.tipo === "documento_legal" && f.fecha ? new Date(f.fecha).toISOString() : null,
@@ -69,38 +101,16 @@ export function CarMaintenanceScreen({ car, onBack }) {
       });
       setForm(null);
       setF({ nombre: "", fecha: "", km: "", notas: "" });
-      cargar();
+      // El endpoint devuelve el registro creado: se antepone en vez de re-pedir
+      // toda la lista.
+      if (nuevo?.id) setItems((p) => [nuevo, ...p]);
+      else cargar();
     } catch (err) {
       showAlert("No se pudo guardar", err.message);
     } finally {
       setSaving(false);
     }
   };
-
-  const Seccion = ({ titulo, lista, tipo, render }) => (
-    <View style={[oc.card, oc.cardPadded, styles.sec]}>
-      <Text style={oc.cardTitle}>{titulo}</Text>
-      {lista.length === 0 ? (
-        <Text style={styles.empty}>Sin registros todavía.</Text>
-      ) : (
-        lista.map((m, i) => (
-          <View key={m.id} style={[styles.row, i === lista.length - 1 && { borderBottomWidth: 0 }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowName}>{m.nombre}</Text>
-              <Text style={styles.rowMeta}>{render(m)}</Text>
-            </View>
-            <Badge variant="success" label="Registrado" />
-          </View>
-        ))
-      )}
-      <TouchableOpacity style={styles.addBtn} onPress={() => setForm({ tipo })} activeOpacity={0.85}>
-        <Icon name="plus" size={15} color={colors.accentDark} />
-        <Text style={styles.addBtnText}>
-          {tipo === "documento_legal" ? "Registrar documento" : "Registrar mantención"}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
 
   return (
     <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -117,17 +127,19 @@ export function CarMaintenanceScreen({ car, onBack }) {
           <Text style={styles.errorText}>{error}</Text>
         ) : (
           <>
-            <Seccion
+            <SeccionMantencion
               titulo="Documentación legal"
               lista={documentos}
-              tipo="documento_legal"
               render={(d) => (d.fecha_vencimiento ? `Vence: ${fmtFecha(d.fecha_vencimiento)}` : "Sin fecha de vencimiento")}
+              onAdd={() => setForm({ tipo: "documento_legal" })}
+              ctaLabel="Registrar documento"
             />
-            <Seccion
+            <SeccionMantencion
               titulo="Bitácora de taller"
               lista={servicios}
-              tipo="servicio_mecanico"
               render={(m) => (m.kilometraje ? `A los ${m.kilometraje.toLocaleString("es-CL")} km` : fmtFecha(m.creado_en))}
+              onAdd={() => setForm({ tipo: "servicio_mecanico" })}
+              ctaLabel="Registrar mantención"
             />
           </>
         )}
