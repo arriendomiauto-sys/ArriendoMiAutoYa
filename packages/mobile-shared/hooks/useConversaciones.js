@@ -23,8 +23,16 @@ export function useConversaciones({ activo = true } = {}) {
 
   const refrescar = useCallback(async () => {
     if (!activo) return;
-    setConversaciones(await ApiClient.getResumenConversaciones());
-    setCargando(false);
+    try {
+      const datos = await ApiClient.getResumenConversaciones();
+      if (Array.isArray(datos)) setConversaciones(datos);
+    } catch {
+      // Un poll fallido (sin señal, backend despertando) no debe tumbar el
+      // globo ni dejar `cargando` pegado en true: se conserva el último
+      // resumen y el próximo disparo (notificación, foreground) reintenta.
+    } finally {
+      setCargando(false);
+    }
   }, [activo]);
 
   useEffect(() => {
