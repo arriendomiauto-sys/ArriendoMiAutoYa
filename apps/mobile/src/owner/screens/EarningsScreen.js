@@ -26,7 +26,7 @@ import {
   buscarBancos,
   TIPOS_CUENTA_CHILE,
 } from "@rentacar/mobile-shared";
-import { CabeceraOwner, oc } from "../comun";
+import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
 
 const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const fmt = (m) => `$${Math.abs(m || 0).toLocaleString("es-CL")}`;
@@ -368,20 +368,23 @@ const styles = StyleSheet.create({
   cardBody: { gap: theme.spacing.md },
 
   balanceCard: {
-    backgroundColor: colors.primary,
+    backgroundColor: OWNER_PREMIUM_BG,
     borderRadius: theme.radius.card,
+    borderWidth: 1,
+    borderColor: OWNER_PREMIUM_LINE,
     padding: theme.spacing.xl,
     gap: 4,
-    ...theme.shadow.md,
+    ...theme.shadow.lg,
   },
   balanceLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(255,255,255,0.66)",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  balanceAmount: { fontSize: 32, fontWeight: "800", color: "#FFFFFF", letterSpacing: -0.5 },
+  // El monto en menta sobre el casi-negro: la firma "premium" del saldo.
+  balanceAmount: { fontSize: 32, fontWeight: "800", color: colors.accent, letterSpacing: -0.5 },
   balanceSub: { fontSize: 12, color: "rgba(255,255,255,0.75)", marginBottom: theme.spacing.md },
   bonoReferidoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: -6, marginBottom: theme.spacing.md },
   bonoReferidoTexto: { fontSize: 12, color: "rgba(255,255,255,0.85)", fontWeight: "600" },
@@ -390,11 +393,11 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: theme.radius.field,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderColor: "rgba(47,191,155,0.45)",
     alignItems: "center",
     justifyContent: "center",
   },
-  bankChipText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  bankChipText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
 
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   link: { fontSize: 13, fontWeight: "700", color: colors.accentDark },

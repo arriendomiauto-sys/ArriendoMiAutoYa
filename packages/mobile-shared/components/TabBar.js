@@ -180,7 +180,8 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: colors.primary,
+    // Acento premium del dueño: teal casi negro (el renter no usa centerAction).
+    backgroundColor: colors.primary900,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 4,

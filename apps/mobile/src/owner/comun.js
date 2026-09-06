@@ -3,11 +3,18 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { colors, theme, Icon } from "@rentacar/mobile-shared";
 
 /**
- * Piezas compartidas de las pantallas del dueño, ya en tono claro (fondo
- * crema, tarjetas blancas, el teal de marca solo para acentos y secciones
- * chicas). Antes el lado del dueño era todo `tone="dark"`; este módulo es la
- * base común del rediseño.
+ * Piezas compartidas de las pantallas del dueño. Base clara idéntica a la del
+ * arrendatario (fondo crema, tarjetas blancas, bordes `colors.border`).
+ *
+ * Lo que distingue al dueño es un **acento oscuro estilo premium** reservado
+ * para las piezas hero: la franja de resumen, el saldo, el botón + del
+ * navbar. Es un teal casi negro (`colors.primary900` #061E1F) con hairline
+ * menta y sombra alta — el arrendatario nunca lo usa.
  */
+
+// Superficie premium del dueño y su detalle de acento.
+export const OWNER_PREMIUM_BG = colors.primary900;
+export const OWNER_PREMIUM_LINE = "rgba(47, 191, 155, 0.22)"; // menta a baja opacidad
 
 const MAX_GLOBO = 9;
 
@@ -63,7 +70,7 @@ export function CabeceraOwner({ titulo, subtitulo, noLeidos, onMensajes, onBack,
   );
 }
 
-/** Franja de resumen en el color de la marca — el bloque teal de la pantalla. */
+/** Franja de resumen — el bloque hero premium (teal casi negro) del dueño. */
 export function FranjaResumen({ items }) {
   return (
     <View style={oc.franja}>
@@ -156,19 +163,26 @@ export const oc = StyleSheet.create({
     padding: theme.spacing.md,
   },
 
-  // Franja de resumen teal.
+  // Franja de resumen — hero premium: teal casi negro + hairline menta + sombra alta.
   franja: {
     flexDirection: "row",
     alignItems: "stretch",
-    backgroundColor: colors.primary,
+    backgroundColor: OWNER_PREMIUM_BG,
     borderRadius: theme.radius.card,
-    paddingVertical: theme.spacing.md,
-    ...theme.shadow.md,
+    borderWidth: 1,
+    borderColor: OWNER_PREMIUM_LINE,
+    paddingVertical: theme.spacing.lg,
+    ...theme.shadow.lg,
   },
   franjaItem: { flex: 1, alignItems: "center", gap: 3, paddingHorizontal: 6 },
-  franjaValor: { ...theme.typography.price, color: "#FFFFFF" },
-  franjaLabel: { fontSize: 11, color: "rgba(255,255,255,0.66)", textAlign: "center" },
-  franjaDiv: { width: 1, backgroundColor: "rgba(255,255,255,0.16)", marginVertical: 4 },
+  franjaValor: { ...theme.typography.price, color: "#FFFFFF", letterSpacing: -0.2 },
+  franjaLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.56)",
+    textAlign: "center",
+    letterSpacing: 0.2,
+  },
+  franjaDiv: { width: 1, backgroundColor: OWNER_PREMIUM_LINE, marginVertical: 4 },
 
   // Píldora de estado (disponible / pausado / ...).
   pill: {
