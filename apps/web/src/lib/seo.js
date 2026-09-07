@@ -6,9 +6,9 @@ export const SITE_URL = "https://arriendomiautoya.cl";
 export const SITE_NAME = "ArriendoMiAutoYa";
 
 export const DEFAULT_TITLE =
-  "ArriendoMiAutoYa — Arriendo de autos entre personas en Los Ángeles, Biobío";
+  "ArriendoMiAutoYa — Arrienda autos directamente de sus dueños";
 export const DEFAULT_DESCRIPTION =
-  "Arrienda autos directamente de sus dueños en Los Ángeles, Región del Biobío. Seguro 15 UF (50/50), validación digital en 1 minuto y entrega segura con código QR.";
+  "Arrienda autos particulares verificados desde la app. Seguro con deducible de 15 UF (50/50), verificación de identidad en 60 segundos y entrega con código QR.";
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/hero-car.jpg`;
 
 /**

@@ -9,26 +9,19 @@ export default function Document() {
     "@id": `${SITE_URL}/#business`,
     name: "ArriendoMiAutoYa",
     description:
-      "Plataforma de arriendo de autos entre personas (P2P) en Los Ángeles, Región del Biobío. Seguro 15 UF (50/50), traspaso seguro con código QR y validación digital.",
+      "Plataforma de arriendo de autos entre personas (P2P). Seguro con deducible de 15 UF (50/50), traspaso seguro con código QR y verificación de identidad digital.",
     url: SITE_URL,
     logo: `${SITE_URL}/logo.png`,
     image: `${SITE_URL}/hero-car.jpg`,
     telephone: "+56912345678",
-    priceRange: "$26.000 - $55.000 CLP",
+    priceRange: "$24.000 - $58.000 CLP",
     address: {
       "@type": "PostalAddress",
-      addressLocality: "Los Ángeles",
-      addressRegion: "Región del Biobío",
       addressCountry: "CL",
     },
-    geo: {
-      "@type": "GeoCoordinates",
-      latitude: -37.4697,
-      longitude: -72.3537,
-    },
     areaServed: {
-      "@type": "City",
-      name: "Los Ángeles, Biobío",
+      "@type": "Country",
+      name: "Chile",
     },
     openingHoursSpecification: {
       "@type": "OpeningHoursSpecification",
@@ -110,7 +103,7 @@ export default function Document() {
         <meta property="og:locale" content="es_CL" />
         <meta
           property="og:image:alt"
-          content="ArriendoMiAutoYa - Car-Sharing en Los Ángeles, Biobío"
+          content="ArriendoMiAutoYa - Arriendo de autos entre personas"
         />
         <meta name="twitter:card" content="summary_large_image" />
 

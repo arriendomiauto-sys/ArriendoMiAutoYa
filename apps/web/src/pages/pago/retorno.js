@@ -41,12 +41,12 @@ export default function PagoRetorno() {
 
       <Navbar />
 
-      <main className="min-h-[80vh] bg-[#061E1F] text-white flex items-center justify-center pt-28 pb-20 relative overflow-hidden">
+      <main className="min-h-[80vh] bg-white text-brand-ink flex items-center justify-center pt-28 pb-20 relative overflow-hidden">
         {/* Glow de fondo */}
         <div
           className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[350px] rounded-full filter blur-[120px] pointer-events-none ${
             esExitoso
-              ? "bg-[#2FBF9B]/15"
+              ? "bg-brand-tealTint"
               : esPendiente
               ? "bg-amber-500/15"
               : "bg-red-500/15"
@@ -56,7 +56,7 @@ export default function PagoRetorno() {
         <div className="container max-w-lg mx-auto px-4 sm:px-6 text-center relative z-10 space-y-6">
           <div className="flex justify-center">
             {esExitoso ? (
-              <div className="w-20 h-20 rounded-full bg-[#2FBF9B]/20 border border-[#2FBF9B]/40 flex items-center justify-center text-[#2FBF9B] animate-pulse">
+              <div className="w-20 h-20 rounded-full bg-brand-tealTint border border-brand-line flex items-center justify-center text-brand-tealInk animate-pulse">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
             ) : esPendiente ? (
@@ -71,14 +71,14 @@ export default function PagoRetorno() {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-brand-ink">
               {esExitoso
                 ? "¡Garantía y Reserva Confirmadas!"
                 : esPendiente
                 ? "Pago en Proceso de Confirmación"
                 : "No se pudo procesar el pago"}
             </h1>
-            <p className="text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
+            <p className="text-sm text-[#63645f] max-w-sm mx-auto leading-relaxed">
               {esExitoso
                 ? "Tu pago fue aprobado en Mercado Pago. Redirigiendo a la app móvil..."
                 : esPendiente
@@ -88,8 +88,8 @@ export default function PagoRetorno() {
           </div>
 
           {idTransaccion && (
-            <div className="inline-block rounded-lg bg-[#0E3736] border border-[#2FBF9B]/20 px-4 py-2 text-xs text-slate-300">
-              N.° de Operación: <span className="font-mono text-white font-bold">{idTransaccion}</span>
+            <div className="inline-block rounded-lg bg-brand-soft border border-brand-line px-4 py-2 text-xs text-[#63645f]">
+              N.° de Operación: <span className="font-mono text-brand-ink font-bold">{idTransaccion}</span>
             </div>
           )}
 
@@ -97,7 +97,7 @@ export default function PagoRetorno() {
             {deepLink && (
               <a
                 href={deepLink}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#2FBF9B] text-[#061E1F] font-bold py-3 px-6 hover:bg-[#28ab8b] transition-colors shadow-lg shadow-[#2FBF9B]/20 text-sm"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand-teal text-[#04231b] font-bold py-3 px-6 hover:bg-[#12b78d] transition-colors shadow-lg shadow-brand-teal/20 text-sm"
               >
                 <span>Volver a la App</span>
                 <ArrowRight className="w-4 h-4" />
@@ -106,7 +106,7 @@ export default function PagoRetorno() {
 
             <Link
               href="/"
-              className="w-full inline-flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white font-medium py-2.5 px-6 hover:bg-white/10 transition-colors text-xs"
+              className="w-full inline-flex items-center justify-center rounded-xl bg-brand-soft border border-brand-line text-brand-ink font-medium py-2.5 px-6 hover:bg-brand-soft transition-colors text-xs"
             >
               Ir al inicio
             </Link>

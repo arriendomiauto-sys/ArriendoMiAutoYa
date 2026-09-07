@@ -43,79 +43,79 @@ export default function GarantiasPage() {
 
       <Navbar />
 
-      <main className="min-h-screen bg-[#061E1F] text-white pt-32 pb-24 relative overflow-hidden">
+      <main className="min-h-screen bg-white text-brand-ink pt-32 pb-24 relative overflow-hidden">
         {/* Ambient light */}
-        <div className="absolute top-20 left-1/3 w-[500px] h-[400px] bg-[#2FBF9B]/10 rounded-full filter blur-[100px] pointer-events-none" />
+        <div className="absolute top-20 left-1/3 w-[500px] h-[400px] bg-brand-teal/10 rounded-full filter blur-[100px] pointer-events-none" />
 
         <div className="container max-w-5xl mx-auto px-4 sm:px-6 relative z-10 space-y-16">
           
           {/* Header */}
           <div className="text-center max-w-2xl mx-auto space-y-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2FBF9B]/30 bg-[#2FBF9B]/10 px-3.5 py-1 text-xs font-bold text-[#2FBF9B]">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-line bg-brand-tealTint px-3.5 py-1 text-xs font-bold text-brand-tealInk">
               <ShieldCheck className="h-3.5 w-3.5" />
               SEGURIDAD & COBERTURAS
             </span>
-            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-brand-ink">
               Garantías y Protección Total
             </h1>
-            <p className="text-sm sm:text-base text-slate-300">
+            <p className="text-sm sm:text-base text-[#63645f]">
               Protocolos auditados para que tanto dueños como arrendatarios disfruten de cada viaje con absoluta tranquilidad.
             </p>
           </div>
 
           {/* 3 Pillars Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 space-y-3 shadow-xl">
-              <div className="h-10 w-10 rounded-xl bg-[#2FBF9B]/10 border border-[#2FBF9B]/20 flex items-center justify-center text-[#2FBF9B]">
+            <div className="rounded-3xl border border-brand-line bg-white p-6 space-y-3 shadow-xl">
+              <div className="h-10 w-10 rounded-xl bg-brand-tealTint border border-brand-line flex items-center justify-center text-brand-tealInk">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Seguro 15 UF (50/50)</h3>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              <h3 className="text-lg font-bold text-brand-ink">Seguro 15 UF (50/50)</h3>
+              <p className="text-xs sm:text-sm text-[#63645f] leading-relaxed">
                 En cualquier siniestro cubierto por póliza, el deducible fijado en 15 UF se reparte equitativamente: 50% lo asume la plataforma y 50% el dueño.
               </p>
             </div>
 
-            <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 space-y-3 shadow-xl">
-              <div className="h-10 w-10 rounded-xl bg-[#2FBF9B]/10 border border-[#2FBF9B]/20 flex items-center justify-center text-[#2FBF9B]">
+            <div className="rounded-3xl border border-brand-line bg-white p-6 space-y-3 shadow-xl">
+              <div className="h-10 w-10 rounded-xl bg-brand-tealTint border border-brand-line flex items-center justify-center text-brand-tealInk">
                 <Lock className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Hold de $800.000 CLP</h3>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              <h3 className="text-lg font-bold text-brand-ink">Hold de $800.000 CLP</h3>
+              <p className="text-xs sm:text-sm text-[#63645f] leading-relaxed">
                 Pre-autorización bancaria de seguridad (no es cobro directo). Se libera de inmediato tras entregar el vehículo conforme al checklist inicial.
               </p>
             </div>
 
-            <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 space-y-3 shadow-xl">
-              <div className="h-10 w-10 rounded-xl bg-[#2FBF9B]/10 border border-[#2FBF9B]/20 flex items-center justify-center text-[#2FBF9B]">
+            <div className="rounded-3xl border border-brand-line bg-white p-6 space-y-3 shadow-xl">
+              <div className="h-10 w-10 rounded-xl bg-brand-tealTint border border-brand-line flex items-center justify-center text-brand-tealInk">
                 <Camera className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-white">Checklist de 9 Fotos</h3>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              <h3 className="text-lg font-bold text-brand-ink">Checklist de 9 Fotos</h3>
+              <p className="text-xs sm:text-sm text-[#63645f] leading-relaxed">
                 Registro inmutable antes y después de cada arriendo para respaldar carrocería, tapiz, kilometraje y nivel de estanque.
               </p>
             </div>
           </div>
 
           {/* Interactive Checklist Visualizer Demo */}
-          <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] p-6 sm:p-8 space-y-6 shadow-2xl">
+          <div className="rounded-3xl border border-brand-line bg-white p-6 sm:p-8 space-y-6 shadow-2xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Camera className="h-5 w-5 text-[#2FBF9B]" />
+                <h2 className="text-xl font-bold text-brand-ink flex items-center gap-2">
+                  <Camera className="h-5 w-5 text-brand-tealInk" />
                   Demo de Checklist: Los 9 Ángulos Obligatorios
                 </h2>
-                <p className="text-xs text-slate-300">
+                <p className="text-xs text-[#63645f]">
                   La app móvil exige registrar cada uno de estos 9 ángulos en la entrega y en la devolución.
                 </p>
               </div>
 
-              <div className="inline-flex rounded-xl bg-[#061E1F] p-1 border border-white/10 text-xs font-bold">
+              <div className="inline-flex rounded-xl bg-brand-soft p-1 border border-brand-line text-xs font-bold">
                 <button
                   onClick={() => setPhotoView("antes")}
                   className={`px-4 py-2 rounded-lg transition-all ${
                     photoView === "antes"
-                      ? "bg-[#2FBF9B] text-[#061E1F]"
-                      : "text-slate-300 hover:text-white"
+                      ? "bg-brand-teal text-[#04231b]"
+                      : "text-[#63645f] hover:text-brand-ink"
                   }`}
                 >
                   Check-in (Entrega)
@@ -124,8 +124,8 @@ export default function GarantiasPage() {
                   onClick={() => setPhotoView("despues")}
                   className={`px-4 py-2 rounded-lg transition-all ${
                     photoView === "despues"
-                      ? "bg-[#2FBF9B] text-[#061E1F]"
-                      : "text-slate-300 hover:text-white"
+                      ? "bg-brand-teal text-[#04231b]"
+                      : "text-[#63645f] hover:text-brand-ink"
                   }`}
                 >
                   Check-out (Devolución)
@@ -136,18 +136,18 @@ export default function GarantiasPage() {
             {/* 9 Photos Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {photosList.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-white/10 bg-[#061E1F] overflow-hidden">
+                <div key={item.id} className="rounded-2xl border border-brand-line bg-white overflow-hidden">
                   <div className="h-36 w-full relative">
                     <img
                       src={photoView === "antes" ? item.antes : item.despues}
                       alt={item.label}
                       className="h-full w-full object-cover"
                     />
-                    <span className="absolute bottom-2 left-2 bg-[#061E1F]/90 text-[10px] font-bold text-[#2FBF9B] px-2 py-0.5 rounded-md border border-[#2FBF9B]/30">
+                    <span className="absolute bottom-2 left-2 bg-white text-[10px] font-bold text-brand-tealInk px-2 py-0.5 rounded-md border border-brand-line">
                       {photoView === "antes" ? "Inicial" : "Final"}
                     </span>
                   </div>
-                  <div className="p-3 text-xs font-bold text-white">
+                  <div className="p-3 text-xs font-bold text-brand-ink">
                     {item.label}
                   </div>
                 </div>
@@ -157,43 +157,43 @@ export default function GarantiasPage() {
 
           {/* Comparison Matrix */}
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white text-center">
+            <h2 className="text-xl font-bold text-brand-ink text-center">
               Comparativa de Transparencia
             </h2>
-            <div className="rounded-3xl border border-[#2FBF9B]/20 bg-[#0E3736] overflow-hidden shadow-2xl">
+            <div className="rounded-3xl border border-brand-line bg-white overflow-hidden shadow-2xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs sm:text-sm min-w-[560px]">
                   <thead>
-                    <tr className="border-b border-white/10 bg-[#061E1F]">
-                      <th className="p-4 sm:p-5 font-bold text-slate-300">Aspecto</th>
-                      <th className="p-4 sm:p-5 font-bold text-[#2FBF9B] border-x border-white/10">ArriendoMiAutoYa</th>
-                      <th className="p-4 sm:p-5 font-bold text-slate-400">Rent-a-Car Tradicional</th>
-                      <th className="p-4 sm:p-5 font-bold text-slate-400">Arriendo Informal</th>
+                    <tr className="border-b border-brand-line bg-brand-soft">
+                      <th className="p-4 sm:p-5 font-bold text-[#63645f]">Aspecto</th>
+                      <th className="p-4 sm:p-5 font-bold text-brand-tealInk border-x border-brand-line">ArriendoMiAutoYa</th>
+                      <th className="p-4 sm:p-5 font-bold text-[#63645f]">Rent-a-Car Tradicional</th>
+                      <th className="p-4 sm:p-5 font-bold text-[#63645f]">Arriendo Informal</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5 text-slate-300">
+                  <tbody className="divide-y divide-brand-line text-[#63645f]">
                     <tr>
-                      <td className="p-4 font-semibold text-white">Tiempo de entrega</td>
-                      <td className="p-4 font-bold text-[#2FBF9B] border-x border-white/5">15 min con QR offline</td>
-                      <td className="p-4 text-slate-400">Trámites y esperas en counter</td>
+                      <td className="p-4 font-semibold text-brand-ink">Tiempo de entrega</td>
+                      <td className="p-4 font-bold text-brand-tealInk border-x border-brand-line">15 min con QR offline</td>
+                      <td className="p-4 text-[#63645f]">Trámites y esperas en counter</td>
                       <td className="p-4 text-rose-400">Sin hora clara ni contrato</td>
                     </tr>
                     <tr>
-                      <td className="p-4 font-semibold text-white">Deducible del Seguro</td>
-                      <td className="p-4 font-bold text-[#2FBF9B] border-x border-white/5">15 UF compartida (50/50)</td>
-                      <td className="p-4 text-slate-400">Deducibles elevados a costo del cliente</td>
+                      <td className="p-4 font-semibold text-brand-ink">Deducible del Seguro</td>
+                      <td className="p-4 font-bold text-brand-tealInk border-x border-brand-line">15 UF compartida (50/50)</td>
+                      <td className="p-4 text-[#63645f]">Deducibles elevados a costo del cliente</td>
                       <td className="p-4 text-rose-400">Sin seguro comercial</td>
                     </tr>
                     <tr>
-                      <td className="p-4 font-semibold text-white">Hold de Garantía</td>
-                      <td className="p-4 font-bold text-[#2FBF9B] border-x border-white/5">$800.000 liberado al retorno</td>
-                      <td className="p-4 text-slate-400">Garantías elevadas con desbloqueo diferido</td>
+                      <td className="p-4 font-semibold text-brand-ink">Hold de Garantía</td>
+                      <td className="p-4 font-bold text-brand-tealInk border-x border-brand-line">$800.000 liberado al retorno</td>
+                      <td className="p-4 text-[#63645f]">Garantías elevadas con desbloqueo diferido</td>
                       <td className="p-4 text-rose-400">Efectivo retenido sin respaldo</td>
                     </tr>
                     <tr>
-                      <td className="p-4 font-semibold text-white">Checklist de Estado</td>
-                      <td className="p-4 font-bold text-[#2FBF9B] border-x border-white/5">9 fotos inmutables</td>
-                      <td className="p-4 text-slate-400">Marcación subjetiva en papel</td>
+                      <td className="p-4 font-semibold text-brand-ink">Checklist de Estado</td>
+                      <td className="p-4 font-bold text-brand-tealInk border-x border-brand-line">9 fotos inmutables</td>
+                      <td className="p-4 text-[#63645f]">Marcación subjetiva en papel</td>
                       <td className="p-4 text-rose-400">Sin registro fotográfico</td>
                     </tr>
                   </tbody>
