@@ -30,13 +30,11 @@ export default function Navbar() {
     >
       <div className="container mx-auto flex h-[74px] max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-ink">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#3ed9b4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 17h14M6 17l1.5-5h9L18 17M7.5 12l1-3.5A2 2 0 0 1 10.4 7h3.2a2 2 0 0 1 1.9 1.5l1 3.5" />
-              <circle cx="8" cy="17" r="1.6" />
-              <circle cx="16" cy="17" r="1.6" />
-            </svg>
-          </span>
+          <img
+            src="/logo.png"
+            alt="ArriendoMiAutoYa"
+            className="h-9 w-9 rounded-xl object-cover shadow-sm transition-transform group-hover:scale-105"
+          />
           <span className="font-display text-lg font-bold tracking-tight text-brand-ink">
             arriendomiautoya
           </span>

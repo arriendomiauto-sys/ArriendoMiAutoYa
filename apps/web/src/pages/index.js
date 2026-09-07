@@ -28,6 +28,7 @@ import {
   ArrowRight,
   Smartphone,
 } from "lucide-react";
+import { FaApple, FaGooglePlay, FaWhatsapp } from "react-icons/fa";
 
 import { API_BASE_URL } from "../lib/api";
 
@@ -210,10 +211,16 @@ export default function Home() {
                   </a>
                 </div>
                 <div className="flex flex-wrap gap-3 pt-1">
-                  {["App Store", "Google Play"].map((s) => (
-                    <span key={s} className="inline-flex items-center gap-2.5 rounded-xl bg-brand-ink px-4 py-2.5 text-white">
-                      <span className="text-[10px] uppercase tracking-wider opacity-70">Próximamente</span>
-                      <span className="font-display text-sm font-semibold">{s}</span>
+                  {[
+                    { name: "App Store", Icon: FaApple },
+                    { name: "Google Play", Icon: FaGooglePlay },
+                  ].map(({ name, Icon }) => (
+                    <span key={name} className="inline-flex items-center gap-2.5 rounded-xl bg-brand-ink px-4 py-2.5 text-white">
+                      <Icon className="h-5 w-5" />
+                      <span className="leading-none">
+                        <span className="block text-[10px] uppercase tracking-wider opacity-70">Próximamente</span>
+                        <span className="block font-display text-sm font-semibold">{name}</span>
+                      </span>
                     </span>
                   ))}
                 </div>
@@ -625,12 +632,18 @@ export default function Home() {
                 </p>
                 <div className="flex flex-wrap gap-3.5">
                   <span className="inline-flex items-center gap-2.5 rounded-xl bg-white px-4 py-2.5 text-brand-ink">
-                    <span className="text-[10px] uppercase tracking-wider opacity-60">Próximamente</span>
-                    <span className="font-display text-sm font-semibold">App Store</span>
+                    <FaApple className="h-5 w-5" />
+                    <span className="leading-none">
+                      <span className="block text-[10px] uppercase tracking-wider opacity-60">Próximamente</span>
+                      <span className="block font-display text-sm font-semibold">App Store</span>
+                    </span>
                   </span>
                   <span className="inline-flex items-center gap-2.5 rounded-xl bg-brand-teal px-4 py-2.5 text-[#04231b]">
-                    <span className="text-[10px] uppercase tracking-wider opacity-60">Próximamente</span>
-                    <span className="font-display text-sm font-semibold">Google Play</span>
+                    <FaGooglePlay className="h-5 w-5" />
+                    <span className="leading-none">
+                      <span className="block text-[10px] uppercase tracking-wider opacity-60">Próximamente</span>
+                      <span className="block font-display text-sm font-semibold">Google Play</span>
+                    </span>
                   </span>
                 </div>
               </div>
@@ -675,12 +688,9 @@ export default function Home() {
         href="https://wa.me/56912345678?text=Hola,%20tengo%20una%20consulta%20sobre%20arriendomiautoya"
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2.5 rounded-full bg-[#25D366] px-4 py-3 text-xs font-bold text-white shadow-xl transition-transform hover:scale-105"
+        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-xs font-bold text-white shadow-xl transition-transform hover:scale-105"
       >
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
-        </span>
+        <FaWhatsapp className="h-4 w-4" />
         <span className="hidden sm:inline">¿Dudas? Escríbenos</span>
       </a>
 

@@ -84,8 +84,9 @@
 ::-webkit-scrollbar-thumb { background: #d7d7d1; border-radius: 5px; border: 2px solid #f5f5f2; }
 ::-webkit-scrollbar-thumb:hover { background: #14a07c; }
 
-/* Leaflet: pin de precio */
+/* Mapa: pin de precio (overlay sobre Google Maps) */
 .amay-pin {
+  display: inline-block;
   background: #ffffff;
   border: 1px solid #e6e6e1;
   border-radius: 999px;
@@ -93,15 +94,17 @@
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
   font-size: 12.5px;
+  line-height: 1;
   color: #141414;
   white-space: nowrap;
+  cursor: pointer;
   box-shadow: 0 8px 20px -6px rgba(20, 20, 20, 0.28);
+  transition: transform 0.12s ease;
 }
+.amay-pin:hover { transform: translateY(-1px); }
 .amay-pin--active {
   background: #14a07c;
   color: #04231b;
   border-color: #14a07c;
   box-shadow: 0 12px 26px -6px rgba(20, 160, 124, 0.6);
 }
-.leaflet-popup-content-wrapper { border-radius: 14px; }
-.leaflet-popup-content { margin: 12px 14px; font-family: 'Plus Jakarta Sans', sans-serif; }
