@@ -1,121 +1,120 @@
 import React, { useEffect, useState } from "react";
-import Head from "next/head";
+import { useRouter } from "next/router";
+import Link from "next/link";
+import Seo from "../../components/Seo";
+import Navbar from "../../components/Navbar";
+import Footer from "../../components/Footer";
+import { CheckCircle2, Clock, XCircle, ArrowRight, ShieldCheck } from "lucide-react";
 
-const APP_SCHEME = "arriendatuauto";
+export default function PagoRetorno() {
+  const router = useRouter();
+  const [deepLink, setDeepLink] = useState("");
+  const { status, collection_status, payment_id, collection_id } = router.query;
 
-/**
- * Página de retorno de Webpay Plus para el flujo de pago de la app móvil.
- *
- * Transbank hace un POST a esta URL con `token_ws` en el cuerpo
- * (application/x-www-form-urlencoded). Acá se lee ese token y se reenvía a
- * la app por deep link (`arriendatuauto://pago-retorno?token_ws=...`), que
- * es lo que `WebBrowser.openAuthSessionAsync` está esperando para cerrar el
- * navegador embebido y devolverle el control a PaymentMethodsScreen.
- *
- * La app llama a POST /pagos/webpay/confirmar con ese token — este flujo
- * solo transporta el token, no confirma nada.
- */
-export async function getServerSideProps({ req, query }) {
-  let token = query.token_ws || query.TBK_TOKEN || null;
-
-  if (!token && req.method === "POST") {
-    try {
-      const body = await new Promise((resolve, reject) => {
-        let data = "";
-        req.on("data", (chunk) => {
-          data += chunk;
-          if (data.length > 1e6) reject(new Error("payload demasiado grande"));
-        });
-        req.on("end", () => resolve(data));
-        req.on("error", reject);
-      });
-      const params = new URLSearchParams(body);
-      token = params.get("token_ws") || params.get("TBK_TOKEN") || null;
-    } catch {
-      token = null;
-    }
-  }
-
-  // Webpay manda TBK_TOKEN (sin token_ws) cuando el usuario aborta el pago.
-  const abortado = !query.token_ws && (query.TBK_TOKEN || query.TBK_ORDEN_COMPRA);
-
-  return { props: { token: token || null, abortado: Boolean(abortado) } };
-}
-
-export default function PagoRetorno({ token, abortado }) {
-  const [manual, setManual] = useState(false);
-  const deepLink = token
-    ? `${APP_SCHEME}://pago-retorno?token_ws=${encodeURIComponent(token)}`
-    : `${APP_SCHEME}://pago-retorno${abortado ? "?estado=abortado" : ""}`;
+  const estadoReal = status || collection_status || "approved";
+  const idTransaccion = payment_id || collection_id;
+  const esExitoso = estadoReal === "approved";
+  const esPendiente = estadoReal === "pending" || estadoReal === "in_process";
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      window.location.href = deepLink;
-    }, 300);
-    const fallback = setTimeout(() => setManual(true), 2500);
-    return () => {
-      clearTimeout(t);
-      clearTimeout(fallback);
-    };
-  }, [deepLink]);
+    if (typeof window === "undefined") return;
+    const search = window.location.search;
+    const targetLink = `arriendatuauto://pago-retorno${search}`;
+    setDeepLink(targetLink);
+
+    // Redirigir automáticamente a la aplicación móvil
+    const timer = setTimeout(() => {
+      window.location.href = targetLink;
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [router.query]);
 
   return (
     <>
-      <Head>
-        <title>Volviendo a la app…</title>
-        <meta name="robots" content="noindex" />
-      </Head>
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 16,
-          padding: 24,
-          fontFamily: "system-ui, -apple-system, sans-serif",
-          background: "#FAFAF9",
-          color: "#1A1D1F",
-          textAlign: "center",
-        }}
-      >
+      <Seo
+        title={esExitoso ? "Pago Confirmado - ArriendoMiAutoYa" : "Estado del Pago - ArriendoMiAutoYa"}
+        description="Estado de tu pago y confirmación de reserva en ArriendoMiAutoYa."
+        path="/pago/retorno"
+        noindex
+      />
+
+      <Navbar />
+
+      <main className="min-h-[80vh] bg-[#061E1F] text-white flex items-center justify-center pt-28 pb-20 relative overflow-hidden">
+        {/* Glow de fondo */}
         <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            background: "#E6F0F0",
-            display: "grid",
-            placeItems: "center",
-            fontSize: 26,
-          }}
-        >
-          🔑
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[350px] rounded-full filter blur-[120px] pointer-events-none ${
+            esExitoso
+              ? "bg-[#2FBF9B]/15"
+              : esPendiente
+              ? "bg-amber-500/15"
+              : "bg-red-500/15"
+          }`}
+        />
+
+        <div className="container max-w-lg mx-auto px-4 sm:px-6 text-center relative z-10 space-y-6">
+          <div className="flex justify-center">
+            {esExitoso ? (
+              <div className="w-20 h-20 rounded-full bg-[#2FBF9B]/20 border border-[#2FBF9B]/40 flex items-center justify-center text-[#2FBF9B] animate-pulse">
+                <CheckCircle2 className="w-10 h-10" />
+              </div>
+            ) : esPendiente ? (
+              <div className="w-20 h-20 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                <Clock className="w-10 h-10" />
+              </div>
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400">
+                <XCircle className="w-10 h-10" />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              {esExitoso
+                ? "¡Garantía y Reserva Confirmadas!"
+                : esPendiente
+                ? "Pago en Proceso de Confirmación"
+                : "No se pudo procesar el pago"}
+            </h1>
+            <p className="text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
+              {esExitoso
+                ? "Tu pago fue aprobado en Mercado Pago. Redirigiendo a la app móvil..."
+                : esPendiente
+                ? "Estamos esperando la confirmación de tu banco. Te notificaremos al acreditarse."
+                : "La transacción fue rechazada o cancelada. Puedes reintentar desde la app."}
+            </p>
+          </div>
+
+          {idTransaccion && (
+            <div className="inline-block rounded-lg bg-[#0E3736] border border-[#2FBF9B]/20 px-4 py-2 text-xs text-slate-300">
+              N.° de Operación: <span className="font-mono text-white font-bold">{idTransaccion}</span>
+            </div>
+          )}
+
+          <div className="pt-4 space-y-3 max-w-xs mx-auto">
+            {deepLink && (
+              <a
+                href={deepLink}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#2FBF9B] text-[#061E1F] font-bold py-3 px-6 hover:bg-[#28ab8b] transition-colors shadow-lg shadow-[#2FBF9B]/20 text-sm"
+              >
+                <span>Volver a la App</span>
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            )}
+
+            <Link
+              href="/"
+              className="w-full inline-flex items-center justify-center rounded-xl bg-white/5 border border-white/10 text-white font-medium py-2.5 px-6 hover:bg-white/10 transition-colors text-xs"
+            >
+              Ir al inicio
+            </Link>
+          </div>
         </div>
-        <h1 style={{ fontSize: 20, margin: 0 }}>
-          {abortado ? "Pago no completado" : "Pago recibido"}
-        </h1>
-        <p style={{ color: "#6B7280", maxWidth: 320, lineHeight: 1.5, margin: 0 }}>
-          Te estamos devolviendo a Arrienda Tu Auto para confirmar tu reserva.
-        </p>
-        {manual && (
-          <a
-            href={deepLink}
-            style={{
-              marginTop: 8,
-              background: "#0F3D3E",
-              color: "#fff",
-              padding: "12px 20px",
-              borderRadius: 12,
-              textDecoration: "none",
-              fontWeight: 600,
-            }}
-          >
-            Volver a la app
-          </a>
-        )}
       </main>
+
+      <Footer />
     </>
   );
 }
