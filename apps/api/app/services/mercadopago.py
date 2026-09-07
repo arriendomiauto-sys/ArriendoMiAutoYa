@@ -147,13 +147,10 @@ class MercadoPagoService:
             # Una garantía en cuotas no tiene sentido: el hold es uno solo.
             "payment_methods": {"installments": 1},
         }
-        if email_pagador:
-            email_final = (
-                "test@testuser.com"
-                if getattr(settings, "MERCADOPAGO_TEST_MODE", True)
-                else email_pagador
-            )
-            cuerpo["payer"] = {"email": email_final}
+        if getattr(settings, "MERCADOPAGO_TEST_MODE", True):
+            cuerpo["payer"] = {"email": "test@testuser.com"}
+        elif email_pagador:
+            cuerpo["payer"] = {"email": email_pagador}
         if notification_url:
             cuerpo["notification_url"] = notification_url
 
