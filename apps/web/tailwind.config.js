@@ -50,17 +50,22 @@ module.exports = {
           foreground: "hsl(var(--card-foreground))",
         },
         brand: {
-          teal: "#0F3D3E",
+          /* Paleta clara (rediseño 2026): blanco base + detalles oscuros + teal de marca */
+          ink: "#141414",
+          ink2: "#1f1f1d",
+          soft: "#f5f5f2",
+          line: "#e6e6e1",
+          dash: "#d7d7d1",
+          teal: "#14a07c",
+          tealInk: "#0b6b52",
+          tealTint: "#e8f5f0",
+          tealBright: "#3ed9b4",
+          amber: "#c08a1e",
+          /* legacy (subpáginas aún en tema oscuro) */
           tealDark: "#061E1F",
           tealCard: "#0E3736",
           mint: "#2FBF9B",
           mintHover: "#28A787",
-          mintDark: "#197A63",
-          mintLight: "#E4F8F2",
-          pearl: "#F8FAFA",
-          amber: "#F59E0B",
-          white: "#FFFFFF",
-          slate: "#0B2829",
         },
       },
       borderRadius: {
@@ -69,8 +74,12 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        primary: ["var(--font-primary)", "Outfit", "sans-serif"],
+        primary: ["var(--font-primary)", "Space Grotesk", "sans-serif"],
+        display: ["var(--font-primary)", "Space Grotesk", "sans-serif"],
         body: ["var(--font-body)", "Plus Jakarta Sans", "sans-serif"],
+      },
+      boxShadow: {
+        soft: "0 1px 2px rgba(20,20,20,.04), 0 26px 60px -24px rgba(20,20,20,.16)",
       },
     },
   },

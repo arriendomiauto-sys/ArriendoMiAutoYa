@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import Seo from "../components/Seo";
-import { useRouter } from "next/router";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Button } from "../components/ui/button";
@@ -14,122 +14,152 @@ import {
   DialogFooter,
 } from "../components/ui/dialog";
 import {
-  ShieldCheck,
   MapPin,
-  Gauge,
+  ShieldCheck,
   Lock,
-  Users,
-  Search,
-  Check,
   Camera,
   FileText,
   Star,
   ChevronDown,
+  Check,
+  AlertTriangle,
+  Wallet,
+  Globe,
+  ArrowRight,
   Smartphone,
 } from "lucide-react";
 
 import { API_BASE_URL } from "../lib/api";
 
-/* ──────────────── DATOS FALLBACK ──────────────── */
+const MapaAutos = dynamic(() => import("../components/MapaAutos"), { ssr: false });
+
+/* ───────────── DATOS DE RESPALDO (si la API no responde) ───────────── */
 const AUTOS_FALLBACK = [
+  { id: "fb-1", marca: "Toyota", modelo: "RAV4 Limited", anio: 2023, categoria: "suv", tarifa_dia: 42000, ubicacion_base: "Providencia", transmision: "Automática", combustible: "Bencina", asientos: 5, rating_promedio: 4.9, rating_cantidad: 28, latitud: -33.4262, longitud: -70.6105, fotos: ["/cars/toyota-rav4.jpg"] },
+  { id: "fb-2", marca: "Hyundai", modelo: "Tucson GL", anio: 2022, categoria: "suv", tarifa_dia: 35000, ubicacion_base: "Ñuñoa", transmision: "Automática", combustible: "Bencina", asientos: 5, rating_promedio: 4.8, rating_cantidad: 19, latitud: -33.4569, longitud: -70.5977, fotos: ["/cars/hyundai-tucson.jpg"] },
+  { id: "fb-3", marca: "Suzuki", modelo: "Jimny AllGrip", anio: 2024, categoria: "4x4", tarifa_dia: 48000, ubicacion_base: "Las Condes", transmision: "Manual", combustible: "Bencina", asientos: 4, rating_promedio: 5.0, rating_cantidad: 34, latitud: -33.4089, longitud: -70.5698, fotos: ["/cars/suzuki-jimny.jpg"] },
+  { id: "fb-4", marca: "Chevrolet", modelo: "Onix Turbo", anio: 2023, categoria: "economico", tarifa_dia: 28000, ubicacion_base: "Santiago Centro", transmision: "Manual", combustible: "Bencina", asientos: 5, rating_promedio: 4.7, rating_cantidad: 15, latitud: -33.4489, longitud: -70.6693, fotos: ["/cars/chevrolet-onix.jpg"] },
+  { id: "fb-5", marca: "Ford", modelo: "Ranger XLT 4x4", anio: 2023, categoria: "4x4", tarifa_dia: 55000, ubicacion_base: "Maipú", transmision: "Automática", combustible: "Diésel", asientos: 5, rating_promedio: 4.9, rating_cantidad: 42, latitud: -33.5107, longitud: -70.7577, fotos: ["/cars/ford-ranger.jpg"] },
+  { id: "fb-6", marca: "Kia", modelo: "Soluto LX", anio: 2022, categoria: "economico", tarifa_dia: 26000, ubicacion_base: "La Florida", transmision: "Manual", combustible: "Bencina", asientos: 5, rating_promedio: 4.6, rating_cantidad: 22, latitud: -33.5225, longitud: -70.5989, fotos: ["/cars/kia-soluto.jpg"] },
+];
+
+const CATEGORIAS = [
+  { id: "todos", label: "Todos" },
+  { id: "economico", label: "Económicos" },
+  { id: "suv", label: "SUV" },
+  { id: "4x4", label: "4x4 / Camioneta" },
+];
+
+const PASOS = [
+  { n: "1", title: "Explora y reserva", desc: "Busca en el mapa autos cerca tuyo, compara el precio por día y elige las fechas exactas que necesitas." },
+  { n: "2", title: "Verifica tu identidad", desc: "Foto de tu cédula o pasaporte, tu licencia y una selfie. El sistema lo valida en 60 segundos. Solo la primera vez." },
+  { n: "3", title: "Retira con QR", desc: "Te juntas con el dueño, revisan juntos el checklist de 9 fotos y escaneas el código QR para recibir las llaves." },
+];
+
+const GARANTIAS = [
+  { icon: ShieldCheck, title: "Seguro con deducible 15 UF", desc: "Ante un siniestro cubierto, el deducible se reparte 50 / 50 entre quien arrienda y el dueño." },
+  { icon: Lock, title: "Hold de garantía $800.000", desc: "Es una retención temporal en tu tarjeta, no un cobro. Se libera al devolver el auto conforme." },
+  { icon: Camera, title: "Checklist de 9 fotos", desc: "Registro fotográfico en la entrega y la devolución. La patente se difumina automáticamente." },
+  { icon: FileText, title: "Contrato digital firmado", desc: "Cada arriendo genera un contrato con tus datos verificados y la huella / Face ID de quien firma." },
+];
+
+const KYC_CL = [
+  "Cédula de identidad vigente — foto de ambos lados",
+  "RUT válido — lo validamos con el dígito verificador (Módulo 11)",
+  "Licencia de conducir chilena Clase B, vigente",
+  "Selfie con prueba de vida",
+  "Tarjeta de crédito a tu nombre (garantía)",
+  "Tener 21 años o más",
+];
+
+const KYC_EXT = [
+  { t: "Pasaporte o documento de identidad de tu país + país emisor", warn: false },
+  { t: "Licencia de conducir de tu país, vigente", warn: false },
+  { t: "Permiso Internacional de Conducir (PIC) si tu país no adhiere al Convenio de Viena de 1968", warn: true },
+  { t: "Selfie con prueba de vida y tarjeta de crédito internacional", warn: false },
+  { t: "Tener 21 años o más", warn: false },
+  { t: "Si resides hace más de 1 año en Chile, necesitas licencia chilena (España, Perú y Corea pueden homologar la suya)", warn: true },
+];
+
+const FAQS = [
   {
-    id: "auto-1", marca: "Toyota", modelo: "RAV4 Limited", anio: 2023, categoria: "suv",
-    tarifa_dia: 42000, ubicacion_base: "Plaza de Armas", transmision: "Automática",
-    combustible: "Gasolina", capacidad: "5 Pasajeros", rating: 4.9, viajes: 28,
-    badge: "VERIFICADO",
-    foto: "/cars/toyota-rav4.jpg",
+    q: "¿Cómo funciona el seguro y el deducible de 15 UF?",
+    a: "Cada arriendo incluye un seguro con deducible de 15 UF. Ante un siniestro cubierto, ese deducible se reparte 50 / 50 entre el arrendatario y el dueño, y la aseguradora cubre el resto. El detalle queda escrito en el contrato digital de cada reserva.",
   },
   {
-    id: "auto-2", marca: "Hyundai", modelo: "Tucson GL", anio: 2022, categoria: "suv",
-    tarifa_dia: 35000, ubicacion_base: "Av. Alemania", transmision: "Automática",
-    combustible: "Gasolina", capacidad: "5 Pasajeros", rating: 4.8, viajes: 19,
-    badge: "MÁS PEDIDO",
-    foto: "/cars/hyundai-tucson.jpg",
+    q: "¿El hold de $800.000 es un cobro?",
+    a: "No. Es una retención temporal en tu tarjeta de crédito que se genera antes de entregarte las llaves. No se te descuenta el dinero: se libera al devolver el auto conforme al checklist de 9 fotos.",
   },
   {
-    id: "auto-3", marca: "Suzuki", modelo: "Jimny AllGrip", anio: 2024, categoria: "4x4",
-    tarifa_dia: 48000, ubicacion_base: "Av. Gabriela Mistral", transmision: "Manual",
-    combustible: "Gasolina", capacidad: "4 Pasajeros", rating: 5.0, viajes: 34,
-    badge: "NUEVO",
-    foto: "/cars/suzuki-jimny.jpg",
+    q: "Soy extranjero, ¿puedo arrendar?",
+    a: "Sí. Necesitas tu pasaporte o documento de identidad indicando el país emisor, tu licencia de conducir vigente y, si tu país no adhiere al Convenio de Viena de 1968 (por ejemplo Colombia o Venezuela), un Permiso Internacional de Conducir (PIC) vigente. Si resides hace más de un año en Chile necesitas licencia chilena; España, Perú y Corea pueden homologar la suya sin rendir examen. La edad mínima es 21 años.",
   },
   {
-    id: "auto-4", marca: "Chevrolet", modelo: "Onix Turbo", anio: 2023, categoria: "economico",
-    tarifa_dia: 28000, ubicacion_base: "Terminal Rodoviario", transmision: "Manual",
-    combustible: "Gasolina", capacidad: "5 Pasajeros", rating: 4.7, viajes: 15,
-    badge: "VERIFICADO",
-    foto: "/cars/chevrolet-onix.jpg",
+    q: "¿Cuánto cuesta publicar mi auto y cuándo me pagan?",
+    a: "Publicar es gratis. La plataforma cobra una comisión del 20% sobre los arriendos concretados; los cargos por lavado son 100% para el dueño. El pago llega por depósito bancario a tu cuenta después de cada viaje.",
   },
   {
-    id: "auto-5", marca: "Ford", modelo: "Ranger XLT 4x4", anio: 2023, categoria: "4x4",
-    tarifa_dia: 55000, ubicacion_base: "Camino a Antuco", transmision: "Automática",
-    combustible: "Diésel", capacidad: "5 Pasajeros", rating: 4.9, viajes: 42,
-    badge: "TOP RATE",
-    foto: "/cars/ford-ranger.jpg",
+    q: "¿Qué papeles necesita el auto para publicarse?",
+    a: "Certificado de inscripción (padrón), permiso de circulación, SOAP y revisión técnica vigentes. Opcionalmente puedes cargar la póliza de seguro comercial. Los documentos se leen con OCR al instante y, si algo no queda claro, los revisa una persona sin frenar la publicación.",
   },
   {
-    id: "auto-6", marca: "Kia", modelo: "Soluto LX 1.4", anio: 2022, categoria: "economico",
-    tarifa_dia: 26000, ubicacion_base: "Mall Plaza", transmision: "Manual",
-    combustible: "Gasolina", capacidad: "5 Pasajeros", rating: 4.6, viajes: 22,
-    badge: "VERIFICADO",
-    foto: "/cars/kia-soluto.jpg",
+    q: "¿Cómo es la entrega y la devolución del auto?",
+    a: "Se coordinan con el dueño en el punto que acuerden. Revisan juntos el checklist de 9 fotos y se escanea un código QR para traspasar las llaves. A la devolución se repite el checklist para dejar registro del estado del vehículo.",
+  },
+  {
+    q: "¿La app tiene costo?",
+    a: "Descargar la app y publicar tu auto es gratis. Solo se cobra la comisión sobre los arriendos que efectivamente se concretan.",
   },
 ];
 
-/* ──────────────── COMPONENTE PRINCIPAL ──────────────── */
-export default function Home() {
-  const router = useRouter();
-  const [autos, setAutos] = useState(AUTOS_FALLBACK);
-  const [filteredAutos, setFilteredAutos] = useState(AUTOS_FALLBACK);
-  const [modalAuto, setModalAuto] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState("todos");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [openFaq, setOpenFaq] = useState(null);
+const fmtCLP = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
+const fotoDe = (a) => a.fotos?.[0] || a.foto || "/hero-car.jpg";
 
-  // Owner interactive simulator
-  const [diasAlMes, setDiasAlMes] = useState(10);
-  const tarifaEstimada = 38000;
-  const ingresoNeto = Math.round(diasAlMes * tarifaEstimada * 0.8);
+/* ───────────── COMPONENTE ───────────── */
+export default function Home() {
+  const [autos, setAutos] = useState(AUTOS_FALLBACK);
+  const [categoria, setCategoria] = useState("todos");
+  const [query, setQuery] = useState("");
+  const [modalAuto, setModalAuto] = useState(null);
+  const [openFaq, setOpenFaq] = useState(0);
+  const [dias, setDias] = useState(12);
 
   useEffect(() => {
+    let vivo = true;
     (async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/autos`);
-        if (res.ok) { const d = await res.json(); setAutos(d); setFilteredAutos(d); }
-      } catch { /* use fallback */ }
+        if (res.ok) {
+          const data = await res.json();
+          if (vivo && Array.isArray(data) && data.length) setAutos(data);
+        }
+      } catch {
+        /* se mantiene el respaldo */
+      }
     })();
+    return () => {
+      vivo = false;
+    };
   }, []);
 
-  useEffect(() => {
+  const filtrados = useMemo(() => {
     let r = [...autos];
-    if (selectedCategory !== "todos") r = r.filter((a) => a.categoria === selectedCategory);
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (categoria !== "todos") r = r.filter((a) => a.categoria === categoria);
+    const q = query.trim().toLowerCase();
+    if (q) {
       r = r.filter((a) =>
-        a.marca.toLowerCase().includes(q) || a.modelo.toLowerCase().includes(q) || a.ubicacion_base.toLowerCase().includes(q)
+        [a.marca, a.modelo, a.ubicacion_base].filter(Boolean).some((v) => v.toLowerCase().includes(q))
       );
     }
-    setFilteredAutos(r);
-  }, [selectedCategory, searchQuery, autos]);
+    return r;
+  }, [autos, categoria, query]);
 
-  const categories = [
-    { id: "todos", label: "Todos" },
-    { id: "suv", label: "SUVs" },
-    { id: "4x4", label: "4x4" },
-    { id: "economico", label: "Económicos" },
-  ];
-
-  const faqs = [
-    { q: "¿Cómo funciona el seguro y el deducible de 15 UF?", a: "Cada arriendo incluye seguro con deducible de 15 UF compartido (50/50) entre arrendatario y dueño. Ante un siniestro cubierto, cada parte asume la mitad del deducible y la aseguradora el resto." },
-    { q: "¿Qué es el Hold de Garantía de $800.000?", a: "Es una retención temporal en tu tarjeta, no un cobro. Se libera al devolver el vehículo conforme al checklist de 9 fotos." },
-    { q: "¿Qué documentos necesito para arrendar?", a: "Solo tu Cédula de Identidad chilena al día y Licencia de Conducir Clase B. La validación es digital y toma menos de 1 minuto." },
-    { q: "¿Cómo es la entrega del vehículo?", a: "Te reúnes con el dueño en el punto pactado en Los Ángeles, revisan juntos el checklist de 9 fotos y escanean el código QR en la app para transferir las llaves." },
-  ];
+  const tarifaNeta = Math.round(dias * 30000 * 0.8);
 
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faqs.map((f) => ({
+    mainEntity: FAQS.map((f) => ({
       "@type": "Question",
       name: f.q,
       acceptedAnswer: { "@type": "Answer", text: f.a },
@@ -139,147 +169,192 @@ export default function Home() {
   return (
     <>
       <Seo
-        title="ArriendoMiAutoYa — Arriendo de autos entre personas en Los Ángeles"
-        description="Arrienda autos directamente de sus dueños en Los Ángeles, Biobío con ArriendoMiAutoYa. Seguro 15 UF, validación digital en 1 minuto y entrega segura con código QR."
+        title="arriendomiautoya — Arrienda autos directamente de sus dueños"
+        description="Arrienda autos particulares verificados desde la app. Seguro con deducible de 15 UF, verificación de identidad en 60 segundos y entrega con código QR."
         path="/"
         jsonLd={faqJsonLd}
       />
-
       <Navbar />
 
-      <main className="min-h-screen bg-[#061E1F] text-white">
+      <main className="bg-white text-[#17181a]">
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            HERO — Split layout: text left, car image right (Teal & Mint Palette)
-        ═══════════════════════════════════════════════════════════════════ */}
-        <section className="relative pt-28 sm:pt-36 pb-16 sm:pb-24 overflow-hidden">
-          {/* Ambient Glows */}
-          <div className="absolute top-10 left-1/4 w-[500px] h-[500px] bg-[#2FBF9B]/10 rounded-full filter blur-[100px] pointer-events-none" />
-          <div className="absolute top-40 right-10 w-[600px] h-[600px] bg-[#0F3D3E]/40 rounded-full filter blur-[120px] pointer-events-none" />
-          
-          <div className="absolute inset-0 bg-gradient-to-br from-[#0E3736]/40 via-[#061E1F] to-[#061E1F]" />
-
-          <div className="container max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-
-              {/* Left: Copy */}
-              <div className="space-y-6 max-w-xl">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#2FBF9B]/30 bg-[#2FBF9B]/10 px-4 py-1.5 text-xs font-black text-[#2FBF9B] tracking-wide">
+        {/* ══════════ HERO ══════════ */}
+        <section className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -right-32 -top-40 h-[560px] w-[560px] rounded-full bg-brand-teal/10 blur-[10px]" />
+          <div className="bg-dot-pattern pointer-events-none absolute left-0 top-32 h-72 w-72 opacity-60 [mask-image:linear-gradient(135deg,#000,transparent)]" />
+          <div className="container relative mx-auto max-w-7xl px-4 pb-14 pt-28 sm:px-6 sm:pt-36">
+            <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-16">
+              <div className="flex flex-col gap-6">
+                <span className="inline-flex w-fit items-center gap-2 rounded-full border border-brand-line bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-tealInk">
                   <MapPin className="h-3.5 w-3.5" />
-                  ARRIENDO LOCAL EN LOS ÁNGELES, BIOBÍO
-                </div>
-
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.08]">
-                  TU AUTO IDEAL.{" "}
-                  <span className="text-[#2FBF9B]">DIRECTO</span>
-                  <br />
-                  DE SU DUEÑO.
+                  Arriendo de autos entre personas
+                </span>
+                <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-[3.6rem]">
+                  El auto que necesitas, con las llaves de{" "}
+                  <span className="bg-[linear-gradient(180deg,transparent_62%,#e8f5f0_62%)]">alguien de tu barrio.</span>
                 </h1>
-
-                <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-md font-normal">
-                  Olvídate de mesones eternos y letras chicas. Arrienda autos impecables listos para rodar, con
-                  seguro 15 UF (50/50), validación digital en 60 segundos y entrega protegida con código QR.
+                <p className="max-w-lg text-lg text-[#63645f]">
+                  Reserva autos particulares verificados desde la app. Seguro con deducible de 15 UF,
+                  verificación de identidad en 60 segundos y entrega con código QR. Sin mesón, sin letra chica.
                 </p>
-
-                {/* Search Bar */}
-                <div className="flex flex-col sm:flex-row items-stretch gap-2 bg-[#0E3736]/80 backdrop-blur-xl rounded-2xl border border-[#2FBF9B]/20 p-2 max-w-lg shadow-2xl">
-                  <div className="flex items-center gap-2 flex-1 px-3">
-                    <MapPin className="h-4 w-4 text-[#2FBF9B] shrink-0" />
-                    <span className="text-xs text-slate-200 font-bold whitespace-nowrap">Los Ángeles, Biobío</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-1 border-l border-white/10 px-3">
-                    <Search className="h-4 w-4 text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="4x4, SUV, económico..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="bg-transparent text-xs text-white placeholder:text-slate-400 focus:outline-none w-full py-2"
-                    />
-                  </div>
-                  <a href="#catalogo">
-                    <Button className="rounded-xl px-6 py-5 text-xs font-black bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787] shadow-lg shadow-[#2FBF9B]/25 gap-1.5 whitespace-nowrap w-full sm:w-auto uppercase tracking-wider transition-all hover:scale-105">
-                      <Search className="h-3.5 w-3.5" />
-                      BUSCAR
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href="#descargar-app">
+                    <Button className="rounded-xl bg-brand-ink px-6 py-6 text-[15px] font-semibold text-white hover:bg-black">
+                      <Smartphone className="mr-2 h-4 w-4" /> Descargar la app
+                    </Button>
+                  </Link>
+                  <a href="#mapa">
+                    <Button variant="outline" className="rounded-xl border-brand-line px-6 py-6 text-[15px] font-semibold text-brand-ink hover:border-brand-ink">
+                      Ver autos cerca de ti
                     </Button>
                   </a>
                 </div>
-              </div>
-
-              {/* Right: Hero Car Image */}
-              <div className="relative hidden lg:block">
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-black/80 border border-[#2FBF9B]/20">
-                  <img
-                    src="/hero-bg-BtEUgRp2.jpg"
-                    alt="Auto de arriendo recorriendo una carretera cerca de Los Ángeles, Biobío"
-                    className="w-full h-[390px] object-cover"
-                    width={720}
-                    height={390}
-                    fetchPriority="high"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#061E1F]/80 via-transparent to-transparent" />
-                </div>
-                {/* Floating Badge */}
-                <div className="absolute -bottom-4 right-8 bg-[#2FBF9B] text-[#061E1F] rounded-2xl px-5 py-3.5 shadow-2xl shadow-[#2FBF9B]/30 border border-[#2FBF9B]/60">
-                  <div className="text-2xl font-black leading-none">+500</div>
-                  <div className="text-[10px] font-black uppercase tracking-wider mt-0.5">Viajes realizados</div>
+                <div className="flex flex-wrap gap-3 pt-1">
+                  {["App Store", "Google Play"].map((s) => (
+                    <span key={s} className="inline-flex items-center gap-2.5 rounded-xl bg-brand-ink px-4 py-2.5 text-white">
+                      <span className="text-[10px] uppercase tracking-wider opacity-70">Próximamente</span>
+                      <span className="font-display text-sm font-semibold">{s}</span>
+                    </span>
+                  ))}
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            CÓMO FUNCIONA — 3 Steps with circle numbers
-        ═══════════════════════════════════════════════════════════════════ */}
-        <section id="como-funciona" className="py-16 sm:py-24 bg-[#0B2829]/60 border-y border-[#2FBF9B]/10">
-          <div className="container max-w-5xl mx-auto px-4 sm:px-6 space-y-14">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl sm:text-4xl font-black text-white">Tu viaje en 3 simples pasos</h2>
-              <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto">
-                La forma más rápida, transparente y confiable de moverte por la Región del Biobío.
-              </p>
-              <div className="w-16 h-0.5 bg-[#2FBF9B] mx-auto mt-4" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 text-center">
-              {[
-                { n: "1", title: "Elige tu vehículo", desc: "Filtra por modelo, 4x4 o SUV verificado en Los Ángeles y reserva los días exactos que necesitas." },
-                { n: "2", title: "Validación relámpago", desc: "Sube tu cédula y licencia chilena. Tu contrato digital queda blindado en 60 segundos." },
-                { n: "3", title: "Llaves con QR", desc: "Reúnete con el dueño, revisen el checklist de 9 fotos y ¡a disfrutar el camino!" },
-              ].map((step) => (
-                <div key={step.n} className="flex flex-col items-center space-y-4">
-                  <div className="h-16 w-16 rounded-full border-2 border-[#2FBF9B] flex items-center justify-center text-2xl font-black text-[#2FBF9B] bg-[#2FBF9B]/10 shadow-lg shadow-[#2FBF9B]/15">
-                    {step.n}
+              <div className="relative">
+                <div className="absolute -bottom-6 -left-5 -right-6 top-6 rounded-[2rem] border-2 border-brand-tealTint" />
+                <div className="pointer-events-none absolute -bottom-10 -right-12 h-56 w-56 rounded-full bg-brand-teal/15 blur-[10px]" />
+                <div className="relative overflow-hidden rounded-3xl border border-brand-line shadow-soft">
+                  <img src="/hero-car.jpg" alt="Auto particular listo para arrendar" className="h-[360px] w-full object-cover sm:h-[430px]" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/15 to-transparent" />
+                </div>
+                <div className="absolute -left-6 bottom-10 flex items-center gap-3 rounded-2xl border border-brand-line bg-white p-4 shadow-soft">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-tealTint">
+                    <ShieldCheck className="h-5 w-5 text-brand-tealInk" />
+                  </span>
+                  <div>
+                    <div className="font-display text-sm font-bold text-brand-ink">Seguro 15 UF incluido</div>
+                    <div className="text-xs text-[#63645f]">Deducible compartido 50 / 50</div>
                   </div>
-                  <h3 className="text-base font-bold text-white">{step.title}</h3>
-                  <p className="text-xs text-slate-300 leading-relaxed max-w-[260px]">{step.desc}</p>
                 </div>
-              ))}
+                <div className="absolute -right-5 top-6 rounded-2xl border border-brand-line bg-white px-4 py-3 text-center shadow-soft">
+                  <div className="font-display text-xl font-bold text-brand-ink">4,9</div>
+                  <div className="text-[13px] tracking-[2px] text-brand-teal">★★★★★</div>
+                  <div className="text-[10px] uppercase tracking-wide text-[#63645f]">valoración media</div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            CATÁLOGO — "Explora la flota" with category pills & 3-col grid
-        ═══════════════════════════════════════════════════════════════════ */}
-        <section id="catalogo" className="py-16 sm:py-24 bg-[#061E1F]">
-          <div className="container max-w-7xl mx-auto px-4 sm:px-6 space-y-8">
-
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-              <div>
-                <h2 className="text-2xl sm:text-4xl font-black text-white">Autos listos para tu viaje</h2>
-                <p className="text-sm text-slate-300 mt-1">Vehículos verificados por sus propios dueños en la comuna de Los Ángeles.</p>
+        {/* ══════════ TRUST STRIP ══════════ */}
+        <section className="container mx-auto max-w-7xl px-4 pb-10 sm:px-6">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-brand-line bg-brand-line md:grid-cols-4">
+            {[
+              ["+500", "viajes completados*"],
+              ["60 s", "verificación de identidad"],
+              ["100%", "pago por depósito bancario"],
+              ["0 $", "publicar tu auto"],
+            ].map(([big, small]) => (
+              <div key={small} className="bg-brand-soft px-7 py-6">
+                <div className="font-display text-2xl font-bold text-brand-ink">{big}</div>
+                <div className="text-[13px] text-[#63645f]">{small}</div>
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {categories.map((c) => (
+            ))}
+          </div>
+        </section>
+
+        {/* ══════════ CÓMO FUNCIONA ══════════ */}
+        <section id="como-funciona" className="relative overflow-hidden border-y border-brand-line bg-brand-soft py-24">
+          <div className="bg-dot-pattern pointer-events-none absolute bottom-0 right-0 h-64 w-80 opacity-60 [mask-image:linear-gradient(315deg,#000,transparent)]" />
+          <div className="container relative mx-auto max-w-6xl px-4 sm:px-6">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">
+              • Arrendar toma minutos
+            </span>
+            <h2 className="mt-3.5 max-w-2xl font-display text-3xl font-bold sm:text-4xl">Del teléfono al volante en tres pasos</h2>
+            <div className="accent-rule mt-4" />
+
+            <div className="relative mt-16">
+              <div className="absolute left-[16.6%] right-[16.6%] top-7 hidden border-t-2 border-dashed border-brand-dash md:block" />
+              <div className="grid gap-10 md:grid-cols-3">
+                {PASOS.map((s, i) => (
+                  <div key={s.n} className="flex flex-col items-center text-center">
+                    <div className={`relative z-10 flex h-14 w-14 items-center justify-center rounded-full border-2 border-brand-teal font-display text-xl font-bold shadow-[0_0_0_8px_#e8f5f0] ${i === 0 ? "bg-brand-teal text-[#04231b]" : "bg-white text-brand-tealInk"}`}>
+                      {s.n}
+                    </div>
+                    <div className="my-4 h-6 border-l-2 border-dashed border-brand-dash" />
+                    <h3 className="font-display text-lg font-semibold">{s.title}</h3>
+                    <p className="mt-2 max-w-[290px] text-[15px] text-[#63645f]">{s.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════ MAPA + AUTOS ══════════ */}
+        <section id="mapa" className="py-24">
+          <div className="container mx-auto max-w-7xl px-4 sm:px-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Disponibles ahora</span>
+                <h2 className="mt-3.5 font-display text-3xl font-bold sm:text-4xl">Autos cerca tuyo, en el mapa</h2>
+                <div className="accent-rule mt-4" />
+              </div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-brand-line bg-white px-3.5 py-1.5 text-xs font-semibold">
+                <span className="h-2 w-2 rounded-full bg-brand-teal ring-4 ring-brand-teal/20" />
+                Datos en vivo desde la app
+              </span>
+            </div>
+
+            <div className="mt-9 grid overflow-hidden rounded-3xl border border-brand-line shadow-soft lg:grid-cols-[1.55fr_1fr]">
+              <MapaAutos autos={autos} activoId={filtrados[0]?.id} />
+              <div className="flex flex-col gap-3.5 bg-white p-6">
+                <div className="font-display text-sm font-semibold uppercase tracking-wider text-[#63645f]">Más pedidos</div>
+                {filtrados.slice(0, 4).map((a, i) => (
+                  <React.Fragment key={a.id}>
+                    {i > 0 && <div className="h-px bg-brand-line" />}
+                    <button onClick={() => setModalAuto(a)} className="flex items-center gap-3.5 text-left">
+                      <img src={fotoDe(a)} alt={`${a.marca} ${a.modelo}`} className="h-[60px] w-[78px] shrink-0 rounded-xl object-cover" />
+                      <div className="flex-1">
+                        <div className="text-[14.5px] font-semibold">{a.marca} {a.modelo}</div>
+                        <div className="text-[12.5px] text-[#63645f]">
+                          {a.categoria ? a.categoria : "Auto"} · ★ {a.rating_promedio ?? "—"}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <b className="font-display text-[15px] text-brand-ink">{fmtCLP(a.tarifa_dia)}</b>
+                        <div className="text-[11px] text-[#63645f]">/ día</div>
+                      </div>
+                    </button>
+                  </React.Fragment>
+                ))}
+                <a href="#catalogo">
+                  <Button variant="outline" className="mt-1.5 w-full rounded-xl border-brand-line text-brand-ink hover:border-brand-ink">
+                    Ver todo el catálogo
+                  </Button>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════ CATÁLOGO ══════════ */}
+        <section id="catalogo" className="border-t border-brand-line bg-brand-soft py-24">
+          <div className="container mx-auto max-w-7xl px-4 sm:px-6">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Catálogo</span>
+            <div className="mt-3.5 flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="font-display text-3xl font-bold sm:text-4xl">Un auto para cada plan</h2>
+                <div className="accent-rule mt-4" />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIAS.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => setSelectedCategory(c.id)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-                      selectedCategory === c.id
-                        ? "bg-[#2FBF9B] text-[#061E1F] shadow-md shadow-[#2FBF9B]/25"
-                        : "bg-[#0E3736] text-slate-200 border border-[#2FBF9B]/20 hover:bg-[#0E3736]/80"
+                    onClick={() => setCategoria(c.id)}
+                    className={`rounded-full border px-4 py-2 text-xs font-semibold transition-colors ${
+                      categoria === c.id
+                        ? "border-brand-ink bg-brand-ink text-white"
+                        : "border-brand-line bg-white text-[#17181a] hover:border-brand-ink"
                     }`}
                   >
                     {c.label}
@@ -288,230 +363,246 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Grid of Cars */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredAutos.map((auto) => (
-                <div
-                  key={auto.id}
-                  className="rounded-2xl border border-[#2FBF9B]/15 bg-[#0E3736]/60 backdrop-blur-md overflow-hidden group hover:border-[#2FBF9B]/50 transition-all flex flex-col shadow-xl"
-                >
-                  {/* Image */}
-                  <div className="relative h-52 overflow-hidden bg-slate-900">
-                    <img
-                      src={auto.foto || auto.fotos?.[0]}
-                      alt={`Arriendo de ${auto.marca} ${auto.modelo} ${auto.anio} en Los Ángeles, Biobío`}
-                      className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                    <span className="absolute top-3 right-3 bg-[#061E1F]/90 text-[#92E3CB] text-[10px] font-bold uppercase px-2.5 py-1 rounded-md border border-[#2FBF9B]/30 tracking-wide backdrop-blur-sm">
-                      {auto.badge || "VERIFICADO"}
-                    </span>
+            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {filtrados.map((a) => (
+                <div key={a.id} className="flex flex-col overflow-hidden rounded-3xl border border-brand-line bg-white shadow-soft">
+                  <div className="relative h-52">
+                    <img src={fotoDe(a)} alt={`${a.marca} ${a.modelo} ${a.anio}`} className="h-full w-full object-cover" loading="lazy" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
+                    {a.categoria && (
+                      <span className="absolute left-3 top-3 rounded-full border border-brand-line bg-white px-2.5 py-1 text-[11px] font-semibold capitalize">
+                        {a.categoria}
+                      </span>
+                    )}
                   </div>
-
-                  {/* Body */}
-                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                    <div>
-                      {/* Title + Price */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="text-base font-bold text-white">
-                            {auto.marca} {auto.modelo}
-                          </h3>
-                          <p className="text-xs text-slate-300 mt-0.5">Automática · {auto.anio}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-lg font-black text-[#2FBF9B]">
-                            ${auto.tarifa_dia?.toLocaleString("es-CL")}
-                          </span>
-                          <span className="block text-[10px] text-slate-400 uppercase">CLP / DÍA</span>
-                        </div>
+                  <div className="flex flex-1 flex-col gap-3 p-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-display text-[17px] font-semibold">{a.marca} {a.modelo}</h3>
+                        <p className="text-[13px] text-[#63645f]">
+                          {[a.transmision, a.combustible, a.asientos ? `${a.asientos} asientos` : null].filter(Boolean).join(" · ") || `Modelo ${a.anio}`}
+                        </p>
                       </div>
-
-                      {/* Location */}
-                      <div className="flex items-center gap-1.5 text-xs text-slate-300 mt-2">
-                        <MapPin className="h-3 w-3 text-[#2FBF9B] shrink-0" />
-                        <span>{auto.ubicacion_base}</span>
-                      </div>
-
-                      {/* Specs row */}
-                      <div className="flex items-center gap-4 text-[11px] text-slate-300 mt-3 pt-3 border-t border-white/5">
-                        <span className="flex items-center gap-1">
-                          <Gauge className="h-3 w-3 text-[#2FBF9B]" />
-                          {auto.transmision}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3 text-[#2FBF9B]" />
-                          {auto.capacidad}
-                        </span>
-                        <span className="flex items-center gap-1 ml-auto">
-                          <Star className="h-3 w-3 text-[#2FBF9B] fill-[#2FBF9B]" />
-                          {auto.rating}
-                        </span>
+                      <div className="text-right">
+                        <b className="font-display text-[17px] text-brand-ink">{fmtCLP(a.tarifa_dia)}</b>
+                        <div className="text-[11px] text-[#63645f]">CLP / día</div>
                       </div>
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setModalAuto(auto)}
-                        className="flex-1 rounded-xl text-xs font-semibold border-white/15 text-white hover:border-[#2FBF9B]/40 hover:bg-[#0F3D3E]"
-                      >
-                        Ficha
-                      </Button>
-                      <Link href={`/cotizador?auto=${auto.id}`} className="flex-1">
-                        <Button
-                          size="sm"
-                          className="w-full rounded-xl text-xs font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787]"
-                        >
-                          Cotizar
+                    <div className="mt-auto flex items-center justify-between border-t border-brand-line pt-3">
+                      <span className="flex items-center gap-1 text-[12.5px] font-semibold text-brand-tealInk">
+                        <Star className="h-3.5 w-3.5 fill-brand-teal text-brand-teal" />
+                        {a.rating_promedio ?? "Nuevo"}{a.rating_cantidad ? ` · ${a.rating_cantidad} viajes` : ""}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setModalAuto(a)} className="rounded-xl border-brand-line text-xs font-semibold text-brand-ink hover:border-brand-ink">
+                          Ficha
                         </Button>
-                      </Link>
+                        <a href="#descargar-app">
+                          <Button size="sm" className="rounded-xl bg-brand-teal text-xs font-semibold text-[#04231b] hover:bg-[#12b78d]">
+                            Reservar <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                          </Button>
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            {filteredAutos.length === 0 && (
-              <div className="text-center py-16 space-y-3">
-                <p className="text-slate-400 text-sm">No se encontraron vehículos con esos filtros.</p>
-                <Button variant="outline" size="sm" onClick={() => { setSearchQuery(""); setSelectedCategory("todos"); }} className="rounded-xl text-xs border-[#2FBF9B]/30 text-white">
-                  Restablecer filtros
+            {filtrados.length === 0 && (
+              <div className="py-16 text-center">
+                <p className="text-sm text-[#63645f]">No hay autos con esos filtros.</p>
+                <Button variant="outline" size="sm" onClick={() => { setCategoria("todos"); setQuery(""); }} className="mt-3 rounded-xl border-brand-line">
+                  Restablecer
                 </Button>
               </div>
             )}
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            GARANTÍAS — 4 cards in a row
-        ═══════════════════════════════════════════════════════════════════ */}
-        <section className="py-16 sm:py-20 bg-[#0B2829]/50 border-y border-[#2FBF9B]/10">
-          <div className="container max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                { icon: <ShieldCheck className="h-6 w-6" />, title: "Seguro 15 UF", desc: "Deducible compartido 50/50 entre dueño y arrendatario." },
-                { icon: <Lock className="h-6 w-6" />, title: "Hold $800.000", desc: "Bloqueo temporal en tarjeta, no es un cobro. Se libera al devolver." },
-                { icon: <Camera className="h-6 w-6" />, title: "9 fotos obligatorias", desc: "Checklist fotográfico auditado en cada entrega y devolución." },
-                { icon: <FileText className="h-6 w-6" />, title: "Contrato digital", desc: "Firmado en línea con cédula y licencia clase B validadas." },
-              ].map((item, i) => (
-                <Link href="/garantias" key={i} className="rounded-2xl border border-[#2FBF9B]/15 bg-[#0E3736]/70 p-6 hover:border-[#2FBF9B]/50 transition-all group shadow-lg">
-                  <div className="h-12 w-12 rounded-xl bg-[#2FBF9B]/10 border border-[#2FBF9B]/20 flex items-center justify-center text-[#2FBF9B] group-hover:bg-[#2FBF9B]/20 transition-colors mb-4">
-                    {item.icon}
+        {/* ══════════ GARANTÍAS (PANEL OSCURO) ══════════ */}
+        <section className="border-t border-brand-line bg-brand-soft p-10">
+          <div className="relative mx-auto max-w-[1360px] overflow-hidden rounded-[2.75rem] bg-brand-ink px-6 py-24 text-white sm:px-16">
+            <div className="pointer-events-none absolute -left-44 -top-56 h-[620px] w-[620px] rounded-full bg-brand-tealBright/15 blur-[10px]" />
+            <div className="pointer-events-none absolute -bottom-44 -right-28 h-[420px] w-[420px] rounded-full bg-brand-tealBright/10 blur-[10px]" />
+            <div className="relative">
+              <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealBright">• Cada viaje protegido</span>
+              <h2 className="mt-3.5 max-w-2xl font-display text-3xl font-bold text-white sm:text-4xl">Lo que hace segura una llave prestada</h2>
+              <div className="accent-rule mt-4" />
+              <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {GARANTIAS.map(({ icon: Icon, title, desc }) => (
+                  <div key={title} className="flex flex-col gap-3 rounded-3xl border border-[#2c2c29] bg-[#1f1f1d] p-6">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-tealBright/10">
+                      <Icon className="h-5 w-5 text-brand-tealBright" />
+                    </span>
+                    <h3 className="font-display text-[17px] font-semibold text-white">{title}</h3>
+                    <p className="text-[13.5px] text-[#a7a7a1]">{desc}</p>
                   </div>
-                  <h3 className="text-sm font-bold text-white mb-1">{item.title}</h3>
-                  <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
-                </Link>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            DUEÑOS — Deep Forest card with interactive simulator
-        ═══════════════════════════════════════════════════════════════════ */}
-        <section id="propietarios" className="py-16 sm:py-24 bg-[#061E1F]">
-          <div className="container max-w-5xl mx-auto px-4 sm:px-6">
-            <div className="rounded-3xl bg-[#0F3D3E] text-white p-8 sm:p-14 shadow-2xl border border-[#2FBF9B]/30 relative overflow-hidden">
-              
-              {/* Ambient Glow */}
-              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#2FBF9B]/10 rounded-full filter blur-[80px] pointer-events-none" />
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center relative z-10">
-
-                {/* Left copy */}
-                <div className="space-y-6">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[#2FBF9B]/15 border border-[#2FBF9B]/30 px-3.5 py-1 text-[11px] font-black uppercase tracking-wider text-[#92E3CB]">
-                    Rentabiliza tu vehículo
-                  </div>
-                  <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-none">
-                    Pon tu auto a trabajar por ti y dile adiós a las cuotas.
-                  </h2>
-                  <div className="space-y-3.5 pt-2">
-                    {[
-                      "Tú tienes el control: fija tus días disponibles y tu precio",
-                      "El 100% de los cobros por lavado van a tu bolsillo",
-                      "Depósito bancario directo y puntual en tu cuenta",
-                      "Tu auto siempre protegido con seguro comercial",
-                    ].map((t, i) => (
-                      <div key={i} className="flex items-center gap-3 text-sm font-semibold text-slate-200">
-                        <div className="h-5 w-5 rounded-full bg-[#2FBF9B]/20 flex items-center justify-center shrink-0">
-                          <Check className="h-3.5 w-3.5 text-[#2FBF9B]" />
-                        </div>
-                        <span>{t}</span>
-                      </div>
-                    ))}
-                  </div>
+        {/* ══════════ PUBLICA TU AUTO ══════════ */}
+        <section id="propietarios" className="relative overflow-hidden py-24">
+          <div className="bg-dot-pattern pointer-events-none absolute left-0 top-20 h-72 w-64 opacity-60 [mask-image:linear-gradient(120deg,#000,transparent)]" />
+          <div className="container relative mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="grid items-center gap-14 lg:grid-cols-2">
+              <div className="flex flex-col gap-5">
+                <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Para dueños</span>
+                <h2 className="font-display text-3xl font-bold leading-[1.1] sm:text-[2.7rem]">Tu auto puede pagar sus propias cuotas.</h2>
+                <div className="accent-rule" />
+                <p className="max-w-md text-[17px] text-[#63645f]">
+                  Publicar es gratis. Tú fijas el precio y los días disponibles, y cobras por depósito bancario
+                  después de cada viaje. El 100% de los cargos por lavado son tuyos.
+                </p>
+                <ul className="flex flex-col gap-3">
+                  {[
+                    "Verificación de cada arrendatario antes de entregar",
+                    "Seguro comercial y hold de garantía en cada reserva",
+                    "Peajes y multas se cargan a nombre de quien manejó",
+                  ].map((t) => (
+                    <li key={t} className="flex items-center gap-2.5 text-[15px] font-medium">
+                      <Check className="h-[18px] w-[18px] text-brand-tealInk" strokeWidth={2.4} />
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex items-center gap-4">
+                  <Link href="#descargar-app">
+                    <Button className="rounded-xl bg-brand-ink px-6 py-6 text-[15px] font-semibold text-white hover:bg-black">
+                      Publicar mi auto
+                    </Button>
+                  </Link>
+                  <Link href="/simulador-duenos" className="text-[15px] font-semibold text-brand-tealInk hover:text-brand-teal">
+                    Ver el simulador →
+                  </Link>
                 </div>
+              </div>
 
-                {/* Right interactive simulator card */}
-                <div className="rounded-2xl bg-[#061E1F] border border-[#2FBF9B]/20 p-6 sm:p-8 text-center space-y-5 text-white shadow-2xl">
-                  <div>
-                    <p className="text-[10px] font-bold text-[#92E3CB] uppercase tracking-widest">
-                      Ingreso mensual estimado
-                    </p>
-                    <div className="text-4xl sm:text-5xl font-black text-[#2FBF9B] mt-1">
-                      ${ingresoNeto.toLocaleString("es-CL")}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2 border-t border-white/10">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                      <span>Días disponibles / mes</span>
-                      <span className="text-[#2FBF9B] text-xs font-black">{diasAlMes} DÍAS</span>
+              <div className="relative pt-3.5">
+                <span className="absolute right-5 top-0 z-10 inline-flex items-center gap-2 rounded-full border border-brand-line bg-white px-3.5 py-1.5 text-xs font-semibold shadow-soft">
+                  <Wallet className="h-3.5 w-3.5 text-brand-tealInk" /> Pago por depósito bancario
+                </span>
+                <div className="-rotate-[1.4deg] rounded-3xl border border-[#cfe9e0] bg-[linear-gradient(165deg,#eefaf6,#f4faf8)] p-8 shadow-soft">
+                  <div className="font-display text-xs font-semibold uppercase tracking-widest text-brand-tealInk">Ingreso mensual estimado</div>
+                  <div className="mt-1.5 font-display text-5xl font-bold text-brand-ink">{fmtCLP(tarifaNeta)}</div>
+                  <div className="text-[13px] text-[#63645f]">a tu cuenta bancaria, después de comisión</div>
+                  <div className="mt-6">
+                    <div className="mb-2 flex justify-between text-[13px] font-semibold">
+                      <span>Días arrendado al mes</span>
+                      <span className="text-brand-tealInk">{dias} días</span>
                     </div>
                     <input
                       type="range"
                       min="1"
-                      max="30"
-                      value={diasAlMes}
-                      onChange={(e) => setDiasAlMes(Number(e.target.value))}
-                      className="w-full accent-[#2FBF9B] cursor-pointer h-2 bg-white/10 rounded-lg appearance-none"
+                      max="28"
+                      value={dias}
+                      onChange={(e) => setDias(Number(e.target.value))}
+                      className="w-full accent-brand-teal"
                     />
                   </div>
-
-                  <Link href="/simulador-duenos">
-                    <Button className="w-full rounded-xl py-6 text-xs font-black bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787] shadow-lg shadow-[#2FBF9B]/25 uppercase tracking-wider transition-all hover:scale-105">
-                      Publicar mi auto
-                    </Button>
-                  </Link>
-
-                  <p className="text-[9px] text-slate-400 uppercase tracking-tight leading-tight">
-                    *Estimado con tarifa promedio de $38.000 CLP diarios menos comisión, en la comuna de Los Ángeles.
-                  </p>
+                  <div className="mt-5 flex flex-col gap-2 border-t border-[#cfe9e0] pt-4 text-[13.5px]">
+                    <div className="flex justify-between"><span className="text-[#63645f]">Arriendo bruto ({dias} × $30.000)</span><span className="font-semibold">{fmtCLP(dias * 30000)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#63645f]">Comisión plataforma (20%)</span><span className="font-semibold">− {fmtCLP(dias * 30000 * 0.2)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#63645f]">Cargos por lavado (100% tuyo)</span><span className="font-semibold text-brand-tealInk">incluido</span></div>
+                  </div>
+                  <p className="mt-3.5 text-[10.5px] text-[#63645f]">Estimación referencial. El ingreso real depende de tu auto, tu precio y la demanda.</p>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            FAQ — "Dudas Comunes" accordion
-        ═══════════════════════════════════════════════════════════════════ */}
-        <section className="py-16 sm:py-20 bg-[#0B2829]/60 border-t border-[#2FBF9B]/10">
-          <div className="container max-w-3xl mx-auto px-4 sm:px-6 space-y-8">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl sm:text-3xl font-black text-white">Dudas Comunes</h2>
-              <p className="text-xs text-slate-300">Todo lo que necesitas saber antes de subirte o publicar tu auto.</p>
+        {/* ══════════ QUÉ NECESITAS (KYC) ══════════ */}
+        <section id="verificacion" className="border-y border-brand-line bg-brand-soft py-24">
+          <div className="container mx-auto max-w-6xl px-4 sm:px-6">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Verificación de identidad</span>
+            <h2 className="mt-3.5 font-display text-3xl font-bold sm:text-4xl">Qué necesitas para arrendar</h2>
+            <div className="accent-rule mt-4" />
+            <p className="mt-4 max-w-xl text-[16px] text-[#63645f]">
+              Una sola verificación te habilita para arrendar y para publicar. Los documentos cambian según tu nacionalidad.
+            </p>
+
+            <div className="mt-11 grid gap-6 md:grid-cols-2">
+              <div className="rounded-3xl border border-brand-line bg-white p-8 shadow-soft">
+                <div className="mb-5 flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-brand-line bg-brand-soft">
+                    <svg width="24" height="16" viewBox="0 0 30 20" className="rounded-[3px]">
+                      <rect width="30" height="20" fill="#fff" />
+                      <rect width="30" height="10" y="10" fill="#D52B1E" />
+                      <rect width="10" height="10" fill="#0039A6" />
+                      <path d="M5 2.3 6.03 5.4 3.4 3.5h3.2L3.97 5.4Z" fill="#fff" />
+                    </svg>
+                  </span>
+                  <h3 className="font-display text-xl font-semibold">Si eres chileno</h3>
+                </div>
+                <ul className="flex flex-col gap-3">
+                  {KYC_CL.map((t) => (
+                    <li key={t} className="flex gap-3 text-[14.5px]">
+                      <Check className="mt-0.5 h-[18px] w-[18px] shrink-0 text-brand-tealInk" strokeWidth={2.4} />
+                      <span>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="rounded-3xl border border-brand-line bg-white p-8 shadow-soft">
+                <div className="mb-5 flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-ink">
+                    <Globe className="h-5 w-5 text-brand-tealBright" />
+                  </span>
+                  <h3 className="font-display text-xl font-semibold">Si eres extranjero</h3>
+                </div>
+                <ul className="flex flex-col gap-3">
+                  {KYC_EXT.map(({ t, warn }) => (
+                    <li key={t} className="flex gap-3 text-[14.5px]">
+                      {warn ? (
+                        <AlertTriangle className="mt-0.5 h-[18px] w-[18px] shrink-0 text-brand-amber" strokeWidth={2.2} />
+                      ) : (
+                        <Check className="mt-0.5 h-[18px] w-[18px] shrink-0 text-brand-tealInk" strokeWidth={2.4} />
+                      )}
+                      <span>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {faqs.map((faq, idx) => (
-                <div key={idx} className="rounded-2xl border border-[#2FBF9B]/15 bg-[#0E3736]/70 overflow-hidden shadow-md">
+            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-brand-line bg-white px-5 py-4">
+              <Lock className="mt-0.5 h-5 w-5 shrink-0 text-brand-tealInk" />
+              <p className="text-[13.5px] text-[#63645f]">
+                Al terminar la verificación se retiene un <b className="text-[#17181a]">hold de garantía de $800.000</b>. Es una
+                retención en tu tarjeta, no un cobro, y se libera al devolver el auto conforme.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════ FAQ ══════════ */}
+        <section id="faq" className="py-24">
+          <div className="container mx-auto max-w-3xl px-4 sm:px-6">
+            <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Dudas frecuentes</span>
+            <h2 className="mt-3.5 font-display text-3xl font-bold sm:text-4xl">Todo lo que se suele preguntar</h2>
+            <div className="accent-rule mb-9 mt-4" />
+            <div className="flex flex-col gap-3">
+              {FAQS.map((f, i) => (
+                <div
+                  key={f.q}
+                  className={`rounded-2xl border bg-white ${openFaq === i ? "border-l-[3px] border-l-brand-teal border-brand-line" : "border-brand-line"}`}
+                >
                   <button
-                    onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                    className="w-full p-5 text-left flex justify-between items-center gap-4 focus:outline-none"
+                    onClick={() => setOpenFaq(openFaq === i ? -1 : i)}
+                    className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left"
                   >
-                    <span className="font-bold text-white text-sm">{faq.q}</span>
-                    <ChevronDown className={`h-4 w-4 text-[#2FBF9B] shrink-0 transition-transform ${openFaq === idx ? "rotate-180" : ""}`} />
+                    <h3 className="font-display text-[16.5px] font-semibold">{f.q}</h3>
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${openFaq === i ? "bg-brand-tealTint" : "bg-brand-soft"}`}>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${openFaq === i ? "rotate-180 text-brand-tealInk" : "text-[#63645f]"}`} />
+                    </span>
                   </button>
-                  {openFaq === idx && (
-                    <div className="px-5 pb-5 text-xs text-slate-300 leading-relaxed border-t border-white/5 pt-3">
-                      {faq.a}
-                    </div>
+                  {openFaq === i && (
+                    <p className="border-t border-brand-line px-6 py-4 text-[14.5px] leading-relaxed text-[#63645f]">{f.a}</p>
                   )}
                 </div>
               ))}
@@ -519,204 +610,127 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            CTA FINAL — "Lleva tu arriendo en el bolsillo"
-        ═══════════════════════════════════════════════════════════════════ */}
-        <section id="descargar-app" className="py-16 sm:py-24 bg-[#061E1F] relative overflow-hidden">
-          <div className="container max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="rounded-[2.5rem] bg-[#0E3736] border border-[#2FBF9B]/30 p-8 sm:p-14 relative overflow-hidden shadow-2xl">
-              
-              {/* Ambient mint glow */}
-              <div className="absolute -right-16 -top-16 w-[450px] h-[450px] bg-[#2FBF9B]/15 rounded-full filter blur-[100px] pointer-events-none" />
-
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
-                
-                {/* Left: Copy & Buttons */}
-                <div className="lg:col-span-7 space-y-6">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-[#2FBF9B]/30 bg-[#2FBF9B]/10 px-4 py-1.5 text-xs font-black text-[#2FBF9B] tracking-wide">
-                    <Smartphone className="h-3.5 w-3.5" />
-                    <span>EXPERIENCIA 100% DIGITAL</span>
-                  </div>
-
-                  <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight">
-                    Lleva tu arriendo<br />
-                    <span className="text-[#2FBF9B]">en el bolsillo.</span>
-                  </h2>
-
-                  <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-lg">
-                    Reserva un 4x4 para el volcán Antuco o un auto económico para moverte por la ciudad. Recibe
-                    notificaciones instantáneas, escanea el QR de entrega y audita el checklist de 9 fotos en segundos.
-                  </p>
-
-                  {/* Store download buttons */}
-                  <div className="flex flex-wrap gap-4 pt-2">
-                    <button className="flex items-center gap-3 bg-[#061E1F] border border-white/15 hover:border-[#2FBF9B]/40 rounded-2xl px-5 py-3.5 text-left transition-all group shadow-lg">
-                      <svg className="h-7 w-7 text-white fill-current" viewBox="0 0 24 24">
-                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.64-.78 1.08-1.86.96-2.95-1 .04-2.13.67-2.79 1.45-.58.68-1.1 1.77-.96 2.83 1.12.09 2.19-.58 2.79-1.33z" />
-                      </svg>
-                      <div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Próximamente en</div>
-                        <div className="text-sm font-black text-white">App Store</div>
-                      </div>
-                    </button>
-
-                    <button className="flex items-center gap-3 bg-[#2FBF9B] hover:bg-[#28A787] text-[#061E1F] rounded-2xl px-5 py-3.5 text-left transition-all shadow-lg shadow-[#2FBF9B]/25 group">
-                      <svg className="h-7 w-7 fill-[#061E1F]" viewBox="0 0 24 24">
-                        <path d="M3.609 1.814L13.792 12 3.61 22.186a1.99 1.99 0 0 1-.22-.924V2.738c0-.34.08-.654.22-.924zm11.306 11.31l2.424 2.424-11.45 6.61 9.026-9.034zm0-2.248L5.889 1.842l11.45 6.61-2.424 2.424zm1.124 1.124l3.197 1.846c.92.531.92 1.397 0 1.928l-3.197 1.846-2.247-2.247 2.247-2.247z" />
-                      </svg>
-                      <div>
-                        <div className="text-[9px] font-bold text-[#061E1F]/80 uppercase tracking-widest">Próximamente en</div>
-                        <div className="text-sm font-black text-[#061E1F]">Google Play</div>
-                      </div>
-                    </button>
-                  </div>
+        {/* ══════════ DESCARGA (PANEL OSCURO) ══════════ */}
+        <section id="descargar-app" className="bg-white px-10 pb-10">
+          <div className="relative mx-auto max-w-[1360px] overflow-hidden rounded-[2.75rem] bg-brand-ink px-6 py-24 text-white sm:px-16">
+            <div className="pointer-events-none absolute -right-40 -top-52 h-[560px] w-[560px] rounded-full bg-brand-tealBright/15 blur-[10px]" />
+            <div className="relative grid items-center gap-14 lg:grid-cols-[1.1fr_.9fr]">
+              <div className="flex flex-col gap-6">
+                <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealBright">• La app</span>
+                <h2 className="font-display text-4xl font-bold leading-[1.06] text-white sm:text-5xl">Llevá el arriendo en el bolsillo.</h2>
+                <div className="accent-rule" />
+                <p className="max-w-md text-[17px] text-[#a7a7a1]">
+                  Reserva, chatea con el dueño, escanea el QR de entrega y audita el checklist de 9 fotos. Todo desde el
+                  teléfono, con notificaciones en tiempo real.
+                </p>
+                <div className="flex flex-wrap gap-3.5">
+                  <span className="inline-flex items-center gap-2.5 rounded-xl bg-white px-4 py-2.5 text-brand-ink">
+                    <span className="text-[10px] uppercase tracking-wider opacity-60">Próximamente</span>
+                    <span className="font-display text-sm font-semibold">App Store</span>
+                  </span>
+                  <span className="inline-flex items-center gap-2.5 rounded-xl bg-brand-teal px-4 py-2.5 text-[#04231b]">
+                    <span className="text-[10px] uppercase tracking-wider opacity-60">Próximamente</span>
+                    <span className="font-display text-sm font-semibold">Google Play</span>
+                  </span>
                 </div>
+              </div>
 
-                {/* Right: Phone Mockup */}
-                <div className="lg:col-span-5 flex justify-center">
-                  <div className="relative w-full max-w-[320px] rounded-[2.5rem] border-4 border-[#0F3D3E] bg-[#061E1F] p-4 shadow-2xl shadow-black/90">
-                    
-                    {/* Phone Header */}
-                    <div className="flex items-center justify-between px-2 pt-1 pb-4 border-b border-white/10">
-                      <span className="text-[11px] font-black tracking-wider text-white">ARRIENDOMIAUTOYA</span>
-                      <div className="h-3.5 w-3.5 rounded-full bg-[#0F3D3E]" />
+              <div className="flex justify-center">
+                <div className="w-[290px] rotate-[1.6deg] rounded-[2.75rem] border-[10px] border-[#2c2c29] bg-white p-4">
+                  <div className="flex items-center justify-between px-1 pb-2 pt-1">
+                    <span className="font-display text-[13px] font-bold text-brand-ink">Tu reserva</span>
+                  </div>
+                  <div className="overflow-hidden rounded-2xl border border-brand-line">
+                    <img src="/hero-car.jpg" alt="" className="h-[88px] w-full object-cover" />
+                    <div className="px-3 py-2.5">
+                      <div className="text-[13.5px] font-semibold text-brand-ink">Toyota RAV4 Limited</div>
+                      <div className="text-[11.5px] text-[#63645f]">Hoy 10:00 · a 6 cuadras</div>
                     </div>
-
-                    {/* Card 1: Próxima Reserva */}
-                    <div className="rounded-2xl bg-[#0E3736] border border-[#2FBF9B]/20 p-3.5 space-y-1 mt-3">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-[#92E3CB] block">Próxima Reserva</span>
-                      <h4 className="text-sm font-bold text-white">Toyota RAV4 Limited</h4>
-                      <p className="text-[11px] text-slate-300">Hoy, 10:00 · Plaza de Armas</p>
+                  </div>
+                  <div className="my-3 rounded-2xl bg-brand-teal p-3.5 text-center text-[#04231b]">
+                    <div className="text-[10px] font-bold uppercase tracking-widest">Código de entrega</div>
+                    <div className="mx-auto mt-2 grid w-16 grid-cols-4 gap-0.5 rounded-lg bg-white p-2">
+                      {[1,0,1,1,0,1,0,1,1,0,1,0,0,1,1,1].map((v, k) => (
+                        <span key={k} className={`aspect-square ${v ? "bg-brand-ink" : "bg-transparent"}`} />
+                      ))}
                     </div>
-
-                    {/* Card 2: Código de Entrega QR */}
-                    <div className="rounded-2xl bg-[#2FBF9B] text-[#061E1F] p-4 my-3 space-y-2 text-center shadow-lg shadow-[#2FBF9B]/20">
-                      <span className="text-[9px] font-black uppercase tracking-widest block text-[#061E1F]">Código de Entrega</span>
-                      <div className="flex justify-center py-1">
-                        <div className="bg-[#061E1F]/10 p-2 rounded-xl">
-                          <svg className="h-16 w-16 text-[#061E1F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
-                            <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
-                            <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
-                            <rect x="14" y="14" width="3" height="3" fill="currentColor" />
-                            <rect x="18" y="14" width="3" height="3" fill="currentColor" />
-                            <rect x="14" y="18" width="3" height="3" fill="currentColor" />
-                            <rect x="18" y="18" width="3" height="3" fill="currentColor" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Card 3: Checklist de Fotos */}
-                    <div className="rounded-2xl bg-[#0E3736] border border-white/10 p-3.5 space-y-2">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 block">Checklist de Fotos</span>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[...Array(6)].map((_, i) => (
-                          <div key={i} className="h-11 rounded-xl bg-[#061E1F] border border-white/10" />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Floating Rating Badge */}
-                    <div className="absolute -bottom-4 -right-4 bg-[#0E3736] border border-[#2FBF9B]/30 rounded-2xl px-4 py-2.5 shadow-2xl text-center space-y-0.5 z-20">
-                      <div className="text-base font-black text-white leading-none">4.9</div>
-                      <div className="text-[#2FBF9B] text-xs font-bold leading-none py-0.5">
-                        ★★★★★
-                      </div>
-                      <div className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">En App Store</div>
+                  </div>
+                  <div className="rounded-2xl border border-brand-line p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#63645f]">Checklist de fotos</div>
+                    <div className="mt-2 grid grid-cols-3 gap-1.5">
+                      {[0,1,2,3,4,5].map((k) => (
+                        <span key={k} className={`h-8 rounded-lg ${k === 4 ? "border border-brand-teal bg-brand-tealTint" : "bg-brand-soft"}`} />
+                      ))}
                     </div>
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
         </section>
-
-        {/* ═══════════════════════════════════════════════════════════════════
-            BOTÓN FLOTANTE WHATSAPP DE SOPORTE LOCAL
-        ═══════════════════════════════════════════════════════════════════ */}
-        <div className="fixed bottom-6 right-6 z-40">
-          <a
-            href="https://wa.me/56912345678?text=Hola,%20tengo%20una%20consulta%20sobre%20el%20arriendo%20en%20ArriendoMiAutoYa%20Los%20Angeles"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-[#061E1F] font-black text-xs px-4 py-3 rounded-full shadow-2xl shadow-black/50 transition-all hover:scale-105 border border-white/20 group"
-          >
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
-            </span>
-            <span className="hidden sm:inline text-white">¿Dudas? Chatea con nosotros</span>
-            <span className="sm:hidden text-white font-bold">WhatsApp</span>
-          </a>
-        </div>
-
       </main>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          MODAL FICHA TÉCNICA
-      ═══════════════════════════════════════════════════════════════════ */}
+      {/* WhatsApp flotante */}
+      <a
+        href="https://wa.me/56912345678?text=Hola,%20tengo%20una%20consulta%20sobre%20arriendomiautoya"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2.5 rounded-full bg-[#25D366] px-4 py-3 text-xs font-bold text-white shadow-xl transition-transform hover:scale-105"
+      >
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
+        </span>
+        <span className="hidden sm:inline">¿Dudas? Escríbenos</span>
+      </a>
+
+      {/* Modal ficha */}
       {modalAuto && (
         <Dialog open={!!modalAuto} onOpenChange={() => setModalAuto(null)}>
-          <DialogContent className="max-w-lg bg-[#0E3736] border border-[#2FBF9B]/30 text-white rounded-3xl p-6 shadow-2xl">
+          <DialogContent className="max-w-lg rounded-3xl border border-brand-line bg-white p-6 text-[#17181a]">
             <DialogHeader>
-              <DialogTitle className="text-xl font-black">
-                {modalAuto.marca} {modalAuto.modelo} ({modalAuto.anio})
+              <DialogTitle className="font-display text-xl font-bold">
+                {modalAuto.marca} {modalAuto.modelo} {modalAuto.anio ? `(${modalAuto.anio})` : ""}
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-300 flex items-center gap-1.5 mt-1">
-                <MapPin className="h-3.5 w-3.5 text-[#2FBF9B]" /> {modalAuto.ubicacion_base}
+              <DialogDescription className="mt-1 flex items-center gap-1.5 text-xs text-[#63645f]">
+                <MapPin className="h-3.5 w-3.5 text-brand-tealInk" /> {modalAuto.ubicacion_base || "Ubicación coordinada con el dueño"}
               </DialogDescription>
             </DialogHeader>
-
-            <div className="space-y-4 my-2">
-              <div className="h-48 rounded-2xl overflow-hidden border border-white/10">
-                <img src={modalAuto.foto || modalAuto.fotos?.[0]} alt={modalAuto.modelo} className="h-full w-full object-cover" />
+            <div className="my-2 space-y-4">
+              <div className="h-48 overflow-hidden rounded-2xl border border-brand-line">
+                <img src={fotoDe(modalAuto)} alt={modalAuto.modelo} className="h-full w-full object-cover" />
               </div>
-
               <div className="grid grid-cols-3 gap-2 text-xs">
                 {[
-                  { label: "Transmisión", value: modalAuto.transmision },
-                  { label: "Combustible", value: modalAuto.combustible },
-                  { label: "Capacidad", value: modalAuto.capacidad },
-                ].map((s) => (
-                  <div key={s.label} className="bg-[#061E1F] p-3 rounded-xl border border-white/10 text-center">
-                    <span className="text-slate-400 block text-[10px]">{s.label}</span>
-                    <span className="font-bold text-white">{s.value}</span>
+                  ["Transmisión", modalAuto.transmision || "—"],
+                  ["Combustible", modalAuto.combustible || "—"],
+                  ["Capacidad", modalAuto.asientos ? `${modalAuto.asientos} asientos` : "—"],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-brand-line bg-brand-soft p-3 text-center">
+                    <span className="block text-[10px] text-[#63645f]">{label}</span>
+                    <span className="font-semibold">{value}</span>
                   </div>
                 ))}
               </div>
-
-              <div className="rounded-2xl bg-[#061E1F] p-4 border border-[#2FBF9B]/20 space-y-1.5 text-xs text-slate-300">
-                <div className="font-bold text-[#2FBF9B] flex items-center gap-1.5 mb-1">
-                  <ShieldCheck className="h-4 w-4" /> Incluido en cada arriendo:
+              <div className="space-y-1.5 rounded-2xl border border-brand-line bg-brand-soft p-4 text-xs text-[#63645f]">
+                <div className="mb-1 flex items-center gap-1.5 font-semibold text-brand-tealInk">
+                  <ShieldCheck className="h-4 w-4" /> Incluido en cada arriendo
                 </div>
-                <p>• Seguro con deducible 15 UF (50/50)</p>
-                <p>• Checklist fotográfico de 9 ángulos</p>
-                <p>• 250 km diarios libres</p>
-                <p>• Hold de garantía $800.000 liberado al retorno</p>
+                <p>· Seguro con deducible 15 UF (50 / 50)</p>
+                <p>· Checklist fotográfico de 9 ángulos</p>
+                <p>· Hold de garantía $800.000 liberado al retorno</p>
               </div>
             </div>
-
-            <DialogFooter className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-white/10">
+            <DialogFooter className="flex flex-col items-center justify-between gap-4 border-t border-brand-line pt-3 sm:flex-row">
               <div>
-                <div className="text-[10px] text-slate-400 uppercase">Tarifa diaria</div>
-                <div className="text-lg font-black text-[#2FBF9B]">
-                  ${modalAuto.tarifa_dia?.toLocaleString("es-CL")} CLP
-                </div>
+                <div className="text-[10px] uppercase text-[#63645f]">Tarifa diaria</div>
+                <div className="font-display text-lg font-bold text-brand-ink">{fmtCLP(modalAuto.tarifa_dia)} CLP</div>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Link href={`/cotizador?auto=${modalAuto.id}`} className="flex-1 sm:flex-none">
-                  <Button onClick={() => setModalAuto(null)} variant="outline" className="w-full rounded-xl px-4 text-xs font-semibold border-white/20 text-white hover:border-[#2FBF9B]/40 hover:bg-[#0F3D3E]">
-                    Cotizar Días
-                  </Button>
-                </Link>
-                <a href="#descargar-app" onClick={() => setModalAuto(null)} className="flex-1 sm:flex-none">
-                  <Button className="w-full rounded-xl px-5 text-xs font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787]">
-                    Arrendar
-                  </Button>
-                </a>
-              </div>
+              <a href="#descargar-app" onClick={() => setModalAuto(null)} className="w-full sm:w-auto">
+                <Button className="w-full rounded-xl bg-brand-teal px-6 text-sm font-semibold text-[#04231b] hover:bg-[#12b78d]">
+                  Reservar en la app
+                </Button>
+              </a>
             </DialogFooter>
           </DialogContent>
         </Dialog>

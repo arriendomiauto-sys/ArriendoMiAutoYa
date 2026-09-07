@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,37 +6,38 @@
 
 @layer base {
   :root {
-    --background: 182 68% 7%;           /* Deep Petrol / Teal Dark #061E1F */
-    --foreground: 180 30% 98%;          /* Crisp Light Pearl #F8FAFA */
+    /* Rediseño 2026 — tema claro: blanco base, negro para el contraste, teal de marca en detalles */
+    --background: 0 0% 100%;
+    --foreground: 240 4% 10%;           /* #17181a */
 
-    --card: 181 50% 13%;                 /* Deep Teal Card #0E3736 */
-    --card-foreground: 180 30% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 4% 10%;
 
-    --popover: 181 50% 13%;
-    --popover-foreground: 180 30% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 4% 10%;
 
-    --primary: 165 61% 47%;              /* #2FBF9B Mint Emerald */
-    --primary-foreground: 182 68% 7%;
+    --primary: 165 77% 35%;             /* #14a07c teal */
+    --primary-foreground: 162 78% 8%;   /* #04231b sobre teal */
 
-    --secondary: 181 60% 15%;           /* #0F3D3E Deep Forest */
-    --secondary-foreground: 180 30% 98%;
+    --secondary: 60 9% 96%;             /* #f5f5f2 off-white cálido */
+    --secondary-foreground: 240 4% 10%;
 
-    --muted: 181 40% 18%;
-    --muted-foreground: 180 15% 65%;
+    --muted: 60 9% 96%;
+    --muted-foreground: 48 3% 39%;      /* #63645f */
 
-    --accent: 165 61% 47%;
-    --accent-foreground: 182 68% 7%;
+    --accent: 162 46% 93%;              /* #e8f5f0 tint */
+    --accent-foreground: 162 80% 23%;   /* #0b6b52 */
 
     --destructive: 350 89% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 181 30% 22%;
-    --input: 181 30% 22%;
-    --ring: 165 61% 47%;
+    --border: 48 13% 90%;               /* #e6e6e1 */
+    --input: 48 13% 90%;
+    --ring: 165 77% 35%;
 
-    --radius: 1rem;
+    --radius: 0.9rem;
 
-    --font-primary: 'Outfit', sans-serif;
+    --font-primary: 'Space Grotesk', sans-serif;
     --font-body: 'Plus Jakarta Sans', sans-serif;
   }
 }
@@ -54,102 +55,52 @@
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
-    background-color: #061E1F;
+    background-color: #ffffff;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-primary);
-    letter-spacing: -0.03em;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Subtle Background Grid Pattern */
-.bg-grid-pattern {
-  background-size: 40px 40px;
-  background-image: 
-    linear-gradient(to right, rgba(47, 191, 155, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(47, 191, 155, 0.04) 1px, transparent 1px);
-}
-
+/* Textura de puntos sutil para fondos claros */
 .bg-dot-pattern {
-  background-size: 24px 24px;
-  background-image: radial-gradient(circle, rgba(47, 191, 155, 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-image: radial-gradient(rgba(20, 20, 20, 0.045) 1px, transparent 1px);
 }
 
-/* Refined Typography Gradients */
-.gradient-text {
-  background: linear-gradient(135deg, #FFFFFF 30%, #2FBF9B 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+/* Subrayado de acento bajo los títulos de sección */
+.accent-rule {
+  width: 46px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #14a07c, rgba(20, 160, 124, 0));
 }
 
-.gradient-text-subtle {
-  background: linear-gradient(135deg, #FFFFFF 0%, #92E3CB 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
+/* Scrollbar claro */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: #f5f5f2; }
+::-webkit-scrollbar-thumb { background: #d7d7d1; border-radius: 5px; border: 2px solid #f5f5f2; }
+::-webkit-scrollbar-thumb:hover { background: #14a07c; }
 
-/* Minimal Glassmorphism matching mobile */
-.glass-panel {
-  background: rgba(14, 55, 54, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(47, 191, 155, 0.18);
+/* Leaflet: pin de precio */
+.amay-pin {
+  background: #ffffff;
+  border: 1px solid #e6e6e1;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #141414;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px -6px rgba(20, 20, 20, 0.28);
 }
-
-.glass-card {
-  background: rgba(14, 55, 54, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(47, 191, 155, 0.14);
+.amay-pin--active {
+  background: #14a07c;
+  color: #04231b;
+  border-color: #14a07c;
+  box-shadow: 0 12px 26px -6px rgba(20, 160, 124, 0.6);
 }
-
-.glass-card:hover {
-  border-color: rgba(47, 191, 155, 0.45);
-  box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.6), 0 0 24px rgba(47, 191, 155, 0.12);
-}
-
-/* Overlapping Bridge Element */
-.floating-overlap-badge {
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7), 0 0 25px rgba(47, 191, 155, 0.2);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.floating-overlap-badge:hover {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(47, 191, 155, 0.3);
-}
-
-/* Ambient glow orbs */
-.glow-orb-mint {
-  position: absolute;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(47, 191, 155, 0.14) 0%, rgba(47, 191, 155, 0) 70%);
-  border-radius: 50%;
-  filter: blur(60px);
-  pointer-events: none;
-}
-
-.glow-orb-teal {
-  position: absolute;
-  width: 550px;
-  height: 550px;
-  background: radial-gradient(circle, rgba(15, 61, 62, 0.35) 0%, rgba(15, 61, 62, 0) 70%);
-  border-radius: 50%;
-  filter: blur(70px);
-  pointer-events: none;
-}
-
-/* Minimal Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #061E1F;
-}
-::-webkit-scrollbar-thumb {
-  background: #0E3736;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #2FBF9B;
-}
+.leaflet-popup-content-wrapper { border-radius: 14px; }
+.leaflet-popup-content { margin: 12px 14px; font-family: 'Plus Jakarta Sans', sans-serif; }

@@ -1,117 +1,93 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/router";
 import { Button } from "./ui/button";
-import { Menu, X, MapPin } from "lucide-react";
+import { Menu, X } from "lucide-react";
+
+const navLinks = [
+  { href: "/#catalogo", label: "Autos" },
+  { href: "/#como-funciona", label: "Cómo funciona" },
+  { href: "/#propietarios", label: "Publica tu auto" },
+  { href: "/garantias", label: "Ayuda" },
+];
 
 export default function Navbar() {
-  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
+    const handleScroll = () => setScrolled(window.scrollY > 12);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const navLinks = [
-    { href: "/#catalogo", label: "Catálogo" },
-    { href: "/#como-funciona", label: "Cómo funciona" },
-    { href: "/#propietarios", label: "Dueños" },
-    { href: "/cotizador", label: "Cotizador" },
-    { href: "/simulador-duenos", label: "Simulador" },
-  ];
-
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-[#061E1F]/90 backdrop-blur-xl border-b border-[#2FBF9B]/20 shadow-2xl py-3"
-          : "bg-transparent py-4"
+          ? "border-b border-brand-line bg-white/90 backdrop-blur-xl"
+          : "bg-white/70 backdrop-blur-sm"
       }`}
     >
-      <div className="container max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-        {/* Brand - Logo intacto */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <img
-            src="/logo.png"
-            alt="ArriendoMiAutoYa"
-            className="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl object-cover shadow-lg transition-transform group-hover:scale-105"
-          />
-          <span className="text-xl font-black tracking-tight text-white">
-            ARRIENDO<span className="text-[#2FBF9B]">MIAUTOYA</span>
+      <div className="container mx-auto flex h-[74px] max-w-7xl items-center justify-between px-4 sm:px-6">
+        <Link href="/" className="group flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-ink">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#3ed9b4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 17h14M6 17l1.5-5h9L18 17M7.5 12l1-3.5A2 2 0 0 1 10.4 7h3.2a2 2 0 0 1 1.9 1.5l1 3.5" />
+              <circle cx="8" cy="17" r="1.6" />
+              <circle cx="16" cy="17" r="1.6" />
+            </svg>
+          </span>
+          <span className="font-display text-lg font-bold tracking-tight text-brand-ink">
+            arriendomiautoya
           </span>
         </Link>
 
-        {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden items-center gap-9 md:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-slate-300 hover:text-[#2FBF9B] transition-colors"
+              className="text-[15px] font-medium text-[#17181a] transition-colors hover:text-brand-tealInk"
             >
               {link.label}
             </Link>
           ))}
         </nav>
 
-        {/* CTA */}
         <div className="hidden md:block">
           <Link href="/#descargar-app">
-            <Button
-              size="sm"
-              className="rounded-full px-5 py-2.5 text-xs font-bold bg-[#2FBF9B] text-[#061E1F] hover:bg-[#28A787] shadow-md shadow-[#2FBF9B]/25 transition-all hover:scale-105"
-            >
-              Descargar App
+            <Button className="rounded-xl bg-brand-ink px-5 text-sm font-semibold text-white hover:bg-black">
+              Descargar la app
             </Button>
           </Link>
         </div>
 
-        {/* Mobile Menu Trigger */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10 focus:outline-none"
-          aria-label="Abrir Menú"
+          className="rounded-xl border border-brand-line p-2 text-brand-ink md:hidden"
+          aria-label="Abrir menú"
         >
-          {mobileMenuOpen ? <X className="h-5 w-5 text-[#2FBF9B]" /> : <Menu className="h-5 w-5" />}
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 
-      {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[#061E1F]/98 border-b border-[#2FBF9B]/20 backdrop-blur-2xl px-6 py-6 space-y-3 mt-2 shadow-2xl">
-          <div className="flex items-center gap-2 pb-3 text-xs font-semibold text-[#92E3CB] border-b border-white/10">
-            <MapPin className="h-3.5 w-3.5 text-[#2FBF9B]" />
-            <span>Los Ángeles, Región del Biobío</span>
-          </div>
-
+        <div className="space-y-1 border-b border-brand-line bg-white px-6 py-5 md:hidden">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setMobileMenuOpen(false)}
-              className="block py-2 text-sm font-semibold text-white hover:text-[#2FBF9B] transition-colors"
+              className="block py-2 text-sm font-semibold text-brand-ink hover:text-brand-tealInk"
             >
               {link.label}
             </Link>
           ))}
-
-          <div className="pt-2 border-t border-white/10 space-y-2">
-            <Link href="/garantias" onClick={() => setMobileMenuOpen(false)} className="block py-1.5 text-sm text-slate-300 hover:text-[#2FBF9B]">
-              Garantías y Seguro
-            </Link>
-          </div>
-
-          <div className="pt-3 border-t border-white/10 space-y-1">
-            <Link href="/manager" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-xs text-slate-400 hover:text-white">
-              Panel Sucursal
-            </Link>
-            <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-xs text-slate-400 hover:text-white">
-              Panel Admin
-            </Link>
-          </div>
+          <Link href="/#descargar-app" onClick={() => setMobileMenuOpen(false)} className="block pt-3">
+            <Button className="w-full rounded-xl bg-brand-ink text-sm font-semibold text-white hover:bg-black">
+              Descargar la app
+            </Button>
+          </Link>
         </div>
       )}
     </header>

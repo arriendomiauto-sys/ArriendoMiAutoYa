@@ -78,7 +78,7 @@ export default function Document() {
     <Html lang="es-CL">
       <Head>
         <meta charSet="utf-8" />
-        <meta name="theme-color" content="#060B16" />
+        <meta name="theme-color" content="#ffffff" />
 
         {/* Favicon & App Icons */}
         <link rel="icon" href="/favicon.png" type="image/png" />
@@ -101,7 +101,7 @@ export default function Document() {
           crossOrigin="anonymous"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
 
@@ -128,7 +128,7 @@ export default function Document() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteLd) }}
         />
       </Head>
-      <body className="bg-[#060B16] text-white antialiased">
+      <body className="bg-white text-[#17181a] antialiased">
         <Main />
         <NextScript />
       </body>
