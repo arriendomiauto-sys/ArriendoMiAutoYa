@@ -47,9 +47,10 @@ class Settings(BaseSettings):
     # Pública por definición: la usa el SDK del cliente para tokenizar la
     # tarjeta sin que el número toque nuestro backend.
     MERCADOPAGO_PUBLIC_KEY: Optional[str] = None
-    # Firma los webhooks. Sin esto, cualquiera que conozca la URL podría avisar
-    # "el pago 123 fue aprobado" y confirmar reservas gratis.
     MERCADOPAGO_WEBHOOK_SECRET: Optional[str] = None
+    # Cuando está activo, usa test@testuser.com como pagador para que Mercado Pago
+    # permita procesar tarjetas de prueba sin rechazar por comprador no autorizado.
+    MERCADOPAGO_TEST_MODE: bool = True
 
     # ===== BLOQUE TEMPORAL — PAGOS SIMULADOS ==============================
     # Mientras la cuenta de Mercado Pago no esté configurada, esto deja pasar el

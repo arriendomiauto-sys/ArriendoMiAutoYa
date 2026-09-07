@@ -148,7 +148,12 @@ class MercadoPagoService:
             "payment_methods": {"installments": 1},
         }
         if email_pagador:
-            cuerpo["payer"] = {"email": email_pagador}
+            email_final = (
+                "test@testuser.com"
+                if getattr(settings, "MERCADOPAGO_TEST_MODE", True)
+                else email_pagador
+            )
+            cuerpo["payer"] = {"email": email_final}
         if notification_url:
             cuerpo["notification_url"] = notification_url
 
