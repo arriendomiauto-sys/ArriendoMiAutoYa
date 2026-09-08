@@ -42,11 +42,15 @@ class UserBase(BaseModel):
     @field_validator("rut", mode="before")
     @classmethod
     def check_and_format_rut(cls, v: Optional[str]) -> Optional[str]:
+        # LENIENTE a propósito: `UserOut` usa este mismo modelo para SERIALIZAR,
+        # y un RUT malo ya guardado en la fila (p. ej. el OCR de un proveedor
+        # externo que leyó mal el dígito verificador) no debe tumbar GET
+        # /usuarios/me con un 500. Si es válido se formatea; si no, se deja tal
+        # cual para que el usuario lo corrija. La validación DURA de entrada la
+        # hace `UserEnrolamiento` abajo + `validar_documento_identidad`.
         if v is None or not str(v).strip():
             return None
-        if not validar_rut_chileno(str(v)):
-            raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
-        return formatear_rut(str(v))
+        return formatear_rut(str(v)) if validar_rut_chileno(str(v)) else str(v).strip()
 
     @field_validator("telefono", mode="before")
     @classmethod
@@ -64,6 +68,17 @@ class UserEnrolamiento(UserBase):
     # DNI de su país. El router exige uno u otro vía validar_documento_identidad.
     rut: Optional[str] = None
     email: Optional[EmailStr] = None
+
+    @field_validator("rut", mode="before")
+    @classmethod
+    def _rut_estricto_en_enrolamiento(cls, v: Optional[str]) -> Optional[str]:
+        # Acá SÍ se rechaza un RUT con dígito verificador malo (a diferencia de
+        # UserBase, que es leniente para no romper la serialización de UserOut).
+        if v is None or not str(v).strip():
+            return None
+        if not validar_rut_chileno(str(v)):
+            raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
+        return formatear_rut(str(v))
     carnet_frontal_url: Optional[str] = None
     carnet_trasero_url: Optional[str] = None
     licencia_url: Optional[str] = None

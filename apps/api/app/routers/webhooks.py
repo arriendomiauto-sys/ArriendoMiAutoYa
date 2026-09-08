@@ -103,8 +103,18 @@ async def webhook_didit(request: Request, db: Session = Depends(get_db)):
     if estado == "aprobada":
         if not usuario.nombre and datos.get("nombre_completo"):
             usuario.nombre = datos["nombre_completo"]
-        if not usuario.rut and datos.get("rut"):
-            usuario.rut = datos["rut"]
+        # `datos["rut"]` ya viene validado con Módulo 11 desde interpretar_payload.
+        # Se descarta si otra cuenta ya lo tiene (la columna es UNIQUE — un
+        # commit con choque tumbaría el webhook con 500).
+        rut_nuevo = datos.get("rut")
+        if not usuario.rut and rut_nuevo:
+            ya_usado = (
+                db.query(Usuario.id)
+                .filter(Usuario.rut == rut_nuevo, Usuario.id != usuario.id)
+                .first()
+            )
+            if not ya_usado:
+                usuario.rut = rut_nuevo
         if not usuario.fecha_nacimiento and datos.get("fecha_nacimiento"):
             try:
                 usuario.fecha_nacimiento = datetime.fromisoformat(
@@ -123,7 +133,12 @@ async def webhook_didit(request: Request, db: Session = Depends(get_db)):
     if motivos:
         usuario.notas_auditoria = " | ".join(motivos)[:1000]
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:  # noqa: BLE001 — no dejar el webhook en 500 por datos raros
+        logger.exception("Webhook Didit: commit falló para usuario %s", usuario.id)
+        db.rollback()
+        return {"ok": True}
 
     if estado != anterior and estado in _MENSAJES_USUARIO:
         titulo, mensaje = _MENSAJES_USUARIO[estado]

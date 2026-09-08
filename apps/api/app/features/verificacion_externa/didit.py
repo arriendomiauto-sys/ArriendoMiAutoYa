@@ -30,6 +30,7 @@ from typing import Any, Dict, Mapping, Optional
 import httpx
 
 from app.core.config import settings
+from app.core.validators import formatear_rut, validar_rut_chileno
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +306,24 @@ def interpretar_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
         nombre = _buscar(idv, "first_name", "given_name")
         apellido = _buscar(idv, "last_name", "surname", "family_name")
         edad = idv.get("age")
+
+        # En una cédula chilena, `document_number` es el N° del documento
+        # (cambia en cada renovación) y el RUN va en `personal_number` /
+        # `identification_number` — pero Didit no es consistente entre países.
+        # Se prueban todos los candidatos y se toma el que pase Módulo 11;
+        # si ninguno pasa, `rut` queda None (el usuario lo confirma en
+        # /completar) y no se pisa lo declarado.
+        rut_valido = None
+        for cand in (
+            idv.get("personal_number"),
+            idv.get("identification_number"),
+            idv.get("document_number"),
+            idv.get("run"),
+        ):
+            if cand and validar_rut_chileno(str(cand)):
+                rut_valido = formatear_rut(str(cand))
+                break
+
         datos.update(
             {
                 "nombre": nombre,
@@ -313,7 +332,7 @@ def interpretar_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
                     _buscar(idv, "full_name", "name")
                     or (" ".join(p for p in (nombre, apellido) if p) or None)
                 ),
-                "rut": _buscar(idv, "document_number", "personal_number", "identification_number"),
+                "rut": rut_valido,
                 "documento_numero": _buscar(idv, "document_number", "identification_number"),
                 "fecha_nacimiento": _buscar(idv, "date_of_birth", "birth_date"),
                 "nacionalidad": _buscar(idv, "nationality", "issuing_state", "id_country"),
