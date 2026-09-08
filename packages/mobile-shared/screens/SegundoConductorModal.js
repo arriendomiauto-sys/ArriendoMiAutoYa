@@ -8,38 +8,31 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  KeyboardAvoidingView,
+  Linking,
+  Image,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { Icon } from "../components/Icon";
-import { Button, Field, Card, Badge, ScreenHeader, Chip } from "../components/ui";
+import { Button, Card, Badge, ScreenHeader } from "../components/ui";
 import { DocumentCameraModal } from "../components/DocumentCameraModal";
+import { SelfieLivenessModal } from "../components/SelfieLivenessModal";
 import { ApiClient } from "../api/client";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
-import {
-  formatearRutEnVivo,
-  formatearTelefonoInput,
-  normalizarTelefonoCompleto,
-} from "../utils/formato";
 
-function isRutValid(rutRaw) {
-  if (!rutRaw) return false;
-  const clean = rutRaw.replace(/\./g, "").replace(/-/g, "").trim().toUpperCase();
-  if (clean.length < 2) return false;
-  const body = clean.slice(0, -1);
-  const dv = clean.slice(-1);
-  if (!/^\d+$/.test(body)) return false;
-
-  let sum = 0;
-  let multiplier = 2;
-  for (let i = body.length - 1; i >= 0; i--) {
-    sum += parseInt(body[i], 10) * multiplier;
-    multiplier = multiplier === 7 ? 2 : multiplier + 1;
+function cargarEscanerDocumento() {
+  try {
+    const mod = require("react-native-document-scanner-plugin");
+    const scanner = mod?.default ?? mod;
+    if (typeof scanner?.scanDocument !== "function") return null;
+    return {
+      scanDocument: (opts) => scanner.scanDocument(opts),
+      ResponseType: mod.ResponseType,
+      Estado: mod.ScanDocumentResponseStatus,
+    };
+  } catch (err) {
+    return null;
   }
-  const remainder = 11 - (sum % 11);
-  const expectedDv = remainder === 11 ? "0" : remainder === 10 ? "K" : String(remainder);
-  return dv === expectedDv;
 }
 
 export function SegundoConductorModal({
@@ -50,124 +43,134 @@ export function SegundoConductorModal({
   onSaved,
   tone = "light",
 }) {
-  const [step, setStep] = useState("identidad"); // 'identidad' | 'licencia' | 'fotos' | 'resumen'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [subiendoSlot, setSubiendoSlot] = useState(null);
 
-  // Datos de identidad
-  const [nombre, setNombre] = useState("");
-  const [email, setEmail] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [tipoDocumento, setTipoDocumento] = useState("rut");
-  const [rut, setRut] = useState("");
-  const [numeroDocumento, setNumeroDocumento] = useState("");
-  const [paisDocumento, setPaisDocumento] = useState("CL");
-  const [fechaNacimiento, setFechaNacimiento] = useState("1995-01-01");
-
-  // Licencia
-  const [licenciaPais, setLicenciaPais] = useState("CL");
-  const [licenciaNumero, setLicenciaNumero] = useState("");
-  const [licenciaClase, setLicenciaClase] = useState("B");
-  const [licenciaVencimiento, setLicenciaVencimiento] = useState("2028-12-31");
-
-  // Fotos / URLs
+  // Fotos / URLs de los documentos del segundo conductor
   const [carnetFrontalUrl, setCarnetFrontalUrl] = useState(null);
   const [carnetTraseroUrl, setCarnetTraseroUrl] = useState(null);
   const [licenciaUrl, setLicenciaUrl] = useState(null);
   const [selfieUrl, setSelfieUrl] = useState(null);
 
-  // Estado KYC
-  const [estadoKyc, setEstadoKyc] = useState("pendiente");
+  // Estado KYC devuelto por el backend / OCR
+  const [estadoKyc, setEstadoKyc] = useState("pendiente"); // 'pendiente' | 'verificado' | 'requiere_revision_manual' | 'rechazado'
   const [notasAuditoria, setNotasAuditoria] = useState("");
+  const [conductorNombre, setConductorNombre] = useState("");
+  const [conductorRut, setConductorRut] = useState("");
 
-  // Cámara guiada
-  const [cameraFor, setCameraFor] = useState(null); // 'carnet_frente' | 'carnet_reverso' | 'licencia' | 'selfie'
+  // Control de cámara guiada y selfie
+  const [cameraFor, setCameraFor] = useState(null); // 'carnet_frente' | 'carnet_reverso' | 'licencia'
+  const [mostrarSelfieModal, setMostrarSelfieModal] = useState(false);
 
   useEffect(() => {
     if (initialData) {
-      setNombre(initialData.nombre || "");
-      setEmail(initialData.email || "");
-      setTelefono(initialData.telefono || "");
-      setTipoDocumento(initialData.tipo_documento || "rut");
-      setRut(initialData.rut || "");
-      setNumeroDocumento(initialData.numero_documento || "");
-      setPaisDocumento(initialData.pais_documento || "CL");
-      if (initialData.fecha_nacimiento) {
-        setFechaNacimiento(
-          typeof initialData.fecha_nacimiento === "string"
-            ? initialData.fecha_nacimiento.slice(0, 10)
-            : "1995-01-01"
-        );
-      }
-      setLicenciaPais(initialData.licencia_pais_emisor || "CL");
-      setLicenciaNumero(initialData.licencia_numero || "");
-      setLicenciaClase(initialData.licencia_clase || "B");
-      if (initialData.licencia_vencimiento) {
-        setLicenciaVencimiento(
-          typeof initialData.licencia_vencimiento === "string"
-            ? initialData.licencia_vencimiento.slice(0, 10)
-            : "2028-12-31"
-        );
-      }
       setCarnetFrontalUrl(initialData.carnet_frontal_url || null);
       setCarnetTraseroUrl(initialData.carnet_trasero_url || null);
       setLicenciaUrl(initialData.licencia_url || null);
       setSelfieUrl(initialData.selfie_url || null);
       setEstadoKyc(initialData.estado_kyc || "pendiente");
       setNotasAuditoria(initialData.notas_auditoria || "");
+      setConductorNombre(initialData.nombre || "");
+      setConductorRut(initialData.rut || initialData.numero_documento || "");
     }
   }, [initialData, visible]);
 
-  const esChileno = tipoDocumento === "rut";
+  // Escaneo o captura con fallback
+  const iniciarCaptura = async (slot) => {
+    if (slot === "selfie") {
+      setMostrarSelfieModal(true);
+      return;
+    }
 
-  const handleTomarFoto = async (docKey, uri) => {
-    setCameraFor(null);
-    setLoading(true);
+    const escaner = cargarEscanerDocumento();
+    if (!escaner) {
+      setCameraFor(slot);
+      return;
+    }
+
+    setSubiendoSlot(slot);
     try {
-      const url = await subirImagenOptimizada(uri, "documentos-kyc", AJUSTES_DOCUMENTO);
-      if (docKey === "carnet_frente") setCarnetFrontalUrl(url);
-      else if (docKey === "carnet_reverso") setCarnetTraseroUrl(url);
-      else if (docKey === "licencia") setLicenciaUrl(url);
-      else if (docKey === "selfie") setSelfieUrl(url);
+      const res = await escaner.scanDocument({
+        responseType: escaner.ResponseType.ImageFilePath,
+        croppedImageQuality: 90,
+      });
+
+      if (res.status === escaner.Estado.Success && res.scannedImages?.[0]) {
+        const uri = res.scannedImages[0];
+        const filename = `${slot}_${Date.now()}.jpg`;
+        const url = await subirImagenOptimizada(uri, {
+          filename,
+          bucket: "documentos-kyc",
+          ...AJUSTES_DOCUMENTO,
+        });
+        asignarUrlSlot(slot, url);
+      }
     } catch (err) {
-      showAlert("Error al subir imagen", err.message || "No se pudo optimizar ni subir el documento.");
+      // Si falla el plugin nativo, abrir cámara de rescate
+      setCameraFor(slot);
     } finally {
-      setLoading(false);
+      setSubiendoSlot(null);
     }
   };
 
-  const handleGuardarConductor = async () => {
-    if (!nombre.trim()) {
-      showAlert("Faltan datos", "Ingresa el nombre completo del segundo conductor.");
+  const asignarUrlSlot = (slot, url) => {
+    if (slot === "carnet_frente") setCarnetFrontalUrl(url);
+    else if (slot === "carnet_reverso") setCarnetTraseroUrl(url);
+    else if (slot === "licencia") setLicenciaUrl(url);
+    else if (slot === "selfie") setSelfieUrl(url);
+  };
+
+  const handleFotoCamara = async (slot, uri) => {
+    setCameraFor(null);
+    setSubiendoSlot(slot);
+    try {
+      const filename = `${slot}_${Date.now()}.jpg`;
+      const url = await subirImagenOptimizada(uri, {
+        filename,
+        bucket: "documentos-kyc",
+        ...AJUSTES_DOCUMENTO,
+      });
+      asignarUrlSlot(slot, url);
+    } catch (err) {
+      showAlert("Error al subir", err.message || "No se pudo subir la foto del documento.");
+    } finally {
+      setSubiendoSlot(null);
+    }
+  };
+
+  const handleSelfieCapturada = async (uri) => {
+    setMostrarSelfieModal(false);
+    setSubiendoSlot("selfie");
+    try {
+      const filename = `selfie_segundo_conductor_${Date.now()}.jpg`;
+      const url = await subirImagenOptimizada(uri, {
+        filename,
+        bucket: "documentos-kyc",
+        ...AJUSTES_DOCUMENTO,
+      });
+      setSelfieUrl(url);
+    } catch (err) {
+      showAlert("Error al subir selfie", err.message || "No se pudo subir la foto selfie.");
+    } finally {
+      setSubiendoSlot(null);
+    }
+  };
+
+  const handleProcesarKyc = async () => {
+    if (!carnetFrontalUrl) {
+      showAlert("Falta Cédula", "Debes escanear el frente de la cédula de identidad.");
       return;
     }
-    if (esChileno && !isRutValid(rut)) {
-      showAlert("RUT Inválido", "El RUT ingresado no es válido (falla verificación Módulo 11).");
-      return;
-    }
-    if (!carnetFrontalUrl || !licenciaUrl) {
-      showAlert(
-        "Documentos requeridos",
-        "Debes tomar la foto del carnet (frente) y de la licencia de conducir para activar el KYC del segundo conductor."
-      );
+    if (!licenciaUrl) {
+      showAlert("Falta Licencia", "Debes escanear la licencia de conducir.");
       return;
     }
 
     setSaving(true);
     try {
       const payload = {
-        nombre: nombre.trim(),
-        email: email.trim() || undefined,
-        telefono: telefono.trim() ? normalizarTelefonoCompleto(telefono) : undefined,
-        tipo_documento: tipoDocumento,
-        rut: esChileno ? formatearRutEnVivo(rut) : undefined,
-        numero_documento: !esChileno ? numeroDocumento.trim() : undefined,
-        pais_documento: paisDocumento.trim().toUpperCase(),
-        fecha_nacimiento: fechaNacimiento ? `${fechaNacimiento}T00:00:00Z` : undefined,
-        licencia_pais_emisor: licenciaPais.trim().toUpperCase(),
-        licencia_numero: licenciaNumero.trim() || (esChileno ? formatearRutEnVivo(rut) : undefined),
-        licencia_clase: licenciaClase.trim().toUpperCase(),
-        licencia_vencimiento: licenciaVencimiento ? `${licenciaVencimiento}T00:00:00Z` : undefined,
+        nombre: conductorNombre || "Segundo Conductor",
         carnet_frontal_url: carnetFrontalUrl,
         carnet_trasero_url: carnetTraseroUrl,
         licencia_url: licenciaUrl,
@@ -177,21 +180,42 @@ export function SegundoConductorModal({
       const respuesta = await ApiClient.asignarSegundoConductor(reservaId, payload);
       setEstadoKyc(respuesta.estado_kyc);
       setNotasAuditoria(respuesta.notas_auditoria || "");
-      showAlert(
-        "Segundo Conductor Registrado",
-        respuesta.estado_kyc === "verificado"
-          ? "¡Identidad y licencia verificadas exitosamente! El segundo conductor está autorizado para el arriendo."
-          : respuesta.estado_kyc === "requiere_revision_manual"
-          ? "Los documentos fueron recibidos y derivados a revisión por un ejecutivo de soporte."
-          : "Los documentos no pasaron la validación automática. Revisa las fotos e inténtalo nuevamente."
-      );
+      if (respuesta.nombre) setConductorNombre(respuesta.nombre);
+      if (respuesta.rut || respuesta.numero_documento) {
+        setConductorRut(respuesta.rut || respuesta.numero_documento);
+      }
+
+      if (respuesta.estado_kyc === "verificado") {
+        showAlert(
+          "Segundo Conductor Verificado",
+          "¡Los documentos y la biometría han sido validados exitosamente por el sistema KYC automático!"
+        );
+      } else if (respuesta.estado_kyc === "requiere_revision_manual") {
+        showAlert(
+          "En Revisión Manual",
+          "Tus documentos fueron derivados a soporte para validación manual por un ejecutivo."
+        );
+      } else {
+        showAlert(
+          "Validación Pendiente",
+          respuesta.notas_auditoria || "Algunos documentos no pudieron ser verificados automáticamente."
+        );
+      }
+
       if (onSaved) onSaved(respuesta);
-      onClose();
     } catch (err) {
-      showAlert("Error al guardar", err.message || "No se pudo registrar el segundo conductor.");
+      showAlert("Error en KYC", err.message || "No se pudo procesar la verificación automática.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const contactarSoporte = () => {
+    const asunto = encodeURIComponent(`Soporte Segundo Conductor - Reserva ${reservaId}`);
+    const cuerpo = encodeURIComponent(
+      `Hola equipo de soporte,\n\nSolicito asistencia con la verificación del segundo conductor para mi reserva ${reservaId}.\nMotivo: ${notasAuditoria || "Revisión de documentos"}\n\nGracias.`
+    );
+    Linking.openURL(`mailto:soporte@arriendomiautoya.cl?subject=${asunto}&body=${cuerpo}`);
   };
 
   const handleEliminar = async () => {
@@ -205,371 +229,191 @@ export function SegundoConductorModal({
     }
   };
 
+  const docsCompletos = !!carnetFrontalUrl && !!licenciaUrl;
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.modalOverlay}
-      >
+      <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <ScreenHeader
             title="Segundo Conductor"
-            subtitle="Asignación y verificación KYC obligatoria"
+            subtitle="Verificación 100% Automática vía KYC"
             onBack={onClose}
             tone={tone}
           />
 
-          {/* Navegación por pestañas */}
-          <View style={styles.tabsRow}>
-            <TouchableOpacity
-              onPress={() => setStep("identidad")}
-              style={[styles.tabBtn, step === "identidad" && styles.tabBtnActive]}
-            >
-              <Text style={[styles.tabText, step === "identidad" && styles.tabTextActive]}>
-                1. Datos
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setStep("licencia")}
-              style={[styles.tabBtn, step === "licencia" && styles.tabBtnActive]}
-            >
-              <Text style={[styles.tabText, step === "licencia" && styles.tabTextActive]}>
-                2. Licencia
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setStep("fotos")}
-              style={[styles.tabBtn, step === "fotos" && styles.tabBtnActive]}
-            >
-              <Text style={[styles.tabText, step === "fotos" && styles.tabTextActive]}>
-                3. Fotos KYC
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setStep("resumen")}
-              style={[styles.tabBtn, step === "resumen" && styles.tabBtnActive]}
-            >
-              <Text style={[styles.tabText, step === "resumen" && styles.tabTextActive]}>
-                4. Estado
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={styles.body}
-            contentContainerStyle={{ paddingBottom: 30 }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-          >
-            {step === "identidad" && (
-              <View style={styles.section}>
-                <Text style={styles.sectionDesc}>
-                  Ingresa los datos personales del segundo conductor que operará el vehículo.
+          <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+            {/* Banner Informativo KYC */}
+            <View style={styles.kycInfoBanner}>
+              <Icon name="shield" size={24} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.kycInfoTitle}>Validación Segura y Automática</Text>
+                <Text style={styles.kycInfoSub}>
+                  No necesitas ingresar datos manualmente. El sistema escanea y valida cédula, licencia y rostro directamente.
                 </Text>
+              </View>
+            </View>
 
-                <Field
-                  label="Nombre completo"
-                  placeholder="Ej. Juan Pérez González"
-                  value={nombre}
-                  onChangeText={setNombre}
-                />
-
-                <Text style={styles.fieldLabel}>Tipo de documento</Text>
-                <View style={styles.chipsRow}>
-                  <Chip
-                    label="RUT Chileno"
-                    selected={tipoDocumento === "rut"}
-                    onPress={() => setTipoDocumento("rut")}
-                  />
-                  <Chip
-                    label="Pasaporte"
-                    selected={tipoDocumento === "pasaporte"}
-                    onPress={() => setTipoDocumento("pasaporte")}
-                  />
-                  <Chip
-                    label="DNI Extranjero"
-                    selected={tipoDocumento === "dni_extranjero"}
-                    onPress={() => setTipoDocumento("dni_extranjero")}
+            {/* Estado Actual */}
+            {estadoKyc !== "pendiente" && (
+              <Card padded style={[styles.statusCard, estadoKyc === "verificado" ? styles.statusCardOk : styles.statusCardWarn]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={styles.statusTitle}>
+                    {estadoKyc === "verificado"
+                      ? "Conductor Autorizado"
+                      : estadoKyc === "requiere_revision_manual"
+                      ? "En Revisión por Soporte"
+                      : "Verificación no completada"}
+                  </Text>
+                  <Badge
+                    variant={estadoKyc === "verificado" ? "success" : estadoKyc === "rechazado" ? "danger" : "warning"}
+                    label={estadoKyc === "verificado" ? "Verificado" : estadoKyc === "rechazado" ? "Rechazado" : "En revisión"}
                   />
                 </View>
 
-                {esChileno ? (
-                  <Field
-                    label="RUT (con guión y dígito verificador)"
-                    placeholder="18.456.789-K"
-                    value={rut}
-                    onChangeText={(t) => setRut(formatearRutEnVivo(t))}
-                  />
-                ) : (
-                  <>
-                    <Field
-                      label="Número de pasaporte o DNI"
-                      placeholder="Ej. A12345678"
-                      value={numeroDocumento}
-                      onChangeText={setNumeroDocumento}
+                {conductorNombre ? (
+                  <Text style={styles.conductorDataText}>
+                    {conductorNombre} {conductorRut ? `• ${conductorRut}` : ""}
+                  </Text>
+                ) : null}
+
+                {notasAuditoria ? (
+                  <Text style={styles.notasAuditoriaText}>{notasAuditoria}</Text>
+                ) : null}
+
+                {estadoKyc !== "verificado" && (
+                  <View style={{ marginTop: 12 }}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      label="Contactar a soporte"
+                      iconLeft="chat"
+                      onPress={contactarSoporte}
                     />
-                    <Field
-                      label="País emisor (Código ISO, ej. AR, US, ES)"
-                      placeholder="AR"
-                      value={paisDocumento}
-                      onChangeText={setPaisDocumento}
-                    />
-                  </>
+                  </View>
                 )}
+              </Card>
+            )}
 
-                <Field
-                  label="Fecha de nacimiento (AAAA-MM-DD)"
-                  placeholder="1995-05-20"
-                  value={fechaNacimiento}
-                  onChangeText={setFechaNacimiento}
-                />
+            {/* Slot 1: Cédula de Identidad (Frente y Reverso) */}
+            <Card padded style={styles.slotCard}>
+              <View style={styles.slotHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Icon name="file-text" size={20} color={colors.primary} />
+                  <Text style={styles.slotTitle}>1. Cédula de Identidad</Text>
+                </View>
+                {carnetFrontalUrl && (
+                  <Badge variant="success" label="Frente listo" />
+                )}
+              </View>
+              <Text style={styles.slotDesc}>Escaneo automático de bordes y datos (Módulo 11 y vigencia).</Text>
 
-                <Field
-                  label="Correo electrónico"
-                  placeholder="segundo.conductor@correo.com"
-                  keyboardType="email-address"
-                  value={email}
-                  onChangeText={setEmail}
-                />
+              <View style={styles.buttonsRow}>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    variant={carnetFrontalUrl ? "secondary" : "primary"}
+                    size="sm"
+                    label={carnetFrontalUrl ? "✓ Frente escaneado" : "Escanear Frente"}
+                    iconLeft="camera"
+                    loading={subiendoSlot === "carnet_frente"}
+                    onPress={() => iniciarCaptura("carnet_frente")}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    variant={carnetTraseroUrl ? "secondary" : "outline"}
+                    size="sm"
+                    label={carnetTraseroUrl ? "✓ Reverso listo" : "Escanear Reverso"}
+                    iconLeft="camera"
+                    loading={subiendoSlot === "carnet_reverso"}
+                    onPress={() => iniciarCaptura("carnet_reverso")}
+                  />
+                </View>
+              </View>
+            </Card>
 
-                <Field
-                  label="Teléfono de contacto"
-                  placeholder="7734 1208"
-                  prefix="+56 9"
-                  keyboardType="phone-pad"
-                  value={telefono}
-                  onChangeText={(t) => setTelefono(formatearTelefonoInput(t))}
-                />
+            {/* Slot 2: Licencia de Conducir */}
+            <Card padded style={styles.slotCard}>
+              <View style={styles.slotHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Icon name="check" size={20} color={colors.primary} />
+                  <Text style={styles.slotTitle}>2. Licencia de Conducir</Text>
+                </View>
+                {licenciaUrl && <Badge variant="success" label="Listo" />}
+              </View>
+              <Text style={styles.slotDesc}>Comprueba clase B vigente durante las fechas completas del arriendo.</Text>
 
+              <Button
+                variant={licenciaUrl ? "secondary" : "primary"}
+                size="sm"
+                label={licenciaUrl ? "✓ Licencia escaneada (cambiar)" : "Escanear Licencia"}
+                iconLeft="camera"
+                loading={subiendoSlot === "licencia"}
+                onPress={() => iniciarCaptura("licencia")}
+              />
+            </Card>
+
+            {/* Slot 3: Selfie Biométrica */}
+            <Card padded style={styles.slotCard}>
+              <View style={styles.slotHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Icon name="user" size={20} color={colors.primary} />
+                  <Text style={styles.slotTitle}>3. Validación Facial Biométrica</Text>
+                </View>
+                {selfieUrl && <Badge variant="success" label="Listo" />}
+              </View>
+              <Text style={styles.slotDesc}>Verifica que el rostro coincida con la foto de la cédula del segundo conductor.</Text>
+
+              <Button
+                variant={selfieUrl ? "secondary" : "outline"}
+                size="sm"
+                label={selfieUrl ? "✓ Selfie capturada (repetir)" : "Tomar Selfie Biométrica"}
+                iconLeft="user"
+                loading={subiendoSlot === "selfie"}
+                onPress={() => iniciarCaptura("selfie")}
+              />
+            </Card>
+
+            {/* Acciones Finales */}
+            <View style={{ marginTop: 12, gap: 10 }}>
+              <Button
+                label="Validar con KYC Automático"
+                iconRight="arrow-right"
+                loading={saving}
+                disabled={!docsCompletos || saving}
+                onPress={handleProcesarKyc}
+              />
+
+              {initialData && (
                 <Button
-                  label="Continuar a Licencia"
-                  onPress={() => setStep("licencia")}
-                  style={{ marginTop: 15 }}
+                  variant="dangerOutline"
+                  label="Eliminar Segundo Conductor"
+                  onPress={handleEliminar}
                 />
-              </View>
-            )}
-
-            {step === "licencia" && (
-              <View style={styles.section}>
-                <Text style={styles.sectionDesc}>
-                  Datos de la licencia de conducir. La ley chilena exige licencia vigente (mínimo 21 años para arrendar).
-                </Text>
-
-                <Field
-                  label="País emisor de la licencia"
-                  placeholder="CL"
-                  value={licenciaPais}
-                  onChangeText={setLicenciaPais}
-                />
-
-                <Field
-                  label="Número de licencia"
-                  placeholder="Ej. 18.456.789-K"
-                  value={licenciaNumero}
-                  onChangeText={setLicenciaNumero}
-                />
-
-                <Field
-                  label="Clase de licencia"
-                  placeholder="B"
-                  value={licenciaClase}
-                  onChangeText={setLicenciaClase}
-                />
-
-                <Field
-                  label="Fecha de vencimiento (AAAA-MM-DD)"
-                  placeholder="2028-12-31"
-                  value={licenciaVencimiento}
-                  onChangeText={setLicenciaVencimiento}
-                />
-
-                <View style={styles.btnRow}>
-                  <Button
-                    label="Atrás"
-                    variant="secondary"
-                    onPress={() => setStep("identidad")}
-                    style={{ flex: 1, marginRight: 8 }}
-                  />
-                  <Button
-                    label="Continuar a Fotos"
-                    onPress={() => setStep("fotos")}
-                    style={{ flex: 1 }}
-                  />
-                </View>
-              </View>
-            )}
-
-            {step === "fotos" && (
-              <View style={styles.section}>
-                <Text style={styles.sectionDesc}>
-                  Captura las fotos obligatorias para la verificación automática KYC de carnet y licencia.
-                </Text>
-
-                {/* Foto Cédula Frente */}
-                <Card style={styles.docCard}>
-                  <View style={styles.docRow}>
-                    <Icon name="card" size={24} color={carnetFrontalUrl ? colors.success : colors.textMuted} />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.docTitle}>Cédula / Documento (Frente)</Text>
-                      <Text style={styles.docStatus}>
-                        {carnetFrontalUrl ? "✓ Foto adjuntada" : "Pendiente de captura"}
-                      </Text>
-                    </View>
-                    <Button
-                      label={carnetFrontalUrl ? "Reintentar" : "Capturar"}
-                      size="sm"
-                      variant={carnetFrontalUrl ? "secondary" : "primary"}
-                      fullWidth={false}
-                      onPress={() => setCameraFor("carnet_frente")}
-                    />
-                  </View>
-                </Card>
-
-                {/* Foto Cédula Reverso */}
-                <Card style={styles.docCard}>
-                  <View style={styles.docRow}>
-                    <Icon name="card" size={24} color={carnetTraseroUrl ? colors.success : colors.textMuted} />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.docTitle}>Cédula (Reverso)</Text>
-                      <Text style={styles.docStatus}>
-                        {carnetTraseroUrl ? "✓ Foto adjuntada" : "Opcional / Pendiente"}
-                      </Text>
-                    </View>
-                    <Button
-                      label={carnetTraseroUrl ? "Reintentar" : "Capturar"}
-                      size="sm"
-                      variant={carnetTraseroUrl ? "secondary" : "primary"}
-                      fullWidth={false}
-                      onPress={() => setCameraFor("carnet_reverso")}
-                    />
-                  </View>
-                </Card>
-
-                {/* Foto Licencia */}
-                <Card style={styles.docCard}>
-                  <View style={styles.docRow}>
-                    <Icon name="car" size={24} color={licenciaUrl ? colors.success : colors.textMuted} />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.docTitle}>Licencia de Conducir (Frente)</Text>
-                      <Text style={styles.docStatus}>
-                        {licenciaUrl ? "✓ Foto adjuntada" : "Obligatoria"}
-                      </Text>
-                    </View>
-                    <Button
-                      label={licenciaUrl ? "Reintentar" : "Capturar"}
-                      size="sm"
-                      variant={licenciaUrl ? "secondary" : "primary"}
-                      fullWidth={false}
-                      onPress={() => setCameraFor("licencia")}
-                    />
-                  </View>
-                </Card>
-
-                {/* Selfie */}
-                <Card style={styles.docCard}>
-                  <View style={styles.docRow}>
-                    <Icon name="user" size={24} color={selfieUrl ? colors.success : colors.textMuted} />
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.docTitle}>Selfie de Validación Facial</Text>
-                      <Text style={styles.docStatus}>
-                        {selfieUrl ? "✓ Selfie adjuntada" : "Recomendada para biometría"}
-                      </Text>
-                    </View>
-                    <Button
-                      label={selfieUrl ? "Reintentar" : "Capturar"}
-                      size="sm"
-                      variant={selfieUrl ? "secondary" : "primary"}
-                      fullWidth={false}
-                      onPress={() => setCameraFor("selfie")}
-                    />
-                  </View>
-                </Card>
-
-                <View style={[styles.btnRow, { marginTop: 15 }]}>
-                  <Button
-                    label="Atrás"
-                    variant="secondary"
-                    onPress={() => setStep("licencia")}
-                    style={{ flex: 1, marginRight: 8 }}
-                  />
-                  <Button
-                    label="Verificar y Guardar"
-                    loading={saving}
-                    onPress={handleGuardarConductor}
-                    style={{ flex: 1 }}
-                  />
-                </View>
-              </View>
-            )}
-
-            {step === "resumen" && (
-              <View style={styles.section}>
-                <Card style={styles.statusCard}>
-                  <Text style={styles.cardHeader}>Estado de Validación KYC</Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", marginVertical: 10 }}>
-                    <Badge
-                      label={
-                        estadoKyc === "verificado"
-                          ? "Verificado ✓"
-                          : estadoKyc === "requiere_revision_manual"
-                          ? "En Revisión Manual"
-                          : estadoKyc === "rechazado"
-                          ? "Rechazado"
-                          : "Pendiente"
-                      }
-                      variant={
-                        estadoKyc === "verificado"
-                          ? "success"
-                          : estadoKyc === "requiere_revision_manual"
-                          ? "warning"
-                          : estadoKyc === "rechazado"
-                          ? "danger"
-                          : "neutral"
-                      }
-                    />
-                  </View>
-                  {notasAuditoria ? (
-                    <Text style={styles.notasText}>Detalles: {notasAuditoria}</Text>
-                  ) : null}
-                </Card>
-
-                <View style={{ marginTop: 15 }}>
-                  <Button
-                    label="Actualizar Documentos"
-                    variant="secondary"
-                    onPress={() => setStep("fotos")}
-                    style={{ marginBottom: 10 }}
-                  />
-                  {initialData && (
-                    <Button
-                      label="Eliminar Segundo Conductor"
-                      variant="danger"
-                      onPress={handleEliminar}
-                    />
-                  )}
-                </View>
-              </View>
-            )}
+              )}
+            </View>
           </ScrollView>
 
-          {/* Modal de Cámara Guiada */}
+          {/* Modal de Cámara de Respaldo */}
           {cameraFor && (
             <DocumentCameraModal
               visible={!!cameraFor}
-              documentType={cameraFor}
-              onCapture={(uri) => handleTomarFoto(cameraFor, uri)}
-              onClose={() => setCameraFor(null)}
+              modo={cameraFor}
+              onCerrar={() => setCameraFor(null)}
+              onFotoCapturada={(uri) => handleFotoCamara(cameraFor, uri)}
             />
           )}
 
-          {loading && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Optimizando y subiendo documento...</Text>
-            </View>
+          {/* Modal de Selfie Biométrica */}
+          {mostrarSelfieModal && (
+            <SelfieLivenessModal
+              visible={mostrarSelfieModal}
+              onClose={() => setMostrarSelfieModal(false)}
+              onCaptured={handleSelfieCapturada}
+            />
           )}
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -577,111 +421,94 @@ export function SegundoConductorModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    height: "90%",
     paddingHorizontal: 20,
     paddingTop: 16,
-  },
-  tabsRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    marginVertical: 10,
-  },
-  tabBtn: {
+    maxHeight: "92%",
     flex: 1,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  tabBtnActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
-  },
-  tabText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontWeight: "600",
-  },
-  tabTextActive: {
-    color: colors.primary,
-    fontWeight: "700",
   },
   body: {
     flex: 1,
+    marginTop: 12,
   },
-  section: {
-    marginTop: 10,
-  },
-  sectionDesc: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginBottom: 14,
-    lineHeight: 18,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 6,
-  },
-  chipsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 14,
-  },
-  btnRow: {
-    flexDirection: "row",
-    marginTop: 10,
-  },
-  docCard: {
-    padding: 12,
-    marginBottom: 10,
-  },
-  docRow: {
+  kycInfoBanner: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: colors.primary100,
+    padding: 14,
+    borderRadius: 14,
+    gap: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: colors.primary200,
   },
-  docTitle: {
+  kycInfoTitle: {
     fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
+    fontWeight: "700",
+    color: colors.primary,
   },
-  docStatus: {
+  kycInfoSub: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: colors.primary700,
     marginTop: 2,
+    lineHeight: 17,
   },
   statusCard: {
-    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1.5,
   },
-  cardHeader: {
+  statusCardOk: {
+    backgroundColor: colors.accent100,
+    borderColor: colors.accentDark,
+  },
+  statusCardWarn: {
+    backgroundColor: colors.warningBg,
+    borderColor: colors.warning,
+  },
+  statusTitle: {
     fontSize: 15,
     fontWeight: "700",
     color: colors.text,
   },
-  notasText: {
+  conductorDataText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 4,
+  },
+  notasAuditoriaText: {
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 6,
+    lineHeight: 17,
+  },
+  slotCard: {
+    marginBottom: 12,
+    gap: 10,
+  },
+  slotHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  slotTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  slotDesc: {
+    fontSize: 12,
+    color: colors.textMuted,
     lineHeight: 16,
   },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 999,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: "600",
+  buttonsRow: {
+    flexDirection: "row",
+    gap: 10,
   },
 });

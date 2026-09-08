@@ -133,7 +133,7 @@ export function MyCarsScreen({
               <Text style={styles.rateValue}>{fmt(tarifa)}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rateLabel}>Recibes (80%)</Text>
+              <Text style={styles.rateLabel}>Recibes (85%)</Text>
               <Text style={[styles.rateValue, { color: colors.accentDark }]}>{fmt(ganancia)}</Text>
             </View>
             <TouchableOpacity
@@ -265,9 +265,9 @@ export function MyCarsScreen({
                     <Text style={styles.simValue}>{fmt(aTramo(newTarifa))}</Text>
                   </View>
                   <View style={styles.simRow}>
-                    <Text style={styles.simLabel}>Tu ingreso líquido (80%)</Text>
+                    <Text style={styles.simLabel}>Tu ingreso líquido (85%)</Text>
                     <Text style={[styles.simValue, { color: colors.accentDark }]}>
-                      {fmt(Math.round(aTramo(newTarifa) * 0.8))}
+                      {fmt(Math.round(aTramo(newTarifa) * 0.85))}
                     </Text>
                   </View>
                 </View>

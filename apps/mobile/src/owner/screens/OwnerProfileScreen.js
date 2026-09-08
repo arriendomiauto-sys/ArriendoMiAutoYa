@@ -40,6 +40,7 @@ export function OwnerProfileScreen({
   const [calificaciones, setCalificaciones] = useState([]);
   const [showLegal, setShowLegal] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [fotoError, setFotoError] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -133,8 +134,12 @@ export function OwnerProfileScreen({
             accessibilityRole="button"
             accessibilityLabel="Editar perfil"
           >
-            {user.foto_perfil_verificada_url ? (
-              <Image source={{ uri: user.foto_perfil_verificada_url }} style={styles.avatar} />
+            {(!fotoError && (user.foto_perfil_verificada_url || user.foto_perfil_url)) ? (
+              <Image
+                source={{ uri: user.foto_perfil_verificada_url || user.foto_perfil_url }}
+                style={styles.avatar}
+                onError={() => setFotoError(true)}
+              />
             ) : (
               <View style={[styles.avatar, styles.avatarEmpty]}>
                 <Icon name="user" size={24} color={colors.textMuted} />

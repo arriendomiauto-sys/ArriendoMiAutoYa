@@ -87,7 +87,7 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
       <View style={styles.card}>
         <View style={styles.recibeFila}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.recibeLabel}>Recibes por día (80%)</Text>
+            <Text style={styles.recibeLabel}>Recibes por día (85%)</Text>
             <Text style={styles.recibeMonto}>{fmt(desglose.gananciaDueno)}</Text>
           </View>
           <View style={styles.ivaBadge}>
@@ -98,9 +98,9 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
         <Fila k="Tarifa al cliente" v={fmt(desglose.tarifaBruta)} fuerte />
         <Fila k="Valor neto" v={fmt(desglose.subtotalNeto)} />
         <Fila k="IVA (19%)" v={fmt(desglose.ivaMonto)} />
-        <Fila k="Comisión plataforma (20%)" v={`-${fmt(desglose.comisionPlataforma)}`} />
+        <Fila k="Comisión plataforma (15%)" v={`-${fmt(desglose.comisionPlataforma)}`} />
         <Text style={styles.recibeNota}>
-          La plataforma retiene 20% por seguro, verificación de identidad y soporte 24/7.
+          La plataforma retiene 15% por seguro, verificación de identidad y soporte 24/7.
         </Text>
       </View>
     </>

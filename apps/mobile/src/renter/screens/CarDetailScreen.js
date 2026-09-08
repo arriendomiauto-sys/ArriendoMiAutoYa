@@ -65,6 +65,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const [step, setStep] = useState("detail");
   const [fotoActiva, setFotoActiva] = useState(0);
   const [heroW, setHeroW] = useState(0);
+  const [hostFotoError, setHostFotoError] = useState(false);
   const { esFavorito, toggle: toggleFavorito } = useFavoritos();
 
   const compartirAuto = () => {
@@ -130,6 +131,9 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const fotos = car?.fotos?.length ? car.fotos : ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800"];
   const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
   const dueno = car?.dueno;
+  const duenoNombre = car?.dueno_nombre || dueno?.nombre || "Anfitrión";
+  const duenoFoto = car?.dueno_foto_url || dueno?.foto_perfil_verificada_url || dueno?.foto_perfil_url || dueno?.avatar;
+  const tieneDueno = Boolean(car?.dueno_id || dueno || car?.dueno_nombre);
   const CAT_LABEL = { economico: "Económico", sedan: "Sedán", suv: "SUV", camioneta: "Camioneta", premium: "Premium" };
   const TRANS_LABEL = { automatica: "Automática", mecanica: "Mecánica" };
   const FUEL_LABEL = { bencina: "Bencina", diesel: "Diésel", hibrido: "Híbrido", electrico: "Eléctrico" };
@@ -254,28 +258,30 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             )}
             {car?.descripcion ? <Text style={styles.descripcion}>{car.descripcion}</Text> : null}
 
-            {dueno ? (
+            {tieneDueno ? (
               <Card style={styles.hostCard} padded>
                 <View style={styles.hostAvatar}>
-                  {dueno.avatar ? (
-                    <Image source={{ uri: dueno.avatar }} style={styles.hostAvatarImg} />
+                  {duenoFoto && !hostFotoError ? (
+                    <Image
+                      source={{ uri: duenoFoto }}
+                      style={styles.hostAvatarImg}
+                      onError={() => setHostFotoError(true)}
+                    />
                   ) : (
                     <Icon name="user" size={20} color={colors.textMuted} />
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.hostName}>{dueno.nombre}</Text>
+                  <Text style={styles.hostName}>{duenoNombre}</Text>
                   <Text style={styles.hostMeta}>
-                    {dueno.rating ? `★ ${dueno.rating}` : "Anfitrión"}
-                    {dueno.viajes ? ` · ${dueno.viajes} arriendos` : ""}
+                    {dueno?.rating || car?.rating_promedio ? `★ ${dueno?.rating || car?.rating_promedio}` : "Anfitrión verificado"}
+                    {dueno?.viajes || car?.rating_cantidad ? ` · ${dueno?.viajes || car?.rating_cantidad} arriendos` : ""}
                   </Text>
                 </View>
-                {dueno.verificado ? (
-                  <View style={styles.verifBadge}>
-                    <Icon name="shield" size={13} color={colors.accent800} />
-                    <Text style={styles.verifText}>Verificado</Text>
-                  </View>
-                ) : null}
+                <View style={styles.verifBadge}>
+                  <Icon name="shield" size={13} color={colors.accent800} />
+                  <Text style={styles.verifText}>Verificado</Text>
+                </View>
               </Card>
             ) : null}
 

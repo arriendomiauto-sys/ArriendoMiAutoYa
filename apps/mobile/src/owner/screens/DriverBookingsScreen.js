@@ -93,7 +93,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
   const renderItem = ({ item }) => {
     const auto = item.auto || {};
     const nombre = [auto.marca, auto.modelo, auto.anio].filter(Boolean).join(" ") || "Auto";
-    const ganancia = Math.round((item.monto_hold || 0) * 0.8);
+    const ganancia = Math.round((item.monto_hold || 0) * 0.85);
     const badge = ESTADO_BADGE[item.estado] || ESTADO_BADGE.pendiente;
     const puedeEntregar = item.estado === "confirmada";
     const puedeDevolver = item.estado === "en_curso";
@@ -120,7 +120,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
-            <Text style={[styles.label, { color: colors.text, fontWeight: "700" }]}>Tu ganancia (80%)</Text>
+            <Text style={[styles.label, { color: colors.text, fontWeight: "700" }]}>Tu ganancia (85%)</Text>
             <Text style={styles.earnings}>${ganancia.toLocaleString("es-CL")}</Text>
           </View>
         </View>

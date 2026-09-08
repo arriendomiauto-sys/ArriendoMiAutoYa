@@ -3,6 +3,16 @@ import { View, Text, StyleSheet, StatusBar, ScrollView, Image } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+
+let MapView = null;
+let Marker = null;
+try {
+  const maps = require("react-native-maps");
+  MapView = maps.default;
+  Marker = maps.Marker;
+} catch (e) {
+  MapView = null;
+}
 import {
   colors,
   theme,
@@ -55,6 +65,9 @@ export function ActiveRentalScreen({
   const car = res.car || res.auto || {};
   const montoHold = res.monto_hold || 0;
   const nombre = [car.marca, car.modelo, car.anio].filter(Boolean).join(" ") || "Auto";
+  const [ownerFotoError, setOwnerFotoError] = useState(false);
+  const duenoNombre = car.dueno_nombre || res.dueno_nombre || "Dueño del vehículo";
+  const duenoFoto = car.dueno_foto_url || res.dueno_foto_url;
 
   const [view, setView] = useState(
     res.estado === "en_curso" ? "detail" : res.estado === "confirmada" ? "confirmed" : "sent"
@@ -179,20 +192,68 @@ export function ActiveRentalScreen({
           <Card padded style={{ gap: theme.spacing.md }}>
             <SectionLabel>Punto de encuentro</SectionLabel>
             <View style={styles.miniMap}>
-              <Icon name="pin" size={26} color={colors.primary} />
+              {MapView ? (
+                <MapView
+                  style={StyleSheet.absoluteFillObject}
+                  initialRegion={{
+                    latitude: Number(res.lugar_entrega_lat || car.latitud || -37.4697),
+                    longitude: Number(res.lugar_entrega_lng || car.longitud || -72.3536),
+                    latitudeDelta: 0.015,
+                    longitudeDelta: 0.015,
+                  }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  pitchEnabled={false}
+                  rotateEnabled={false}
+                >
+                  <Marker
+                    coordinate={{
+                      latitude: Number(res.lugar_entrega_lat || car.latitud || -37.4697),
+                      longitude: Number(res.lugar_entrega_lng || car.longitud || -72.3536),
+                    }}
+                    title={res.lugar_entrega_acordado || car.ubicacion_base || "Punto de encuentro"}
+                  />
+                </MapView>
+              ) : (
+                <Icon name="pin" size={26} color={colors.primary} />
+              )}
             </View>
-            <Text style={styles.meetAddr}>
-              {res.lugar_entrega_acordado || car.ubicacion_base || "Por coordinar"}
-            </Text>
-            <Text style={styles.meetTime}>{fechaHora(res.fecha_inicio, true)}</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.meetAddr}>
+                  {res.lugar_entrega_acordado || car.ubicacion_base || "Por coordinar"}
+                </Text>
+                <Text style={styles.meetTime}>{fechaHora(res.fecha_inicio, true)}</Text>
+              </View>
+              <Button
+                variant="secondary"
+                size="sm"
+                label="Cómo llegar"
+                iconLeft="pin"
+                fullWidth={false}
+                onPress={() => {
+                  const lat = Number(res.lugar_entrega_lat || car.latitud || -37.4697);
+                  const lng = Number(res.lugar_entrega_lng || car.longitud || -72.3536);
+                  Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+                }}
+              />
+            </View>
           </Card>
 
           <Card padded style={styles.ownerRow}>
             <View style={styles.ownerAvatar}>
-              <Icon name="user" size={20} color={colors.textMuted} />
+              {duenoFoto && !ownerFotoError ? (
+                <Image
+                  source={{ uri: duenoFoto }}
+                  style={{ width: 44, height: 44, borderRadius: 22 }}
+                  onError={() => setOwnerFotoError(true)}
+                />
+              ) : (
+                <Icon name="user" size={20} color={colors.textMuted} />
+              )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.ownerName}>Dueño del vehículo</Text>
+              <Text style={styles.ownerName}>{duenoNombre}</Text>
               <Text style={styles.ownerSub}>Coordina por el chat de la reserva</Text>
             </View>
             <Button variant="secondary" size="sm" iconLeft="chat" label="Chat" onPress={onOpenChat} fullWidth={false} />
@@ -439,8 +500,9 @@ const styles = StyleSheet.create({
   noteTealTitle: { fontSize: 14, fontWeight: "700", color: colors.primary },
   noteTealText: { fontSize: 13, color: colors.primary, lineHeight: 19 },
   miniMap: {
-    height: 96,
+    height: 140,
     borderRadius: theme.radius.field,
+    overflow: "hidden",
     backgroundColor: colors.primary100,
     alignItems: "center",
     justifyContent: "center",

@@ -94,6 +94,7 @@ export { CompletarLicenciaScreen } from "./auth/screens/CompletarLicenciaScreen"
 export { BotonesOAuth } from "./components/BotonesOAuth";
 export { PROVEEDORES_OAUTH, redirectUriOAuth, iniciarSesionConProveedor } from "./utils/oauth";
 export { SegundoConductorModal } from "./screens/SegundoConductorModal";
+export { MandatoDuenoModal, verificarMandatoAceptado } from "./components/MandatoDuenoModal";
 export { showAlert } from "./utils/alert";
 export { traducirErrorAuth } from "./utils/authErrors";
 export { registrarPushToken } from "./utils/push";

@@ -16,6 +16,8 @@ import {
   LegalModal,
   AccountStatusCard,
   ModeSwitchRow,
+  MandatoDuenoModal,
+  verificarMandatoAceptado,
 } from "@rentacar/mobile-shared";
 
 /**
@@ -37,7 +39,9 @@ export function RenterProfileScreen({
   const { currentUser, reservations, logout, setMode } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
   const [showLegal, setShowLegal] = useState(false);
+  const [showMandato, setShowMandato] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [fotoError, setFotoError] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -79,6 +83,15 @@ export function RenterProfileScreen({
     : totalArriendos > 0
       ? `${totalArriendos} ${totalArriendos === 1 ? "arriendo" : "arriendos"}`
       : "Aún sin arriendos";
+
+  const handleSwitchToOwner = async () => {
+    const yaAcepto = await verificarMandatoAceptado(currentUser?.id);
+    if (!yaAcepto) {
+      setShowMandato(true);
+    } else {
+      setMode("owner");
+    }
+  };
 
   const handleLogout = () => {
     showAlert("Cerrar sesión", "¿Seguro que quieres salir de tu cuenta?", [
@@ -135,8 +148,12 @@ export function RenterProfileScreen({
             accessibilityRole="button"
             accessibilityLabel="Editar perfil"
           >
-            {user.foto_perfil_verificada_url ? (
-              <Image source={{ uri: user.foto_perfil_verificada_url }} style={styles.avatar} />
+            {(!fotoError && (user.foto_perfil_verificada_url || user.foto_perfil_url)) ? (
+              <Image
+                source={{ uri: user.foto_perfil_verificada_url || user.foto_perfil_url }}
+                style={styles.avatar}
+                onError={() => setFotoError(true)}
+              />
             ) : (
               <View style={[styles.avatar, styles.avatarEmpty]}>
                 <Icon name="user" size={24} color={colors.textMuted} />
@@ -177,7 +194,7 @@ export function RenterProfileScreen({
           target="owner"
           title="Cambiar a modo dueño"
           desc="Publica tu auto y recibe pagos por arriendo."
-          onPress={() => setMode("owner")}
+          onPress={handleSwitchToOwner}
         />
 
         <View style={styles.footerActions}>
@@ -196,6 +213,15 @@ export function RenterProfileScreen({
       </ScrollView>
 
       <LegalModal visible={showLegal} doc="terminos" onClose={() => setShowLegal(false)} />
+      <MandatoDuenoModal
+        visible={showMandato}
+        userId={currentUser?.id}
+        onClose={() => setShowMandato(false)}
+        onAccepted={() => {
+          setShowMandato(false);
+          setMode("owner");
+        }}
+      />
     </View>
   );
 }

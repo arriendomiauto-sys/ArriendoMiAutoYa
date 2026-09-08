@@ -141,7 +141,7 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
     <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
       <CabeceraOwner
         titulo="Ganancias"
-        subtitulo="80% neto de arriendos + 100% de compensaciones"
+        subtitulo="85% neto de arriendos + 100% de compensaciones"
         noLeidos={noLeidos}
         onMensajes={onOpenChat}
         right={

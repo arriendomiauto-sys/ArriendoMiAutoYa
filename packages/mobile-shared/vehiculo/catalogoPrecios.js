@@ -159,8 +159,8 @@ export function calcularDesgloseIva(tarifaConIva) {
   const bruta = aTramo(tarifaConIva);
   const neto = Math.round(bruta / 1.19);
   const iva = bruta - neto;
-  const comision = Math.round(bruta * 0.2);
-  const ganancia = Math.round(bruta * 0.8);
+  const comision = Math.round(bruta * 0.15);
+  const ganancia = Math.round(bruta * 0.85);
   return {
     tarifaBruta: bruta,
     subtotalNeto: neto,

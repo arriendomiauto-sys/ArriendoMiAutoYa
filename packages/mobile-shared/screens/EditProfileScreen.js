@@ -18,6 +18,7 @@ import { Icon } from "../components/Icon";
 import { ApiClient } from "../api/client";
 import { useApp } from "../context/AppContext";
 import { showAlert } from "../utils/alert";
+import { elegirYSubirImagen } from "../utils/imagenes";
 import {
   formatearTelefonoInput,
   normalizarTelefonoCompleto,
@@ -40,20 +41,75 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
   const errorTelefono =
     intentado && soloDigitos(telefono).length < 8 ? "Ingresa un móvil de 8 dígitos." : undefined;
 
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  const fotoActual = currentUser?.foto_perfil_verificada_url || currentUser?.foto_perfil_url;
+  const tieneFotoVerificada = !!currentUser?.foto_perfil_verificada_url;
+  const tieneFoto = !!fotoActual && !imgError;
+
+  const subirNuevaFoto = async (origen) => {
+    setSubiendoFoto(true);
+    try {
+      const res = await elegirYSubirImagen({
+        origen,
+        bucket: "general",
+        filename: `perfil_${currentUser?.id || "user"}_${Date.now()}.jpg`,
+        calidad: 0.8,
+        maxAncho: 800,
+        motivoPermiso:
+          origen === "camera"
+            ? "Necesitamos acceso a la cámara para tomar tu foto de perfil."
+            : "Necesitamos acceso a tu galería para elegir tu foto de perfil.",
+      });
+      if (res.cancelado || !res.url) return;
+
+      const perfil = await ApiClient.actualizarPerfilBasico({
+        nombre: nombre.trim() || currentUser?.nombre || "",
+        telefono: normalizarTelefonoCompleto(telefono || currentUser?.telefono || ""),
+        foto_perfil_url: res.url,
+      });
+      if (perfil && perfil.id) setCurrentUser(perfil);
+      else await syncProfile();
+      setImgError(false);
+      showAlert("Foto actualizada", "Tu foto de perfil quedó guardada exitosamente.");
+    } catch (err) {
+      showAlert("Error al subir foto", err.message || "No se pudo actualizar la foto de perfil.");
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
+
   const handleFotoPress = () => {
-    showAlert(
-      "Foto de verificación de identidad",
-      "Por seguridad en el traspaso del auto, tu foto de perfil proviene de tu selfie biométrica validada con tu cédula de identidad.\n\nPara actualizarla, debes realizar una nueva toma de verificación.",
-      [
-        {
-          text: "Actualizar selfie",
-          onPress: () => {
-            (onDone || onBack)?.();
-            onOpenKyc?.();
-          },
+    const opciones = [
+      {
+        text: "Elegir de la galería",
+        onPress: () => subirNuevaFoto("library"),
+      },
+      {
+        text: "Tomar foto con cámara",
+        onPress: () => subirNuevaFoto("camera"),
+      },
+    ];
+
+    if (onOpenKyc) {
+      opciones.push({
+        text: tieneFotoVerificada ? "Renovar selfie KYC" : "Verificar identidad con selfie (KYC)",
+        onPress: () => {
+          (onDone || onBack)?.();
+          onOpenKyc?.();
         },
-        { text: "Entendido", style: "cancel" },
-      ]
+      });
+    }
+
+    opciones.push({ text: "Cancelar", style: "cancel" });
+
+    showAlert(
+      "Foto de perfil",
+      tieneFotoVerificada
+        ? "Tu foto está validada mediante tu cédula. Puedes cambiar tu foto de perfil o renovar tu verificación KYC."
+        : "Elige una foto para tu perfil o completa tu verificación KYC con selfie.",
+      opciones
     );
   };
 
@@ -79,8 +135,6 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
     }
   };
 
-  const tieneFotoVerificada = !!currentUser?.foto_perfil_verificada_url;
-
   return (
     <View style={[styles.container, dark && { backgroundColor: colors.darkBg }]}>
       <StatusBar barStyle={dark ? "light-content" : "dark-content"} />
@@ -91,17 +145,18 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* AVATAR KYC (FOTO DE IDENTIDAD VERIFICADA) */}
+          {/* AVATAR KYC / PERFIL */}
           <View style={styles.avatarSection}>
             <TouchableOpacity
               style={styles.avatarWrapper}
               onPress={handleFotoPress}
               activeOpacity={0.8}
             >
-              {tieneFotoVerificada ? (
+              {tieneFoto ? (
                 <Image
-                  source={{ uri: currentUser.foto_perfil_verificada_url }}
+                  source={{ uri: fotoActual }}
                   style={styles.avatar}
+                  onError={() => setImgError(true)}
                 />
               ) : (
                 <View style={[styles.avatar, styles.avatarEmpty]}>
@@ -115,7 +170,7 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
                 ]}
               >
                 <Icon
-                  name={tieneFotoVerificada ? "check" : "shield"}
+                  name={tieneFotoVerificada ? "check" : tieneFoto ? "camera" : "shield"}
                   size={12}
                   color={colors.white}
                 />
@@ -124,12 +179,18 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
 
             <TouchableOpacity onPress={handleFotoPress} style={styles.hintContainer}>
               <Text style={[styles.verifiedBadgeText, dark && { color: colors.mint }]}>
-                {tieneFotoVerificada
+                {subiendoFoto
+                  ? "Subiendo foto..."
+                  : tieneFotoVerificada
                   ? "✓ Foto verificada con tu cédula"
-                  : "Foto de identidad pendiente"}
+                  : tieneFoto
+                  ? "Foto de perfil (Toca para cambiar)"
+                  : "Agregar foto de perfil"}
               </Text>
               <Text style={[styles.verifiedSubText, dark && { color: colors.textSilver }]}>
-                (Toca para renovar mediante selfie biométrica)
+                {tieneFotoVerificada
+                  ? "(Toca para cambiar foto o renovar KYC)"
+                  : "(Toca para subir foto de galería o cámara)"}
               </Text>
             </TouchableOpacity>
           </View>

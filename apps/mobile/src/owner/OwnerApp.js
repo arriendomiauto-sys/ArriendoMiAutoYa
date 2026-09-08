@@ -15,6 +15,8 @@ import {
   KycScreen,
   TarjetaScreen,
   EditProfileScreen,
+  MandatoDuenoModal,
+  verificarMandatoAceptado,
 } from "@rentacar/mobile-shared";
 
 // Screens del Dueño
@@ -73,6 +75,13 @@ export function OwnerApp() {
   const [selectedReservaForDelivery, setSelectedReservaForDelivery] = useState(null);
   const [selectedReservaForChat, setSelectedReservaForChat] = useState(null);
   const [selectedReservaForContract, setSelectedReservaForContract] = useState(null);
+  const [showMandato, setShowMandato] = useState(false);
+
+  useEffect(() => {
+    verificarMandatoAceptado(currentUser?.id).then((aceptado) => {
+      if (!aceptado) setShowMandato(true);
+    });
+  }, [currentUser?.id]);
 
   const abrirMensajes = () => setShowChat(true);
   const cerrarMensajes = () => {
@@ -303,6 +312,15 @@ export function OwnerApp() {
             setShowContract(false);
             setSelectedReservaForContract(null);
           }}
+        />
+      )}
+
+      {showMandato && (
+        <MandatoDuenoModal
+          visible={showMandato}
+          userId={currentUser?.id}
+          onClose={() => setShowMandato(false)}
+          onAccepted={() => setShowMandato(false)}
         />
       )}
     </View>

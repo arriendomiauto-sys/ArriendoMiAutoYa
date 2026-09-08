@@ -3,32 +3,54 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-nat
 import QRCode from "react-native-qrcode-svg";
 import { colors, theme, Button, Card, ScreenHeader, ApiClient } from "@rentacar/mobile-shared";
 
+const ROTATION_SECONDS = 30;
+
 // El código lo genera GET /reservas/{id}/generar-codigo (real, único por
-// reserva) y POST /entrega/validar-codigo lo valida en el backend. Se
-// muestra como QR escaneable y también como texto (para poca luz, etc.).
+// reserva) y POST /entrega/validar-codigo lo valida en el backend.
+// Por protocolo de seguridad se rota dinámicamente cada 30 segundos.
 export function MyQRCodeScreen({ reservation, onBack }) {
   const esDevolucion = reservation?.estado === "en_curso";
   const [codigo, setCodigo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(ROTATION_SECONDS);
 
-  const generar = useCallback(async () => {
+  const generar = useCallback(async (isSilent = false) => {
     if (!reservation?.id) return;
-    setLoading(true);
+    if (!isSilent) setLoading(true);
+    else setRefreshing(true);
     setError(null);
     try {
       const r = await ApiClient.generarCodigoQR(reservation.id);
       setCodigo(r.codigo_qr_hash);
+      setTimeLeft(ROTATION_SECONDS);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [reservation?.id]);
 
   useEffect(() => {
-    generar();
+    generar(false);
   }, [generar]);
+
+  // Rotación dinámica cada 30 segundos
+  useEffect(() => {
+    if (loading || error) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          generar(true);
+          return ROTATION_SECONDS;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading, error, generar]);
 
   const auto = reservation?.auto || reservation?.car || {};
 
@@ -47,16 +69,23 @@ export function MyQRCodeScreen({ reservation, onBack }) {
           {!loading && error && (
             <View style={{ alignItems: "center", gap: theme.spacing.md }}>
               <Text style={styles.errText}>{error}</Text>
-              <Button label="Reintentar" onPress={generar} fullWidth={false} size="sm" />
+              <Button label="Reintentar" onPress={() => generar(false)} fullWidth={false} size="sm" />
             </View>
           )}
           {!loading && !error && codigo && (
             <>
+              <View style={styles.timerBadge}>
+                <View style={[styles.timerDot, refreshing && styles.timerDotRefreshing]} />
+                <Text style={styles.timerText}>
+                  {refreshing ? "Actualizando código..." : `Seguridad dinámica • Cambia en ${timeLeft}s`}
+                </Text>
+              </View>
+
               <View style={styles.qrWrap}>
                 <QRCode value={codigo} size={190} color={colors.primary700} backgroundColor="#FFFFFF" />
               </View>
               <Text style={styles.codeText}>{codigo}</Text>
-              <Text style={styles.codeHint}>Código único de esta reserva</Text>
+              <Text style={styles.codeHint}>Código dinámico único de esta reserva</Text>
             </>
           )}
         </View>
@@ -96,6 +125,32 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: theme.spacing.xxl,
     gap: theme.spacing.sm,
+  },
+  timerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: theme.radius.pill || 20,
+    borderWidth: 1,
+    borderColor: colors.primary300,
+    marginBottom: 8,
+    gap: 6,
+  },
+  timerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  timerDotRefreshing: {
+    backgroundColor: colors.warning || "#F59E0B",
+  },
+  timerText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.primary700,
   },
   qrWrap: { padding: theme.spacing.md, backgroundColor: "#FFFFFF", borderRadius: theme.radius.field },
   codeText: {
