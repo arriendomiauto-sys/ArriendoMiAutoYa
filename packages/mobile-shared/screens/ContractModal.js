@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Linking } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Linking, Platform } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { useApp } from "../context/AppContext";
@@ -26,12 +26,44 @@ const CLAUSULAS = [
 export function ContractModal({ visible, onClose, reservation }) {
   const { currentUser } = useApp();
 
+  const [descargando, setDescargando] = React.useState(false);
+
   const descargarPdf = async () => {
+    if (descargando) return;
+    setDescargando(true);
     try {
-      const blob = await ApiClient.descargarContratoPdfBlob(reservation.id);
-      Linking.openURL(URL.createObjectURL(blob));
+      if (Platform.OS === "web") {
+        // En web sí existe URL.createObjectURL: se abre el blob en una pestaña.
+        const blob = await ApiClient.descargarContratoPdfBlob(reservation.id);
+        const url = URL.createObjectURL(blob);
+        if (typeof window !== "undefined" && window.open) window.open(url, "_blank");
+        else await Linking.openURL(url);
+        return;
+      }
+
+      // Nativo: descargar el PDF autenticado a un archivo y abrir la hoja de
+      // compartir del sistema (ver / guardar / imprimir). RN no tiene
+      // URL.createObjectURL, por eso no se puede usar el blob directamente.
+      const fileUri = await ApiClient.descargarContratoPdfArchivo(reservation.id);
+      let Sharing = null;
+      try {
+        Sharing = require("expo-sharing");
+      } catch {
+        Sharing = null;
+      }
+      if (Sharing && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Contrato digital de arriendo",
+          UTI: "com.adobe.pdf",
+        });
+      } else {
+        await Linking.openURL(fileUri);
+      }
     } catch (err) {
       showAlert("No se pudo abrir el contrato", err.message);
+    } finally {
+      setDescargando(false);
     }
   };
 
@@ -97,7 +129,12 @@ export function ContractModal({ visible, onClose, reservation }) {
               </ScrollView>
 
               <View style={styles.footer}>
-                <Button label="Ver / descargar PDF" onPress={descargarPdf} style={{ flex: 1.5 }} />
+                <Button
+                  label="Ver / descargar PDF"
+                  onPress={descargarPdf}
+                  loading={descargando}
+                  style={{ flex: 1.5 }}
+                />
                 <Button variant="secondary" label="Cerrar" onPress={onClose} style={{ flex: 1 }} />
               </View>
             </>

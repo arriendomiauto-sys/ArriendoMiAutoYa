@@ -461,6 +461,19 @@ export class ApiClient {
     });
   }
 
+  // Crea una sesión de verificación de identidad con el proveedor externo
+  // (Didit, flujo hosted). Devuelve { url, session_id, estado } para abrir en
+  // el navegador, o `null` si el backend no tiene la verificación externa
+  // habilitada (HTTP 503) — en ese caso la app sigue con el flujo de cámara.
+  static async crearSesionVerificacionExterna() {
+    try {
+      return await this.request("/enrolamiento/verificacion-externa/sesion", { method: "POST" });
+    } catch (err) {
+      if (err?.status === 503) return null;
+      throw err;
+    }
+  }
+
   // Valida solo la licencia (usuario ya verificado como dueño que quiere
   // arrendar). Devuelve el perfil con `licencia_estado` actualizado.
   static async completarLicencia(datos) {
@@ -699,6 +712,8 @@ export class ApiClient {
 
   // El PDF requiere sesión (Bearer token) — no se puede abrir como link
   // directo, hay que pedirlo autenticado y abrir el blob resultante.
+  // Solo se usa en web: en RN no existe URL.createObjectURL (ver
+  // descargarContratoPdfArchivo para nativo).
   static async descargarContratoPdfBlob(reservaId) {
     const token = await getAccessToken();
     const headers = {};
@@ -708,5 +723,24 @@ export class ApiClient {
       throw new Error(`No se pudo obtener el contrato (status ${response.status})`);
     }
     return response.blob();
+  }
+
+  // Nativo (iOS/Android): descarga el PDF autenticado a un archivo del caché
+  // y devuelve su file:// URI, para abrirlo con la hoja de compartir del
+  // sistema (expo-sharing). En RN no hay URL.createObjectURL, así que el
+  // flujo de blob de arriba no aplica acá.
+  static async descargarContratoPdfArchivo(reservaId) {
+    const { File, Paths } = require("expo-file-system");
+    const token = await getAccessToken();
+    const destino = new File(Paths.cache, `contrato-${reservaId}.pdf`);
+    const archivo = await File.downloadFileAsync(
+      this.getContratoPdfUrl(reservaId),
+      destino,
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        idempotent: true,
+      }
+    );
+    return archivo.uri;
   }
 }

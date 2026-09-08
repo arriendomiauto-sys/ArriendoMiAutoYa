@@ -46,7 +46,7 @@ const SEGUNDOS = 3;
 export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
-  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
+  const { width: SCREEN_W } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   // fase: "intro" | "contando" | "capturando" | "revisar"
@@ -74,24 +74,20 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
     onClose && onClose();
   };
 
-  // Recorta al óvalo: takePictureAsync captura todo el sensor y la cara
-  // quedaría chica en el centro. Mismo criterio que DocumentCameraModal.
+  // Recorta a un recuadro CENTRADO de la foto: takePictureAsync captura todo
+  // el sensor y la cara quedaría chica en el centro. El usuario apunta al
+  // óvalo, que está centrado en pantalla, así que la cara siempre queda
+  // alrededor del centro de la foto — recortar un recuadro centrado y holgado
+  // la encuadra sin depender de cómo escale el preview de la cámara (en
+  // Android `CameraView` no siempre es "cover"), que era lo que descentraba
+  // el resultado. Mismo criterio que DocumentCameraModal.
   const recortarAlOvalo = async (uri, pw, ph) => {
-    if (!pw || !ph || ph < pw) return uri;
+    if (!pw || !ph) return uri;
     try {
-      const s = Math.max(SCREEN_W / pw, SCREEN_H / ph);
-      const offX = (SCREEN_W - pw * s) / 2;
-      const offY = (SCREEN_H - ph * s) / 2;
-      const mx = frameW * 0.28;
-      const my = frameH * 0.24;
-      const cx = ((SCREEN_W - frameW) / 2 - mx - offX) / s;
-      const cy = ((SCREEN_H - frameH) / 2 - my - offY) / s;
-      const cw = (frameW + mx * 2) / s;
-      const ch = (frameH + my * 2) / s;
-      const originX = Math.max(0, Math.round(cx));
-      const originY = Math.max(0, Math.round(cy));
-      const width = Math.round(Math.min(cw, pw - originX));
-      const height = Math.round(Math.min(ch, ph - originY));
+      const width = Math.round(pw * 0.72);
+      const height = Math.round(ph * 0.82);
+      const originX = Math.round((pw - width) / 2);
+      const originY = Math.round((ph - height) / 2);
       if (width < 48 || height < 48) return uri;
       const out = await ImageManipulator.manipulateAsync(
         uri,
@@ -221,16 +217,21 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
       <View style={styles.flex}>
         <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
 
-        {/* Máscara oscura con óvalo transparente CENTRADO */}
-        <View style={styles.maskRow}>
-          <View style={styles.maskSide} />
-          <View style={[styles.window, { width: frameW, height: frameH, borderRadius: frameH / 2 }]}>
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
-            <View style={[styles.corner, styles.cornerBR]} />
+        {/* Máscara oscura (arriba / abajo / lados) con el óvalo transparente
+            centrado en el área visible. */}
+        <View style={[styles.maskFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+          <View style={styles.maskBlock} />
+          <View style={[styles.maskMiddle, { height: frameH }]}>
+            <View style={styles.maskBlock} />
+            <View style={[styles.window, { width: frameW, height: frameH, borderRadius: frameH / 2 }]}>
+              <View style={[styles.corner, styles.cornerTL]} />
+              <View style={[styles.corner, styles.cornerTR]} />
+              <View style={[styles.corner, styles.cornerBL]} />
+              <View style={[styles.corner, styles.cornerBR]} />
+            </View>
+            <View style={styles.maskBlock} />
           </View>
-          <View style={styles.maskSide} />
+          <View style={styles.maskBlock} />
         </View>
 
         {/* Cuenta regresiva grande sobre el óvalo */}
@@ -319,8 +320,9 @@ const styles = StyleSheet.create({
   permBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
   permCancel: { color: "#94A3B8", fontSize: 14 },
 
-  maskRow: { ...StyleSheet.absoluteFillObject, flexDirection: "row", alignItems: "center" },
-  maskSide: { flex: 1, alignSelf: "stretch", backgroundColor: DIM },
+  maskFill: { ...StyleSheet.absoluteFillObject, flexDirection: "column" },
+  maskMiddle: { flexDirection: "row" },
+  maskBlock: { flex: 1, backgroundColor: DIM },
   window: {
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.9)",

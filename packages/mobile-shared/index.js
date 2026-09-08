@@ -16,6 +16,7 @@ export {
   BottomBar,
 } from "./components/ui";
 export { Icon } from "./components/Icon";
+export { AvatarFoto } from "./components/AvatarFoto";
 export { TabBar } from "./components/TabBar";
 export { BrandLogo } from "./components/BrandLogo";
 export { VerifyIdentityBanner } from "./components/VerifyIdentityBanner";

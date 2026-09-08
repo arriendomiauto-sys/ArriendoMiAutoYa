@@ -28,11 +28,18 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
 
   const [form, setForm] = useState({
     nombre: "",
+    apellido: "",
     email: "",
     telefono: "",
     password: "",
     confirmPassword: "",
   });
+
+  // El backend guarda un único campo `nombre`. Acá se piden nombre y apellido
+  // por separado solo para que el usuario no meta todo en un campo (y para
+  // que el nombre declarado se parezca más al de la cédula); se combinan
+  // antes de enviarlos.
+  const nombreCompleto = `${form.nombre.trim()} ${form.apellido.trim()}`.trim();
 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,7 +58,11 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
 
   const handleRegister = async () => {
     if (!form.nombre.trim()) {
-      showAlert("Campo requerido", "Por favor ingresa tu nombre completo.");
+      showAlert("Campo requerido", "Por favor ingresa tu nombre.");
+      return;
+    }
+    if (!form.apellido.trim()) {
+      showAlert("Campo requerido", "Por favor ingresa tu apellido.");
       return;
     }
     if (!form.email.trim()) {
@@ -94,7 +105,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         // no hace falta forzar ningún paso más acá.
         try {
           await ApiClient.actualizarPerfilBasico({
-            nombre: form.nombre.trim(),
+            nombre: nombreCompleto,
             telefono: normalizarTelefonoCompleto(form.telefono),
           });
         } catch (err) {
@@ -168,10 +179,18 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         </View>
 
         <Field
-          label="Nombre completo"
+          label="Nombre"
           value={form.nombre}
           onChangeText={set("nombre")}
-          placeholder="Ej. Rodrigo Muñoz"
+          placeholder="Ej. Rodrigo"
+          autoCapitalize="words"
+        />
+
+        <Field
+          label="Apellido"
+          value={form.apellido}
+          onChangeText={set("apellido")}
+          placeholder="Ej. Muñoz"
           autoCapitalize="words"
         />
 

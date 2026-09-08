@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../theme/colors";
@@ -65,6 +66,17 @@ function cargarEscanerCedula() {
   }
 }
 
+// expo-web-browser vive en la app, no en mobile-shared: require perezoso para
+// no romper si un runtime no lo tiene (cae a Linking.openURL).
+function cargarWebBrowser() {
+  try {
+    const mod = require("expo-web-browser");
+    return mod?.default ?? mod;
+  } catch {
+    return null;
+  }
+}
+
 // Valida un RUT chileno con el dígito verificador Módulo 11.
 function isRutValid(rutRaw) {
   if (!rutRaw) return false;
@@ -87,6 +99,7 @@ function isRutValid(rutRaw) {
 
 export function KycScreen({ onBack, onComplete, role = "renter", prefill = null }) {
   const { currentUser, completeEnrolment, syncProfile } = useApp();
+  const insets = useSafeAreaInsets();
   const isOwner = role === "owner";
 
   const yaVerificado = currentUser?.estado_documentos === "verificado";
@@ -121,6 +134,14 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const [picUrl, setPicUrl] = useState(null);
 
   const esExtranjero = tipoDocumento !== "rut";
+
+  // Verificación de identidad con proveedor externo (Didit, flujo hosted).
+  // Si el backend la tiene habilitada, `crearSesionVerificacionExterna`
+  // devuelve una URL y el flujo de cámara de cédula/selfie se reemplaza por
+  // ese paso; si no (HTTP 503 -> null), se sigue con la cámara de siempre.
+  const [sesionExterna, setSesionExterna] = useState(null);
+  const [abriendoExterna, setAbriendoExterna] = useState(false);
+  const estadoExterno = currentUser?.verificacion_externa_estado || null;
 
   // URLs de Supabase Storage tras subir cada documento capturado.
   const [carnetFrontalUrl, setCarnetFrontalUrl] = useState(null);
@@ -177,6 +198,43 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       bucket: "documentos-kyc",
       ...AJUSTES_DOCUMENTO,
     });
+  };
+
+  // Intenta arrancar la verificación con proveedor externo. Devuelve true si
+  // se abrió ese paso; false si el backend no la tiene habilitada (entonces
+  // el llamador sigue con el flujo de cámara).
+  const iniciarKycExterno = async () => {
+    setCapturing(true);
+    try {
+      const sesion = await ApiClient.crearSesionVerificacionExterna();
+      if (sesion?.url) {
+        setSesionExterna(sesion);
+        setCurrentStep("01_verificacion_externa");
+        return true;
+      }
+    } catch (err) {
+      showAlert("No se pudo iniciar la verificación", err.message || "Inténtalo de nuevo.");
+    } finally {
+      setCapturing(false);
+    }
+    return false;
+  };
+
+  // Abre la sesión hosted del proveedor y, al volver, refresca el perfil para
+  // reflejar el estado nuevo (el veredicto real llega por webhook al backend).
+  const abrirVerificacionExterna = async () => {
+    if (!sesionExterna?.url) return;
+    setAbriendoExterna(true);
+    try {
+      const WB = cargarWebBrowser();
+      if (WB?.openBrowserAsync) await WB.openBrowserAsync(sesionExterna.url);
+      else await Linking.openURL(sesionExterna.url);
+      await syncProfile();
+    } catch (err) {
+      showAlert("No se pudo abrir la verificación", err.message || "Inténtalo de nuevo.");
+    } finally {
+      setAbriendoExterna(false);
+    }
   };
 
   // Reinicia el flujo desde la captura de la cédula, borrando lo ya subido.
@@ -356,11 +414,11 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       if (slot === "licencia") {
         const url = await subirDocumento(uri, "licencia_conducir");
         setLicenciaUrl(url);
-        setCurrentStep("03_facial");
+        setCurrentStep(sesionExterna ? "04_tarjeta" : "03_facial");
       } else if (slot === "pic") {
         const url = await subirDocumento(uri, "permiso_internacional");
         setPicUrl(url);
-        setCurrentStep("03_facial");
+        setCurrentStep(sesionExterna ? "04_tarjeta" : "03_facial");
       }
     } catch (err) {
       console.error("[KycScreen] handleFotoCapturada:", err);
@@ -490,7 +548,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       }
       const url = await subirDocumento(resultado.scannedImages[0], "licencia_conducir");
       setLicenciaUrl(url);
-      setCurrentStep("03_facial");
+      setCurrentStep(sesionExterna ? "04_tarjeta" : "03_facial");
     } catch (err) {
       console.error("[KycScreen] escanearLicencia:", err);
       showAlert("No se pudo escanear la licencia", err.message || "Inténtalo de nuevo.");
@@ -517,7 +575,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       }
       const url = await subirDocumento(resultado.scannedImages[0], "permiso_internacional");
       setPicUrl(url);
-      setCurrentStep("03_facial");
+      setCurrentStep(sesionExterna ? "04_tarjeta" : "03_facial");
     } catch (err) {
       console.error("[KycScreen] escanearPic:", err);
       showAlert("No se pudo escanear el documento", err.message || "Inténtalo de nuevo.");
@@ -578,12 +636,21 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       }
     }
 
-    if (!carnetFrontalUrl) {
+    if (!carnetFrontalUrl && !sesionExterna) {
       showAlert(
         "Falta la foto de tu cédula",
         "Debes fotografiar tu cédula de identidad con la cámara antes de continuar."
       );
       setCurrentStep("01_cedula");
+      return;
+    }
+
+    if (sesionExterna && !["aprobada", "revision"].includes(estadoExterno)) {
+      showAlert(
+        "Verificación de identidad pendiente",
+        "Abre la verificación y termínala antes de continuar. Si ya la hiciste, toca “Ya terminé”."
+      );
+      setCurrentStep("01_verificacion_externa");
       return;
     }
 
@@ -699,6 +766,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
 
   const isDarkScreen =
     currentStep === "01_cedula" ||
+    currentStep === "01_verificacion_externa" ||
     currentStep === "02_licencia" ||
     currentStep === "03_facial";
 
@@ -727,7 +795,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           keyboardShouldPersistTaps="handled"
         >
           <TouchableOpacity
-            onPress={() => setCurrentStep("03_facial")}
+            onPress={() =>
+              setCurrentStep(
+                sesionExterna
+                  ? (isOwner ? "01_verificacion_externa" : "02_licencia")
+                  : "03_facial"
+              )
+            }
             style={styles.reviewBackBtn}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
@@ -873,10 +947,22 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
           <View style={{ width: "100%", paddingHorizontal: 4 }}>
             <TouchableOpacity
               style={styles.primaryCta}
-              onPress={() => setCurrentStep("01_cedula")}
+              onPress={async () => {
+                // Chileno con RUT: se intenta primero la verificación externa
+                // (Didit). Si el backend no la tiene habilitada, cae al flujo
+                // de cámara de siempre. El extranjero va directo a cámara.
+                if (capturing) return;
+                if (!esExtranjero && (await iniciarKycExterno())) return;
+                setCurrentStep("01_cedula");
+              }}
+              disabled={capturing}
               activeOpacity={0.85}
             >
-              <Text style={styles.primaryCtaText}>Continuar</Text>
+              {capturing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryCtaText}>Continuar</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -884,10 +970,100 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       )}
 
       {/* ========================================================================= */}
+      {/* 01: VERIFICACIÓN DE IDENTIDAD CON PROVEEDOR EXTERNO (Didit) */}
+      {/* ========================================================================= */}
+      {currentStep === "01_verificacion_externa" && (
+        <View style={[styles.cameraStepBox, { paddingBottom: 32 + insets.bottom }]}>
+          <View style={styles.camTopBar}>
+            <TouchableOpacity
+              onPress={() => setCurrentStep("00_nacionalidad")}
+              style={styles.backBtnTouch}
+            >
+              <Icon name="arrow-left" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.camTopTitle}>Verificación de Identidad</Text>
+            <Text style={styles.camTopStep}>Paso 1 de {isOwner ? "2" : "3"}</Text>
+          </View>
+
+          <View style={styles.stepperBar}>
+            <View style={[styles.barSegment, { backgroundColor: colors.accent500 }]} />
+            <View style={styles.barSegment} />
+            {!isOwner && <View style={styles.barSegment} />}
+          </View>
+
+          <View style={styles.selfieIntro}>
+            <View style={styles.selfieIconCircle}>
+              <Icon
+                name={
+                  estadoExterno === "aprobada"
+                    ? "check"
+                    : estadoExterno === "rechazada"
+                      ? "close"
+                      : "shield"
+                }
+                size={34}
+                color="#FFFFFF"
+              />
+            </View>
+            <Text style={styles.guideTitle}>
+              {estadoExterno === "aprobada"
+                ? "Identidad verificada"
+                : estadoExterno === "revision"
+                  ? "En revisión"
+                  : estadoExterno === "rechazada"
+                    ? "No pudimos verificarte"
+                    : "Verifica tu identidad"}
+            </Text>
+            <Text style={styles.selfieIntroSub}>
+              {estadoExterno === "aprobada"
+                ? "Listo. Ya puedes continuar."
+                : estadoExterno === "revision"
+                  ? "Un ejecutivo revisa tu caso. Puedes continuar; te avisamos apenas quede lista tu cuenta."
+                  : estadoExterno === "rechazada"
+                    ? "La verificación no pasó. Vuelve a intentarla; si el problema sigue, escríbenos a soporte."
+                    : "Te abriremos una página segura para fotografiar tu cédula y hacer una selfie con prueba de vida. Toma menos de 2 minutos."}
+            </Text>
+          </View>
+
+          <View style={styles.ctaArea}>
+            {["aprobada", "revision"].includes(estadoExterno) ? (
+              <TouchableOpacity
+                style={styles.primaryCta}
+                onPress={() => setCurrentStep(isOwner ? "04_tarjeta" : "02_licencia")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.primaryCtaText}>Continuar</Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={styles.primaryCta}
+                  onPress={abrirVerificacionExterna}
+                  disabled={abriendoExterna}
+                  activeOpacity={0.85}
+                >
+                  {abriendoExterna ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.primaryCtaText}>
+                      {estadoExterno === "rechazada" ? "Volver a intentar" : "Abrir verificación"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={syncProfile} disabled={abriendoExterna}>
+                  <Text style={styles.skipText}>Ya terminé — actualizar estado</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* ========================================================================= */}
       {/* 01: CÉDULA DE IDENTIDAD */}
       {/* ========================================================================= */}
       {currentStep === "01_cedula" && (
-        <View style={styles.cameraStepBox}>
+        <View style={[styles.cameraStepBox, { paddingBottom: 32 + insets.bottom }]}>
           <View style={styles.camTopBar}>
             <TouchableOpacity
               onPress={() => {
@@ -958,12 +1134,16 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       {/* 02: LICENCIA DE CONDUCIR (ARRENDATARIO) */}
       {/* ========================================================================= */}
       {currentStep === "02_licencia" && (
-        <View style={styles.cameraStepBox}>
+        <View style={[styles.cameraStepBox, { paddingBottom: 32 + insets.bottom }]}>
           <View style={styles.camTopBar}>
             <TouchableOpacity
               onPress={() => {
-                setCedulaSide("back");
-                setCurrentStep("01_cedula");
+                if (sesionExterna) {
+                  setCurrentStep("01_verificacion_externa");
+                } else {
+                  setCedulaSide("back");
+                  setCurrentStep("01_cedula");
+                }
               }}
               style={styles.backBtnTouch}
             >
@@ -1017,7 +1197,9 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => setCurrentStep("03_facial")}>
+            <TouchableOpacity
+              onPress={() => setCurrentStep(sesionExterna ? "04_tarjeta" : "03_facial")}
+            >
               <Text style={styles.skipText}>
                 ¿No tienes tu licencia ahora? Puedes continuar y subirla después.
               </Text>
@@ -1030,7 +1212,7 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
       {/* 03: SELFIE DE VERIFICACIÓN */}
       {/* ========================================================================= */}
       {currentStep === "03_facial" && (
-        <View style={styles.cameraStepBox}>
+        <View style={[styles.cameraStepBox, { paddingBottom: 32 + insets.bottom }]}>
           <View style={styles.camTopBar}>
             <TouchableOpacity
               onPress={() => setCurrentStep(isOwner ? "01_cedula" : "02_licencia")}
@@ -1300,12 +1482,14 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
                 <View
                   style={[
                     styles.checkDone,
-                    !carnetFrontalUrl && styles.checkPending,
+                    !carnetFrontalUrl && !sesionExterna && styles.checkPending,
                   ]}
                 >
                   <Icon name="check" size={14} color="#FFFFFF" />
                 </View>
-                <Text style={styles.checkText}>Cédula de Identidad capturada</Text>
+                <Text style={styles.checkText}>
+                  {sesionExterna ? "Identidad verificada" : "Cédula de Identidad capturada"}
+                </Text>
               </View>
 
               <View style={styles.checkItem}>
@@ -1339,20 +1523,31 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
               </View>
 
               <View style={styles.checkItem}>
-                <View style={[styles.checkDone, !selfieUrl && styles.checkPending]}>
-                  <Icon name="check" size={14} color="#FFFFFF" />
-                </View>
-                <Text style={styles.checkText}>Selfie de verificación capturada</Text>
-              </View>
-
-              <View style={styles.checkItem}>
-                <View style={[styles.checkDone, edadCarnet === null && styles.checkPending]}>
+                <View style={[styles.checkDone, !selfieUrl && !sesionExterna && styles.checkPending]}>
                   <Icon name="check" size={14} color="#FFFFFF" />
                 </View>
                 <Text style={styles.checkText}>
-                  {edadCarnet === null
-                    ? `Edad (${EDAD_MINIMA_ARRENDATARIO}+): se valida con tu cédula`
-                    : `Edad verificada en tu cédula: ${edadCarnet} años`}
+                  {sesionExterna
+                    ? "Selfie con prueba de vida"
+                    : "Selfie de verificación capturada"}
+                </Text>
+              </View>
+
+              <View style={styles.checkItem}>
+                <View
+                  style={[
+                    styles.checkDone,
+                    edadCarnet === null && !sesionExterna && styles.checkPending,
+                  ]}
+                >
+                  <Icon name="check" size={14} color="#FFFFFF" />
+                </View>
+                <Text style={styles.checkText}>
+                  {sesionExterna
+                    ? `Edad (${EDAD_MINIMA_ARRENDATARIO}+): la valida la verificación`
+                    : edadCarnet === null
+                      ? `Edad (${EDAD_MINIMA_ARRENDATARIO}+): se valida con tu cédula`
+                      : `Edad verificada en tu cédula: ${edadCarnet} años`}
                 </Text>
               </View>
 

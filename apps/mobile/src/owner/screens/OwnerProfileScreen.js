@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
   theme,
   useApp,
   Icon,
+  AvatarFoto,
   Button,
   MenuList,
   MenuRow,
@@ -40,7 +41,6 @@ export function OwnerProfileScreen({
   const [calificaciones, setCalificaciones] = useState([]);
   const [showLegal, setShowLegal] = useState(false);
   const [eliminando, setEliminando] = useState(false);
-  const [fotoError, setFotoError] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -134,17 +134,7 @@ export function OwnerProfileScreen({
             accessibilityRole="button"
             accessibilityLabel="Editar perfil"
           >
-            {(!fotoError && (user.foto_perfil_verificada_url || user.foto_perfil_url)) ? (
-              <Image
-                source={{ uri: user.foto_perfil_verificada_url || user.foto_perfil_url }}
-                style={styles.avatar}
-                onError={() => setFotoError(true)}
-              />
-            ) : (
-              <View style={[styles.avatar, styles.avatarEmpty]}>
-                <Icon name="user" size={24} color={colors.textMuted} />
-              </View>
-            )}
+            <AvatarFoto size={56} iconSize={24} />
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={styles.name} numberOfLines={1}>
                 {nombre}
@@ -222,8 +212,6 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     padding: theme.spacing.lg,
   },
-  avatar: { width: 56, height: 56, borderRadius: 28 },
-  avatarEmpty: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   name: { fontSize: 18, fontWeight: "700", color: colors.text },
   sub: { fontSize: 13, color: colors.textMuted },
   editHint: { flexDirection: "row", alignItems: "center", gap: 4 },

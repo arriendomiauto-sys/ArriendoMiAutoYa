@@ -96,10 +96,8 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
 
   // useWindowDimensions (reactivo) en vez de Dimensions.get("window") (una
   // sola foto tomada al montar): en Android edge-to-edge la medida inicial
-  // puede llegar mal, y esto es justo lo que usa el recorte para saber
-  // dónde estaba el marco — un valor viejo dejaba el documento mal
-  // encuadrado en la foto final aunque el marco en pantalla se viera bien.
-  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
+  // puede llegar mal y dejaría el marco de guía con un ancho equivocado.
+  const { width: SCREEN_W } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const esVehiculo = cfg.shape === "wide";
   const frameW = Math.min(SCREEN_W - (esVehiculo ? 24 : 48), esVehiculo ? 520 : 420);
@@ -117,25 +115,27 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     onClose && onClose();
   };
 
-  // Recorta la foto a la ventana guía. `takePictureAsync` captura TODO el
-  // sensor, no solo el recuadro, así que sin esto el documento queda chico
-  // en el centro y el OCR del backend no lo lee.
+  // Recorta la foto a una ventana CENTRADA de la imagen. `takePictureAsync`
+  // captura todo el sensor, no solo el recuadro: sin recortar, el documento
+  // queda chico y con mucho margen y el OCR del backend no lo lee.
+  //
+  // El usuario apunta al marco, que está centrado en pantalla, así que el
+  // documento SIEMPRE queda alrededor del centro de la foto. Recortar un
+  // recuadro centrado y generoso lo encuadra sin depender de cómo escale el
+  // preview de la cámara (en Android `CameraView` no siempre es "cover"):
+  // ese cálculo por geometría de pantalla era justo lo que descentraba y
+  // recortaba mal el resultado en los equipos sin escaneo automático.
   const recortarAlMarco = async (uri, pw, ph) => {
-    if (!pw || !ph || ph < pw) return uri; // orientación rara: subir sin recortar
+    if (!pw || !ph) return uri;
     try {
-      const s = Math.max(SCREEN_W / pw, SCREEN_H / ph); // preview en modo "cover"
-      const offX = (SCREEN_W - pw * s) / 2;
-      const offY = (SCREEN_H - ph * s) / 2;
-      const mx = cfg.shape === "face" ? frameW * 0.22 : frameW * 0.06;
-      const my = cfg.shape === "face" ? frameH * 0.22 : frameH * 0.1;
-      const cx = ((SCREEN_W - frameW) / 2 - mx - offX) / s;
-      const cy = ((SCREEN_H - frameH) / 2 - my - offY) / s;
-      const cw = (frameW + mx * 2) / s;
-      const ch = (frameH + my * 2) / s;
-      const originX = Math.max(0, Math.round(cx));
-      const originY = Math.max(0, Math.round(cy));
-      const width = Math.round(Math.min(cw, pw - originX));
-      const height = Math.round(Math.min(ch, ph - originY));
+      // Fracción de la imagen que se conserva. Holgada a propósito: más vale
+      // algo de fondo de sobra que cortar una esquina del documento.
+      const fracW = cfg.shape === "face" ? 0.72 : 0.9;
+      const fracH = cfg.shape === "face" ? 0.82 : 0.58;
+      const width = Math.round(pw * fracW);
+      const height = Math.round(ph * fracH);
+      const originX = Math.round((pw - width) / 2);
+      const originY = Math.round((ph - height) / 2);
       if (width < 48 || height < 48) return uri;
       const out = await ImageManipulator.manipulateAsync(
         uri,
@@ -336,37 +336,44 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
       <View style={styles.flex}>
         <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cfg.facing} />
 
-        {/* Máscara oscura con ventana transparente en el centro */}
-        <View style={styles.maskRow}>
-          <View style={styles.maskSide} />
-          <View
-            style={[
-              styles.window,
-              { width: frameW, height: frameH, borderRadius: cfg.shape === "face" ? frameH / 2 : 16 },
-            ]}
-          >
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
-            <View style={[styles.corner, styles.cornerBR]} />
+        {/* Máscara oscura (arriba / abajo / lados) con la ventana transparente
+            centrada. Antes solo oscurecía los costados y el marco se
+            posicionaba con geometría de pantalla, lo que lo dejaba
+            descentrado en varios equipos. */}
+        <View style={[styles.maskFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+          <View style={styles.maskBlock} />
+          <View style={[styles.maskMiddle, { height: frameH }]}>
+            <View style={styles.maskBlock} />
+            <View
+              style={[
+                styles.window,
+                { width: frameW, height: frameH, borderRadius: cfg.shape === "face" ? frameH / 2 : 16 },
+              ]}
+            >
+              <View style={[styles.corner, styles.cornerTL]} />
+              <View style={[styles.corner, styles.cornerTR]} />
+              <View style={[styles.corner, styles.cornerBL]} />
+              <View style={[styles.corner, styles.cornerBR]} />
 
-            {cfg.censurarPatente ? (
-              <View
-                style={[
-                  styles.bandaPatente,
-                  {
-                    left: (BANDA_PATENTE.cx - BANDA_PATENTE.w / 2) * frameW,
-                    top: (BANDA_PATENTE.cy - BANDA_PATENTE.h / 2) * frameH,
-                    width: BANDA_PATENTE.w * frameW,
-                    height: BANDA_PATENTE.h * frameH,
-                  },
-                ]}
-              >
-                <Text style={styles.bandaTexto}>Patente aquí</Text>
-              </View>
-            ) : null}
+              {cfg.censurarPatente ? (
+                <View
+                  style={[
+                    styles.bandaPatente,
+                    {
+                      left: (BANDA_PATENTE.cx - BANDA_PATENTE.w / 2) * frameW,
+                      top: (BANDA_PATENTE.cy - BANDA_PATENTE.h / 2) * frameH,
+                      width: BANDA_PATENTE.w * frameW,
+                      height: BANDA_PATENTE.h * frameH,
+                    },
+                  ]}
+                >
+                  <Text style={styles.bandaTexto}>Patente aquí</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.maskBlock} />
           </View>
-          <View style={styles.maskSide} />
+          <View style={styles.maskBlock} />
         </View>
 
         {/* Top bar */}
@@ -426,8 +433,9 @@ const styles = StyleSheet.create({
   permCancel: { color: "#94A3B8", fontSize: 14 },
 
   // Máscara / ventana
-  maskRow: { ...StyleSheet.absoluteFillObject, flexDirection: "row", alignItems: "center" },
-  maskSide: { flex: 1, alignSelf: "stretch", backgroundColor: DIM },
+  maskFill: { ...StyleSheet.absoluteFillObject, flexDirection: "column" },
+  maskMiddle: { flexDirection: "row" },
+  maskBlock: { flex: 1, backgroundColor: DIM },
   window: {
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.9)",

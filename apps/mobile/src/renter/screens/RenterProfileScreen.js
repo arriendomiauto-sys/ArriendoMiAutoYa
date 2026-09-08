@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, StatusBar, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, StatusBar, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
   theme,
   useApp,
   Icon,
+  AvatarFoto,
   Card,
   Button,
   MenuList,
@@ -41,7 +42,6 @@ export function RenterProfileScreen({
   const [showLegal, setShowLegal] = useState(false);
   const [showMandato, setShowMandato] = useState(false);
   const [eliminando, setEliminando] = useState(false);
-  const [fotoError, setFotoError] = useState(false);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -148,17 +148,7 @@ export function RenterProfileScreen({
             accessibilityRole="button"
             accessibilityLabel="Editar perfil"
           >
-            {(!fotoError && (user.foto_perfil_verificada_url || user.foto_perfil_url)) ? (
-              <Image
-                source={{ uri: user.foto_perfil_verificada_url || user.foto_perfil_url }}
-                style={styles.avatar}
-                onError={() => setFotoError(true)}
-              />
-            ) : (
-              <View style={[styles.avatar, styles.avatarEmpty]}>
-                <Icon name="user" size={24} color={colors.textMuted} />
-              </View>
-            )}
+            <AvatarFoto size={56} iconSize={24} />
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={styles.name} numberOfLines={1}>
                 {user.nombre || user.email || "Mi cuenta"}
@@ -237,8 +227,6 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     padding: theme.spacing.lg,
   },
-  avatar: { width: 56, height: 56, borderRadius: 28 },
-  avatarEmpty: { backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   name: { fontSize: 18, fontWeight: "700", color: colors.text },
   actividad: { fontSize: 13, color: colors.textMuted },
   editHint: { flexDirection: "row", alignItems: "center", gap: 4 },
