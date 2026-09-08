@@ -171,6 +171,40 @@ def completar_enrolamiento(
     if current_user.estado_documentos == "verificado":
         return current_user
 
+    # --- Verificación de identidad con proveedor externo (Didit) -----------
+    # Con el flag encendido, la identidad + control facial la resuelve Didit
+    # (sesión hosta previa) y el resultado llega por webhook. Acá solo se lee
+    # ese veredicto; si el webhook aún no llegó, se relee por API.
+    identidad_por_proveedor = False
+    if verificacion_didit.esta_habilitado():
+        estado_ext = current_user.verificacion_externa_estado
+        if estado_ext in (None, "no_iniciada", "pendiente") and current_user.verificacion_externa_ref:
+            decision = verificacion_didit.obtener_decision(current_user.verificacion_externa_ref)
+            if decision:
+                estado_ext = verificacion_didit.interpretar_payload(decision)["estado"]
+                current_user.verificacion_externa_estado = estado_ext
+                current_user.verificacion_externa_actualizada = datetime.utcnow()
+                db.commit()
+
+        if estado_ext == "rechazada":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "motivo": (current_user.notas_auditoria
+                              or "La verificación de identidad no pasó. Puedes reintentarla o escribir a soporte."),
+                    "categoria": "verificacion",
+                },
+            )
+        if estado_ext not in ("aprobada", "revision"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "motivo": "Primero completa la verificación de identidad con el enlace que te enviamos.",
+                    "categoria": "verificacion_externa_pendiente",
+                },
+            )
+        identidad_por_proveedor = True
+
     # El chileno se identifica con RUT (Módulo 11); el extranjero con pasaporte
     # o DNI de su país. ClaveÚnica no es alternativa: solo la integran
     # organismos del Estado, no una empresa privada.
@@ -233,17 +267,51 @@ def completar_enrolamiento(
         nombre_cuenta=payload.nombre,
     )
 
-    # Procesar documentos para calcular confianza
-    resultado_ocr = OCRService.procesar_documentos_enrolamiento(
-        carnet_frontal_url=payload.carnet_frontal_url,
-        carnet_trasero_url=payload.carnet_trasero_url,
-        licencia_url=payload.licencia_url,
-        rut_usuario=payload.rut,
-        selfie_url=payload.foto_perfil_verificada_url,
-        selfie_liveness_url=payload.selfie_liveness_url,
-        tipo_documento=payload.tipo_documento,
-        pais_documento=payload.pais_documento,
-    )
+    # Procesar documentos para calcular confianza.
+    #
+    # Con la identidad ya resuelta por el proveedor externo y sin fotos de
+    # cédula en el payload (el flujo hosted no las manda), el OCR de cédula no
+    # aplica: se sintetiza el resultado según el veredicto de Didit. Si igual
+    # llegaron fotos (flujo dueño), se corre el OCR normal como red extra.
+    if identidad_por_proveedor and not payload.carnet_frontal_url:
+        _ext_ok = current_user.verificacion_externa_estado == "aprobada"
+        # La cédula ya la validó Didit; acá solo se revisa la licencia si vino
+        # (mismo criterio liviano que POST /completar-licencia).
+        _lic_a_soporte = False
+        if payload.licencia_url:
+            _lic_bytes = OCRService.descargar_imagen_bytes(payload.licencia_url)
+            _texto_lic, _ = (
+                OCRService.llamar_google_vision_api(_lic_bytes) if _lic_bytes else (None, 0.0)
+            )
+            _api_key, _tiene_creds = OCRService._credenciales_vision()
+            _vision_on = bool(_api_key or _tiene_creds) and not settings.USE_OCR_MOCK
+            _lic_a_soporte = (
+                (_vision_on and bool(_lic_bytes) and not _texto_lic)
+                or (bool(_texto_lic) and OCRService.clasificar_documento(_texto_lic) != "licencia")
+            )
+        resultado_ocr = {
+            "estado_recomendado": "verificado" if _ext_ok else "requiere_revision_manual",
+            "documentos_legibles": True,
+            "confianza_ocr": 0.99 if _ext_ok else 0.7,
+            "rut_extraido": payload.rut,
+            "nombre_extraido": payload.nombre,
+            "coincide_rut_declarado": True,
+            "verificacion_facial": "ok" if _ext_ok else "revision",
+            "licencia_a_soporte": _lic_a_soporte,
+            "motivo": None if _ext_ok else "Verificación de identidad en revisión por el proveedor.",
+            "es_mock": False,
+        }
+    else:
+        resultado_ocr = OCRService.procesar_documentos_enrolamiento(
+            carnet_frontal_url=payload.carnet_frontal_url,
+            carnet_trasero_url=payload.carnet_trasero_url,
+            licencia_url=payload.licencia_url,
+            rut_usuario=payload.rut,
+            selfie_url=payload.foto_perfil_verificada_url,
+            selfie_liveness_url=payload.selfie_liveness_url,
+            tipo_documento=payload.tipo_documento,
+            pais_documento=payload.pais_documento,
+        )
 
     # Un rechazo del OCR bloquea el enrolamiento de verdad: no se otorga el
     # rol "cliente" ni se cobra el hold de garantía sobre documentos que la

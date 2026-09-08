@@ -43,13 +43,22 @@ async def webhook_didit(request: Request, db: Session = Depends(get_db)):
     raw = await request.body()
 
     if not verificacion_didit.verificar_firma_webhook(raw, request.headers):
-        # 401: firma inválida o secret sin configurar. No revela cuál.
+        # 401: firma inválida o secret sin configurar. No revela cuál. Se
+        # loguea el cuerpo (truncado) para depurar fallos de canonicalización.
+        logger.warning("Webhook Didit: firma inválida. Cuerpo: %s", raw[:1000])
         raise HTTPException(status_code=401, detail="Firma de webhook inválida.")
 
     try:
         payload = await request.json()
     except Exception:  # noqa: BLE001
         logger.warning("Webhook Didit con cuerpo no-JSON")
+        return {"ok": True}
+
+    # Solo interesan los eventos de sesión de usuario. El resto (entidades,
+    # transacciones, actividad) se acepta y se ignora.
+    webhook_type = payload.get("webhook_type")
+    if webhook_type and webhook_type not in verificacion_didit._WEBHOOK_TYPES_SESION:
+        logger.info("Webhook Didit ignorado (webhook_type=%s)", webhook_type)
         return {"ok": True}
 
     resultado = verificacion_didit.interpretar_payload(payload)
@@ -103,8 +112,14 @@ async def webhook_didit(request: Request, db: Session = Depends(get_db)):
                 )
             except ValueError:
                 pass
+        # Foto de perfil: la selfie que tomó el usuario en Didit. Es una URL
+        # de asset de Didit (puede expirar); mejor eso que un perfil sin foto.
+        if not usuario.foto_perfil_verificada_url and datos.get("foto_url"):
+            usuario.foto_perfil_verificada_url = datos["foto_url"]
 
-    motivos = resultado.get("motivos") or []
+    motivos = list(resultado.get("motivos") or [])
+    if datos.get("edad") is not None:
+        motivos.append(f"Edad leída del documento: {datos['edad']} años.")
     if motivos:
         usuario.notas_auditoria = " | ".join(motivos)[:1000]
 

@@ -36,7 +36,9 @@ logger = logging.getLogger(__name__)
 # Tolerancia del timestamp del webhook (segundos) contra replay.
 _MARGEN_TIMESTAMP_SEG = 300
 
-# Estados de sesión de Didit (case-sensitive) -> estado interno.
+# Estados de sesión de Didit (case-sensitive) -> estado interno. La doc de
+# Didit escribe el de KYC vencido de dos formas ("Kyc Expired" / "KYC
+# Expired") según la página; se aceptan ambas.
 _MAPA_ESTADO = {
     "Approved": "aprobada",
     "Declined": "rechazada",
@@ -48,7 +50,12 @@ _MAPA_ESTADO = {
     "Abandoned": "expirada",
     "Expired": "expirada",
     "Kyc Expired": "expirada",
+    "KYC Expired": "expirada",
 }
+
+# webhook_type que nos interesan (sesiones de usuario). El resto —entidades,
+# transacciones, actividad— se ignora.
+_WEBHOOK_TYPES_SESION = {"status.updated", "data.updated"}
 
 ESTADOS_INTERNOS = {"pendiente", "aprobada", "rechazada", "revision", "expirada", "no_iniciada"}
 
@@ -58,10 +65,14 @@ class DiditNoConfigurado(RuntimeError):
 
 
 def esta_habilitado() -> bool:
+    # Se exige también el secret del webhook: sin él, cada webhook de Didit se
+    # rechazaría con 401 y el enrolamiento quedaría dependiendo solo del
+    # re-poll. Mejor "medio configurado" == apagado (cae al OCR de siempre).
     return bool(
         settings.VERIFICACION_EXTERNA_HABILITADA
         and settings.DIDIT_API_KEY
         and settings.DIDIT_WORKFLOW_ID
+        and settings.DIDIT_WEBHOOK_SECRET
     )
 
 
@@ -83,7 +94,7 @@ def crear_sesion(
     vendor_data: str,
     nombre: Optional[str] = None,
     apellido: Optional[str] = None,
-    rut: Optional[str] = None,
+    rut: Optional[str] = None,  # aceptado por compatibilidad; Didit lo lee de la cédula
     email: Optional[str] = None,
     callback_url: Optional[str] = None,
     idioma: str = "es",
@@ -93,6 +104,7 @@ def crear_sesion(
     usuario (se guarda y vuelve en cada webhook). Devuelve al menos
     `{"session_id": str, "url": str, "status": str}`.
     """
+    _ = rut  # el RUT no se envía: lo valida el workflow contra Registro Civil
     if not settings.DIDIT_WORKFLOW_ID:
         raise DiditNoConfigurado("Falta DIDIT_WORKFLOW_ID")
 
@@ -105,16 +117,15 @@ def crear_sesion(
     if callback:
         cuerpo["callback"] = callback
 
-    # `expected_details`: Didit contrasta lo que lee del documento contra esto.
-    # El RUT chileno viaja en `identification_number`; el país del documento en
-    # ISO 3166-1 alpha-3.
+    # `expected_details`: Didit contrasta lo que lee del documento contra esto
+    # (chequeo de coherencia, no filtro duro). País del documento en ISO
+    # 3166-1 alpha-3. El RUT no se manda: lo lee Didit de la cédula y lo cruza
+    # contra Registro Civil en el paso Database Validation del workflow.
     esperado: Dict[str, Any] = {"id_country": "CHL"}
     if nombre:
         esperado["first_name"] = nombre
     if apellido:
         esperado["last_name"] = apellido
-    if rut:
-        esperado["identification_number"] = rut
     if len(esperado) > 1:
         cuerpo["expected_details"] = esperado
 
@@ -160,10 +171,35 @@ def obtener_decision(session_id: str) -> Optional[Dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 # Webhook: verificación de firma
 # --------------------------------------------------------------------------- #
+def _acortar_floats(v: Any) -> Any:
+    """
+    Floats que son enteros (1.0) -> int (1), recursivo. Didit canonicaliza
+    así antes de firmar X-Signature-V2 (su `shortenFloats`): JSON.parse en JS
+    ya colapsa `1.0` a `1`, y hay que replicarlo para que el HMAC calce.
+
+    Solo se acortan por debajo de 2**53: más allá, JS deja el número en
+    notación científica (`1.18e+38`) y `json.dumps` de Python hace lo mismo
+    con el float — convertirlo a int rompería la coincidencia.
+    """
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, float) and v.is_integer() and abs(v) < 2 ** 53:
+        return int(v)
+    if isinstance(v, list):
+        return [_acortar_floats(x) for x in v]
+    if isinstance(v, dict):
+        return {k: _acortar_floats(x) for k, x in v.items()}
+    return v
+
+
 def _canonico(raw_body: bytes) -> str:
-    """JSON canónico como lo firma Didit para X-Signature-V2."""
+    """
+    JSON canónico como lo firma Didit para X-Signature-V2: claves ordenadas,
+    separadores compactos, Unicode sin escapar, floats-enteros como int.
+    Equivale a `JSON.stringify(sortKeys(shortenFloats(parsed)))` en JS.
+    """
     return json.dumps(
-        json.loads(raw_body),
+        _acortar_floats(json.loads(raw_body)),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
@@ -258,47 +294,73 @@ def interpretar_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
     motivos: list[str] = []
     datos: Dict[str, Any] = {}
 
+    def _es_declined(item: Mapping[str, Any]) -> bool:
+        return str(item.get("status") or "").lower() == "declined"
+
+    # id_verifications[]: first_name, last_name, full_name, document_number,
+    # personal_number, date_of_birth, age, nationality, issuing_state,
+    # portrait_image, warnings[] (esquema V3 real de Didit).
     idv = _primero(decision.get("id_verifications"))
     if idv:
         nombre = _buscar(idv, "first_name", "given_name")
         apellido = _buscar(idv, "last_name", "surname", "family_name")
-        completo = _buscar(idv, "full_name", "name")
+        edad = idv.get("age")
         datos.update(
             {
                 "nombre": nombre,
                 "apellido": apellido,
-                "nombre_completo": completo
-                or (" ".join(p for p in (nombre, apellido) if p) or None),
-                "rut": _buscar(idv, "identification_number", "personal_number", "document_number"),
+                "nombre_completo": (
+                    _buscar(idv, "full_name", "name")
+                    or (" ".join(p for p in (nombre, apellido) if p) or None)
+                ),
+                "rut": _buscar(idv, "document_number", "personal_number", "identification_number"),
                 "documento_numero": _buscar(idv, "document_number", "identification_number"),
                 "fecha_nacimiento": _buscar(idv, "date_of_birth", "birth_date"),
                 "nacionalidad": _buscar(idv, "nationality", "issuing_state", "id_country"),
+                "edad": int(edad) if isinstance(edad, (int, float)) else None,
             }
         )
-        if str(idv.get("status")).lower() == "declined":
+        if _es_declined(idv):
             motivos.append("La verificación del documento de identidad no pasó.")
+        for w in idv.get("warnings", []) or []:
+            txt = (w.get("description") or w.get("message")) if isinstance(w, dict) else str(w)
+            if txt:
+                motivos.append(str(txt))
 
     face = _primero(decision.get("face_matches"))
-    if face and str(face.get("status")).lower() == "declined":
+    if _es_declined(face):
         motivos.append("La selfie no coincide con la foto del documento.")
 
     live = _primero(decision.get("liveness_checks"))
-    if live and str(live.get("status")).lower() == "declined":
+    if _es_declined(live):
         motivos.append("El control de vida (liveness) no pasó.")
+
+    # Selfie del usuario para usarla de foto de perfil (en orden de preferencia).
+    # Son URLs de assets de Didit; pueden expirar, así que el que las use debe
+    # tolerar un <Image> que falle (o rebajarlas a nuestro storage).
+    foto = (
+        _buscar(face, "source_image")
+        or _buscar(live, "reference_image")
+        or _buscar(idv, "portrait_image")
+    )
+    if foto:
+        datos["foto_url"] = foto
+
+    if _es_declined(_primero(decision.get("nfc_verifications"))):
+        motivos.append("La lectura del chip NFC del documento no pasó.")
 
     dbv = _primero(decision.get("database_validations"))
     rut_ok: Optional[bool] = None
     if dbv:
-        st = str(dbv.get("status")).lower()
-        rut_ok = st == "approved"
-        if st == "declined":
-            motivos.append("El RUT no calza con los datos del Registro Civil.")
+        st = str(dbv.get("status") or "").lower()
+        if st == "approved":
+            rut_ok = True
+        elif st == "declined":
+            rut_ok = False
+            motivos.append("Los datos no calzan con el Registro Civil.")
 
-    # Motivos explícitos que a veces trae Didit a nivel de decisión.
-    for w in decision.get("warnings", []) or []:
-        txt = w.get("description") or w.get("message") if isinstance(w, dict) else str(w)
-        if txt:
-            motivos.append(str(txt))
+    if _es_declined(_primero(decision.get("aml_screenings"))):
+        motivos.append("Aparición en listas de sanciones / PEP (screening AML).")
 
     return {
         "estado": estado,
