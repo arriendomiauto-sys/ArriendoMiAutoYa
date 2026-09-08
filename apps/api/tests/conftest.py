@@ -44,12 +44,22 @@ def _ocr_en_mock():
     pipeline de OCR corre en modo simulación determinista. Los casos reales
     de Vision (RUT ilegible, control facial) se prueban aparte con imágenes
     sintéticas, no acá.
+
+    También se apaga la verificación externa (Didit): el `.env` local puede
+    tenerla encendida con llaves reales, y sin esto cada test de /completar
+    intentaría salir a la API de Didit. Los tests que la ejercitan la
+    encienden con su propio fixture (ver test_verificacion_externa.py).
     """
     from app.core.config import settings
-    original = settings.USE_OCR_MOCK
+    previos = {
+        "USE_OCR_MOCK": settings.USE_OCR_MOCK,
+        "VERIFICACION_EXTERNA_HABILITADA": settings.VERIFICACION_EXTERNA_HABILITADA,
+    }
     settings.USE_OCR_MOCK = True
+    settings.VERIFICACION_EXTERNA_HABILITADA = False
     yield
-    settings.USE_OCR_MOCK = original
+    for k, v in previos.items():
+        setattr(settings, k, v)
 
 
 @pytest.fixture(autouse=True)
