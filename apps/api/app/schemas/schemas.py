@@ -37,6 +37,7 @@ class UserBase(BaseModel):
     # contra el geocoder del dispositivo antes de mandarla (que exista de
     # verdad); acá solo se guarda como texto para el contrato y soporte.
     direccion: Optional[str] = Field(default=None, max_length=300)
+    foto_perfil_url: Optional[str] = None
 
     @field_validator("rut", mode="before")
     @classmethod
@@ -131,6 +132,7 @@ class UserOut(UserBase):
 
     id: str
     foto_perfil_verificada_url: Optional[str] = None
+    foto_perfil_url: Optional[str] = None
     estado_documentos: str
     # Estado de la licencia para arrendar (ver Usuario.licencia_estado). La
     # app lo usa para exigir la validación de licencia antes de reservar a
@@ -219,6 +221,7 @@ class PerfilBasicoUpdate(BaseModel):
     nombre: str
     telefono: Optional[str] = None
     direccion: Optional[str] = Field(default=None, max_length=300)
+    foto_perfil_url: Optional[str] = None
 
     @field_validator("nombre", "direccion")
     @classmethod
@@ -466,6 +469,8 @@ class AutoOut(AutoBase):
     gps_instalado: Optional[bool] = False
     gps_consentimiento_fecha: Optional[datetime] = None
     fecha_publicacion: Optional[datetime] = None
+    dueno_nombre: Optional[str] = None
+    dueno_foto_url: Optional[str] = None
 
     # No son columnas del modelo: GET /autos las calcula por request y las
     # deja como atributos transitorios en cada Auto antes de serializar (ver

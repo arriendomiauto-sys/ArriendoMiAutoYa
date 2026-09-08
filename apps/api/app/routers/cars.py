@@ -35,6 +35,9 @@ def _sanear_auto_out(auto: Auto, current_user: Optional[Usuario] = None) -> Auto
         out.doc_soap_url = None
         out.doc_revision_tecnica_url = None
         out.doc_seguro_url = None
+    if auto.dueno:
+        out.dueno_nombre = auto.dueno.nombre or "Anfitrión"
+        out.dueno_foto_url = auto.dueno.foto_perfil_verificada_url or getattr(auto.dueno, "foto_perfil_url", None)
     return out
 
 def _adjuntar_calificaciones(db: Session, autos: List[Auto]) -> List[Auto]:

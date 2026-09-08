@@ -1,3 +1,5 @@
+
+
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, JSON, UniqueConstraint
@@ -20,6 +22,7 @@ class Usuario(Base):
     telefono = Column(String, nullable=True)
     direccion = Column(String, nullable=True)  # dirección particular declarada en el enrolamiento
     foto_perfil_verificada_url = Column(String, nullable=True)
+    foto_perfil_url = Column(String, nullable=True)
     estado_documentos = Column(String, default="pendiente") # pendiente, verificado, rechazado, requiere_revision_manual
     confianza_ocr = Column(Float, default=1.0)
     notas_auditoria = Column(Text, nullable=True)

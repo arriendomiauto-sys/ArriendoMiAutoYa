@@ -22,6 +22,13 @@ async def get_me(db: Session = Depends(get_db), current_user: Usuario = Depends(
         db.commit()
         db.refresh(current_user)
 
+    if getattr(current_user, "foto_perfil_url", None):
+        renovada_perfil = StorageService.renovar_si_vence_pronto(current_user.foto_perfil_url)
+        if renovada_perfil and renovada_perfil != current_user.foto_perfil_url:
+            current_user.foto_perfil_url = renovada_perfil
+            db.commit()
+            db.refresh(current_user)
+
     # Autorepara cuentas sin código propio (nuevas y ya existentes) sin
     # necesitar un backfill aparte.
     if not current_user.codigo_referido:
@@ -103,6 +110,8 @@ def actualizar_perfil_basico(
         current_user.telefono = payload.telefono
     if payload.direccion is not None:
         current_user.direccion = payload.direccion
+    if payload.foto_perfil_url is not None:
+        current_user.foto_perfil_url = payload.foto_perfil_url
     db.commit()
     db.refresh(current_user)
     return current_user

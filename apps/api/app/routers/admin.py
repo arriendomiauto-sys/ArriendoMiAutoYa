@@ -9,6 +9,7 @@ from app.schemas.schemas import (
 )
 from app.services.pricing import PricingService
 from app.services.auth import get_current_user
+from app.services.storage import StorageService
 
 router = APIRouter(prefix="/admin", tags=["Panel Admin & Financiero"])
 
@@ -143,11 +144,28 @@ def listar_documentos_pendientes(
     if "admin" not in roles and "manager" not in roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin o Manager.")
     
-    return db.query(Usuario).filter(
+    usuarios = db.query(Usuario).filter(
         (Usuario.estado_documentos.in_(["requiere_revision_manual", "pendiente", "rechazado"])) |
         (Usuario.confianza_ocr < 0.8) |
         (Usuario.licencia_estado.in_(["revision", "pendiente"]))
     ).all()
+
+    hubo_cambios = False
+    for u in usuarios:
+        if u.foto_perfil_verificada_url:
+            renovada = StorageService.renovar_si_vence_pronto(u.foto_perfil_verificada_url)
+            if renovada and renovada != u.foto_perfil_verificada_url:
+                u.foto_perfil_verificada_url = renovada
+                hubo_cambios = True
+        if getattr(u, "foto_perfil_url", None):
+            renovada = StorageService.renovar_si_vence_pronto(u.foto_perfil_url)
+            if renovada and renovada != u.foto_perfil_url:
+                u.foto_perfil_url = renovada
+                hubo_cambios = True
+    if hubo_cambios:
+        db.commit()
+
+    return usuarios
 
 @router.post("/documentos/{usuario_id}/revisar", response_model=UserOut, summary="Aprobar o rechazar manualmente documentos de enrolamiento (Admin exclusivo RF-31)")
 def revisar_documentos_usuario(

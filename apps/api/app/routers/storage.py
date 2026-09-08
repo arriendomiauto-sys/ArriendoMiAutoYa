@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, status, Depends
+from typing import Optional
+from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, status, Depends, Query
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 from app.services.storage import StorageService
 from app.models.entities import Usuario
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, get_optional_current_user, autenticar_token
+from app.core.database import get_db
 from app.core.limiter import limiter
 
 router = APIRouter(prefix="/storage", tags=["Almacenamiento de Archivos (Supabase / Local)"])
@@ -44,21 +47,28 @@ async def subir_archivo(
     return resultado
 
 @router.get("/local/{bucket}/{archivo_id}", summary="Sirve un archivo del respaldo local privado (requiere sesión)")
-def servir_archivo_local_privado(
+async def servir_archivo_local_privado(
     bucket: str,
     archivo_id: str,
-    current_user: Usuario = Depends(get_current_user),
+    token: Optional[str] = Query(None, description="Token de sesión opcional para tags de imagen"),
+    current_user: Optional[Usuario] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Entrega un archivo de un bucket privado que quedó en el respaldo local
     porque Supabase Storage no estaba disponible. Existe para que ese respaldo
     no tenga que publicarse como estático: /uploads sirve solo los buckets
-    públicos, y esto exige sesión.
-
-    Nota: el control es "hay sesión válida", el mismo alcance que tiene hoy
-    una URL firmada de Supabase o el endpoint /renovar — no verifica que el
-    documento pertenezca a quien lo pide.
+    públicos, y esto exige sesión (vía header Authorization o query param token).
     """
+    if not current_user:
+        if token:
+            current_user = await autenticar_token(token, db)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No autenticado para acceder al archivo privado.",
+            )
+
     ruta = StorageService.leer_archivo_local_privado(bucket, archivo_id)
     if not ruta:
         raise HTTPException(
