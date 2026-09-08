@@ -16,7 +16,7 @@ import {
  * (endpoint GET /autos).
  */
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+const API_KEY = process.env.NEXT_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 const LIBRARIES = []; // constante estable: evita recargas del loader
 
 const DEFAULT_CENTER = { lat: -33.45, lng: -70.66 }; // Región Metropolitana
@@ -99,7 +99,7 @@ export default function MapaAutos({ autos = [], activoId }) {
   );
 
   if (!API_KEY) {
-    return <Aviso>Configura <code className="mx-1 rounded bg-white px-1 py-0.5 text-xs">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> para ver el mapa.</Aviso>;
+    return <Aviso>Configura <code className="mx-1 rounded bg-white px-1 py-0.5 text-xs">NEXT_GOOGLE_MAPS_API_KEY</code> para ver el mapa.</Aviso>;
   }
   if (loadError) return <Aviso>No se pudo cargar Google Maps.</Aviso>;
   if (!isLoaded) return <Aviso>Cargando mapa…</Aviso>;

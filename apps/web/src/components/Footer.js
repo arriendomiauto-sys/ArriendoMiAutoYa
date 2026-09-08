@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { FaWhatsapp } from "react-icons/fa";
+import { FaEnvelope } from "react-icons/fa";
 
 const cols = [
   {
@@ -68,13 +68,11 @@ export default function Footer() {
         <div className="flex flex-col items-start justify-between gap-4 pt-7 text-[12.5px] sm:flex-row sm:items-center">
           <span>© 2026 ARRIENDOMIAUTOYA CHILE SpA. Todos los derechos reservados.</span>
           <a
-            href="https://wa.me/56912345678"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-full bg-[#1f1f1d] px-3.5 py-2 transition-colors hover:text-brand-tealBright"
+            href="mailto:soporte@arriendomiautoya.cl"
+            className="inline-flex items-center gap-2 rounded-full bg-[#1f1f1d] px-3.5 py-2 transition-colors hover:text-brand-tealBright text-white"
           >
-            <FaWhatsapp className="h-4 w-4 text-brand-tealBright" />
-            Soporte por WhatsApp
+            <FaEnvelope className="h-4 w-4 text-brand-tealBright" />
+            soporte@arriendomiautoya.cl
           </a>
         </div>
       </div>

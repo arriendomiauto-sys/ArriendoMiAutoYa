@@ -26,7 +26,7 @@ export default function SimuladorDuenosPage() {
   const [lavadosEstimados, setLavadosEstimados] = useState(2);
 
   // Math calculations
-  const comisionPlataformaPct = 20; // 20%
+  const comisionPlataformaPct = 15; // 15% (85% para el dueño)
   const ingresoBrutoArriendo = diasArriendo * tarifaDiaria;
   const comisionMonto = Math.round(ingresoBrutoArriendo * (comisionPlataformaPct / 100));
   const ingresoNetoArriendo = ingresoBrutoArriendo - comisionMonto;

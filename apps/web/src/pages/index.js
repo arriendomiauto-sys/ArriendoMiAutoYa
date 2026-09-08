@@ -28,7 +28,7 @@ import {
   ArrowRight,
   Smartphone,
 } from "lucide-react";
-import { FaApple, FaGooglePlay, FaWhatsapp } from "react-icons/fa";
+import { FaApple, FaGooglePlay } from "react-icons/fa";
 
 import { API_BASE_URL } from "../lib/api";
 
@@ -97,7 +97,7 @@ const FAQS = [
   },
   {
     q: "¿Cuánto cuesta publicar mi auto y cuándo me pagan?",
-    a: "Publicar es gratis. La plataforma cobra una comisión del 20% sobre los arriendos concretados; los cargos por lavado son 100% para el dueño. El pago llega por depósito bancario a tu cuenta después de cada viaje.",
+    a: "Publicar es gratis. La plataforma cobra una comisión del 15% sobre los arriendos concretados; los cargos por lavado son 100% para el dueño. El pago llega por depósito bancario a tu cuenta después de cada viaje.",
   },
   {
     q: "¿Qué papeles necesita el auto para publicarse?",
@@ -114,7 +114,13 @@ const FAQS = [
 ];
 
 const fmtCLP = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
-const fotoDe = (a) => a.fotos?.[0] || a.foto || "/hero-car.jpg";
+const FOTO_FALLBACK = "/cars/toyota-rav4.jpg";
+const fotoDe = (a) => {
+  if (!a) return FOTO_FALLBACK;
+  const f = a.fotos?.[0] || a.foto;
+  if (!f || typeof f !== "string" || f.trim().length < 5) return FOTO_FALLBACK;
+  return f;
+};
 
 /* ───────────── COMPONENTE ───────────── */
 export default function Home() {
@@ -132,7 +138,17 @@ export default function Home() {
         const res = await fetch(`${API_BASE_URL}/autos`);
         if (res.ok) {
           const data = await res.json();
-          if (vivo && Array.isArray(data) && data.length) setAutos(data);
+          if (vivo && Array.isArray(data) && data.length) {
+            // Filtrar autos de prueba o sin fotos válidas para mantener catálogo profesional
+            const validos = data.filter((a) => {
+              const nombreInvalido = /xdd|test|prueba|asdf|dummy|mock/i.test(`${a.marca || ""} ${a.modelo || ""}`);
+              const tieneFoto =
+                (Array.isArray(a.fotos) && a.fotos.length > 0 && typeof a.fotos[0] === "string" && a.fotos[0].trim().length > 5) ||
+                (typeof a.foto === "string" && a.foto.trim().length > 5);
+              return !nombreInvalido && tieneFoto;
+            });
+            if (validos.length > 0) setAutos(validos);
+          }
         }
       } catch {
         /* se mantiene el respaldo */
@@ -155,7 +171,7 @@ export default function Home() {
     return r;
   }, [autos, categoria, query]);
 
-  const tarifaNeta = Math.round(dias * 30000 * 0.8);
+  const tarifaNeta = Math.round(dias * 30000 * 0.85);
 
   const faqJsonLd = {
     "@context": "https://schema.org",
@@ -320,7 +336,12 @@ export default function Home() {
                   <React.Fragment key={a.id}>
                     {i > 0 && <div className="h-px bg-brand-line" />}
                     <button onClick={() => setModalAuto(a)} className="flex items-center gap-3.5 text-left">
-                      <img src={fotoDe(a)} alt={`${a.marca} ${a.modelo}`} className="h-[60px] w-[78px] shrink-0 rounded-xl object-cover" />
+                      <img
+                        src={fotoDe(a)}
+                        alt={`${a.marca} ${a.modelo}`}
+                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FOTO_FALLBACK; }}
+                        className="h-[60px] w-[78px] shrink-0 rounded-xl object-cover"
+                      />
                       <div className="flex-1">
                         <div className="text-[14.5px] font-semibold">{a.marca} {a.modelo}</div>
                         <div className="text-[12.5px] text-[#63645f]">
@@ -374,7 +395,13 @@ export default function Home() {
               {filtrados.map((a) => (
                 <div key={a.id} className="flex flex-col overflow-hidden rounded-3xl border border-brand-line bg-white shadow-soft">
                   <div className="relative h-52">
-                    <img src={fotoDe(a)} alt={`${a.marca} ${a.modelo} ${a.anio}`} className="h-full w-full object-cover" loading="lazy" />
+                    <img
+                      src={fotoDe(a)}
+                      alt={`${a.marca} ${a.modelo} ${a.anio}`}
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FOTO_FALLBACK; }}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
                     {a.categoria && (
                       <span className="absolute left-3 top-3 rounded-full border border-brand-line bg-white px-2.5 py-1 text-[11px] font-semibold capitalize">
@@ -512,7 +539,7 @@ export default function Home() {
                   </div>
                   <div className="mt-5 flex flex-col gap-2 border-t border-[#cfe9e0] pt-4 text-[13.5px]">
                     <div className="flex justify-between"><span className="text-[#63645f]">Arriendo bruto ({dias} × $30.000)</span><span className="font-semibold">{fmtCLP(dias * 30000)}</span></div>
-                    <div className="flex justify-between"><span className="text-[#63645f]">Comisión plataforma (20%)</span><span className="font-semibold">− {fmtCLP(dias * 30000 * 0.2)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#63645f]">Comisión plataforma (15%)</span><span className="font-semibold">− {fmtCLP(dias * 30000 * 0.15)}</span></div>
                     <div className="flex justify-between"><span className="text-[#63645f]">Cargos por lavado (100% tuyo)</span><span className="font-semibold text-brand-tealInk">incluido</span></div>
                   </div>
                   <p className="mt-3.5 text-[10.5px] text-[#63645f]">Estimación referencial. El ingreso real depende de tu auto, tu precio y la demanda.</p>
@@ -683,16 +710,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* WhatsApp flotante */}
-      <a
-        href="https://wa.me/56912345678?text=Hola,%20tengo%20una%20consulta%20sobre%20arriendomiautoya"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-xs font-bold text-white shadow-xl transition-transform hover:scale-105"
-      >
-        <FaWhatsapp className="h-4 w-4" />
-        <span className="hidden sm:inline">¿Dudas? Escríbenos</span>
-      </a>
+
 
       {/* Modal ficha */}
       {modalAuto && (
@@ -708,7 +726,12 @@ export default function Home() {
             </DialogHeader>
             <div className="my-2 space-y-4">
               <div className="h-48 overflow-hidden rounded-2xl border border-brand-line">
-                <img src={fotoDe(modalAuto)} alt={modalAuto.modelo} className="h-full w-full object-cover" />
+                <img
+                  src={fotoDe(modalAuto)}
+                  alt={modalAuto.modelo}
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FOTO_FALLBACK; }}
+                  className="h-full w-full object-cover"
+                />
               </div>
               <div className="grid grid-cols-3 gap-2 text-xs">
                 {[
