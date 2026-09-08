@@ -155,7 +155,13 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   // Datos del formulario final, prellenados desde RegisterScreen (prefill)
   // o desde el perfil ya sincronizado (currentUser) cuando existan.
   const [nombre, setNombre] = useState(prefill?.nombre || currentUser?.nombre || "");
-  const [rut, setRut] = useState(prefill?.rut || currentUser?.rut || "");
+  // Solo se prellena si es un RUT válido; un valor basura guardado (OCR del
+  // proveedor que leyó mal) arrancaría el campo con algo que el backend
+  // rechaza. Mejor vacío para que lo tipee.
+  const [rut, setRut] = useState(() => {
+    const r = prefill?.rut || currentUser?.rut || "";
+    return isRutValid(r) ? r : "";
+  });
   const [telefono, setTelefono] = useState(prefill?.telefono || currentUser?.telefono || "");
 
   // La tarjeta se pide dentro del KYC, no en una pantalla aparte: si algo no
@@ -174,7 +180,12 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   // los vuelve a tipear, solo confirma —o corrige si el OCR se equivocó.
   const [nombreOcr, setNombreOcr] = useState(null);
   const [rutOcr, setRutOcr] = useState(null);
-  const [identidadEditable, setIdentidadEditable] = useState(false);
+  // Editable de entrada si todavía no hay un RUT válido cargado (cuenta nueva
+  // sin RUT, o el proveedor externo devolvió un número que no es el RUN). Si
+  // ya viene uno bueno, se muestra bloqueado con opción "Corregir".
+  const [identidadEditable, setIdentidadEditable] = useState(
+    () => !isRutValid(prefill?.rut || currentUser?.rut || "")
+  );
 
   // Dirección particular. Se pide en el paso final (junto con el teléfono) y
   // se valida contra el geocoder del dispositivo: `direccionValidada` es
