@@ -26,6 +26,14 @@ class Usuario(Base):
     estado_documentos = Column(String, default="pendiente") # pendiente, verificado, rechazado, requiere_revision_manual
     confianza_ocr = Column(Float, default=1.0)
     notas_auditoria = Column(Text, nullable=True)
+
+    # Verificación de identidad con proveedor externo (Didit). Solo se usa
+    # cuando settings.VERIFICACION_EXTERNA_HABILITADA está encendido; si no,
+    # estas columnas quedan nulas y manda el OCR in-process.
+    #   no_iniciada | pendiente | aprobada | rechazada | revision | expirada
+    verificacion_externa_estado = Column(String, nullable=True)
+    verificacion_externa_ref = Column(String, index=True, nullable=True)  # session_id del proveedor
+    verificacion_externa_actualizada = Column(DateTime, nullable=True)
     roles_activos = Column(JSON, default=lambda: ["cliente"]) # ["dueno", "cliente", "manager", "admin"]
     sucursal_id = Column(String, ForeignKey("sucursales.id"), nullable=True)
     fecha_registro = Column(DateTime, default=utc_now)

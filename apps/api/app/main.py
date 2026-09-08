@@ -39,6 +39,7 @@ from app.routers import (
     ws_chat,
     notificaciones,
     favoritos,
+    webhooks,
 )
 
 @asynccontextmanager
@@ -109,13 +110,25 @@ app.add_middleware(RequestSizeLimitMiddleware)
 # administrativo distinto, no una app de cara al público.
 _cors_origins = settings.allowed_cors_origins
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# En desarrollo, permitir dinámicamente localhost, 127.0.0.1 y cualquier IP de red local en cualquier puerto
+if settings.ENVIRONMENT == "development":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)(:\d+)?$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 
 # Servir archivos estáticos locales de respaldo (Uploads).
 #
@@ -155,6 +168,7 @@ app.include_router(mensajes.router, prefix=api_prefix)
 app.include_router(ws_chat.router, prefix=api_prefix)
 app.include_router(notificaciones.router, prefix=api_prefix)
 app.include_router(favoritos.router, prefix=api_prefix)
+app.include_router(webhooks.router, prefix=api_prefix)
 
 # Montar servidor Socket.IO para chat en tiempo real
 import socketio

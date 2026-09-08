@@ -237,18 +237,21 @@ class StorageService:
             }
 
     @classmethod
-    def _generar_url_firmada(
+    def _firmar_url_o_none(
         cls,
         client: httpx.Client,
         supabase_url: str,
         service_key: str,
         bucket: str,
         archivo_id: str,
-    ) -> str:
+    ) -> Optional[str]:
         """
-        Genera una URL firmada de corta duración para un archivo en un bucket
-        privado. Si la firma falla por algún motivo, retorna igualmente una
-        URL (mejor un enlace potencialmente inválido que tumbar la subida).
+        Pide a Supabase Storage una URL firmada de corta duración. Devuelve la
+        URL absoluta lista para usar, o None si la firma falló (bucket
+        inexistente, red, respuesta inesperada). Nunca devuelve una URL sin
+        firmar: una URL así se rechaza con 400 al mostrarla en un <Image> y,
+        peor, queda guardada en la fila del usuario "envenenando" el campo
+        para siempre.
         """
         try:
             resp = client.post(
@@ -261,31 +264,60 @@ class StorageService:
                 json={"expiresIn": cls.URL_FIRMADA_EXPIRA_SEGUNDOS},
             )
             if resp.status_code == 200:
-                signed_path = resp.json().get("signedURL")
+                cuerpo = resp.json()
+                # Supabase ha usado `signedURL` y `signedUrl` según la versión.
+                signed_path = cuerpo.get("signedURL") or cuerpo.get("signedUrl")
                 if signed_path:
-                    return f"{supabase_url}/storage/v1{signed_path}"
-            logger.warning(f"No se pudo firmar URL para {bucket}/{archivo_id}: {resp.status_code} {resp.text}")
+                    if signed_path.startswith("http://") or signed_path.startswith("https://"):
+                        return signed_path  # ya viene absoluta
+                    base = f"{supabase_url.rstrip('/')}/storage/v1"
+                    return f"{base}/{signed_path.lstrip('/')}"
+            logger.warning(
+                "No se pudo firmar URL para %s/%s: %s %s",
+                bucket, archivo_id, resp.status_code, resp.text[:300],
+            )
         except Exception as e:
-            logger.error(f"Error generando URL firmada para {bucket}/{archivo_id}: {e}")
+            logger.error("Error generando URL firmada para %s/%s: %s", bucket, archivo_id, e)
+        return None
 
-        # Fallback: URL directa (no firmada) — el bucket privado igual la
-        # rechazará sin token, pero evita romper la respuesta de la subida.
-        return f"{supabase_url}/storage/v1/object/{bucket}/{archivo_id}"
+    @classmethod
+    def _generar_url_firmada(
+        cls,
+        client: httpx.Client,
+        supabase_url: str,
+        service_key: str,
+        bucket: str,
+        archivo_id: str,
+    ) -> str:
+        """
+        Como `_firmar_url_o_none`, pero para el momento de la SUBIDA: el objeto
+        se acaba de guardar y necesitamos devolver *algo*. Si la firma falla
+        acá (raro: el PUT anterior funcionó), se devuelve la URL directa sin
+        firmar como último recurso — el llamador la guardará y
+        `renovar_si_vence_pronto` intentará arreglarla en el próximo GET.
+        """
+        firmada = cls._firmar_url_o_none(client, supabase_url, service_key, bucket, archivo_id)
+        if firmada:
+            return firmada
+        return f"{supabase_url.rstrip('/')}/storage/v1/object/{bucket}/{archivo_id}"
 
     @classmethod
     def renovar_url_firmada(cls, bucket: str, archivo_id: str) -> Optional[str]:
         """
         Regenera una URL firmada vigente para un archivo ya existente en un
         bucket privado (las firmadas expiran a los 7 días). Usado por
-        GET /storage/{bucket}/{archivo_id} para no depender de que la URL
-        guardada en base de datos siga viva.
+        GET /storage/{bucket}/{archivo_id}/renovar y por
+        renovar_si_vence_pronto.
+
+        Devuelve None si no se pudo firmar: el llamador debe conservar la URL
+        que ya tenía en vez de pisarla con una rota.
         """
         supabase_url = settings.SUPABASE_URL
         service_key = settings.SUPABASE_SERVICE_ROLE_KEY
-        if bucket not in cls.BUCKETS_PRIVADOS:
+        if bucket not in cls.BUCKETS_PRIVADOS or not supabase_url or not service_key:
             return None
         with httpx.Client(timeout=15.0) as client:
-            return cls._generar_url_firmada(client, supabase_url, service_key, bucket, archivo_id)
+            return cls._firmar_url_o_none(client, supabase_url, service_key, bucket, archivo_id)
 
     @staticmethod
     def _exp_de_url_firmada(url: str) -> Optional[int]:
@@ -318,19 +350,29 @@ class StorageService:
         pide una URL nueva. Cualquier cosa que no sea una URL firmada
         reconocible (pública, local, externa como las fotos demo, o si no se
         puede leer el `exp`) se devuelve tal cual — nunca rompe por esto.
+
+        También rescata una URL de bucket privado SIN firmar
+        (`/storage/v1/object/<bucket>/<archivo>` sin `/sign/` ni `/public/`):
+        esa forma la deja `_generar_url_firmada` como último recurso cuando la
+        firma falló en la subida, y un <Image> la rechaza con 400. Acá se
+        intenta firmar; si no se puede, se deja igual.
         """
-        if not url or "/storage/v1/object/sign/" not in url:
+        if not url or "/storage/v1/object/" not in url or "/object/public/" in url:
             return url
+
+        firmada = "/storage/v1/object/sign/" in url
+        marcador = "/storage/v1/object/sign/" if firmada else "/storage/v1/object/"
         try:
-            partes = url.split("/storage/v1/object/sign/", 1)[1].split("?", 1)[0]
+            partes = url.split(marcador, 1)[1].split("?", 1)[0]
             bucket, archivo_id = partes.split("/", 1)
         except (IndexError, ValueError):
             return url
         if bucket not in cls.BUCKETS_PRIVADOS:
             return url
 
-        exp = cls._exp_de_url_firmada(url)
-        if exp is None or exp - time.time() > margen_horas * 3600:
-            return url
+        if firmada:
+            exp = cls._exp_de_url_firmada(url)
+            if exp is None or exp - time.time() > margen_horas * 3600:
+                return url
 
         return cls.renovar_url_firmada(bucket, archivo_id) or url

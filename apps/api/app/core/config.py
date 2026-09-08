@@ -35,6 +35,26 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_VISION_API_KEY: Optional[str] = None
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
 
+    # Verificación de identidad con proveedor externo (Didit).
+    #
+    # Apagado por defecto: sin esto, el enrolamiento sigue funcionando con el
+    # OCR + control facial in-process de siempre (verificacion_identidad). Al
+    # encenderlo, el flujo pasa a una sesión hosted de Didit (foto de cédula +
+    # liveness + face match + validación del RUT contra Registro Civil) y el
+    # resultado llega por webhook firmado.
+    #
+    # Se necesita: DIDIT_API_KEY (consola Didit), DIDIT_WORKFLOW_ID (el flujo
+    # que define los pasos) y DIDIT_WEBHOOK_SECRET (secret_shared_key del
+    # destino de webhook). Plan gratuito: 500 verificaciones/mes.
+    VERIFICACION_EXTERNA_HABILITADA: bool = False
+    DIDIT_BASE_URL: str = "https://verification.didit.me"
+    DIDIT_API_KEY: Optional[str] = None
+    DIDIT_WORKFLOW_ID: Optional[str] = None
+    DIDIT_WEBHOOK_SECRET: Optional[str] = None
+    # A dónde vuelve el usuario tras completar la sesión de Didit. Deep link a
+    # la app; si queda vacío, Didit muestra su propia pantalla de cierre.
+    DIDIT_CALLBACK_URL: Optional[str] = None
+
     # Google Maps
     GOOGLE_MAPS_API_KEY: str = "placeholder-maps-key"
 
@@ -94,9 +114,21 @@ class Settings(BaseSettings):
         "https://admin.arriendatuauto.com",
         "https://rgxiyidijtoazcrmijly.supabase.co",
         "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://localhost:8080",
         "http://localhost:8081",
         "http://localhost:19006",
-        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:8081",
+        "http://127.0.0.1:19006",
     ]
 
     # Rate limiting (slowapi/limits). "memory://" alcanza para un solo

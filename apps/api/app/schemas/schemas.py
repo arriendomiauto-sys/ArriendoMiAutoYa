@@ -134,6 +134,9 @@ class UserOut(UserBase):
     foto_perfil_verificada_url: Optional[str] = None
     foto_perfil_url: Optional[str] = None
     estado_documentos: str
+    # Estado de la verificación con proveedor externo (Didit). Nulo cuando la
+    # verificación externa está apagada — la app debe mirar estado_documentos.
+    verificacion_externa_estado: Optional[str] = None
     # Estado de la licencia para arrendar (ver Usuario.licencia_estado). La
     # app lo usa para exigir la validación de licencia antes de reservar a
     # quien se verificó solo como dueño.
@@ -175,6 +178,12 @@ class UserOut(UserBase):
 
     codigo_referido: Optional[str] = None
     referido_por_id: Optional[str] = None
+
+class SesionVerificacionExternaOut(BaseModel):
+    """Sesión hosted del proveedor de verificación (Didit). La app abre `url`."""
+    url: str
+    session_id: str
+    estado: str  # pendiente | aprobada | ... (ver verificacion_externa.didit)
 
 class CodigoReferidoUpdate(BaseModel):
     codigo: str

@@ -4,9 +4,11 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.schemas.schemas import (
     UserEnrolamiento, UserOut, EnrolamientoARevision, CompletarLicencia,
+    SesionVerificacionExternaOut,
 )
 from app.models.entities import Usuario, Pago, TicketSoporte
 from app.features.verificacion_identidad.ocr_engine import OCRService
+from app.features.verificacion_externa import didit as verificacion_didit
 from app.services.auth import get_current_user
 from app.core.limiter import limiter
 from datetime import datetime
@@ -38,6 +40,63 @@ def procesar_documentos_ocr(payload: UserEnrolamiento):
         "mensaje": "Documentos procesados exitosamente",
         "datos_extraidos": resultado_ocr
     }
+
+
+@router.post(
+    "/verificacion-externa/sesion",
+    response_model=SesionVerificacionExternaOut,
+    summary="Crea una sesión de verificación de identidad con el proveedor externo (Didit)",
+)
+@limiter.limit("10/minute")
+def crear_sesion_verificacion_externa(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Solo disponible con `VERIFICACION_EXTERNA_HABILITADA`. Crea una sesión
+    hosted del proveedor y devuelve la URL a la que la app debe llevar al
+    usuario. El resultado llega después por webhook (`POST /webhooks/didit`).
+    Rate-limited a 10/min por si el usuario reintenta — cada llamada consume
+    una verificación del plan.
+    """
+    if current_user.estado_documentos == "verificado":
+        raise HTTPException(status_code=400, detail="Tu identidad ya está verificada.")
+    if not verificacion_didit.esta_habilitado():
+        raise HTTPException(
+            status_code=503,
+            detail="La verificación con proveedor externo no está habilitada.",
+        )
+
+    nombre_completo = (current_user.nombre or "").strip()
+    partes = nombre_completo.split()
+    nombre = partes[0] if partes else None
+    apellido = " ".join(partes[1:]) or None
+
+    try:
+        sesion = verificacion_didit.crear_sesion(
+            vendor_data=current_user.id,
+            nombre=nombre,
+            apellido=apellido,
+            rut=current_user.rut,
+            email=current_user.email,
+        )
+    except verificacion_didit.DiditNoConfigurado as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"No se pudo iniciar la verificación: {e}")
+
+    if not sesion.get("url") or not sesion.get("session_id"):
+        raise HTTPException(status_code=502, detail="El proveedor no devolvió una sesión válida.")
+
+    current_user.verificacion_externa_ref = sesion["session_id"]
+    current_user.verificacion_externa_estado = "pendiente"
+    current_user.verificacion_externa_actualizada = datetime.utcnow()
+    db.commit()
+
+    return SesionVerificacionExternaOut(
+        url=sesion["url"], session_id=sesion["session_id"], estado="pendiente"
+    )
 
 @router.post("/enviar-a-revision", summary="Manda el enrolamiento a revisión manual de un ejecutivo (no cobra el hold)")
 @limiter.limit("5/minute")
