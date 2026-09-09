@@ -254,6 +254,26 @@ class PagarReservaRequest(BaseModel):
     tarjeta_garantia_id: str
     device_id: Optional[str] = None
 
+
+class CobroPosteriorRequest(BaseModel):
+    """Solicitud del dueño para cobrar TAG, peajes o multas dentro de los 30 días posteriores."""
+    tipo: str = Field(..., description="'tag' | 'peaje' | 'multa' | 'otro'")
+    monto: int = Field(..., gt=0, description="Monto en CLP a cobrar")
+    descripcion: str = Field(..., min_length=3, max_length=500, description="Detalle del cobro")
+    comprobante_url: str = Field(..., description="URL de la boleta o comprobante en almacenamiento seguro")
+
+
+class CobroPosteriorOut(BaseModel):
+    id: str
+    reserva_id: str
+    tipo: str
+    monto: int
+    estado: str
+    referencia_pago: Optional[str] = None
+    descripcion: str
+    comprobante_url: str
+    creado_en: datetime
+
 class PerfilBasicoUpdate(BaseModel):
     """
     Datos de perfil que NO son de identidad (no pasan por OCR/Módulo-11) —

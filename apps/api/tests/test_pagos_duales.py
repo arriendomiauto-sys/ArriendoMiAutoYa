@@ -260,3 +260,74 @@ def test_completar_enrolamiento_ya_no_exige_tarjeta(usuario_factory, auth_as):
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["estado_documentos"] == "verificado"
+
+
+def test_bloqueo_eliminacion_tarjeta_30_dias_post_arriendo(usuario_factory, auth_as, db_session):
+    """Una tarjeta de crédito que garantizó un arriendo no se puede borrar durante 30 días tras el fin."""
+    from datetime import datetime, timedelta, timezone
+    from app.models.entities import Auto, Reserva
+
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    dueno = usuario_factory(roles_activos=["dueno"])
+    auto = _auto(db_session, dueno, patente="SWFT-12")
+
+    cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-5555").json()["tarjeta"]
+    deb = _agregar_tarjeta(auth_as, cliente, "SIMULADO-DEBITO-1111", "visadebito").json()["tarjeta"]
+
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    reserva = Reserva(
+        auto_id=auto.id, cliente_id=cliente.id,
+        fecha_inicio=ahora - timedelta(days=10),
+        fecha_fin=ahora - timedelta(days=5),
+        estado="finalizada",
+        tarjeta_cobro_id=deb["id"],
+        tarjeta_garantia_id=cred["id"],
+        lugar_entrega_acordado="Santiago Centro",
+    )
+    db_session.add(reserva)
+    db_session.commit()
+
+    # Intentar eliminar la tarjeta de crédito asociada a la garantía
+    borrar = auth_as(cliente).delete(f"/api/v1/usuarios/me/tarjetas/{cred['id']}")
+    assert borrar.status_code == 409
+    assert borrar.json()["detail"]["codigo"] == "TARJETA_EN_PERIODO_POST_ARRIENDO"
+
+
+def test_cobro_posterior_tag_con_tarjeta_credito_vault(usuario_factory, auth_as, db_session):
+    """El dueño puede cobrar TAG o multas hasta 30 días después usando la tarjeta de crédito de la garantía."""
+    from datetime import datetime, timedelta, timezone
+    from app.models.entities import Auto, Reserva
+
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    dueno = usuario_factory(roles_activos=["dueno"])
+    auto = _auto(db_session, dueno, patente="TUCS-99")
+
+    cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-4444").json()["tarjeta"]
+
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    reserva = Reserva(
+        auto_id=auto.id, cliente_id=cliente.id,
+        fecha_inicio=ahora - timedelta(days=12),
+        fecha_fin=ahora - timedelta(days=7),
+        estado="finalizada",
+        tarjeta_garantia_id=cred["id"],
+        lugar_entrega_acordado="Providencia",
+    )
+    db_session.add(reserva)
+    db_session.commit()
+
+    # Cobro posterior emitido por el dueño
+    resp = auth_as(dueno).post(
+        f"/api/v1/reservas/{reserva.id}/cobro-posterior",
+        json={
+            "tipo": "tag",
+            "monto": 14500,
+            "descripcion": "Peaje Autopista Central 3 pasadas durante el fin de semana del arriendo",
+            "comprobante_url": "https://supabase.co/storage/v1/object/authenticated/evidencias/boleta_tag.pdf",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["monto"] == 14500
+    assert data["tipo"] == "tag"
+    assert data["estado"] == "capturado"

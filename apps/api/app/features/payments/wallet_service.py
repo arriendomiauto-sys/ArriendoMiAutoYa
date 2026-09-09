@@ -199,6 +199,25 @@ def eliminar(db: Session, usuario: Usuario, tarjeta_id: str) -> None:
             "Esa tarjeta está respaldando un arriendo activo. Podrás eliminarla cuando termine.",
         )
 
+    # Protección de 30 días post-arriendo para tarjetas de crédito de garantía:
+    # El dueño dispone de 30 días para reportar peajes, TAG o multas ocurridas durante el arriendo.
+    from datetime import datetime, timedelta, timezone
+    limite_post_arriendo = datetime.now(timezone.utc) - timedelta(days=30)
+    en_periodo_post_arriendo = (
+        db.query(Reserva)
+        .filter(
+            Reserva.tarjeta_garantia_id == tarjeta_id,
+            Reserva.estado == "finalizada",
+            Reserva.fecha_fin >= limite_post_arriendo,
+        )
+        .first()
+    )
+    if en_periodo_post_arriendo:
+        raise WalletError(
+            409, "TARJETA_EN_PERIODO_POST_ARRIENDO",
+            "Esta tarjeta respaldó un arriendo finalizado recientemente. Por seguridad y respaldo ante cobros de TAG o multas de tránsito pendientes, debe permanecer activa por 30 días tras la devolución.",
+        )
+
     card_vault.eliminar_tarjeta(tarjeta.mp_customer_id, tarjeta.mp_card_id)
 
     era_pred_cobro = tarjeta.predeterminada_cobro

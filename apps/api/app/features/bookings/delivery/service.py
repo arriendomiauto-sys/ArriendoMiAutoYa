@@ -360,9 +360,51 @@ class DeliveryService:
                         estado="pendiente",
                     ))
 
+            # Liberación inmediata de la garantía retenida (hold en tarjeta de crédito)
+            pago_garantia = (
+                db.query(Pago)
+                .filter(Pago.reserva_id == reserva.id, Pago.tipo == "garantia", Pago.estado == "retenido")
+                .first()
+            )
+            garantia_liberada = False
+            if pago_garantia:
+                try:
+                    from app.features.payments.mercadopago_service import MercadoPagoService
+                    from app.services import pagos_simulados
+                    ref = pago_garantia.referencia_pago
+                    if ref and not pagos_simulados.es_pago_simulado(ref):
+                        MercadoPagoService.liberar_hold(ref)
+                    pago_garantia.estado = "liberado"
+                    garantia_liberada = True
+                    crear_notificacion(
+                        db,
+                        usuario_id=reserva.cliente_id,
+                        tipo="pago",
+                        titulo="Garantía liberada",
+                        mensaje=f"Tu garantía de ${pago_garantia.monto:,} CLP ha sido liberada exitosamente tras la entrega del vehículo.",
+                        entidad_tipo="reserva",
+                        entidad_id=reserva.id,
+                        commit=False,
+                    )
+                except Exception as e:
+                    logger.error("[DELIVERY] Error al liberar hold de garantía para reserva %s: %s", reserva.id, e)
+
+            # Incentivo por entrega en óptimas condiciones:
+            # Combustible igual o mayor al recibido, vehículo limpio y sin atraso
+            devolucion_optima = (
+                comb_inicial is not None
+                and nivel_combustible is not None
+                and nivel_combustible >= comb_inicial
+                and str(estado_limpieza).lower() in ("optimo", "limpio", "excelente", "bueno")
+                and cargo_atraso == 0
+            )
+
             limpieza_msg = f" Cargo por limpieza: ${cargo_limpieza:,} CLP." if cargo_limpieza > 0 else ""
             comb_msg = f" Combustible faltante: ${cargo_combustible:,} CLP." if cargo_combustible > 0 else ""
-            mensaje = f"Checklist final completado. Arriendo finalizado.{limpieza_msg}{comb_msg}"
+            garantia_msg = " Garantía liberada inmediatamente." if garantia_liberada else ""
+            premio_msg = " ¡Felicitaciones por entregar el vehículo en óptimas condiciones! Tienes un beneficio en tu próximo arriendo." if devolucion_optima else ""
+
+            mensaje = f"Checklist final completado. Arriendo finalizado.{limpieza_msg}{comb_msg}{garantia_msg}{premio_msg}"
 
         db.commit()
         db.refresh(reserva)
