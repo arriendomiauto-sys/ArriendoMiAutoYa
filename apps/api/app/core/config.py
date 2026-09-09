@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str = "your-supabase-anon-key-placeholder"
     SUPABASE_SERVICE_ROLE_KEY: str = "your-supabase-service-role-key-placeholder"
     SUPABASE_STORAGE_BUCKET: str = "arrienda-tu-auto-files"
+    # Secret de firma del JWT del proyecto (Supabase → Settings → API → JWT
+    # Secret). Si está seteado y el proyecto firma con HS256, la validación de
+    # sesión se hace localmente sin llamar a `/auth/v1/user` en cada request.
+    SUPABASE_JWT_SECRET: Optional[str] = None
 
     # Business Rules
     HOLD_ENROLAMIENTO_CLP: int = 800000
@@ -55,6 +59,15 @@ class Settings(BaseSettings):
     # la app; si queda vacío, Didit muestra su propia pantalla de cierre.
     DIDIT_CALLBACK_URL: Optional[str] = None
 
+    # Verificación de antecedentes del conductor (ChapiAPI).
+    #
+    # Sin llave (o en desarrollo) el proveedor responde un mock con
+    # antecedentes limpios y licencia sin suspensión, para no bloquear el
+    # enrolamiento. Con llave real, se consulta la Hoja de Vida del Conductor
+    # y los antecedentes penales por RUT antes de habilitar a la persona.
+    CHAPI_API_KEY: Optional[str] = None
+    CHAPI_BASE_URL: str = "https://api.chapi.cl/v1"
+
     # Google Maps
     GOOGLE_MAPS_API_KEY: str = "placeholder-maps-key"
 
@@ -77,11 +90,8 @@ class Settings(BaseSettings):
     # flujo dando el pago y la retención por aprobados, sin salir a la red.
     # Es SOLO para pruebas: se ignora en producción (ver pagos_simulados.py).
     #
-    # Viene ENCENDIDO por defecto a propósito, porque hoy no hay credenciales
-    # reales y sin esto el flujo de reserva queda trancado en "pendiente". Al
-    # configurar la pasarela real hay que ponerlo en False y borrar el bloque
-    # completo: app/services/pagos_simulados.py y sus usos en
-    # app/routers/pagos.py.
+    # Viene ENCENDIDO por defecto a propósito para desarrollo local sin credenciales externas.
+    # En producción se mantiene desactivado.
     PAGOS_SIMULADOS: bool = True
     # ======================================================================
 

@@ -8,6 +8,12 @@ connect_args = {}
 engine_kwargs = {}
 if es_sqlite:
     connect_args["check_same_thread"] = False
+    # sqlite `:memory:` da una base vacía distinta por conexión: sin un pool
+    # de conexión única, `create_all()` en una conexión y las queries en otra
+    # no se ven (típico en tests y en el dev server multi-hilo). StaticPool
+    # comparte la conexión — inofensivo también para un archivo sqlite local.
+    from sqlalchemy.pool import StaticPool
+    engine_kwargs["poolclass"] = StaticPool
 else:
     # Postgres (Supabase / Render): las conexiones ociosas se cierran del
     # lado del servidor / pgbouncer. pre_ping descarta las muertas antes de

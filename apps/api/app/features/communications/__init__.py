@@ -1,0 +1,3 @@
+"""
+Category module for communications.
+"""

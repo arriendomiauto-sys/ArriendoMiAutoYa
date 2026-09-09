@@ -1,0 +1,378 @@
+import os
+import uuid
+import logging
+import time
+import json
+import base64
+from urllib.parse import urlparse, parse_qs
+from typing import Dict, Any, Optional
+import httpx
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+class StorageService:
+    BUCKETS_PERMITIDOS = ["autos", "documentos-kyc", "documentos-autos", "checklists", "evidencias", "general"]
+
+    # Buckets con datos sensibles (documentos de identidad, padrón/permiso/
+    # SOAP/revisión técnica del auto, checklists de entrega con fotos del
+    # cliente, evidencia de disputas): se sirven vía URL firmada de corta
+    # duración en vez de URL pública permanente.
+    BUCKETS_PRIVADOS = {"documentos-kyc", "documentos-autos", "checklists", "evidencias"}
+    URL_FIRMADA_EXPIRA_SEGUNDOS = 60 * 60 * 24 * 7  # 7 días
+
+    MIME_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+    TAMANO_MAXIMO_BYTES = 8 * 1024 * 1024  # 8 MB
+
+    @classmethod
+    def _raiz_local(cls, bucket: str) -> str:
+        """
+        Directorio raíz del respaldo local para un bucket. Los privados van a
+        STORAGE_LOCAL_PRIVATE_DIR, que a propósito NO se monta como estático
+        en main.py; los públicos siguen en STORAGE_LOCAL_DIR (/uploads).
+        """
+        if bucket in cls.BUCKETS_PRIVADOS:
+            return settings.STORAGE_LOCAL_PRIVATE_DIR
+        return settings.STORAGE_LOCAL_DIR
+
+    @classmethod
+    def leer_archivo_local_privado(cls, bucket: str, archivo_id: str) -> Optional[str]:
+        """
+        Ruta en disco de un archivo del respaldo local privado, o None si no
+        existe o el bucket no es privado. `archivo_id` se valida contra
+        traversal: solo se acepta el nombre de archivo, sin separadores.
+        """
+        if bucket not in cls.BUCKETS_PRIVADOS:
+            return None
+        if not archivo_id or "\x00" in archivo_id or os.path.basename(archivo_id) != archivo_id:
+            return None
+
+        # Solo caracteres seguros en nombres de archivo (hex UUID o alfanuméricos con guiones y extensiones)
+        import re
+        if not re.match(r"^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp|heic)$", archivo_id, re.IGNORECASE):
+            return None
+
+        ruta = os.path.join(settings.STORAGE_LOCAL_PRIVATE_DIR, bucket, archivo_id)
+        # basename() ya descarta separadores, pero se confirma que la ruta
+        # resuelta siga dentro del directorio del bucket.
+        raiz_bucket = os.path.realpath(os.path.join(settings.STORAGE_LOCAL_PRIVATE_DIR, bucket))
+        if os.path.commonpath([os.path.realpath(ruta), raiz_bucket]) != raiz_bucket:
+            return None
+        return ruta if os.path.isfile(ruta) else None
+
+    @staticmethod
+    def _sniff_imagen(contenido: bytes):
+        """
+        Detecta el tipo real de imagen por los magic bytes, sin confiar en el
+        header content-type del cliente (React Native suele mandar
+        application/octet-stream o nada para las fotos de la cámara).
+        Retorna (content_type, extension) o None si no es una imagen soportada.
+        """
+        if not contenido or len(contenido) < 12:
+            return None
+        if contenido[:3] == b"\xff\xd8\xff":
+            return ("image/jpeg", ".jpg")
+        if contenido[:8] == b"\x89PNG\r\n\x1a\n":
+            return ("image/png", ".png")
+        if contenido[:4] == b"RIFF" and contenido[8:12] == b"WEBP":
+            return ("image/webp", ".webp")
+        # HEIC/HEIF: 'ftyp' + marca heic/heif/mif1/heix
+        if contenido[4:8] == b"ftyp" and contenido[8:12] in (b"heic", b"heix", b"heif", b"mif1"):
+            return ("image/heic", ".heic")
+        return None
+
+    @classmethod
+    def subir_archivo(
+        cls,
+        contenido_bytes: bytes,
+        nombre_original: str,
+        content_type: str = "image/jpeg",
+        bucket: str = "general",
+        base_url: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Sube un archivo binario a Supabase Storage (o al almacenamiento local de respaldo).
+        Retorna la URL (pública o firmada, según el bucket) y metadatos del archivo.
+        """
+        if bucket not in cls.BUCKETS_PERMITIDOS:
+            bucket = "general"
+
+        if len(contenido_bytes) > cls.TAMANO_MAXIMO_BYTES:
+            return {
+                "success": False,
+                "validation_error": True,
+                "bucket": bucket,
+                "error": f"El archivo excede el tamaño máximo permitido ({cls.TAMANO_MAXIMO_BYTES // (1024*1024)} MB).",
+            }
+
+        # El tipo se detecta por los bytes, no por el content-type que mandó
+        # el cliente (RN manda octet-stream / nada para las fotos de cámara).
+        sniff = cls._sniff_imagen(contenido_bytes)
+        if not sniff:
+            return {
+                "success": False,
+                "validation_error": True,
+                "bucket": bucket,
+                "error": "Tipo de archivo no permitido: el contenido no es una imagen JPG, PNG o WebP válida. Toma la foto de nuevo.",
+            }
+        content_type, extension = sniff
+        if content_type == "image/heic":
+            return {
+                "success": False,
+                "validation_error": True,
+                "bucket": bucket,
+                "error": "La foto está en formato HEIC. En los ajustes de la cámara del teléfono elige 'Más compatible' (JPG) y vuelve a intentarlo.",
+            }
+
+        # Fotos de vehículos publicados: tapar las placas patentes antes de
+        # guardar (privacidad del dueño). Best-effort; si falla, no bloquea.
+        if bucket == "autos":
+            try:
+                from app.features.vehicles.catalog.image_privacy_service import ImagePrivacy
+                censurada = ImagePrivacy.censurar_patentes(contenido_bytes)
+                if censurada and censurada is not contenido_bytes:
+                    contenido_bytes = censurada
+                    content_type, extension = "image/jpeg", ".jpg"
+            except Exception as e:
+                logger.error(f"Censura de patente omitida: {e}")
+
+        # Nombre único seguro (ignora el nombre original salvo la extensión ya
+        # validada por sniff, para evitar path traversal / inyección de rutas).
+        archivo_id = f"{uuid.uuid4().hex}{extension}"
+
+        # 1. Intentar subir a Supabase Storage si está configurado
+        supabase_url = settings.SUPABASE_URL
+        service_key = settings.SUPABASE_SERVICE_ROLE_KEY
+
+        tiene_supabase_real = (
+            supabase_url
+            and "your-project" not in supabase_url
+            and service_key
+            and "your-" not in service_key
+            and len(service_key) > 20
+        )
+
+        if tiene_supabase_real:
+            try:
+                storage_endpoint = f"{supabase_url}/storage/v1/object/{bucket}/{archivo_id}"
+                # El header `apikey` no es redundante con Authorization: las
+                # llaves nuevas de Supabase (sb_secret_…, a diferencia del JWT
+                # service_role legacy) se rechazan con 401 si solo va el
+                # Bearer. Sin esto la subida falla y cae al respaldo local.
+                headers = {
+                    "Authorization": f"Bearer {service_key}",
+                    "apikey": service_key,
+                    "Content-Type": content_type,
+                    "x-upsert": "true"
+                }
+
+                with httpx.Client(timeout=20.0) as client:
+                    resp = client.post(storage_endpoint, headers=headers, content=contenido_bytes)
+                    if resp.status_code in [200, 201]:
+                        if bucket in cls.BUCKETS_PRIVADOS:
+                            file_url = cls._generar_url_firmada(client, supabase_url, service_key, bucket, archivo_id)
+                        else:
+                            file_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{archivo_id}"
+                        logger.info(f"Archivo subido exitosamente a Supabase Storage: {bucket}/{archivo_id}")
+                        return {
+                            "success": True,
+                            "url": file_url,
+                            "filename": archivo_id,
+                            "bucket": bucket,
+                            "provider": "supabase"
+                        }
+                    else:
+                        logger.warning(f"Respuesta inesperada de Supabase Storage ({resp.status_code}): {resp.text}")
+            except Exception as e:
+                logger.error(f"Fallo al subir a Supabase Storage: {e}")
+
+        # 2. Fallback a Almacenamiento Local en Servidor
+        #
+        # Los buckets privados NO pueden caer en el árbol que se publica vía
+        # StaticFiles (/uploads): ahí no hay control de acceso por archivo y
+        # cualquiera con la URL lee un carnet. Se guardan en un directorio
+        # aparte que no está montado, y se sirven por
+        # GET /storage/local/{bucket}/{archivo_id}, que exige sesión.
+        es_privado = bucket in cls.BUCKETS_PRIVADOS
+        if es_privado:
+            # Que un documento de identidad termine en disco local es una
+            # degradación silenciosa de la privacidad prometida (Supabase con
+            # URL firmada). Se registra como error, no como info.
+            logger.error(
+                "Supabase Storage no aceptó %s/%s: se usa respaldo local privado. "
+                "Revisar SUPABASE_SERVICE_ROLE_KEY y que el bucket exista.",
+                bucket, archivo_id,
+            )
+
+        try:
+            raiz = cls._raiz_local(bucket)
+            directorio_destino = os.path.join(raiz, bucket)
+            os.makedirs(directorio_destino, exist_ok=True)
+            ruta_local_completa = os.path.join(directorio_destino, archivo_id)
+
+            with open(ruta_local_completa, "wb") as f:
+                f.write(contenido_bytes)
+
+            # URL absoluta si conocemos el host público (para que la app la
+            # pueda mostrar y el OCR la pueda descargar); si no, ruta relativa.
+            if es_privado:
+                ruta_rel = f"{settings.API_V1_STR}/storage/local/{bucket}/{archivo_id}"
+            else:
+                ruta_rel = f"/uploads/{bucket}/{archivo_id}"
+            url_local = f"{base_url.rstrip('/')}{ruta_rel}" if base_url else ruta_rel
+            logger.info(f"Archivo guardado localmente: {url_local}")
+
+            return {
+                "success": True,
+                "url": url_local,
+                "filename": archivo_id,
+                "bucket": bucket,
+                "provider": "local_privado" if es_privado else "local"
+            }
+        except Exception as e:
+            logger.error(f"Error al guardar archivo en almacenamiento local: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    @classmethod
+    def _firmar_url_o_none(
+        cls,
+        client: httpx.Client,
+        supabase_url: str,
+        service_key: str,
+        bucket: str,
+        archivo_id: str,
+    ) -> Optional[str]:
+        """
+        Pide a Supabase Storage una URL firmada de corta duración. Devuelve la
+        URL absoluta lista para usar, o None si la firma falló (bucket
+        inexistente, red, respuesta inesperada). Nunca devuelve una URL sin
+        firmar: una URL así se rechaza con 400 al mostrarla en un <Image> y,
+        peor, queda guardada en la fila del usuario "envenenando" el campo
+        para siempre.
+        """
+        try:
+            resp = client.post(
+                f"{supabase_url}/storage/v1/object/sign/{bucket}/{archivo_id}",
+                headers={
+                    "Authorization": f"Bearer {service_key}",
+                    "apikey": service_key,
+                    "Content-Type": "application/json",
+                },
+                json={"expiresIn": cls.URL_FIRMADA_EXPIRA_SEGUNDOS},
+            )
+            if resp.status_code == 200:
+                cuerpo = resp.json()
+                # Supabase ha usado `signedURL` y `signedUrl` según la versión.
+                signed_path = cuerpo.get("signedURL") or cuerpo.get("signedUrl")
+                if signed_path:
+                    if signed_path.startswith("http://") or signed_path.startswith("https://"):
+                        return signed_path  # ya viene absoluta
+                    base = f"{supabase_url.rstrip('/')}/storage/v1"
+                    return f"{base}/{signed_path.lstrip('/')}"
+            logger.warning(
+                "No se pudo firmar URL para %s/%s: %s %s",
+                bucket, archivo_id, resp.status_code, resp.text[:300],
+            )
+        except Exception as e:
+            logger.error("Error generando URL firmada para %s/%s: %s", bucket, archivo_id, e)
+        return None
+
+    @classmethod
+    def _generar_url_firmada(
+        cls,
+        client: httpx.Client,
+        supabase_url: str,
+        service_key: str,
+        bucket: str,
+        archivo_id: str,
+    ) -> str:
+        """
+        Como `_firmar_url_o_none`, pero para el momento de la SUBIDA: el objeto
+        se acaba de guardar y necesitamos devolver *algo*. Si la firma falla
+        acá (raro: el PUT anterior funcionó), se devuelve la URL directa sin
+        firmar como último recurso — el llamador la guardará y
+        `renovar_si_vence_pronto` intentará arreglarla en el próximo GET.
+        """
+        firmada = cls._firmar_url_o_none(client, supabase_url, service_key, bucket, archivo_id)
+        if firmada:
+            return firmada
+        return f"{supabase_url.rstrip('/')}/storage/v1/object/{bucket}/{archivo_id}"
+
+    @classmethod
+    def renovar_url_firmada(cls, bucket: str, archivo_id: str) -> Optional[str]:
+        """
+        Regenera una URL firmada vigente para un archivo ya existente en un
+        bucket privado (las firmadas expiran a los 7 días). Usado por
+        GET /storage/{bucket}/{archivo_id}/renovar y por
+        renovar_si_vence_pronto.
+
+        Devuelve None si no se pudo firmar: el llamador debe conservar la URL
+        que ya tenía en vez de pisarla con una rota.
+        """
+        supabase_url = settings.SUPABASE_URL
+        service_key = settings.SUPABASE_SERVICE_ROLE_KEY
+        if bucket not in cls.BUCKETS_PRIVADOS or not supabase_url or not service_key:
+            return None
+        with httpx.Client(timeout=15.0) as client:
+            return cls._firmar_url_o_none(client, supabase_url, service_key, bucket, archivo_id)
+
+    @staticmethod
+    def _exp_de_url_firmada(url: str) -> Optional[int]:
+        """
+        Lee el `exp` del JWT que Supabase Storage embebe como `?token=` en
+        sus URLs firmadas — sin verificar la firma: es una URL que nosotros
+        mismos emitimos y ya guardamos en la base de datos, no un dato que
+        llegue de fuera. `None` si no se puede leer.
+        """
+        try:
+            token = parse_qs(urlparse(url).query).get("token", [None])[0]
+            if not token:
+                return None
+            payload_b64 = token.split(".")[1]
+            payload_b64 += "=" * (-len(payload_b64) % 4)  # padding base64
+            return json.loads(base64.urlsafe_b64decode(payload_b64)).get("exp")
+        except Exception:
+            return None
+
+    @classmethod
+    def renovar_si_vence_pronto(cls, url: Optional[str], margen_horas: int = 24) -> Optional[str]:
+        """
+        Las URLs firmadas de Supabase Storage para buckets privados
+        (documentos-kyc, checklists, evidencias, documentos-autos) expiran a
+        los 7 días — y quedan guardadas tal cual en la fila del usuario o del
+        auto. Sin esto, una foto de perfil o un documento dejan de cargar en
+        silencio apenas pasa esa semana: no hay error visible, la imagen
+        simplemente no aparece. Se llama justo antes de devolver el campo al
+        cliente; si el token ya venció o vence dentro de `margen_horas`, se
+        pide una URL nueva. Cualquier cosa que no sea una URL firmada
+        reconocible (pública, local, externa como las fotos demo, o si no se
+        puede leer el `exp`) se devuelve tal cual — nunca rompe por esto.
+
+        También rescata una URL de bucket privado SIN firmar
+        (`/storage/v1/object/<bucket>/<archivo>` sin `/sign/` ni `/public/`):
+        esa forma la deja `_generar_url_firmada` como último recurso cuando la
+        firma falló en la subida, y un <Image> la rechaza con 400. Acá se
+        intenta firmar; si no se puede, se deja igual.
+        """
+        if not url or "/storage/v1/object/" not in url or "/object/public/" in url:
+            return url
+
+        firmada = "/storage/v1/object/sign/" in url
+        marcador = "/storage/v1/object/sign/" if firmada else "/storage/v1/object/"
+        try:
+            partes = url.split(marcador, 1)[1].split("?", 1)[0]
+            bucket, archivo_id = partes.split("/", 1)
+        except (IndexError, ValueError):
+            return url
+        if bucket not in cls.BUCKETS_PRIVADOS:
+            return url
+
+        if firmada:
+            exp = cls._exp_de_url_firmada(url)
+            if exp is None or exp - time.time() > margen_horas * 3600:
+                return url
+
+        return cls.renovar_url_firmada(bucket, archivo_id) or url

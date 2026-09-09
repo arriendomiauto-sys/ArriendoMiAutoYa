@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
 from app.models.entities import Usuario, Auto, Reserva, Notificacion
-from app.services.notificaciones import crear_notificacion, _enviar_push
+from app.services.notificaciones import crear_notificacion, _enviar_push, _post_push
 
 
 def test_registro_y_limpieza_push_token(usuario_factory, auth_as, db_session):
@@ -39,7 +39,9 @@ def test_enviar_push_payload_correcto():
         mock_instance = MagicMock()
         mock_client_cls.return_value.__enter__.return_value = mock_instance
 
-        _enviar_push(token, "Reserva Confirmada", "Tu reserva ha sido confirmada con éxito", {"tipo": "reserva", "entidad_id": "res-123"})
+        # `_post_push` es el worker síncrono (lo que `_enviar_push` despacha al
+        # pool de hilos); acá se prueba el payload sin depender del scheduling.
+        _post_push(token, "Reserva Confirmada", "Tu reserva ha sido confirmada con éxito", {"tipo": "reserva", "entidad_id": "res-123"})
 
         mock_instance.post.assert_called_once()
         args, kwargs = mock_instance.post.call_args
@@ -62,7 +64,7 @@ def test_enviar_push_ignora_tokens_invalidos():
 def test_crear_notificacion_guarda_en_bd_y_despacha_push(usuario_factory, db_session):
     usuario = usuario_factory(roles_activos=["cliente"], expo_push_token="ExponentPushToken[TestToken999]")
     
-    with patch("app.services.notificaciones._enviar_push") as mock_push:
+    with patch("app.features.communications.notifications.service._enviar_push") as mock_push:
         notif = crear_notificacion(
             db_session,
             usuario_id=usuario.id,

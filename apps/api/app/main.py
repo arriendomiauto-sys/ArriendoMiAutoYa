@@ -13,34 +13,44 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.core.schema_sync import sync_missing_columns, backfill_null_defaults
-from app.core.seed import seed_demo_data
 from app.core.limiter import limiter
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.request_limit import RequestSizeLimitMiddleware
-from app.services.recordatorios import iniciar_bucle_recordatorios
+from app.features.communications.notifications.reminders_service import iniciar_bucle_recordatorios
+
+# Auth & Identity
+from app.features.auth.login.router import router as auth_router
+from app.features.auth.users.router import router as users_router
+from app.features.auth.onboarding.router import router as onboarding_router
+from app.features.auth.onboarding.didit_router import router as didit_onboarding_router
+
+# Vehicles
+from app.features.vehicles.catalog.router import router as cars_router
+from app.features.vehicles.fleet.router import router as fleet_router
+
+# Bookings
+from app.features.bookings.reservations.router import router as bookings_router
+from app.features.bookings.delivery.router import router as delivery_router
+
+# Payments
+from app.features.payments.router import router as payments_router
+
+# Communications
+from app.features.communications.messages.router import router as messages_router
+from app.features.communications.notifications.router import router as notifications_router
+
+# Operations
+from app.features.operations.admin.router import router as admin_router
+from app.features.operations.disputes.router import router as disputes_router
+from app.features.operations.favorites.router import router as favorites_router
+from app.features.operations.reviews.router import router as reviews_router
+from app.features.operations.support.router import router as support_router
+
+# System
+from app.features.system.storage.router import router as storage_router
+from app.features.system.webhooks.router import router as webhooks_router
 
 logger = logging.getLogger(__name__)
-
-from app.routers import (
-    auth,
-    entrega,
-    enrolamiento,
-    cars,
-    reservas,
-    disputas,
-    soporte,
-    admin,
-    calificaciones,
-    pagos,
-    storage,
-    usuarios,
-    gestion_flota,
-    mensajes,
-    ws_chat,
-    notificaciones,
-    favoritos,
-    webhooks,
-)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -59,16 +69,8 @@ async def lifespan(app: FastAPI):
     # no-Optional sobre una de esas columnas responde 500).
     backfill_null_defaults()
     os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
-    db = SessionLocal()
-    try:
-        seed_demo_data(db)
-    finally:
-        db.close()
 
-    # Recordatorios de entrega/devolución (24h y 2h antes). No hay
-    # Celery/Redis en este proyecto: es un bucle liviano dentro del propio
-    # proceso — ver app/services/recordatorios.py para el porqué y sus
-    # límites conocidos.
+    # Recordatorios de entrega/devolución (24h y 2h antes)
     tarea_recordatorios = iniciar_bucle_recordatorios(SessionLocal)
 
     yield
@@ -131,13 +133,6 @@ else:
 
 
 # Servir archivos estáticos locales de respaldo (Uploads).
-#
-# Solo los buckets públicos. El respaldo de los buckets privados
-# (documentos-kyc, checklists, evidencias, documentos-autos) vive en
-# STORAGE_LOCAL_PRIVATE_DIR y NO se monta acá: se sirve por
-# GET /api/v1/storage/local/{bucket}/{archivo_id}, que exige sesión.
-# Montar STORAGE_LOCAL_DIR entero dejaba los carnets legibles con solo
-# conocer la URL.
 os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
 os.makedirs(settings.STORAGE_LOCAL_PRIVATE_DIR, exist_ok=True)
 for _bucket_publico in ("autos", "general"):
@@ -149,30 +144,30 @@ for _bucket_publico in ("autos", "general"):
         name=f"uploads-{_bucket_publico}",
     )
 
-# Incluir routers
+# Incluir routers por feature
 api_prefix = settings.API_V1_STR
-app.include_router(auth.router, prefix=api_prefix)
-app.include_router(entrega.router, prefix=api_prefix)
-app.include_router(enrolamiento.router, prefix=api_prefix)
-app.include_router(cars.router, prefix=api_prefix)
-app.include_router(reservas.router, prefix=api_prefix)
-app.include_router(disputas.router, prefix=api_prefix)
-app.include_router(soporte.router, prefix=api_prefix)
-app.include_router(admin.router, prefix=api_prefix)
-app.include_router(calificaciones.router, prefix=api_prefix)
-app.include_router(pagos.router, prefix=api_prefix)
-app.include_router(storage.router, prefix=api_prefix)
-app.include_router(usuarios.router, prefix=api_prefix)
-app.include_router(gestion_flota.router, prefix=api_prefix)
-app.include_router(mensajes.router, prefix=api_prefix)
-app.include_router(ws_chat.router, prefix=api_prefix)
-app.include_router(notificaciones.router, prefix=api_prefix)
-app.include_router(favoritos.router, prefix=api_prefix)
-app.include_router(webhooks.router, prefix=api_prefix)
+app.include_router(auth_router, prefix=api_prefix)
+app.include_router(delivery_router, prefix=api_prefix)
+app.include_router(onboarding_router, prefix=api_prefix)
+app.include_router(didit_onboarding_router, prefix=api_prefix)
+app.include_router(cars_router, prefix=api_prefix)
+app.include_router(bookings_router, prefix=api_prefix)
+app.include_router(disputes_router, prefix=api_prefix)
+app.include_router(support_router, prefix=api_prefix)
+app.include_router(admin_router, prefix=api_prefix)
+app.include_router(reviews_router, prefix=api_prefix)
+app.include_router(payments_router, prefix=api_prefix)
+app.include_router(storage_router, prefix=api_prefix)
+app.include_router(users_router, prefix=api_prefix)
+app.include_router(fleet_router, prefix=api_prefix)
+app.include_router(messages_router, prefix=api_prefix)
+app.include_router(notifications_router, prefix=api_prefix)
+app.include_router(favorites_router, prefix=api_prefix)
+app.include_router(webhooks_router, prefix=api_prefix)
 
 # Montar servidor Socket.IO para chat en tiempo real
 import socketio
-from app.services.socketio_server import sio
+from app.features.communications.messages.socketio_server import sio
 app.mount("/socket.io", socketio.ASGIApp(sio, socketio_path=""))
 
 @app.get("/", tags=["Health"])

@@ -11,7 +11,7 @@ import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from datetime import datetime
 from app.models.entities import Usuario, Auto, Reserva, Mensaje
-from app.services.socketio_server import (
+from app.features.communications.messages.socketio_server import (
     connect,
     unir_reserva,
     enviar_mensaje,
@@ -46,8 +46,8 @@ async def test_socketio_connect_sin_token():
 async def test_socketio_connect_token_valido(usuario_factory, db_session):
     usuario = usuario_factory(roles_activos=["cliente"])
 
-    with patch("app.services.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)), \
-         patch("app.services.socketio_server.autenticar_token", new_callable=AsyncMock) as mock_auth, \
+    with patch("app.features.communications.messages.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)), \
+         patch("app.features.communications.messages.socketio_server.autenticar_token", new_callable=AsyncMock) as mock_auth, \
          patch.object(sio, "save_session", new_callable=AsyncMock) as mock_save:
         
         mock_auth.return_value = usuario
@@ -78,7 +78,7 @@ async def test_socketio_unir_reserva_autorizado_vs_ajeno(usuario_factory, db_ses
     db_session.add(reserva)
     db_session.commit()
 
-    with patch("app.services.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)):
+    with patch("app.features.communications.messages.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)):
         # Intruso intenta unirse a la sala
         with patch.object(sio, "get_session", new_callable=AsyncMock) as mock_get_session:
             mock_get_session.return_value = {"usuario_id": intruso.id}
@@ -117,7 +117,7 @@ async def test_socketio_enviar_mensaje_persiste_y_emite(usuario_factory, db_sess
     db_session.add(reserva)
     db_session.commit()
 
-    with patch("app.services.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)):
+    with patch("app.features.communications.messages.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)):
         with patch.object(sio, "get_session", new_callable=AsyncMock) as mock_get_session, \
              patch.object(sio, "emit", new_callable=AsyncMock) as mock_emit:
             

@@ -1,3 +1,10 @@
+import os
+
+# La suite NUNCA debe tocar la base real. El `.env` local puede apuntar a
+# Supabase; se fuerza sqlite en memoria antes de importar `app.main` (que crea
+# el engine al importarse). El engine de los tests se define más abajo aparte.
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+
 import uuid
 import pytest
 from fastapi.testclient import TestClient
@@ -60,6 +67,39 @@ def _ocr_en_mock():
     yield
     for k, v in previos.items():
         setattr(settings, k, v)
+
+
+@pytest.fixture(autouse=True)
+def _push_inline(monkeypatch):
+    """
+    El push a Expo se despacha a un ThreadPoolExecutor en producción. En los
+    tests se corre inline para que los `patch("httpx.Client")` de cada test
+    sigan valiendo y ningún hilo escape a la red real de Expo.
+    """
+    from app.features.communications.notifications import service as notif_service
+
+    class _EjecutorInline:
+        def submit(self, fn, *args, **kwargs):
+            try:
+                fn(*args, **kwargs)
+            except Exception:
+                pass
+            return None
+
+    monkeypatch.setattr(notif_service, "_push_executor", _EjecutorInline())
+
+
+@pytest.fixture(autouse=True)
+def _reset_token_cache():
+    """
+    El cache de validación de sesión (app.services.auth) vive a nivel de
+    proceso: sin esto, un `user_id` cacheado en un test apuntaría a una fila
+    que el siguiente test ya borró con `drop_all`.
+    """
+    from app.services.auth import limpiar_cache_tokens
+    limpiar_cache_tokens()
+    yield
+    limpiar_cache_tokens()
 
 
 @pytest.fixture(autouse=True)

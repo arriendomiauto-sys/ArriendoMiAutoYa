@@ -34,6 +34,8 @@ class Usuario(Base):
     verificacion_externa_estado = Column(String, nullable=True)
     verificacion_externa_ref = Column(String, index=True, nullable=True)  # session_id del proveedor
     verificacion_externa_actualizada = Column(DateTime, nullable=True)
+    metodo_verificacion = Column(String, nullable=True)  # "didit" | "casero" | "manual_admin"
+    antecedentes_estado = Column(String, nullable=True)  # "limpio" | "revision" | "bloqueado"
     roles_activos = Column(JSON, default=lambda: ["cliente"]) # ["dueno", "cliente", "manager", "admin"]
     sucursal_id = Column(String, ForeignKey("sucursales.id"), nullable=True)
     fecha_registro = Column(DateTime, default=utc_now)
@@ -60,6 +62,15 @@ class Usuario(Base):
     # "revision" (un ejecutivo la está mirando). El renter no puede reservar
     # sin esto en "verificada".
     licencia_estado = Column(String, nullable=True)
+
+    # Fotos permanentes de los documentos de identidad. Las llena el
+    # enrolamiento (flujo casero) o el webhook de Didit tras rebajar los
+    # assets temporales del proveedor a Supabase Storage (bucket privado
+    # "documentos-kyc"). El avatar verificado vive en `foto_perfil_verificada_url`.
+    carnet_frontal_url = Column(String, nullable=True)
+    carnet_trasero_url = Column(String, nullable=True)
+    licencia_url = Column(String, nullable=True)
+
     pic_url = Column(String, nullable=True)               # Permiso Internacional de Conducir
     pic_vencimiento = Column(DateTime, nullable=True)
     es_residente_chile = Column(Boolean, default=False)
@@ -203,6 +214,35 @@ class Reserva(Base):
     calificaciones = relationship("Calificacion", back_populates="reserva")
     mensajes = relationship("Mensaje", back_populates="reserva")
     segundo_conductor = relationship("ConductorAdicional", back_populates="reserva", uselist=False, cascade="all, delete-orphan")
+    firmas = relationship("FirmaContrato", back_populates="reserva", cascade="all, delete-orphan")
+
+
+class FirmaContrato(Base):
+    """
+    Registro legal de la firma del contrato de arriendo, por parte (arrendatario
+    y arrendador). Cada firma guarda el método usado, el instante exacto (UTC),
+    el hash del PDF vigente al firmar (prueba de qué se firmó) y el contexto de
+    red (IP / user-agent) para respaldo probatorio.
+    """
+    __tablename__ = "firmas_contrato"
+    __table_args__ = (
+        UniqueConstraint("reserva_id", "rol", name="uq_firma_contrato_reserva_rol"),
+    )
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False, index=True)
+    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
+    rol = Column(String, nullable=False)          # "arrendatario" | "arrendador"
+    metodo = Column(String, nullable=False)       # "huella" | "facial" | "escrita"
+    firma_svg = Column(Text, nullable=True)       # trazo SVG solo cuando metodo == "escrita"
+    nombre_firmante = Column(String, nullable=True)
+    hash_contrato_sha256 = Column(String(64), nullable=True)
+    ip = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    firmado_en = Column(DateTime, default=utc_now, nullable=False)
+
+    reserva = relationship("Reserva", back_populates="firmas")
+
 
 class VerificacionEntrega(Base):
     __tablename__ = "verificaciones_entrega"

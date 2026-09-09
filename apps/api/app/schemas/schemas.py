@@ -655,6 +655,29 @@ class BookingCreate(BaseModel):
             raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio")
         return v
 
+class FirmaContratoRequest(BaseModel):
+    metodo: Literal["huella", "facial", "escrita"]
+    firma_svg: Optional[str] = Field(
+        default=None, description="Trazo SVG de la firma manuscrita (obligatorio si metodo == 'escrita')"
+    )
+    nombre_firmante: Optional[str] = Field(
+        default=None, description="Nombre con el que firma; si se omite se usa el del perfil verificado"
+    )
+    acepta_terminos: bool = Field(
+        ..., description="Confirmación explícita de que el firmante leyó y acepta el contrato"
+    )
+
+
+class FirmaContratoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    rol: str
+    metodo: str
+    nombre_firmante: Optional[str] = None
+    hash_contrato_sha256: Optional[str] = None
+    firmado_en: datetime
+
+
 class BookingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -678,6 +701,7 @@ class BookingOut(BaseModel):
     contrato_pdf_url: Optional[str] = None
     hash_contrato_sha256: Optional[str] = None
     fecha_firma_biometrica: Optional[datetime] = None
+    firmas: List[FirmaContratoOut] = []
     segundo_conductor: Optional[ConductorAdicionalOut] = None
 
     # Pre-checkin 24h antes
