@@ -1,11 +1,14 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   GoogleMap,
   useJsApiLoader,
   OverlayViewF,
   OverlayView,
   InfoWindowF,
+  CircleF,
 } from "@react-google-maps/api";
+import { LocateFixed } from "lucide-react";
+import { MapSkeleton } from "./Skeleton";
 
 /**
  * Mapa de autos disponibles con Google Maps.
@@ -16,11 +19,29 @@ import {
  * (endpoint GET /autos).
  */
 
-const API_KEY = process.env.NEXT_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_GOOGLE_MAPS_API_KEY || "";
 const LIBRARIES = []; // constante estable: evita recargas del loader
 
 const DEFAULT_CENTER = { lat: -33.45, lng: -70.66 }; // Región Metropolitana
 const DEFAULT_ZOOM = 11;
+
+// Zoom aproximado para que un círculo de `radioKm` entre justo en el mapa.
+const zoomParaRadio = (km) => {
+  if (km <= 5) return 13;
+  if (km <= 10) return 12;
+  if (km <= 25) return 11;
+  if (km <= 50) return 10;
+  return 9;
+};
+
+const CIRCLE_OPTIONS = {
+  strokeColor: "#14a07c",
+  strokeOpacity: 0.5,
+  strokeWeight: 1,
+  fillColor: "#14a07c",
+  fillOpacity: 0.06,
+  clickable: false,
+};
 
 // Estilo claro tipo "silver", a tono con el sitio blanco.
 const MAP_STYLE = [
@@ -63,7 +84,7 @@ function Aviso({ children }) {
   );
 }
 
-export default function MapaAutos({ autos = [], activoId }) {
+export default function MapaAutos({ autos = [], activoId, userLocation = null, radioKm = 25, cargando = false }) {
   const mapRef = useRef(null);
   const [seleccionado, setSeleccionado] = useState(null);
 
@@ -77,7 +98,14 @@ export default function MapaAutos({ autos = [], activoId }) {
 
   const ajustarVista = useCallback(
     (map) => {
-      if (!map || conCoords.length === 0) return;
+      if (!map) return;
+      // Con ubicación del usuario: se centra ahí y se encuadra el radio.
+      if (userLocation) {
+        map.setCenter({ lat: userLocation.lat, lng: userLocation.lng });
+        map.setZoom(zoomParaRadio(radioKm));
+        return;
+      }
+      if (conCoords.length === 0) return;
       if (conCoords.length === 1) {
         map.setCenter({ lat: conCoords[0].latitud, lng: conCoords[0].longitud });
         map.setZoom(14);
@@ -87,7 +115,7 @@ export default function MapaAutos({ autos = [], activoId }) {
       conCoords.forEach((a) => bounds.extend({ lat: a.latitud, lng: a.longitud }));
       map.fitBounds(bounds, 64);
     },
-    [conCoords]
+    [conCoords, userLocation, radioKm]
   );
 
   const onLoad = useCallback(
@@ -98,22 +126,49 @@ export default function MapaAutos({ autos = [], activoId }) {
     [ajustarVista]
   );
 
+  // Reencuadrar cuando cambian los autos, la ubicación o el radio.
+  useEffect(() => {
+    if (mapRef.current) ajustarVista(mapRef.current);
+  }, [ajustarVista]);
+
+  const recentrar = useCallback(() => {
+    if (mapRef.current) ajustarVista(mapRef.current);
+  }, [ajustarVista]);
+
   if (!API_KEY) {
-    return <Aviso>Configura <code className="mx-1 rounded bg-white px-1 py-0.5 text-xs">NEXT_GOOGLE_MAPS_API_KEY</code> para ver el mapa.</Aviso>;
+    return <Aviso>Configura <code className="mx-1 rounded bg-white px-1 py-0.5 text-xs">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> para ver el mapa.</Aviso>;
   }
   if (loadError) return <Aviso>No se pudo cargar Google Maps.</Aviso>;
-  if (!isLoaded) return <Aviso>Cargando mapa…</Aviso>;
+  if (!isLoaded || (cargando && autos.length === 0)) return <MapSkeleton />;
 
   return (
     <div className="relative h-[380px] w-full sm:h-[520px]">
       <GoogleMap
         mapContainerClassName="absolute inset-0"
-        center={DEFAULT_CENTER}
-        zoom={DEFAULT_ZOOM}
+        center={userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : DEFAULT_CENTER}
+        zoom={userLocation ? zoomParaRadio(radioKm) : DEFAULT_ZOOM}
         options={MAP_OPTIONS}
         onLoad={onLoad}
         onClick={() => setSeleccionado(null)}
       >
+        {/* Zona de búsqueda + marca "tú estás aquí" */}
+        {userLocation && (
+          <>
+            <CircleF
+              center={{ lat: userLocation.lat, lng: userLocation.lng }}
+              radius={radioKm * 1000}
+              options={CIRCLE_OPTIONS}
+            />
+            <OverlayViewF
+              position={{ lat: userLocation.lat, lng: userLocation.lng }}
+              mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+              getPixelPositionOffset={(w, h) => ({ x: -(w / 2), y: -(h / 2) })}
+            >
+              <span className="amay-yo" title="Tu ubicación" />
+            </OverlayViewF>
+          </>
+        )}
+
         {conCoords.map((auto) => {
           const activo = seleccionado === auto.id || (!seleccionado && auto.id === activoId);
           return (
@@ -127,6 +182,9 @@ export default function MapaAutos({ autos = [], activoId }) {
                 type="button"
                 onClick={() => setSeleccionado(auto.id)}
                 className={`amay-pin ${activo ? "amay-pin--active" : ""}`}
+                aria-label={`${auto.marca} ${auto.modelo} — ${fmtCLP(auto.tarifa_dia)} por día${
+                  auto.ubicacion_base ? ` en ${auto.ubicacion_base}` : ""
+                }`}
               >
                 {fmtCorto(auto.tarifa_dia)}
               </button>
@@ -152,6 +210,11 @@ export default function MapaAutos({ autos = [], activoId }) {
                   {fmtCLP(a.tarifa_dia)} / día
                   {a.rating_promedio ? ` · ★ ${a.rating_promedio}` : ""}
                 </div>
+                {typeof a.distanciaKm === "number" && (
+                  <div className="text-[11px] text-[#63645f]">
+                    a {a.distanciaKm < 10 ? a.distanciaKm.toFixed(1).replace(".", ",") : Math.round(a.distanciaKm)} km de ti
+                  </div>
+                )}
               </div>
             </InfoWindowF>
           );
@@ -160,8 +223,26 @@ export default function MapaAutos({ autos = [], activoId }) {
 
       <div className="pointer-events-none absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full border border-brand-line bg-white px-3.5 py-1.5 text-xs font-semibold shadow-sm">
         <span className="h-2 w-2 rounded-full bg-brand-teal" />
-        {conCoords.length} de {autos.length} autos con ubicación
+        {userLocation
+          ? `${conCoords.length} ${conCoords.length === 1 ? "auto" : "autos"} a ${radioKm} km`
+          : `${conCoords.length} de ${autos.length} autos con ubicación`}
       </div>
+
+      {userLocation && (
+        <button
+          type="button"
+          onClick={recentrar}
+          className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-brand-line bg-white px-3 py-1.5 text-xs font-semibold text-brand-ink shadow-sm hover:border-brand-ink"
+        >
+          <LocateFixed className="h-3.5 w-3.5 text-brand-tealInk" /> Centrar
+        </button>
+      )}
+
+      {userLocation && conCoords.length === 0 && (
+        <div className="pointer-events-none absolute inset-x-6 top-1/2 z-10 -translate-y-1/2 rounded-2xl border border-brand-line bg-white/95 p-4 text-center text-[13px] text-[#63645f] shadow-soft">
+          No hay autos publicados a {radioKm} km de {userLocation.label || "ti"}. Prueba ampliando el radio.
+        </div>
+      )}
     </div>
   );
 }

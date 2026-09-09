@@ -31,18 +31,21 @@ import {
 import { FaApple, FaGooglePlay } from "react-icons/fa";
 
 import { API_BASE_URL } from "../lib/api";
+import { obtenerAutos, esAutoPublicable, autoHref } from "../lib/autos";
+import {
+  haversineKm,
+  formatearDistancia,
+  leerUbicacion,
+  guardarUbicacion,
+} from "../lib/geo";
+import SelectorUbicacion from "../components/SelectorUbicacion";
+import FotoAuto from "../components/FotoAuto";
+import { CarCardSkeleton, CarRowSkeleton } from "../components/Skeleton";
 
 const MapaAutos = dynamic(() => import("../components/MapaAutos"), { ssr: false });
 
-/* ───────────── DATOS DE RESPALDO (si la API no responde) ───────────── */
-const AUTOS_FALLBACK = [
-  { id: "fb-1", marca: "Toyota", modelo: "RAV4 Limited", anio: 2023, categoria: "suv", tarifa_dia: 42000, ubicacion_base: "Providencia", transmision: "Automática", combustible: "Bencina", asientos: 5, rating_promedio: 4.9, rating_cantidad: 28, latitud: -33.4262, longitud: -70.6105, fotos: ["/cars/toyota-rav4.jpg"] },
-  { id: "fb-2", marca: "Hyundai", modelo: "Tucson GL", anio: 2022, categoria: "suv", tarifa_dia: 35000, ubicacion_base: "Ñuñoa", transmision: "Automática", combustible: "Bencina", asientos: 5, rating_promedio: 4.8, rating_cantidad: 19, latitud: -33.4569, longitud: -70.5977, fotos: ["/cars/hyundai-tucson.jpg"] },
-  { id: "fb-3", marca: "Suzuki", modelo: "Jimny AllGrip", anio: 2024, categoria: "4x4", tarifa_dia: 48000, ubicacion_base: "Las Condes", transmision: "Manual", combustible: "Bencina", asientos: 4, rating_promedio: 5.0, rating_cantidad: 34, latitud: -33.4089, longitud: -70.5698, fotos: ["/cars/suzuki-jimny.jpg"] },
-  { id: "fb-4", marca: "Chevrolet", modelo: "Onix Turbo", anio: 2023, categoria: "economico", tarifa_dia: 28000, ubicacion_base: "Santiago Centro", transmision: "Manual", combustible: "Bencina", asientos: 5, rating_promedio: 4.7, rating_cantidad: 15, latitud: -33.4489, longitud: -70.6693, fotos: ["/cars/chevrolet-onix.jpg"] },
-  { id: "fb-5", marca: "Ford", modelo: "Ranger XLT 4x4", anio: 2023, categoria: "4x4", tarifa_dia: 55000, ubicacion_base: "Maipú", transmision: "Automática", combustible: "Diésel", asientos: 5, rating_promedio: 4.9, rating_cantidad: 42, latitud: -33.5107, longitud: -70.7577, fotos: ["/cars/ford-ranger.jpg"] },
-  { id: "fb-6", marca: "Kia", modelo: "Soluto LX", anio: 2022, categoria: "economico", tarifa_dia: 26000, ubicacion_base: "La Florida", transmision: "Manual", combustible: "Bencina", asientos: 5, rating_promedio: 4.6, rating_cantidad: 22, latitud: -33.5225, longitud: -70.5989, fotos: ["/cars/kia-soluto.jpg"] },
-];
+const RADIO_DEFAULT_KM = 25;
+const tieneCoords = (a) => typeof a?.latitud === "number" && typeof a?.longitud === "number";
 
 const CATEGORIAS = [
   { id: "todos", label: "Todos" },
@@ -114,53 +117,87 @@ const FAQS = [
 ];
 
 const fmtCLP = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
-const FOTO_FALLBACK = "/cars/toyota-rav4.jpg";
 const fotoDe = (a) => {
-  if (!a) return FOTO_FALLBACK;
-  const f = a.fotos?.[0] || a.foto;
-  if (!f || typeof f !== "string" || f.trim().length < 5) return FOTO_FALLBACK;
-  return f;
+  const f = a?.fotos?.[0] || a?.foto;
+  return typeof f === "string" && f.trim().length > 5 ? f.trim() : null;
 };
+const SKELETON_KEYS = [0, 1, 2, 3, 4, 5];
 
 /* ───────────── COMPONENTE ───────────── */
 export default function Home() {
-  const [autos, setAutos] = useState(AUTOS_FALLBACK);
+  const [autos, setAutos] = useState([]);
+  const [carga, setCarga] = useState("cargando"); // "cargando" | "ok" | "error"
   const [categoria, setCategoria] = useState("todos");
   const [query, setQuery] = useState("");
   const [modalAuto, setModalAuto] = useState(null);
   const [openFaq, setOpenFaq] = useState(0);
   const [dias, setDias] = useState(12);
 
+  // Ubicación elegida (GPS o comuna) y radio de búsqueda. Se recuerda entre visitas.
+  const [ubicacion, setUbicacion] = useState(null);
+  const [radioKm, setRadioKm] = useState(RADIO_DEFAULT_KM);
+
   useEffect(() => {
-    let vivo = true;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/autos`);
-        if (res.ok) {
-          const data = await res.json();
-          if (vivo && Array.isArray(data) && data.length) {
-            // Filtrar autos de prueba o sin fotos válidas para mantener catálogo profesional
-            const validos = data.filter((a) => {
-              const nombreInvalido = /xdd|test|prueba|asdf|dummy|mock/i.test(`${a.marca || ""} ${a.modelo || ""}`);
-              const tieneFoto =
-                (Array.isArray(a.fotos) && a.fotos.length > 0 && typeof a.fotos[0] === "string" && a.fotos[0].trim().length > 5) ||
-                (typeof a.foto === "string" && a.foto.trim().length > 5);
-              return !nombreInvalido && tieneFoto;
-            });
-            if (validos.length > 0) setAutos(validos);
-          }
-        }
-      } catch {
-        /* se mantiene el respaldo */
-      }
-    })();
-    return () => {
-      vivo = false;
-    };
+    const u = leerUbicacion();
+    if (u) {
+      setUbicacion(u);
+      if (u.radioKm) setRadioKm(u.radioKm);
+    }
   }, []);
 
+  const cargarAutos = React.useCallback((signal) => {
+    setCarga("cargando");
+    obtenerAutos({ signal })
+      .then((lista) => {
+        if (signal?.aborted) return;
+        setAutos(lista);
+        setCarga("ok");
+      })
+      .catch(() => {
+        if (signal?.aborted) return;
+        setAutos([]);
+        setCarga("error");
+      });
+  }, []);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    cargarAutos(ctrl.signal);
+    return () => ctrl.abort();
+  }, [cargarAutos]);
+
+  const aplicarUbicacion = (u) => {
+    setUbicacion(u);
+    guardarUbicacion({ ...u, radioKm });
+  };
+  const aplicarRadio = (km) => {
+    setRadioKm(km);
+    if (ubicacion) guardarUbicacion({ ...ubicacion, radioKm: km });
+  };
+  const limpiarUbicacion = () => {
+    setUbicacion(null);
+    guardarUbicacion(null);
+  };
+
+  // Autos con la distancia a la ubicación elegida (o sin ella).
+  const autosConDistancia = useMemo(() => {
+    if (!ubicacion) return autos.map((a) => ({ ...a, distanciaKm: null }));
+    return autos.map((a) => ({
+      ...a,
+      distanciaKm: tieneCoords(a) ? haversineKm(ubicacion, { lat: a.latitud, lng: a.longitud }) : null,
+    }));
+  }, [autos, ubicacion]);
+
+  // Autos dentro del radio (si hay ubicación), ordenados por cercanía.
+  const autosEnZona = useMemo(() => {
+    if (!ubicacion) return autosConDistancia;
+    return autosConDistancia
+      .filter((a) => a.distanciaKm != null && a.distanciaKm <= radioKm)
+      .sort((x, y) => x.distanciaKm - y.distanciaKm);
+  }, [autosConDistancia, ubicacion, radioKm]);
+
   const filtrados = useMemo(() => {
-    let r = [...autos];
+    let r = [...autosEnZona];
     if (categoria !== "todos") r = r.filter((a) => a.categoria === categoria);
     const q = query.trim().toLowerCase();
     if (q) {
@@ -169,7 +206,7 @@ export default function Home() {
       );
     }
     return r;
-  }, [autos, categoria, query]);
+  }, [autosEnZona, categoria, query]);
 
   const tarifaNeta = Math.round(dias * 30000 * 0.85);
 
@@ -319,42 +356,88 @@ export default function Home() {
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Disponibles ahora</span>
-                <h2 className="mt-3.5 font-display text-3xl font-bold sm:text-4xl">Autos cerca tuyo, en el mapa</h2>
+                <h2 className="mt-3.5 font-display text-3xl font-bold sm:text-4xl">
+                  {ubicacion ? `Autos cerca de ${ubicacion.label}` : "Autos cerca tuyo, en el mapa"}
+                </h2>
                 <div className="accent-rule mt-4" />
               </div>
               <span className="inline-flex items-center gap-2 rounded-full border border-brand-line bg-white px-3.5 py-1.5 text-xs font-semibold">
-                <span className="h-2 w-2 rounded-full bg-brand-teal ring-4 ring-brand-teal/20" />
-                Datos en vivo desde la app
+                <span className={`h-2 w-2 rounded-full ${carga === "ok" ? "bg-brand-teal ring-4 ring-brand-teal/20" : "amay-skeleton bg-brand-dash"}`} />
+                {carga === "cargando" ? "Cargando catálogo…" : carga === "error" ? "Sin conexión con el catálogo" : "Datos en vivo desde la app"}
               </span>
             </div>
 
-            <div className="mt-9 grid overflow-hidden rounded-3xl border border-brand-line shadow-soft lg:grid-cols-[1.55fr_1fr]">
-              <MapaAutos autos={autos} activoId={filtrados[0]?.id} />
-              <div className="flex flex-col gap-3.5 bg-white p-6">
-                <div className="font-display text-sm font-semibold uppercase tracking-wider text-[#63645f]">Más pedidos</div>
-                {filtrados.slice(0, 4).map((a, i) => (
+            <div className="mt-7">
+              <SelectorUbicacion
+                ubicacion={ubicacion}
+                radioKm={radioKm}
+                totalEnZona={autosEnZona.length}
+                onUbicacion={aplicarUbicacion}
+                onRadio={aplicarRadio}
+                onLimpiar={limpiarUbicacion}
+              />
+            </div>
+
+            <div className="mt-6 grid overflow-hidden rounded-3xl border border-brand-line shadow-soft lg:grid-cols-[1.55fr_1fr]">
+              <MapaAutos
+                autos={filtrados}
+                activoId={filtrados[0]?.id}
+                userLocation={ubicacion}
+                radioKm={radioKm}
+                cargando={carga === "cargando"}
+              />
+              <div className="flex flex-col gap-3.5 bg-white p-6" aria-busy={carga === "cargando"}>
+                <div className="font-display text-sm font-semibold uppercase tracking-wider text-[#63645f]">
+                  {ubicacion ? "Los más cercanos" : "Más pedidos"}
+                </div>
+
+                {carga === "cargando" && SKELETON_KEYS.slice(0, 4).map((k, i) => (
+                  <React.Fragment key={`sk-${k}`}>
+                    {i > 0 && <div className="h-px bg-brand-line" />}
+                    <CarRowSkeleton />
+                  </React.Fragment>
+                ))}
+
+                {carga !== "cargando" && filtrados.slice(0, 4).map((a, i) => (
                   <React.Fragment key={a.id}>
                     {i > 0 && <div className="h-px bg-brand-line" />}
-                    <button onClick={() => setModalAuto(a)} className="flex items-center gap-3.5 text-left">
-                      <img
+                    <button onClick={() => setModalAuto(a)} className="flex items-center gap-3.5 rounded-xl p-1 text-left transition-colors hover:bg-brand-soft">
+                      <FotoAuto
                         src={fotoDe(a)}
                         alt={`${a.marca} ${a.modelo}`}
-                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FOTO_FALLBACK; }}
-                        className="h-[60px] w-[78px] shrink-0 rounded-xl object-cover"
+                        className="h-[60px] w-[78px] shrink-0 rounded-xl"
                       />
-                      <div className="flex-1">
-                        <div className="text-[14.5px] font-semibold">{a.marca} {a.modelo}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[14.5px] font-semibold">{a.marca} {a.modelo}</div>
                         <div className="text-[12.5px] text-[#63645f]">
-                          {a.categoria ? a.categoria : "Auto"} · ★ {a.rating_promedio ?? "—"}
+                          {formatearDistancia(a.distanciaKm) || (a.categoria ? a.categoria : "Auto")} · ★ {a.rating_promedio ?? "—"}
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="shrink-0 text-right">
                         <b className="font-display text-[15px] text-brand-ink">{fmtCLP(a.tarifa_dia)}</b>
                         <div className="text-[11px] text-[#63645f]">/ día</div>
                       </div>
                     </button>
                   </React.Fragment>
                 ))}
+
+                {carga === "error" && (
+                  <div className="py-6 text-center">
+                    <p className="text-[13px] text-[#63645f]">No pudimos cargar el catálogo.</p>
+                    <Button size="sm" onClick={() => cargarAutos()} className="mt-3 rounded-xl bg-brand-ink text-white hover:bg-black">
+                      Reintentar
+                    </Button>
+                  </div>
+                )}
+
+                {carga === "ok" && filtrados.length === 0 && (
+                  <p className="py-6 text-center text-[13px] text-[#63645f]">
+                    {ubicacion
+                      ? `Ningún auto a ${radioKm} km. Amplía el radio o mira todo el catálogo.`
+                      : "No hay autos con esos filtros."}
+                  </p>
+                )}
+
                 <a href="#catalogo">
                   <Button variant="outline" className="mt-1.5 w-full rounded-xl border-brand-line text-brand-ink hover:border-brand-ink">
                     Ver todo el catálogo
@@ -371,14 +454,17 @@ export default function Home() {
             <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Catálogo</span>
             <div className="mt-3.5 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h2 className="font-display text-3xl font-bold sm:text-4xl">Un auto para cada plan</h2>
+                <h2 className="font-display text-3xl font-bold sm:text-4xl">
+                  {ubicacion ? `A menos de ${radioKm} km de ${ubicacion.label}` : "Un auto para cada plan"}
+                </h2>
                 <div className="accent-rule mt-4" />
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por categoría">
                 {CATEGORIAS.map((c) => (
                   <button
                     key={c.id}
                     onClick={() => setCategoria(c.id)}
+                    aria-pressed={categoria === c.id}
                     className={`rounded-full border px-4 py-2 text-xs font-semibold transition-colors ${
                       categoria === c.id
                         ? "border-brand-ink bg-brand-ink text-white"
@@ -391,46 +477,56 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filtrados.map((a) => (
-                <div key={a.id} className="flex flex-col overflow-hidden rounded-3xl border border-brand-line bg-white shadow-soft">
-                  <div className="relative h-52">
-                    <img
+            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3" aria-busy={carga === "cargando"}>
+              {carga === "cargando" && SKELETON_KEYS.map((k) => <CarCardSkeleton key={`sk-${k}`} />)}
+
+              {carga !== "cargando" && filtrados.map((a) => (
+                <div key={a.id} className="group flex flex-col overflow-hidden rounded-3xl border border-brand-line bg-white shadow-soft transition-shadow hover:shadow-lg">
+                  <Link href={autoHref(a)} className="relative block h-52">
+                    <FotoAuto
                       src={fotoDe(a)}
-                      alt={`${a.marca} ${a.modelo} ${a.anio}`}
-                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FOTO_FALLBACK; }}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
+                      alt={`${a.marca} ${a.modelo} ${a.anio || ""}`.trim()}
+                      className="h-full w-full"
+                      imgClassName="transition-transform duration-300 group-hover:scale-[1.03]"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
                     {a.categoria && (
                       <span className="absolute left-3 top-3 rounded-full border border-brand-line bg-white px-2.5 py-1 text-[11px] font-semibold capitalize">
                         {a.categoria}
                       </span>
                     )}
-                  </div>
+                    {formatearDistancia(a.distanciaKm) && (
+                      <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-brand-ink/85 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+                        <MapPin className="h-3 w-3" /> {formatearDistancia(a.distanciaKm)}
+                      </span>
+                    )}
+                  </Link>
                   <div className="flex flex-1 flex-col gap-3 p-5">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h3 className="font-display text-[17px] font-semibold">{a.marca} {a.modelo}</h3>
+                      <div className="min-w-0">
+                        <h3 className="font-display text-[17px] font-semibold">
+                          <Link href={autoHref(a)} className="hover:text-brand-tealInk">{a.marca} {a.modelo}</Link>
+                        </h3>
                         <p className="text-[13px] text-[#63645f]">
-                          {[a.transmision, a.combustible, a.asientos ? `${a.asientos} asientos` : null].filter(Boolean).join(" · ") || `Modelo ${a.anio}`}
+                          {[a.transmision, a.combustible, a.asientos ? `${a.asientos} asientos` : null].filter(Boolean).join(" · ") || (a.anio ? `Modelo ${a.anio}` : "Vehículo particular")}
                         </p>
                       </div>
-                      <div className="text-right">
+                      <div className="shrink-0 text-right">
                         <b className="font-display text-[17px] text-brand-ink">{fmtCLP(a.tarifa_dia)}</b>
                         <div className="text-[11px] text-[#63645f]">CLP / día</div>
                       </div>
                     </div>
-                    <div className="mt-auto flex items-center justify-between border-t border-brand-line pt-3">
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-brand-line pt-3">
                       <span className="flex items-center gap-1 text-[12.5px] font-semibold text-brand-tealInk">
                         <Star className="h-3.5 w-3.5 fill-brand-teal text-brand-teal" />
                         {a.rating_promedio ?? "Nuevo"}{a.rating_cantidad ? ` · ${a.rating_cantidad} viajes` : ""}
                       </span>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setModalAuto(a)} className="rounded-xl border-brand-line text-xs font-semibold text-brand-ink hover:border-brand-ink">
-                          Ficha
-                        </Button>
+                        <Link href={autoHref(a)}>
+                          <Button variant="outline" size="sm" className="rounded-xl border-brand-line text-xs font-semibold text-brand-ink hover:border-brand-ink">
+                            Ficha
+                          </Button>
+                        </Link>
                         <a href="#descargar-app">
                           <Button size="sm" className="rounded-xl bg-brand-teal text-xs font-semibold text-[#04231b] hover:bg-[#12b78d]">
                             Reservar <ArrowRight className="ml-1 h-3.5 w-3.5" />
@@ -443,12 +539,39 @@ export default function Home() {
               ))}
             </div>
 
-            {filtrados.length === 0 && (
+            {carga === "error" && (
               <div className="py-16 text-center">
-                <p className="text-sm text-[#63645f]">No hay autos con esos filtros.</p>
-                <Button variant="outline" size="sm" onClick={() => { setCategoria("todos"); setQuery(""); }} className="mt-3 rounded-xl border-brand-line">
-                  Restablecer
+                <p className="text-sm text-[#63645f]">No pudimos cargar el catálogo. Revisa tu conexión.</p>
+                <Button size="sm" onClick={() => cargarAutos()} className="mt-4 rounded-xl bg-brand-ink text-white hover:bg-black">
+                  Reintentar
                 </Button>
+              </div>
+            )}
+
+            {carga === "ok" && filtrados.length === 0 && (
+              <div className="py-16 text-center">
+                <p className="text-sm text-[#63645f]">
+                  {ubicacion && autosEnZona.length === 0
+                    ? `Todavía no hay autos publicados a ${radioKm} km de ${ubicacion.label}.`
+                    : "No hay autos con esos filtros."}
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  {ubicacion && autosEnZona.length === 0 && radioKm < 100 && (
+                    <Button size="sm" onClick={() => aplicarRadio(Math.min(100, radioKm * 2))} className="rounded-xl bg-brand-ink text-white hover:bg-black">
+                      Ampliar a {Math.min(100, radioKm * 2)} km
+                    </Button>
+                  )}
+                  {ubicacion && (
+                    <Button variant="outline" size="sm" onClick={limpiarUbicacion} className="rounded-xl border-brand-line">
+                      Ver todo Chile
+                    </Button>
+                  )}
+                  {(categoria !== "todos" || query) && (
+                    <Button variant="outline" size="sm" onClick={() => { setCategoria("todos"); setQuery(""); }} className="rounded-xl border-brand-line">
+                      Quitar filtros
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -628,6 +751,9 @@ export default function Home() {
                 >
                   <button
                     onClick={() => setOpenFaq(openFaq === i ? -1 : i)}
+                    aria-expanded={openFaq === i}
+                    aria-controls={`faq-panel-${i}`}
+                    id={`faq-btn-${i}`}
                     className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left"
                   >
                     <h3 className="font-display text-[16.5px] font-semibold">{f.q}</h3>
@@ -636,7 +762,14 @@ export default function Home() {
                     </span>
                   </button>
                   {openFaq === i && (
-                    <p className="border-t border-brand-line px-6 py-4 text-[14.5px] leading-relaxed text-[#63645f]">{f.a}</p>
+                    <p
+                      id={`faq-panel-${i}`}
+                      role="region"
+                      aria-labelledby={`faq-btn-${i}`}
+                      className="border-t border-brand-line px-6 py-4 text-[14.5px] leading-relaxed text-[#63645f]"
+                    >
+                      {f.a}
+                    </p>
                   )}
                 </div>
               ))}
@@ -725,14 +858,11 @@ export default function Home() {
               </DialogDescription>
             </DialogHeader>
             <div className="my-2 space-y-4">
-              <div className="h-48 overflow-hidden rounded-2xl border border-brand-line">
-                <img
-                  src={fotoDe(modalAuto)}
-                  alt={modalAuto.modelo}
-                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FOTO_FALLBACK; }}
-                  className="h-full w-full object-cover"
-                />
-              </div>
+              <FotoAuto
+                src={fotoDe(modalAuto)}
+                alt={`${modalAuto.marca} ${modalAuto.modelo}`}
+                className="h-48 w-full rounded-2xl border border-brand-line"
+              />
               <div className="grid grid-cols-3 gap-2 text-xs">
                 {[
                   ["Transmisión", modalAuto.transmision || "—"],
@@ -754,16 +884,23 @@ export default function Home() {
                 <p>· Hold de garantía $800.000 liberado al retorno</p>
               </div>
             </div>
-            <DialogFooter className="flex flex-col items-center justify-between gap-4 border-t border-brand-line pt-3 sm:flex-row">
+            <DialogFooter className="flex flex-col items-stretch justify-between gap-3 border-t border-brand-line pt-3 sm:flex-row sm:items-center">
               <div>
                 <div className="text-[10px] uppercase text-[#63645f]">Tarifa diaria</div>
                 <div className="font-display text-lg font-bold text-brand-ink">{fmtCLP(modalAuto.tarifa_dia)} CLP</div>
               </div>
-              <a href="#descargar-app" onClick={() => setModalAuto(null)} className="w-full sm:w-auto">
-                <Button className="w-full rounded-xl bg-brand-teal px-6 text-sm font-semibold text-[#04231b] hover:bg-[#12b78d]">
-                  Reservar en la app
-                </Button>
-              </a>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Link href={autoHref(modalAuto)} onClick={() => setModalAuto(null)}>
+                  <Button variant="outline" className="w-full rounded-xl border-brand-line px-5 text-sm font-semibold text-brand-ink hover:border-brand-ink">
+                    Ver ficha completa
+                  </Button>
+                </Link>
+                <a href="#descargar-app" onClick={() => setModalAuto(null)} className="w-full sm:w-auto">
+                  <Button className="w-full rounded-xl bg-brand-teal px-6 text-sm font-semibold text-[#04231b] hover:bg-[#12b78d]">
+                    Reservar en la app
+                  </Button>
+                </a>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>

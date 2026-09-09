@@ -84,6 +84,37 @@
 ::-webkit-scrollbar-thumb { background: #d7d7d1; border-radius: 5px; border: 2px solid #f5f5f2; }
 ::-webkit-scrollbar-thumb:hover { background: #14a07c; }
 
+/* Skeletons de carga — pulso suave, sin datos de ejemplo detrás */
+.amay-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #f0f0ec;
+}
+.amay-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.65),
+    transparent
+  );
+  animation: amay-shimmer 1.5s infinite;
+}
+@keyframes amay-shimmer {
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .amay-skeleton::after { animation: none; }
+  .amay-skeleton { animation: amay-pulse 2s ease-in-out infinite; }
+}
+@keyframes amay-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 /* Mapa: pin de precio (overlay sobre Google Maps) */
 .amay-pin {
   display: inline-block;
@@ -107,4 +138,30 @@
   color: #04231b;
   border-color: #14a07c;
   box-shadow: 0 12px 26px -6px rgba(20, 160, 124, 0.6);
+}
+
+/* Mapa: punto "tú estás aquí" con halo pulsante */
+.amay-yo {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #1466ff;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px rgba(20, 102, 255, 0.35), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.amay-yo::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+  background: rgba(20, 102, 255, 0.25);
+  animation: amay-halo 2s ease-out infinite;
+}
+@keyframes amay-halo {
+  0% { transform: scale(0.6); opacity: 0.7; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .amay-yo::after { animation: none; opacity: 0.35; }
 }

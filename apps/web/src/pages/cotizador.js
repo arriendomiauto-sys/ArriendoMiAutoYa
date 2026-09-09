@@ -27,11 +27,14 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-import { API_BASE_URL } from "../lib/api";
+import { obtenerAutos } from "../lib/autos";
+import FotoAuto from "../components/FotoAuto";
+import { Skeleton } from "../components/Skeleton";
 
 export default function CotizadorPage() {
   const router = useRouter();
   const [autos, setAutos] = useState([]);
+  const [carga, setCarga] = useState("cargando"); // "cargando" | "ok" | "error"
   const [selectedAuto, setSelectedAuto] = useState(null);
   const [dias, setDias] = useState(3);
   const [fechaInicio, setFechaInicio] = useState("");
@@ -48,119 +51,27 @@ export default function CotizadorPage() {
     setFechaInicio(manana.toISOString().split("T")[0]);
     setFechaFin(retorno.toISOString().split("T")[0]);
 
-    fetchAutos();
+    const ctrl = new AbortController();
+    cargarAutos(ctrl.signal);
+    return () => ctrl.abort();
   }, []);
 
-  const fetchAutos = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/autos`);
-      if (res.ok) {
-        const data = await res.json();
+  const cargarAutos = (signal) => {
+    setCarga("cargando");
+    obtenerAutos({ signal })
+      .then((data) => {
+        if (signal?.aborted) return;
         setAutos(data);
+        setCarga("ok");
         const autoQuery = router.query.auto;
         const matched = autoQuery ? data.find((a) => a.id === autoQuery) : null;
-        setSelectedAuto(matched || data[0]);
-      } else {
-        throw new Error("fallback");
-      }
-    } catch {
-      const fallback = [
-        {
-          id: "auto-1",
-          marca: "Toyota",
-          modelo: "RAV4 Limited 4x4",
-          anio: 2023,
-          categoria: "suv",
-          tarifa_dia: 42000,
-          ubicacion_base: "Plaza de Armas, Los Ángeles",
-          transmision: "Automática",
-          combustible: "Gasolina",
-          capacidad: "5 Pasajeros",
-          rating: 4.95,
-          viajes: 28,
-          fotos: ["https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=1000&auto=format&fit=crop&q=80"],
-        },
-        {
-          id: "auto-2",
-          marca: "Hyundai",
-          modelo: "Tucson GL 2.0",
-          anio: 2022,
-          categoria: "suv",
-          tarifa_dia: 35000,
-          ubicacion_base: "Av. Alemania, Los Ángeles",
-          transmision: "Automática",
-          combustible: "Gasolina",
-          capacidad: "5 Pasajeros",
-          rating: 4.88,
-          viajes: 19,
-          fotos: ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=1000&auto=format&fit=crop&q=80"],
-        },
-        {
-          id: "auto-3",
-          marca: "Suzuki",
-          modelo: "Jimny AllGrip 4x4",
-          anio: 2024,
-          categoria: "4x4",
-          tarifa_dia: 48000,
-          ubicacion_base: "Av. Gabriela Mistral, Los Ángeles",
-          transmision: "Manual",
-          combustible: "Gasolina",
-          capacidad: "4 Pasajeros",
-          rating: 5.0,
-          viajes: 34,
-          fotos: ["https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=1000&auto=format&fit=crop&q=80"],
-        },
-        {
-          id: "auto-4",
-          marca: "Chevrolet",
-          modelo: "Onix Turbo Premier",
-          anio: 2023,
-          categoria: "economico",
-          tarifa_dia: 28000,
-          ubicacion_base: "Terminal Rodoviario, Los Ángeles",
-          transmision: "Manual",
-          combustible: "Gasolina",
-          capacidad: "5 Pasajeros",
-          rating: 4.85,
-          viajes: 15,
-          fotos: ["https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=1000&auto=format&fit=crop&q=80"],
-        },
-        {
-          id: "auto-5",
-          marca: "Ford",
-          modelo: "Ranger XLT 4x4",
-          anio: 2023,
-          categoria: "4x4",
-          tarifa_dia: 55000,
-          ubicacion_base: "Camino a Antuco, Los Ángeles",
-          transmision: "Automática",
-          combustible: "Diésel",
-          capacidad: "5 Pasajeros",
-          rating: 4.98,
-          viajes: 42,
-          fotos: ["https://images.unsplash.com/photo-1551830820-330a71b99659?w=1000&auto=format&fit=crop&q=80"],
-        },
-        {
-          id: "auto-6",
-          marca: "Kia",
-          modelo: "Soluto LX 1.4",
-          anio: 2022,
-          categoria: "economico",
-          tarifa_dia: 26000,
-          ubicacion_base: "Mall Plaza, Los Ángeles",
-          transmision: "Manual",
-          combustible: "Gasolina",
-          capacidad: "5 Pasajeros",
-          rating: 4.9,
-          viajes: 22,
-          fotos: ["https://images.unsplash.com/photo-1590362891991-f776e747a588?w=1000&auto=format&fit=crop&q=80"],
-        },
-      ];
-      setAutos(fallback);
-      const autoQuery = router.query.auto;
-      const matched = autoQuery ? fallback.find((a) => a.id === autoQuery) : null;
-      setSelectedAuto(matched || fallback[0]);
-    }
+        setSelectedAuto(matched || data[0] || null);
+      })
+      .catch(() => {
+        if (signal?.aborted) return;
+        setAutos([]);
+        setCarga("error");
+      });
   };
 
   // Sync when query param changes
@@ -274,44 +185,76 @@ export default function CotizadorPage() {
                     1. Selecciona el Vehículo
                   </h2>
                   <span className="text-xs text-[#63645f]">
-                    {autos.length} autos disponibles
+                    {carga === "ok" ? `${autos.length} ${autos.length === 1 ? "auto disponible" : "autos disponibles"}` : "Cargando…"}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {autos.map((auto) => {
-                    const isSelected = selectedAuto?.id === auto.id;
-                    return (
-                      <button
-                        key={auto.id}
-                        onClick={() => setSelectedAuto(auto)}
-                        className={`rounded-2xl p-3.5 text-left border transition-all flex items-center gap-3 ${
-                          isSelected
-                            ? "border-brand-teal bg-brand-tealTint/60 shadow-md shadow-brand-teal/20"
-                            : "border-brand-line bg-white hover:border-brand-ink"
-                        }`}
-                      >
-                        <img
-                          src={auto.fotos?.[0]}
-                          alt={auto.modelo}
-                          className="h-12 w-16 rounded-xl object-cover shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-bold text-brand-ink truncate">
-                            {auto.marca} {auto.modelo}
-                          </div>
-                          <div className="text-xs font-black text-brand-tealInk mt-0.5">
-                            ${auto.tarifa_dia?.toLocaleString("es-CL")} CLP / día
-                          </div>
-                          <div className="text-[10px] text-[#63645f] truncate mt-0.5 flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-brand-tealInk shrink-0" />
-                            <span className="truncate">{auto.ubicacion_base}</span>
-                          </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-busy={carga === "cargando"}>
+                  {carga === "cargando" &&
+                    [0, 1, 2, 3].map((k) => (
+                      <div key={`sk-${k}`} className="flex items-center gap-3 rounded-2xl border border-brand-line p-3.5">
+                        <Skeleton className="h-12 w-16 shrink-0 rounded-xl" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3 w-2/3" />
+                          <Skeleton className="h-3 w-1/2" />
                         </div>
-                      </button>
-                    );
-                  })}
+                      </div>
+                    ))}
+
+                  {carga === "ok" &&
+                    autos.map((auto) => {
+                      const isSelected = selectedAuto?.id === auto.id;
+                      return (
+                        <button
+                          key={auto.id}
+                          onClick={() => setSelectedAuto(auto)}
+                          aria-pressed={isSelected}
+                          className={`rounded-2xl p-3.5 text-left border transition-all flex items-center gap-3 ${
+                            isSelected
+                              ? "border-brand-teal bg-brand-tealTint/60 shadow-md shadow-brand-teal/20"
+                              : "border-brand-line bg-white hover:border-brand-ink"
+                          }`}
+                        >
+                          <FotoAuto
+                            src={auto.fotos?.[0]}
+                            alt={`${auto.marca} ${auto.modelo}`}
+                            className="h-12 w-16 shrink-0 rounded-xl"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-brand-ink truncate">
+                              {auto.marca} {auto.modelo}
+                            </div>
+                            <div className="text-xs font-black text-brand-tealInk mt-0.5">
+                              ${auto.tarifa_dia?.toLocaleString("es-CL")} CLP / día
+                            </div>
+                            {auto.ubicacion_base && (
+                              <div className="text-[10px] text-[#63645f] truncate mt-0.5 flex items-center gap-1">
+                                <MapPin className="h-3 w-3 text-brand-tealInk shrink-0" />
+                                <span className="truncate">{auto.ubicacion_base}</span>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                 </div>
+
+                {carga === "error" && (
+                  <div className="py-6 text-center">
+                    <p className="text-xs text-[#63645f]">No pudimos cargar los autos.</p>
+                    <button
+                      onClick={() => cargarAutos()}
+                      className="mt-2 rounded-lg bg-brand-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-black"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                )}
+                {carga === "ok" && autos.length === 0 && (
+                  <p className="py-6 text-center text-xs text-[#63645f]">
+                    Todavía no hay autos publicados. Vuelve a intentarlo en un rato.
+                  </p>
+                )}
               </div>
 
               {/* Step 2: Duration Selector & Dates */}
@@ -382,13 +325,35 @@ export default function CotizadorPage() {
             <div className="lg:col-span-5">
               <div className="rounded-3xl border border-brand-line bg-white p-6 sm:p-7 space-y-6 shadow-2xl sticky top-28">
                 
+                {carga === "cargando" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 pb-4 border-b border-brand-line">
+                      <Skeleton className="h-16 w-24 shrink-0 rounded-xl" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-5/6" />
+                    <Skeleton className="h-3 w-4/6" />
+                    <Skeleton className="h-14 w-full rounded-2xl" />
+                  </div>
+                )}
+
+                {carga !== "cargando" && !selectedAuto && (
+                  <p className="py-10 text-center text-sm text-[#63645f]">
+                    Elige un vehículo de la lista para ver el desglose del arriendo.
+                  </p>
+                )}
+
                 {selectedAuto && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 pb-4 border-b border-brand-line">
-                      <img
+                      <FotoAuto
                         src={selectedAuto.fotos?.[0]}
-                        alt={selectedAuto.modelo}
-                        className="h-16 w-24 rounded-xl object-cover border border-brand-line shrink-0"
+                        alt={`${selectedAuto.marca} ${selectedAuto.modelo}`}
+                        className="h-16 w-24 shrink-0 rounded-xl border border-brand-line"
                       />
                       <div>
                         <h3 className="font-bold text-brand-ink text-base">
