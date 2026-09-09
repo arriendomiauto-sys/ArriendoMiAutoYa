@@ -140,6 +140,46 @@ export function Card({ children, tone = "light", style, padded = true, elevated 
 }
 
 // ---------------------------------------------------------------------------
+// BackButton — el botón "volver" estándar de toda la app.
+//   variant "default": caja 40×40 con borde, sobre fondo claro/oscuro.
+//   variant "overlay": misma caja translúcida, para flotar sobre una foto
+//                      o un mapa (hero de detalle de auto, mapa de búsqueda).
+// Es un botón sin texto: SIEMPRE lleva accessibilityLabel para el lector.
+// ---------------------------------------------------------------------------
+export function BackButton({
+  onPress,
+  onBack,
+  tone = "light",
+  variant = "default",
+  accessibilityLabel = "Volver",
+  style,
+}) {
+  const p = palette(tone);
+  const overlay = variant === "overlay";
+  return (
+    <TouchableOpacity
+      onPress={onPress || onBack}
+      hitSlop={theme.control.hitSlop}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={[
+        styles.backButton,
+        overlay
+          ? {
+              backgroundColor: p.dark ? "rgba(6,30,31,0.55)" : "rgba(255,255,255,0.94)",
+              ...theme.shadow.sm,
+            }
+          : { borderWidth: 1, borderColor: p.border, backgroundColor: p.surface },
+        style,
+      ]}
+    >
+      <Icon name="arrow-left" size={20} color={overlay && p.dark ? colors.textWhite : p.accent} />
+    </TouchableOpacity>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ScreenHeader — botón volver + título + acción opcional a la derecha
 // ---------------------------------------------------------------------------
 export function ScreenHeader({ title, subtitle, onBack, right, tone = "light", style }) {
@@ -147,17 +187,7 @@ export function ScreenHeader({ title, subtitle, onBack, right, tone = "light", s
   return (
     <View style={[styles.header, style]}>
       {onBack ? (
-        <TouchableOpacity
-          onPress={onBack}
-          hitSlop={theme.control.hitSlop}
-          accessibilityRole="button"
-          // Es un botón sin texto: sin etiqueta se anunciaba como un control
-          // sin nombre y no había forma de saber que era "volver".
-          accessibilityLabel="Volver"
-          style={[styles.headerBack, { borderColor: p.border, backgroundColor: p.surface }]}
-        >
-          <Icon name="arrow-left" size={20} color={p.accent} />
-        </TouchableOpacity>
+        <BackButton onPress={onBack} tone={tone} />
       ) : (
         <View style={styles.headerBackSpacer} />
       )}
@@ -235,6 +265,48 @@ export function Chip({ label, selected, onPress, tone = "light", iconLeft }) {
 }
 
 // ---------------------------------------------------------------------------
+// Rating — estrella + puntaje (coma decimal chilena) y, opcional, el conteo.
+// El puntaje SIEMPRE va por este componente, nunca como texto suelto.
+//   <Rating value={4.8} count={23} size="sm" />  → ★ 4,8 · 23 arriendos
+// value nulo/0 => "Sin evaluaciones" (o el `emptyLabel` que se pase).
+// ---------------------------------------------------------------------------
+export function Rating({ value, count, size = "md", tone = "light", emptyLabel = "Sin evaluaciones", style }) {
+  const p = palette(tone);
+  const num = Number(value);
+  const has = Number.isFinite(num) && num > 0;
+  const dims = size === "sm"
+    ? { star: 12, score: 13, meta: 12 }
+    : size === "lg"
+      ? { star: 16, score: 16, meta: 14 }
+      : { star: 14, score: 14, meta: 13 };
+
+  if (!has) {
+    return (
+      <Text style={[styles.ratingMeta, { fontSize: dims.meta, color: p.textMuted }, style]}>
+        {emptyLabel}
+      </Text>
+    );
+  }
+
+  const score = num.toFixed(1).replace(".", ",");
+  return (
+    <View
+      style={[styles.ratingRow, style]}
+      accessibilityRole="text"
+      accessibilityLabel={`${score} de 5${count ? `, ${count} arriendos` : ""}`}
+    >
+      <Icon name="star" size={dims.star} color={colors.accent500} fill={colors.accent500} />
+      <Text style={[styles.ratingScore, { fontSize: dims.score, color: p.text }]}>{score}</Text>
+      {count ? (
+        <Text style={[styles.ratingMeta, { fontSize: dims.meta, color: p.textMuted }]}>
+          {` · ${count} ${count === 1 ? "arriendo" : "arriendos"}`}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Badge — etiqueta de estado compacta
 // ---------------------------------------------------------------------------
 const BADGE_TONES = {
@@ -305,23 +377,58 @@ export function MenuList({ children, tone = "light", style }) {
   );
 }
 
-export function MenuRow({ icon, label, meta, onPress, tone = "light", danger = false, _last = false }) {
+export function MenuRow({
+  icon,
+  label,
+  meta,
+  onPress,
+  tone = "light",
+  danger = false,
+  // `tile`: envuelve el icono en un cuadro redondeado tintado (34px) — el
+  // lenguaje del hub de cuenta. `tileTone`: "brand" (pino) | "menta" | "danger".
+  tile = false,
+  tileTone = "brand",
+  _last = false,
+}) {
   const p = palette(tone);
   const color = danger ? colors.danger : p.accent;
+  const tileBg = danger
+    ? colors.dangerBg
+    : tileTone === "menta"
+      ? p.dark ? "rgba(47,191,155,0.15)" : colors.accent100
+      : p.dark ? colors.darkCardSubtle : colors.primary100;
+  const tileFg = danger
+    ? colors.dangerText
+    : tileTone === "menta"
+      ? p.dark ? colors.accent : colors.accent800
+      : p.dark ? colors.accent : colors.primary;
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={meta ? `${label}, ${meta}` : label}
-      style={[styles.menuRow, !_last && { borderBottomWidth: 1, borderBottomColor: p.border }]}
+      style={[tile ? styles.menuRowTiled : styles.menuRow, !_last && { borderBottomWidth: 1, borderBottomColor: p.border }]}
     >
       <View style={styles.menuRowLeft}>
-        <Icon name={icon} size={19} color={color} />
-        <Text style={[styles.menuRowText, { color: danger ? colors.danger : p.text }]}>{label}</Text>
+        {tile ? (
+          <View style={[styles.menuTile, { backgroundColor: tileBg }]}>
+            <Icon name={icon} size={16} color={tileFg} />
+          </View>
+        ) : (
+          <Icon name={icon} size={19} color={color} />
+        )}
+        <Text
+          style={[styles.menuRowText, { color: danger ? colors.danger : p.text }]}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
       </View>
       {meta ? (
-        <Text style={[styles.menuRowMeta, { color: p.textMuted }]}>{meta}</Text>
+        <Text style={[styles.menuRowMeta, { color: p.textMuted }]} numberOfLines={1}>
+          {meta}
+        </Text>
       ) : (
         <Icon name="chevron-right" size={16} color={p.textMuted} />
       )}
@@ -362,6 +469,14 @@ export function EmptyState({ icon = "car", title, message, action, onAction, ton
 // Field — rótulo + input + texto de ayuda. Cubre los tres casos que las
 // pantallas de auth repetían a mano: campo simple, campo con prefijo fijo
 // (+56 9) y campo de contraseña con botón Ver/Ocultar.
+//
+// `format`: función `raw => texto` para campos con máscara (RUT, teléfono,
+// tarjeta). Cuando se pasa, el Field maneja su PROPIO texto: el `value=` del
+// TextInput sale de un estado que se setea en el mismo handler del cambio, y
+// el prop `value` de afuera solo se vuelve a adoptar cuando cambia por algo
+// externo (prefill, reset). Sin esto, al reformatear (meter puntos/guiones) el
+// prop `value` llegaba desfasado un caracter y peleaba con el input nativo:
+// en Android eso DUPLICABA dígitos al tipear rápido o pegar.
 // ---------------------------------------------------------------------------
 export const Field = React.forwardRef(function Field(
   {
@@ -372,6 +487,9 @@ export const Field = React.forwardRef(function Field(
     secure = false,
     tone = "light",
     style,
+    format,
+    value,
+    onChangeText,
     ...inputProps
   },
   // La ref apunta al TextInput interno: es lo que permite que un campo enfoque
@@ -381,6 +499,29 @@ export const Field = React.forwardRef(function Field(
   const p = palette(tone);
   const [focused, setFocused] = React.useState(false);
   const [revealed, setRevealed] = React.useState(false);
+
+  // Texto que ve el input cuando hay `format`. El ref recuerda lo último que
+  // emitimos para distinguir "el padre nos devolvió lo nuestro" (no tocar) de
+  // "el padre cambió el valor por fuera" (adoptarlo).
+  const [masked, setMasked] = React.useState(value ?? "");
+  const lastEmitted = React.useRef(value ?? "");
+  React.useEffect(() => {
+    if (format && value !== lastEmitted.current) {
+      setMasked(value ?? "");
+      lastEmitted.current = value ?? "";
+    }
+  }, [format, value]);
+
+  const handleChangeText = (raw) => {
+    if (format) {
+      const next = format(raw);
+      lastEmitted.current = next;
+      setMasked(next);
+      onChangeText?.(next);
+    } else {
+      onChangeText?.(raw);
+    }
+  };
 
   const borderColor = error ? colors.danger : focused ? p.accent : p.border;
 
@@ -400,6 +541,8 @@ export const Field = React.forwardRef(function Field(
         <TextInput
           {...inputProps}
           ref={ref}
+          value={format ? masked : value}
+          onChangeText={handleChangeText}
           style={[styles.fieldInput, { color: p.text }]}
           placeholderTextColor={colors.textPlaceholder}
           secureTextEntry={secure && !revealed}
@@ -518,11 +661,10 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.md,
   },
-  headerBack: {
+  backButton: {
     width: 40,
     height: 40,
     borderRadius: theme.radius.field,
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -558,6 +700,10 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 12, fontWeight: "700" },
 
+  ratingRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  ratingScore: { fontWeight: "700", fontVariant: ["tabular-nums"] },
+  ratingMeta: { fontWeight: "400" },
+
   statRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -582,9 +728,23 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: theme.spacing.lg,
   },
+  menuRowTiled: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 11,
+    paddingHorizontal: theme.spacing.md,
+  },
   menuRowLeft: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md, flex: 1 },
-  menuRowText: { fontSize: 15, fontWeight: "500" },
-  menuRowMeta: { fontSize: 13 },
+  menuTile: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuRowText: { fontSize: 15, fontWeight: "500", flexShrink: 1 },
+  menuRowMeta: { fontSize: 13, marginLeft: theme.spacing.sm },
 
   field: { gap: 6 },
   fieldBox: {

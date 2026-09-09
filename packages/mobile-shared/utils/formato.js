@@ -10,8 +10,10 @@
 export function formatearRutEnVivo(texto) {
   if (!texto || typeof texto !== "string") return "";
 
-  // Permitir solo dígitos y letra K (mayúscula o minúscula)
-  const limpio = texto.replace(/[^0-9kK]/g, "").toUpperCase();
+  // Permitir solo dígitos y letra K, y CAPAR a 9 caracteres significativos
+  // (8 del cuerpo + 1 dígito verificador). Sin este tope, pegar o tipear rápido
+  // de más metía 20+ dígitos y el RUT quedaba "12.345.678.901.234-5".
+  const limpio = texto.replace(/[^0-9kK]/g, "").toUpperCase().slice(0, 9);
   if (!limpio) return "";
   if (limpio.length === 1) return limpio;
 

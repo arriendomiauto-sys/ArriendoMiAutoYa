@@ -106,13 +106,14 @@ describe("Marketplace · filtros y orden", () => {
     expect(t).toContain("Toyota RAV4");
   });
 
-  it("filtra por tarifa máxima", () => {
+  it("filtra por tarifa máxima con el slider", () => {
     const tr = montar();
     abrirFiltros(tr);
-    const input = tr.root.findAll(
-      (n) => n.props?.placeholder === "Sin límite" && typeof n.props?.onChangeText === "function"
-    )[0];
-    act(() => input.props.onChangeText("45000"));
+    // Rango del slider = min/max de la flota (20.000–60.000). Se mide el
+    // ancho y se "arrastra" al 62,5% → 45.000.
+    const slider = tr.root.findByProps({ testID: "filtro-slider-precio" });
+    act(() => slider.props.onLayout({ nativeEvent: { layout: { width: 400 } } }));
+    act(() => slider.props.onResponderGrant({ nativeEvent: { locationX: 250 } }));
     pressText(tr, "Aplicar");
 
     const t = textOf(tr);

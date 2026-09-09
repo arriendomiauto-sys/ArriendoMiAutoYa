@@ -14,6 +14,7 @@ export function CancelReservationModal({ reservation, onClose, onConfirmCancel }
   const menosDe24h = horas !== null && horas < 24 && horas > 0;
 
   const handleCancelar = async () => {
+    if (cancelling) return;
     if (!reservation?.id) {
       onConfirmCancel();
       return;

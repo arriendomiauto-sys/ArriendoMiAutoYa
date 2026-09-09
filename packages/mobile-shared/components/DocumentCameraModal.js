@@ -97,7 +97,10 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
   // useWindowDimensions (reactivo) en vez de Dimensions.get("window") (una
   // sola foto tomada al montar): en Android edge-to-edge la medida inicial
   // puede llegar mal y dejaría el marco de guía con un ancho equivocado.
-  const { width: SCREEN_W } = useWindowDimensions();
+  // El alto se le pasa EXPLÍCITO al contenedor del Modal: con la New
+  // Architecture en Android, `<Modal>` mide a "wrap content" y `flex:1`
+  // colapsaba — dejaba todo el contenido apelotonado arriba.
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const esVehiculo = cfg.shape === "wide";
   const frameW = Math.min(SCREEN_W - (esVehiculo ? 24 : 48), esVehiculo ? 520 : 420);
@@ -248,7 +251,9 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     if (!permission.granted) {
       return (
         <View style={styles.centerBox}>
-          <Icon name="camera" size={40} color="#FFFFFF" />
+          <View style={styles.permIconTile}>
+            <Icon name="camera" size={30} color={colors.accent500} />
+          </View>
           <Text style={styles.permTitle}>Necesitamos tu cámara</Text>
           <Text style={styles.permText}>
             Para verificar tu identidad hay que fotografiar tu documento y una selfie.
@@ -316,8 +321,21 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
         <View style={styles.flex}>
           <Image source={{ uri: preview }} style={styles.previewImg} resizeMode="contain" />
           <Text style={styles.previewAsk}>
-            {esVehiculo ? "¿Se ve el auto completo y nítido?" : "¿Se lee bien y está completo?"}
+            {esVehiculo ? "¿Se ve el auto completo y nítido?" : "¿Se lee todo y está completo?"}
           </Text>
+          {/* Checklist de lo que el OCR necesita — solo para documentos ID-1 */}
+          {!esVehiculo && cfg.shape === "card" ? (
+            <View style={styles.previewChecklist}>
+              <View style={styles.previewCheckRow}>
+                <Icon name="check" size={14} color={colors.accent500} strokeWidth={2.4} />
+                <Text style={styles.previewCheckText}>Los datos se leen sin esfuerzo</Text>
+              </View>
+              <View style={styles.previewCheckRow}>
+                <Icon name="check" size={14} color={colors.accent500} strokeWidth={2.4} />
+                <Text style={styles.previewCheckText}>Sin reflejos ni bordes recortados</Text>
+              </View>
+            </View>
+          ) : null}
           <View style={styles.previewActions}>
             <TouchableOpacity style={styles.retakeBtn} onPress={() => setPreview(null)}>
               <Icon name="arrow-left" size={16} color="#FFFFFF" />
@@ -340,7 +358,7 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
             centrada. Antes solo oscurecía los costados y el marco se
             posicionaba con geometría de pantalla, lo que lo dejaba
             descentrado en varios equipos. */}
-        <View style={[styles.maskFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <View style={[styles.maskFill, { height: SCREEN_H, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
           <View style={styles.maskBlock} />
           <View style={[styles.maskMiddle, { height: frameH }]}>
             <View style={styles.maskBlock} />
@@ -379,7 +397,9 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
         {/* Top bar */}
         <View style={[styles.topBar, { top: insets.top + 12 }]}>
           <TouchableOpacity onPress={cerrar} style={styles.iconBtn} hitSlop={12}>
-            <Icon name="close" size={22} color="#FFFFFF" />
+            <View style={styles.closeCircle}>
+              <Icon name="close" size={18} color="#FFFFFF" />
+            </View>
           </TouchableOpacity>
           <Text style={styles.topTitle}>{cfg.titulo}</Text>
           <View style={styles.iconBtn} />
@@ -403,12 +423,16 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={cerrar} statusBarTranslucent>
-      <View style={styles.root}>{renderContenido()}</View>
+      {/* height explícito: ver nota en useWindowDimensions arriba */}
+      <View style={[styles.root, { width: SCREEN_W, height: SCREEN_H }]}>
+        {renderContenido()}
+      </View>
     </Modal>
   );
 }
 
-const DIM = "rgba(0,0,0,0.62)";
+// Penumbra teñida de pino en vez de negro plano.
+const DIM = "rgba(6,30,31,0.68)";
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000000" },
@@ -419,9 +443,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 32,
     gap: 12,
+    backgroundColor: colors.primary900,
   },
-  permTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "700", marginTop: 8 },
-  permText: { color: "#CBD5E1", fontSize: 14, textAlign: "center", lineHeight: 20 },
+  permIconTile: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: colors.primary800,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  permTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "800", marginTop: 8 },
+  permText: { color: colors.darkTextMuted, fontSize: 14, textAlign: "center", lineHeight: 20 },
   permBtn: {
     marginTop: 18,
     backgroundColor: colors.accent500,
@@ -429,16 +464,16 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 12,
   },
-  permBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
-  permCancel: { color: "#94A3B8", fontSize: 14 },
+  permBtnText: { color: colors.primary900, fontWeight: "800", fontSize: 15 },
+  permCancel: { color: colors.darkTextMuted, fontSize: 14 },
 
   // Máscara / ventana
   maskFill: { ...StyleSheet.absoluteFillObject, flexDirection: "column" },
   maskMiddle: { flexDirection: "row" },
   maskBlock: { flex: 1, backgroundColor: DIM },
   window: {
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.9)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.55)",
     // El centro queda transparente (sin backgroundColor) mostrando la cámara.
   },
   corner: {
@@ -464,7 +499,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  topTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center" },
+  closeCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "700", flex: 1, textAlign: "center" },
   bottomArea: {
     // `bottom` real lo pone el inline style con el inset seguro del dispositivo.
     position: "absolute",
@@ -475,26 +518,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
   },
   hint: {
-    color: "#E2E8F0",
+    color: "rgba(255,255,255,0.92)",
     fontSize: 13,
     textAlign: "center",
     lineHeight: 18,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(6,30,31,0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingVertical: 9,
+    borderRadius: 12,
   },
   shutter: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 4,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderWidth: 3,
+    borderColor: colors.accent500,
   },
-  shutterCore: { width: 58, height: 58, borderRadius: 29, backgroundColor: colors.primary },
+  shutterCore: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#FFFFFF" },
 
   // Guía de patente (solo tomas frontal/trasera del auto)
   bandaPatente: {
@@ -515,15 +560,28 @@ const styles = StyleSheet.create({
   previewImg: { flex: 1, width: "100%", backgroundColor: "#000000" },
   previewAsk: {
     color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "800",
     textAlign: "center",
-    paddingVertical: 14,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
+  previewChecklist: {
+    gap: 7,
+    paddingHorizontal: 24,
+    paddingBottom: 10,
+  },
+  previewCheckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  previewCheckText: { color: "rgba(255,255,255,0.85)", fontSize: 12.5 },
   previewActions: {
     flexDirection: "row",
     gap: 12,
     paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 36,
   },
   retakeBtn: {
@@ -531,13 +589,13 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderColor: "rgba(255,255,255,0.3)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  retakeText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  retakeText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
   useBtn: {
     flex: 1.6,
     height: 52,
@@ -546,5 +604,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  useText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  useText: { color: colors.primary900, fontSize: 15, fontWeight: "800" },
 });

@@ -28,6 +28,8 @@ import {
   showAlert,
   PreCheckinModal,
   SegundoConductorModal,
+  ContractSignatureModal,
+  useTelemetriaArriendo,
   urlWeb,
 } from "@rentacar/mobile-shared";
 
@@ -73,14 +75,34 @@ export function ActiveRentalScreen({
     res.estado === "en_curso" ? "detail" : res.estado === "confirmada" ? "confirmed" : "sent"
   );
   const [pagando, setPagando] = useState(false);
+  const [modalFirma, setModalFirma] = useState(false);
+
+  // Telemetría GPS en tiempo real transmitida por el celular del arrendatario
+  const { transmitiendo: gpsTransmitiendo, ultimaUbicacion: gpsUbicacion } = useTelemetriaArriendo(
+    res.id,
+    res.estado === "en_curso"
+  );
+
+  // El arrendatario tiene que firmar el contrato antes de pagar el hold.
+  const arrendatarioFirmo = (res.firmas || []).some((f) => f.rol === "arrendatario");
 
   const footer = (children) => (
     <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>{children}</View>
   );
 
   // La reserva "pendiente" sigue esperando que se autorice la garantía en Mercado Pago.
-  const reintentarPago = async () => {
+  const reintentarPago = () => {
     if (!res.id) return;
+    // Antes del pago, el arrendatario firma el contrato si aún no lo hizo.
+    if (!arrendatarioFirmo) {
+      setModalFirma(true);
+      return;
+    }
+    procederConPago();
+  };
+
+  const procederConPago = async () => {
+    if (pagando || !res.id) return;
     setPagando(true);
     try {
       const returnUrl = urlWeb("pago/retorno");
@@ -137,10 +159,28 @@ export function ActiveRentalScreen({
         </ScrollView>
         {footer(
           <>
-            <Button label="Pagar con Mercado Pago" iconRight="arrow-right" onPress={reintentarPago} loading={pagando} />
+            <Button
+              label={arrendatarioFirmo ? "Pagar con Mercado Pago" : "Firmar contrato y pagar"}
+              iconRight="arrow-right"
+              onPress={reintentarPago}
+              loading={pagando}
+            />
             <Button variant="ghost" size="sm" label="Seguir mirando autos" onPress={onBack} />
           </>
         )}
+
+        <ContractSignatureModal
+          visible={modalFirma}
+          reservaId={res.id}
+          parte="arrendatario"
+          onClose={() => setModalFirma(false)}
+          onSigned={(firma) => {
+            setModalFirma(false);
+            setRes((prev) => ({ ...prev, firmas: [...(prev.firmas || []), firma] }));
+            // Con el contrato firmado, se abre el pago del hold.
+            procederConPago();
+          }}
+        />
       </View>
     );
   }
@@ -355,15 +395,38 @@ export function ActiveRentalScreen({
       />
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Card padded style={styles.carRow}>
-          <Image
-            source={{ uri: car.fotos?.[0] || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800" }}
-            style={styles.carThumb}
-          />
+          {car.fotos?.[0] ? (
+            <Image source={{ uri: car.fotos[0] }} style={styles.carThumb} />
+          ) : (
+            <View style={[styles.carThumb, styles.carThumbEmpty]}>
+              <Icon name="car" size={22} color={colors.primary300} />
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={styles.carTitle}>{nombre}</Text>
             <Text style={styles.carSub}>Patente {car.patente || "—"}</Text>
           </View>
         </Card>
+
+        {res.estado === "en_curso" && (
+          <Card padded style={{ gap: 6, backgroundColor: colors.accent100 || "#f0fdf4", borderColor: colors.primary, borderWidth: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="pin" size={18} color={colors.primary} />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                  Rastreo GPS de seguridad activo
+                </Text>
+              </View>
+              <Badge
+                variant={gpsTransmitiendo ? "info" : "success"}
+                label={gpsTransmitiendo ? "Transmitiendo..." : "En línea"}
+              />
+            </View>
+            <Text style={{ fontSize: 13, color: colors.textMuted }}>
+              Tu celular comparte la ubicación en tiempo real con el dueño del vehículo durante el viaje.
+            </Text>
+          </Card>
+        )}
 
         <Card padded style={{ gap: theme.spacing.md }}>
           <Row label="Retiro" value={fechaHora(res.fecha_inicio)} />
@@ -522,6 +585,7 @@ const styles = StyleSheet.create({
   ownerSub: { fontSize: 13, color: colors.textMuted, marginTop: 1 },
   carRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
   carThumb: { width: 76, height: 58, borderRadius: theme.radius.field, backgroundColor: colors.primary100 },
+  carThumbEmpty: { backgroundColor: colors.accent100, alignItems: "center", justifyContent: "center" },
   carTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
   carSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   footer: {

@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, KeyboardAvoidingView, Platform } from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
 import { BrandLogo } from "../../components/BrandLogo";
-import { Button, Field, ScreenHeader, BottomBar } from "../../components/ui";
+import { Button, Field, ScreenHeader } from "../../components/ui";
 import { BotonesOAuth } from "../../components/BotonesOAuth";
 import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
@@ -22,8 +22,12 @@ export function LoginScreen({ onNavigate }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const passwordRef = useRef(null);
 
   const handleLogin = async () => {
+    // Guard: la tecla "go" del teclado no se deshabilita con `loading` como el
+    // botón, así que un doble toque rápido dispararía dos veces `login()`.
+    if (loading) return;
     if (!email.trim() || !password.trim()) {
       showAlert("Campos requeridos", "Ingresa tu correo y tu contraseña.");
       return;
@@ -39,65 +43,73 @@ export function LoginScreen({ onNavigate }) {
   };
 
   return (
+    // Un solo ScrollView con TODO adentro (sin barra inferior aparte): con
+    // softwareKeyboardLayoutMode "pan" (app.json) Android ya desplaza la ventana
+    // para dejar el campo enfocado a la vista; el KAV solo hace falta en iOS.
+    // Tener una BottomBar fija + KAV encima duplicaba la compensación y
+    // apretaba todo el contenido arriba del teclado.
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      // Antes era `undefined` en Android, así que este KeyboardAvoidingView
-      // no hacía nada: todo el peso de esquivar el teclado caía en el
-      // ajuste nativo de ventana (adjustResize), que Android rompe desde la
-      // 11 con edge-to-edge y deja de funcionar del todo en la 15 — la
-      // pantalla que viene después (login, "Cargando tu sesión") se quedaba
-      // renderizada en la mitad de la ventana que el teclado nunca devolvió.
-      // Con softwareKeyboardLayoutMode: "pan" en app.json, Android deja de
-      // redimensionar la ventana y este componente pasa a ser quien de
-      // verdad esquiva el teclado.
-      keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="dark-content" />
 
       <ScreenHeader title="Iniciar sesión" onBack={() => onNavigate("welcome")} />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
+        {/* Bloque marca */}
         <View style={styles.logoBox}>
-          <BrandLogo size={64} />
+          <BrandLogo size={56} />
           <Text style={styles.logoTitle}>Arriendo Mi Auto Ya</Text>
         </View>
 
-        <Field
-          label="Correo"
-          value={email}
-          onChangeText={setEmail}
-          placeholder="nombre@correo.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoComplete="email"
-        />
+        {/* Bloque credenciales: el "Siguiente" del teclado salta al campo que sigue */}
+        <View style={styles.form}>
+          <Field
+            label="Correo"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="nombre@correo.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
 
-        <Field
-          label="Contraseña"
-          value={password}
-          onChangeText={setPassword}
-          placeholder="••••••••••"
-          secure
-          autoComplete="password"
-        />
+          <Field
+            ref={passwordRef}
+            label="Contraseña"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••••"
+            secure
+            autoComplete="password"
+            returnKeyType="go"
+            onSubmitEditing={handleLogin}
+          />
 
-        <TouchableOpacity
-          style={styles.forgotLink}
-          onPress={() => onNavigate("forgot")}
-          activeOpacity={0.7}
-          hitSlop={theme.control.hitSlop}
-        >
-          <Text style={styles.forgotLinkText}>¿Olvidaste tu contraseña?</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity
+            style={styles.forgotLink}
+            onPress={() => onNavigate("forgot")}
+            activeOpacity={0.7}
+            hitSlop={theme.control.hitSlop}
+          >
+            <Text style={styles.forgotLinkText}>¿Olvidaste tu contraseña?</Text>
+          </TouchableOpacity>
+        </View>
 
-      <BottomBar>
+        {/* Empuja las acciones hacia abajo cuando sobra alto; colapsa cuando no */}
+        <View style={styles.spacer} />
+
+        {/* Bloque acciones */}
         <Button label="Entrar" onPress={handleLogin} loading={loading} />
 
         <BotonesOAuth />
@@ -111,7 +123,7 @@ export function LoginScreen({ onNavigate }) {
             ¿No tienes cuenta? <Text style={styles.registerLinkHighlight}>Crear cuenta</Text>
           </Text>
         </TouchableOpacity>
-      </BottomBar>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -120,20 +132,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    justifyContent: "space-between",
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
+    flexGrow: 1,
     padding: theme.spacing.screen,
-    gap: theme.spacing.xl,
+    paddingBottom: 32,
+    gap: theme.spacing.lg,
   },
   logoBox: {
     alignItems: "center",
     gap: theme.spacing.sm,
-    marginBottom: theme.spacing.xs,
+    marginTop: theme.spacing.sm,
   },
   logoTitle: {
     ...theme.typography.title,
     color: colors.primary,
+  },
+  form: {
+    gap: theme.spacing.lg,
+  },
+  spacer: {
+    flexGrow: 1,
+    minHeight: theme.spacing.xl,
   },
   forgotLink: {
     alignSelf: "flex-start",

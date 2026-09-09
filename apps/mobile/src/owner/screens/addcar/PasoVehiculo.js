@@ -199,11 +199,15 @@ export function PasoVehiculo({ wizard }) {
         </View>
         <TextInput
           style={[comun.input, errorDe("ubicacion_base") && comun.inputError]}
-          placeholder="ej. Copec Av. Alemania / Plaza de Armas"
+          placeholder="Av. Alemania 6370, Temuco, Araucanía"
           placeholderTextColor={colors.textPlaceholder}
           value={form.ubicacion_base}
           onChangeText={wizard.setReferencia}
         />
+        <Text style={estilos.refAyuda}>
+          Formato: calle y número, ciudad, comuna (si aplica), región. Se completa
+          solo al fijar el punto o usar tu ubicación.
+        </Text>
         <MensajeError texto={errorDe("ubicacion_base")} />
 
         {MapView ? (
@@ -284,6 +288,7 @@ const estilos = StyleSheet.create({
   },
   tipTexto: { flex: 1, fontSize: 12, color: colors.accentDark, lineHeight: 17 },
   refFila: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  refAyuda: { fontSize: 11, color: colors.textMuted, lineHeight: 15, marginTop: 5 },
   gpsBtn: {
     flexDirection: "row",
     alignItems: "center",

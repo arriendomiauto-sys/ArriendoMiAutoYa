@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
 import { ApiClient } from "../../api/client";
 import { Icon } from "../../components/Icon";
-import { Button, Field, Checkbox, ScreenHeader, BottomBar } from "../../components/ui";
+import { Button, Field, Checkbox, ScreenHeader } from "../../components/ui";
 import { BotonesOAuth } from "../../components/BotonesOAuth";
 import { LegalModal } from "../../screens/LegalModal";
 import { EDAD_MINIMA_ARRENDATARIO } from "../../legal/documentos";
@@ -43,20 +43,25 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // El botón "Siguiente" del teclado encadena los campos de arriba abajo.
+  const apellidoRef = useRef(null);
+  const emailRef = useRef(null);
+  const telefonoRef = useRef(null);
+  const passwordRef = useRef(null);
+  const confirmRef = useRef(null);
   // Documento legal abierto en el visor (null = cerrado). El registro exige
   // aceptar términos y privacidad, así que tienen que poder leerse acá mismo
   // antes de marcar la casilla.
   const [documentoLegal, setDocumentoLegal] = useState(null);
 
-  const set = (campo) => (text) => {
-    if (campo === "telefono") {
-      setForm((f) => ({ ...f, telefono: formatearTelefonoInput(text) }));
-    } else {
-      setForm((f) => ({ ...f, [campo]: text }));
-    }
-  };
+  // El teléfono se enmascara dentro del <Field format={...} />, no acá: hacerlo
+  // en este setState dejaba el value= desfasado y Android duplicaba dígitos.
+  const set = (campo) => (text) => setForm((f) => ({ ...f, [campo]: text }));
 
   const handleRegister = async () => {
+    // Guard: la tecla "go" del teclado no se deshabilita con `loading`.
+    if (loading) return;
     if (!form.nombre.trim()) {
       showAlert("Campo requerido", "Por favor ingresa tu nombre.");
       return;
@@ -136,23 +141,22 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
   };
 
   return (
+    // Un solo ScrollView con todo adentro. En Android el "pan" nativo
+    // (app.json) desplaza la ventana al campo enfocado; el KAV es solo iOS.
+    // Detalle completo en LoginScreen.js.
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      // Android ya no redimensiona la ventana con el teclado (ver app.json,
-      // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
-      // Detalle completo en LoginScreen.js.
-      keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="dark-content" />
 
       <ScreenHeader title="Crear mi cuenta" onBack={() => onNavigate("welcome")} />
 
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
       >
         {/* Banner del rol elegido en la bienvenida */}
         <View
@@ -184,17 +188,25 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
           onChangeText={set("nombre")}
           placeholder="Ej. Rodrigo"
           autoCapitalize="words"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => apellidoRef.current?.focus()}
         />
 
         <Field
+          ref={apellidoRef}
           label="Apellido"
           value={form.apellido}
           onChangeText={set("apellido")}
           placeholder="Ej. Muñoz"
           autoCapitalize="words"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => emailRef.current?.focus()}
         />
 
         <Field
+          ref={emailRef}
           label="Correo"
           value={form.email}
           onChangeText={set("email")}
@@ -202,12 +214,18 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => telefonoRef.current?.focus()}
         />
 
         <Field
+          ref={telefonoRef}
           label="Teléfono"
           value={form.telefono}
           onChangeText={set("telefono")}
+          format={formatearTelefonoInput}
+          maxLength={9}
           placeholder="7734 1208"
           prefix="+56 9"
           keyboardType="phone-pad"
@@ -215,20 +233,27 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         />
 
         <Field
+          ref={passwordRef}
           label="Contraseña"
           value={form.password}
           onChangeText={set("password")}
           placeholder="••••••••••"
           secure
           helper="Mínimo 6 caracteres."
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => confirmRef.current?.focus()}
         />
 
         <Field
+          ref={confirmRef}
           label="Confirmar contraseña"
           value={form.confirmPassword}
           onChangeText={set("confirmPassword")}
           placeholder="••••••••••"
           secure
+          returnKeyType="go"
+          onSubmitEditing={handleRegister}
           error={
             form.confirmPassword && form.password !== form.confirmPassword
               ? "Las contraseñas no coinciden."
@@ -263,8 +288,17 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         <Checkbox
           label={`He leído y acepto los términos y la política de privacidad, y tengo ${EDAD_MINIMA_ARRENDATARIO} años o más.`}
           checked={acceptedTerms}
-          onChange={setAcceptedTerms}
+          onToggle={() => setAcceptedTerms((v) => !v)}
         />
+
+        {/* Bloque acciones: dentro del scroll para que el teclado no lo apriete */}
+        <Button
+          label={isDriver ? "Crear cuenta de Dueño" : "Crear cuenta de Arrendatario"}
+          onPress={handleRegister}
+          loading={loading}
+        />
+
+        <BotonesOAuth preferredMode={role} />
       </ScrollView>
 
       <LegalModal
@@ -273,16 +307,6 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         onClose={() => setDocumentoLegal(null)}
         onAccept={() => setAcceptedTerms(true)}
       />
-
-      <BottomBar>
-        <Button
-          label={isDriver ? "Crear cuenta de Dueño" : "Crear cuenta de Arrendatario"}
-          onPress={handleRegister}
-          loading={loading}
-        />
-
-        <BotonesOAuth preferredMode={role} />
-      </BottomBar>
     </KeyboardAvoidingView>
   );
 }
@@ -291,11 +315,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    justifyContent: "space-between",
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
+    flexGrow: 1,
     padding: theme.spacing.screen,
-    paddingBottom: theme.spacing.xxxl,
+    paddingBottom: 32,
     gap: theme.spacing.lg,
   },
   roleBanner: {

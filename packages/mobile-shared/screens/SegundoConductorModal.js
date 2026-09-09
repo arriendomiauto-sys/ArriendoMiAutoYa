@@ -158,6 +158,7 @@ export function SegundoConductorModal({
   };
 
   const handleProcesarKyc = async () => {
+    if (saving) return;
     if (!carnetFrontalUrl) {
       showAlert("Falta Cédula", "Debes escanear el frente de la cédula de identidad.");
       return;

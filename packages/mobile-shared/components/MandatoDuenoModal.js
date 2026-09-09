@@ -26,6 +26,7 @@ export function MandatoDuenoModal({
   const storageKey = `${KEY_MANDATO_PREFIX}${userId || "default"}`;
 
   const handleAceptar = async () => {
+    if (saving) return;
     setSaving(true);
     try {
       await AsyncStorage.setItem(storageKey, new Date().toISOString());

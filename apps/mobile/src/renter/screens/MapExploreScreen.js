@@ -9,7 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, useApp, Icon, Button } from "@rentacar/mobile-shared";
+import { colors, theme, useApp, Icon, Button, BackButton, Rating } from "@rentacar/mobile-shared";
 
 // react-native-maps es un módulo nativo: no existe en web ni en Expo Go sin
 // dev build. Se carga de forma tolerante para que el bundle no se caiga y la
@@ -197,9 +197,7 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
 
       {/* Barra superior flotante */}
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.roundBtn} onPress={onBack} activeOpacity={0.85}>
-          <Icon name="arrow-left" size={20} color={colors.primary} />
-        </TouchableOpacity>
+        <BackButton variant="overlay" onPress={onBack} style={styles.roundBtn} />
         <View style={styles.searchPill}>
           <Icon name="search" size={16} color={colors.textMuted} />
           <Text style={styles.searchPillText} numberOfLines={1}>
@@ -231,27 +229,35 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
             activeOpacity={0.9}
             onPress={() => onSelectCar(selected.car)}
           >
-            <Image
-              source={{
-                uri:
-                  selected.car.fotos?.[0] ||
-                  "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
-              }}
-              style={styles.sheetThumb}
-            />
+            {selected.car.fotos?.[0] ? (
+              <Image source={{ uri: selected.car.fotos[0] }} style={styles.sheetThumb} />
+            ) : (
+              <View style={[styles.sheetThumb, styles.sheetThumbEmpty]}>
+                <Icon name="car" size={24} color={colors.primary300} />
+              </View>
+            )}
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.sheetTitle} numberOfLines={1}>
                 {selected.car.marca} {selected.car.modelo} {selected.car.anio || ""}
               </Text>
-              <Text style={styles.sheetMeta} numberOfLines={1}>
-                {selected.car.ubicacion_base || "Los Ángeles"}
-              </Text>
+              <View style={styles.sheetMetaRow}>
+                <Rating
+                  value={selected.car.rating_promedio}
+                  count={selected.car.rating_cantidad}
+                  size="sm"
+                />
+                {selected.car.ubicacion_base ? (
+                  <Text style={styles.sheetMeta} numberOfLines={1}>
+                    {` · ${selected.car.ubicacion_base}`}
+                  </Text>
+                ) : null}
+              </View>
               <Text style={styles.sheetPrice}>
                 {precio(selected.car.tarifa_dia)} <Text style={styles.sheetPer}>/ día</Text>
               </Text>
             </View>
           </TouchableOpacity>
-          <Button label="Ver el auto" onPress={() => onSelectCar(selected.car)} />
+          <Button label="Ver auto" onPress={() => onSelectCar(selected.car)} />
         </View>
       ) : null}
     </View>
@@ -270,13 +276,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.screen,
   },
+  // Solo iguala la sombra alta del pill de búsqueda vecino; el tamaño, forma y
+  // fondo translúcido los pone <BackButton variant="overlay" />.
   roundBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
     ...theme.shadow.md,
   },
   searchPill: {
@@ -347,8 +349,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.field,
     backgroundColor: colors.primary100,
   },
+  sheetThumbEmpty: { backgroundColor: colors.accent100, alignItems: "center", justifyContent: "center" },
   sheetTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-  sheetMeta: { fontSize: 13, color: colors.textMuted },
+  sheetMetaRow: { flexDirection: "row", alignItems: "center" },
+  sheetMeta: { fontSize: 13, color: colors.textMuted, flexShrink: 1 },
   sheetPrice: { fontSize: 16, fontWeight: "700", color: colors.text, marginTop: 2 },
   sheetPer: { fontSize: 13, fontWeight: "400", color: colors.textMuted },
   fallback: {

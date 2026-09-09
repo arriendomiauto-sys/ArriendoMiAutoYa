@@ -7,23 +7,21 @@ import {
   useApp,
   Icon,
   AvatarFoto,
-  Button,
   MenuList,
   MenuRow,
   ApiClient,
   showAlert,
   ReferralCodeCard,
   LegalModal,
-  AccountStatusCard,
+  ReadinessBand,
   ModeSwitchRow,
 } from "@rentacar/mobile-shared";
-import { CabeceraOwner, FranjaResumen, oc } from "../comun";
+import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
 
 /**
  * Perfil del dueño. Mismo enfoque que el del arrendatario: primero "¿puedo
- * publicar?" (identidad + tarjeta), después los ajustes. Lo que ya tiene su
- * propia pestaña — la flota, las ganancias y los datos de transferencia, las
- * solicitudes — o vive en el header (Mensajes) no se repite aquí.
+ * publicar?", después los ajustes en una lista. El bloque premium (teal casi
+ * negro) es el hero, con los stats adentro — no una tarjeta suelta más.
  */
 export function OwnerProfileScreen({
   cars,
@@ -44,9 +42,6 @@ export function OwnerProfileScreen({
 
   useEffect(() => {
     if (!currentUser?.id) return;
-    // Sin catch, un backend caído al abrir la app dejaba un rechazo sin
-    // manejar. Las calificaciones son secundarias: si no llegan, la
-    // pantalla se muestra igual.
     ApiClient.getCalificaciones(currentUser.id)
       .then(setCalificaciones)
       .catch(() => {});
@@ -54,7 +49,6 @@ export function OwnerProfileScreen({
 
   const user = currentUser || {};
   const nombre = user.nombre || user.email || "Mi cuenta";
-  const sub = user.nombre && user.email ? user.email : "Cuenta de dueño";
 
   const handleKycPress = () => {
     if (user.estado_documentos === "verificado") {
@@ -74,11 +68,24 @@ export function OwnerProfileScreen({
     onOpenEnrolment?.();
   };
 
-  const promedioRating =
-    calificaciones.length > 0
-      ? (calificaciones.reduce((sum, c) => sum + c.puntaje, 0) / calificaciones.length).toFixed(1)
-      : null;
+  const resolverEstado = (tipo) => (tipo === "identidad" ? handleKycPress() : onOpenTarjeta?.());
+
+  const ratingNum = calificaciones.length
+    ? calificaciones.reduce((sum, c) => sum + (c.puntaje || 0), 0) / calificaciones.length
+    : null;
   const totalAutos = cars?.length || 0;
+
+  const identidadMeta =
+    user.estado_documentos === "verificado"
+      ? "Verificada"
+      : user.estado_documentos === "requiere_revision_manual"
+        ? "En revisión"
+        : "Pendiente";
+  const tarjetaMeta = user.tarjeta_ultimos4
+    ? `•• ${user.tarjeta_ultimos4}`
+    : user.tarjeta_estado === "validada"
+      ? "Listo"
+      : "Agregar";
 
   const handleLogout = () => {
     showAlert("Cerrar sesión", "¿Seguro que quieres salir de tu cuenta de dueño?", [
@@ -126,56 +133,63 @@ export function OwnerProfileScreen({
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
-        <View style={oc.card}>
+        {/* Hero premium: teal casi negro + hairline menta, con los stats dentro */}
+        <View style={styles.premium}>
           <TouchableOpacity
-            style={styles.heroHead}
+            style={styles.premiumHead}
             onPress={onOpenEditProfile}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Editar perfil"
           >
-            <AvatarFoto size={56} iconSize={24} />
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text style={styles.name} numberOfLines={1}>
+            <AvatarFoto size={64} iconSize={26} style={styles.premiumAvatar} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.premiumName} numberOfLines={1}>
                 {nombre}
               </Text>
-              <Text style={styles.sub} numberOfLines={1}>
-                {sub}
+              <Text style={styles.premiumSub} numberOfLines={1}>
+                {user.estado_documentos === "verificado" ? "Anfitrión verificado" : "Cuenta de dueño"}
               </Text>
             </View>
-            <View style={styles.editHint}>
-              <Icon name="pencil" size={13} color={colors.textMuted} />
-              <Text style={styles.editHintText}>Editar</Text>
+            <View style={styles.premiumEdit}>
+              <Icon name="pencil" size={15} color={colors.accent200} />
             </View>
           </TouchableOpacity>
 
-          <AccountStatusCard
-            tone="light"
-            rol="owner"
-            estadoDocumentos={user.estado_documentos}
-            tarjetaUltimos4={user.tarjeta_ultimos4}
-            tarjetaEstado={user.tarjeta_estado}
-            onPressIdentidad={handleKycPress}
-            onPressTarjeta={onOpenTarjeta}
-          />
+          <View style={styles.premiumHair} />
+
+          <View style={styles.premiumStats}>
+            <Stat value={String(totalAutos)} label={totalAutos === 1 ? "Auto" : "Autos"} />
+            <Stat value={String(calificaciones.length)} label="Calificaciones" bordered />
+            <Stat
+              value={ratingNum ? ratingNum.toFixed(1).replace(".", ",") : "—"}
+              label="Rating"
+              star={!!ratingNum}
+              bordered
+            />
+          </View>
         </View>
 
-        <FranjaResumen
-          items={[
-            { value: totalAutos, label: totalAutos === 1 ? "Auto publicado" : "Autos publicados" },
-            { value: calificaciones.length, label: "Calificaciones" },
-            { value: promedioRating ? `★ ${promedioRating}` : "—", label: "Rating" },
-          ]}
+        <ReadinessBand
+          estadoDocumentos={user.estado_documentos}
+          tarjetaEstado={user.tarjeta_estado}
+          rol="owner"
+          onResolver={resolverEstado}
+          standalone
         />
 
-        <ReferralCodeCard />
-
-        <MenuList>
-          <MenuRow icon="shield" label="Garantías y reclamos" onPress={onOpenDisputes} />
-          <MenuRow icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
-          <MenuRow icon="help" label="Soporte para anfitriones 24/7" onPress={onOpenSupport} />
-          <MenuRow icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
-        </MenuList>
+        <View>
+          <Text style={styles.section}>Cuenta</Text>
+          <MenuList>
+            <MenuRow tile tileTone="menta" icon="shield" label="Identidad" meta={identidadMeta} onPress={handleKycPress} />
+            <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenTarjeta} />
+            <MenuRow tile icon="shield" label="Garantías y reclamos" onPress={onOpenDisputes} />
+            <MenuRow tile icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
+            <MenuRow tile icon="help" label="Soporte para anfitriones" onPress={onOpenSupport} />
+            <MenuRow tile icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
+            <MenuRow tile tileTone="danger" icon="logout" label="Cerrar sesión" danger onPress={handleLogout} />
+          </MenuList>
+        </View>
 
         <ModeSwitchRow
           tone="light"
@@ -185,19 +199,18 @@ export function OwnerProfileScreen({
           onPress={() => setMode("renter")}
         />
 
-        <View style={styles.footerActions}>
-          <Button label="Cerrar sesión" variant="danger" onPress={handleLogout} />
-          <TouchableOpacity
-            onPress={handleEliminarCuenta}
-            disabled={eliminando}
-            hitSlop={theme.control.hitSlop}
-            accessibilityRole="button"
-            accessibilityLabel="Eliminar mi cuenta"
-            style={styles.deleteBtn}
-          >
-            <Text style={styles.deleteText}>{eliminando ? "Enviando solicitud…" : "Eliminar mi cuenta"}</Text>
-          </TouchableOpacity>
-        </View>
+        <ReferralCodeCard />
+
+        <TouchableOpacity
+          onPress={handleEliminarCuenta}
+          disabled={eliminando}
+          hitSlop={theme.control.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel="Eliminar mi cuenta"
+          style={styles.deleteBtn}
+        >
+          <Text style={styles.deleteText}>{eliminando ? "Enviando solicitud…" : "Eliminar mi cuenta"}</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <LegalModal visible={showLegal} doc="terminos" onClose={() => setShowLegal(false)} />
@@ -205,19 +218,59 @@ export function OwnerProfileScreen({
   );
 }
 
+function Stat({ value, label, star, bordered }) {
+  return (
+    <View style={[styles.stat, bordered && styles.statBordered]}>
+      <View style={styles.statValueRow}>
+        {star ? <Icon name="star" size={13} color={colors.accent500} fill={colors.accent500} /> : null}
+        <Text style={styles.statValue} numberOfLines={1}>
+          {value}
+        </Text>
+      </View>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  heroHead: {
+  premium: {
+    backgroundColor: OWNER_PREMIUM_BG,
+    borderRadius: theme.radius.card,
+    borderWidth: 1,
+    borderColor: OWNER_PREMIUM_LINE,
+    overflow: "hidden",
+    ...theme.shadow.lg,
+  },
+  premiumHead: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.md,
     padding: theme.spacing.lg,
   },
-  name: { fontSize: 18, fontWeight: "700", color: colors.text },
-  sub: { fontSize: 13, color: colors.textMuted },
-  editHint: { flexDirection: "row", alignItems: "center", gap: 4 },
-  editHintText: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
+  premiumAvatar: {
+    borderWidth: 2,
+    borderColor: "rgba(47,191,155,0.4)",
+  },
+  premiumName: { fontSize: 20, fontWeight: "700", color: "#FFFFFF", letterSpacing: -0.2 },
+  premiumSub: { fontSize: 12.5, color: colors.accent200, marginTop: 2 },
+  premiumEdit: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.radius.field,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  premiumHair: { height: 1, backgroundColor: OWNER_PREMIUM_LINE, marginHorizontal: theme.spacing.lg },
+  premiumStats: { flexDirection: "row", paddingVertical: theme.spacing.lg },
+  stat: { flex: 1, alignItems: "center", paddingHorizontal: 4, gap: 3 },
+  statBordered: { borderLeftWidth: 1, borderLeftColor: "rgba(47,191,155,0.18)" },
+  statValueRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  statValue: { fontSize: 19, fontWeight: "700", color: "#FFFFFF", letterSpacing: -0.2 },
+  statLabel: { fontSize: 10.5, color: "rgba(255,255,255,0.56)", textAlign: "center" },
 
-  footerActions: { gap: theme.spacing.md, alignItems: "center" },
-  deleteBtn: { paddingVertical: 6, paddingHorizontal: theme.spacing.md },
+  section: { fontSize: 13, fontWeight: "700", color: colors.textMuted, marginBottom: theme.spacing.sm, marginLeft: 4 },
+
+  deleteBtn: { alignSelf: "center", paddingVertical: 6, paddingHorizontal: theme.spacing.md },
   deleteText: { fontSize: 13, color: colors.danger, fontWeight: "600" },
 });

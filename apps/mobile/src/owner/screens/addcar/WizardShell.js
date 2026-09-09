@@ -9,7 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, BackButton } from "@rentacar/mobile-shared";
 
 const PASOS = ["Auto", "Tarifa", "Fotos", "Docs"];
 
@@ -54,20 +54,11 @@ export function WizardShell({
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity
-            onPress={onBack}
-            hitSlop={theme.control.hitSlop}
-            accessibilityRole="button"
-            accessibilityLabel="Volver"
-            style={styles.volver}
-          >
-            <Icon name="arrow-left" size={20} color={colors.primary} />
-          </TouchableOpacity>
+          <BackButton onPress={onBack} />
           <Text style={styles.contador}>{`Paso ${paso} de 4`}</Text>
         </View>
 
@@ -131,16 +122,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topBar: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  volver: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   contador: { fontSize: 13, fontWeight: "600", color: colors.textMuted },
   stepper: { flexDirection: "row", alignItems: "center" },
   nodo: {

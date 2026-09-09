@@ -37,3 +37,39 @@ export async function confirmarBiometria(
     return false;
   }
 }
+
+/**
+ * Método biométrico enrolado en el teléfono: `"facial"`, `"huella"` o `null`
+ * si no hay ninguno. Lo usa la firma del contrato para etiquetar el método y
+ * decidir qué botón mostrar.
+ */
+export async function tipoBiometriaDisponible() {
+  try {
+    if (!(await hayHardwareBiometrico())) return null;
+    const tipos = await LocalAuthentication.supportedAuthenticationTypesAsync();
+    if (tipos?.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) return "facial";
+    if (tipos?.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) return "huella";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Prompt biométrico para FIRMAR. A diferencia de `confirmarBiometria`, exige un
+ * éxito real: devuelve `false` si el usuario cancela o el teléfono no tiene
+ * biometría (ahí el llamador debe ofrecer la firma manuscrita).
+ */
+export async function autenticarParaFirmar(
+  promptMessage = "Confirma tu identidad para firmar el contrato"
+) {
+  try {
+    const resultado = await LocalAuthentication.authenticateAsync({
+      promptMessage,
+      cancelLabel: "Cancelar",
+    });
+    return !!resultado.success;
+  } catch {
+    return false;
+  }
+}

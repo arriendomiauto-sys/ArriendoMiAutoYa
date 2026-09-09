@@ -1,157 +1,160 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
-import { colors, theme, Icon } from "@rentacar/mobile-shared";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, StyleSheet, Image, TouchableOpacity, Animated } from "react-native";
+import { colors, theme, Icon, Rating } from "@rentacar/mobile-shared";
 
-export function CarCard({ car, onPress, esFavorito, onToggleFavorito }) {
-  const precio = (car.tarifa_dia || 0).toLocaleString("es-CL");
-  const rating = car.rating_promedio || car.dueno?.rating;
-  const equip = car.equipamiento || {};
-  const specs = [
-    equip.doble_traccion && "4x4",
-    equip.ac && "A/C",
-    equip.camara_retroceso && "Cámara",
-  ].filter(Boolean);
+// Esqueleto de carga con la misma silueta que <CarCard> (fila de 104 px).
+export function CarCardSkeleton() {
+  const shimmer = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0.55, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shimmer]);
 
   return (
-    <TouchableOpacity style={styles.card} onPress={() => onPress(car)} activeOpacity={0.9}>
-      <View style={styles.imageWrap}>
-        <Image
-          source={{
-            uri: car.fotos?.[0] || "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
-          }}
-          style={styles.image}
-          resizeMode="cover"
-        />
-        <View style={styles.badge}>
-          <View style={styles.badgeDot} />
-          <Text style={styles.badgeText}>Disponible</Text>
-        </View>
-        {onToggleFavorito ? (
-          <TouchableOpacity
-            style={styles.favButton}
-            onPress={() => onToggleFavorito(car)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityRole="button"
-            accessibilityLabel={esFavorito ? "Quitar de favoritos" : "Agregar a favoritos"}
-          >
-            <Icon
-              name="heart"
-              size={18}
-              color={esFavorito ? colors.danger : colors.primary}
-              fill={esFavorito ? colors.danger : "none"}
-            />
-          </TouchableOpacity>
-        ) : null}
+    <Animated.View style={[styles.card, styles.skelCard, { opacity: shimmer }]}>
+      <View style={[styles.photo, styles.skelBlock]} />
+      <View style={styles.body}>
+        <View style={[styles.skelBar, { width: "62%", height: 14 }]} />
+        <View style={[styles.skelBar, { width: "40%", height: 12 }]} />
+        <View style={[styles.skelBar, { width: "30%", height: 14, marginTop: "auto" }]} />
+      </View>
+    </Animated.View>
+  );
+}
+
+// Tarjeta de auto del marketplace — dirección "lista densa" (Lote 3, 1a):
+// fila horizontal de ~104 px, foto 4:3 a la izquierda, y a la derecha el
+// nombre, el <Rating> con la comuna y el precio. El corazón flota sobre la
+// info. Sin botón "Ver": toda la tarjeta es táctil.
+export function CarCard({ car, onPress, esFavorito, onToggleFavorito }) {
+  const [fotoError, setFotoError] = useState(false);
+  const foto = car.fotos?.[0];
+  const precio = (car.tarifa_dia || 0).toLocaleString("es-CL");
+  const comuna = car.ubicacion_base || car.comuna || "";
+  const nombre = [car.marca, car.modelo, car.anio].filter(Boolean).join(" ");
+
+  return (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => onPress(car)}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${nombre}, $${precio} por día`}
+    >
+      {/* Bloque foto: imagen real o marcador con icono */}
+      <View style={styles.photo}>
+        {foto && !fotoError ? (
+          <Image
+            source={{ uri: foto }}
+            style={styles.photoImg}
+            resizeMode="cover"
+            onError={() => setFotoError(true)}
+          />
+        ) : (
+          <View style={styles.photoPlaceholder}>
+            <Icon name="car" size={24} color={colors.primary300} />
+          </View>
+        )}
       </View>
 
+      {/* Bloque info */}
       <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title} numberOfLines={1}>
-            {car.marca} {car.modelo} {car.anio || ""}
-          </Text>
-          {rating ? (
-            <View style={styles.rating}>
-              <Icon name="star" size={13} color={colors.accent} />
-              <Text style={styles.ratingText}>{Number(rating).toFixed(1)}</Text>
-            </View>
-          ) : null}
-        </View>
+        <Text style={styles.title} numberOfLines={1}>
+          {nombre || "Vehículo"}
+        </Text>
 
         <View style={styles.metaRow}>
-          <Icon name="location" size={13} color={colors.textMuted} />
-          <Text style={styles.meta} numberOfLines={1}>
-            {car.ubicacion_base || car.comuna || "Los Ángeles"}
-          </Text>
+          <Rating value={car.rating_promedio} count={car.rating_cantidad} size="sm" />
+          {comuna ? <Text style={styles.comuna} numberOfLines={1}>{` · ${comuna}`}</Text> : null}
         </View>
-
-        {specs.length ? (
-          <View style={styles.specsRow}>
-            {specs.map((s) => (
-              <View key={s} style={styles.specChip}>
-                <Text style={styles.specText}>{s}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
 
         <View style={styles.priceRow}>
           <Text style={styles.price}>
-            ${precio} <Text style={styles.per}>/ día</Text>
+            {`$${precio} `}
+            <Text style={styles.per}>/ día</Text>
           </Text>
-          <View style={styles.cta}>
-            <Text style={styles.ctaText}>Ver</Text>
-            <Icon name="arrow-right" size={15} color={colors.primary} />
-          </View>
         </View>
       </View>
+
+      {onToggleFavorito ? (
+        <TouchableOpacity
+          style={styles.fav}
+          onPress={() => onToggleFavorito(car)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel={esFavorito ? "Quitar de favoritos" : "Agregar a favoritos"}
+        >
+          <Icon
+            name="heart"
+            size={18}
+            color={esFavorito ? colors.accent700 : colors.primary}
+            fill={esFavorito ? colors.accent500 : "none"}
+          />
+        </TouchableOpacity>
+      ) : null}
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    flexDirection: "row",
+    height: 104,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.card,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: "hidden",
-    marginBottom: theme.spacing.lg,
     ...theme.shadow.sm,
   },
-  imageWrap: { height: 168, backgroundColor: colors.surfaceSecondary },
-  image: { width: "100%", height: "100%" },
-  badge: {
-    position: "absolute",
-    top: theme.spacing.md,
-    left: theme.spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: theme.radius.pill,
+  photo: {
+    width: 116,
+    height: "100%",
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
   },
-  badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent500 },
-  favButton: {
-    position: "absolute",
-    top: theme.spacing.md,
-    right: theme.spacing.md,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.95)",
+  photoImg: { width: "100%", height: "100%" },
+  photoPlaceholder: {
+    flex: 1,
+    backgroundColor: colors.accent100,
     alignItems: "center",
     justifyContent: "center",
-    ...theme.shadow.sm,
   },
-  badgeText: { fontSize: 12, fontWeight: "600", color: colors.primary },
-  body: { padding: theme.spacing.lg, gap: theme.spacing.sm },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
-  title: { flex: 1, fontSize: 17, fontWeight: "700", color: colors.text, letterSpacing: -0.2 },
-  rating: { flexDirection: "row", alignItems: "center", gap: 3 },
-  ratingText: { fontSize: 13, fontWeight: "600", color: colors.text },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  meta: { fontSize: 13, color: colors.textMuted, flex: 1 },
-  specsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  specChip: {
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: theme.radius.sm,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
+  body: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 5,
   },
-  specText: { fontSize: 11, fontWeight: "600", color: colors.primary },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: theme.spacing.md,
-    marginTop: 2,
+  title: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.text,
+    paddingRight: 26,
   },
-  price: { fontSize: 18, fontWeight: "700", color: colors.text, letterSpacing: -0.3 },
+  metaRow: { flexDirection: "row", alignItems: "center" },
+  comuna: { fontSize: 12, color: colors.textMuted, flexShrink: 1 },
+  priceRow: { marginTop: "auto", flexDirection: "row", alignItems: "baseline" },
+  price: { fontSize: 17, fontWeight: "700", color: colors.primary, letterSpacing: -0.2 },
   per: { fontSize: 13, fontWeight: "400", color: colors.textMuted },
-  cta: { flexDirection: "row", alignItems: "center", gap: 4 },
-  ctaText: { fontSize: 14, fontWeight: "600", color: colors.primary },
+  fav: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Skeleton
+  skelCard: { backgroundColor: colors.skeleton, borderColor: colors.skeleton },
+  skelBlock: { backgroundColor: colors.surfaceSecondary, borderRightWidth: 0 },
+  skelBar: { borderRadius: 999, backgroundColor: colors.surfaceSecondary },
 });

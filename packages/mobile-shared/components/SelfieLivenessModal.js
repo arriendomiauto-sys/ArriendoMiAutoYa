@@ -46,7 +46,10 @@ const SEGUNDOS = 3;
 export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef(null);
-  const { width: SCREEN_W } = useWindowDimensions();
+  // El alto va EXPLÍCITO al contenedor del Modal: con la New Architecture en
+  // Android, `<Modal>` mide a "wrap content" y `flex:1` colapsaba, dejando
+  // todo apelotonado arriba.
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   // fase: "intro" | "contando" | "capturando" | "revisar"
@@ -57,6 +60,15 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
 
   const frameW = Math.min(SCREEN_W - 96, 300);
   const frameH = frameW * 1.32;
+
+  // Posición del óvalo: centrado en la franja libre entre la barra superior y
+  // los controles de abajo. Coordenadas absolutas (no flex) porque `<Modal>` +
+  // New Architecture en Android colapsaba el layout con flex y dejaba el marco
+  // pegado arriba.
+  const ovalLeft = (SCREEN_W - frameW) / 2;
+  const zoneTop = insets.top + 72;
+  const zoneBottom = SCREEN_H - insets.bottom - 250;
+  const ovalTop = zoneTop + Math.max(0, (zoneBottom - zoneTop - frameH) / 2);
 
   const reiniciar = () => {
     setFase("intro");
@@ -169,7 +181,9 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
     if (!permission.granted) {
       return (
         <View style={styles.centerBox}>
-          <Icon name="camera" size={40} color="#FFFFFF" />
+          <View style={styles.permIconTile}>
+            <Icon name="camera" size={30} color={colors.accent500} />
+          </View>
           <Text style={styles.permTitle}>Necesitamos tu cámara</Text>
           <Text style={styles.permText}>
             La selfie de verificación confirma que eres tú quien está creando la cuenta.
@@ -217,38 +231,36 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
       <View style={styles.flex}>
         <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
 
-        {/* Máscara oscura (arriba / abajo / lados) con el óvalo transparente
-            centrado en el área visible. */}
-        <View style={[styles.maskFill, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-          <View style={styles.maskBlock} />
-          <View style={[styles.maskMiddle, { height: frameH }]}>
-            <View style={styles.maskBlock} />
-            <View style={[styles.window, { width: frameW, height: frameH, borderRadius: frameH / 2 }]}>
-              <View style={[styles.corner, styles.cornerTL]} />
-              <View style={[styles.corner, styles.cornerTR]} />
-              <View style={[styles.corner, styles.cornerBL]} />
-              <View style={[styles.corner, styles.cornerBR]} />
+        {/* Solo el contorno del óvalo sobre la cámara: sin máscara oscura y sin
+            esquinas. La cuenta regresiva / spinner van centrados dentro. */}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.faceOval,
+            {
+              width: frameW,
+              height: frameH,
+              left: ovalLeft,
+              top: ovalTop,
+              borderRadius: frameW / 2,
+            },
+          ]}
+        >
+          {fase === "contando" && cuenta > 0 ? (
+            <View style={styles.cuentaRing}>
+              <Text style={styles.cuentaNum}>{cuenta}</Text>
             </View>
-            <View style={styles.maskBlock} />
-          </View>
-          <View style={styles.maskBlock} />
-        </View>
-
-        {/* Cuenta regresiva grande sobre el óvalo */}
-        {fase === "contando" && cuenta > 0 ? (
-          <View style={styles.cuentaWrap} pointerEvents="none">
-            <Text style={styles.cuentaNum}>{cuenta}</Text>
-          </View>
-        ) : null}
-        {fase === "capturando" ? (
-          <View style={styles.cuentaWrap} pointerEvents="none">
+          ) : null}
+          {fase === "capturando" ? (
             <ActivityIndicator size="large" color="#FFFFFF" />
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
         <View style={[styles.topBar, { top: insets.top + 12 }]}>
           <TouchableOpacity onPress={cerrar} style={styles.iconBtn} hitSlop={12}>
-            <Icon name="close" size={22} color="#FFFFFF" />
+            <View style={styles.closeCircle}>
+              <Icon name="close" size={18} color="#FFFFFF" />
+            </View>
           </TouchableOpacity>
           <Text style={styles.topTitle}>Selfie de verificación</Text>
           <View style={styles.iconBtn} />
@@ -291,12 +303,12 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={cerrar} statusBarTranslucent>
-      <View style={styles.root}>{renderContenido()}</View>
+      <View style={[styles.root, { width: SCREEN_W, height: SCREEN_H }]}>
+        {renderContenido()}
+      </View>
     </Modal>
   );
 }
-
-const DIM = "rgba(0,0,0,0.62)";
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000000" },
@@ -307,9 +319,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 32,
     gap: 12,
+    backgroundColor: colors.primary900,
   },
-  permTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "700", marginTop: 8 },
-  permText: { color: "#CBD5E1", fontSize: 14, textAlign: "center", lineHeight: 20 },
+  permIconTile: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
+    backgroundColor: colors.primary800,
+    borderWidth: 1,
+    borderColor: colors.darkBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  permTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "800", marginTop: 8 },
+  permText: { color: colors.darkTextMuted, fontSize: 14, textAlign: "center", lineHeight: 20 },
   permBtn: {
     marginTop: 18,
     backgroundColor: colors.accent500,
@@ -317,30 +340,32 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 12,
   },
-  permBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
-  permCancel: { color: "#94A3B8", fontSize: 14 },
+  permBtnText: { color: colors.primary900, fontWeight: "800", fontSize: 15 },
+  permCancel: { color: colors.darkTextMuted, fontSize: 14 },
 
-  maskFill: { ...StyleSheet.absoluteFillObject, flexDirection: "column" },
-  maskMiddle: { flexDirection: "row" },
-  maskBlock: { flex: 1, backgroundColor: DIM },
-  window: {
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.9)",
+  // Encuadre de la cara: solo el contorno del óvalo, cámara visible detrás.
+  faceOval: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2.5,
+    borderColor: "rgba(255,255,255,0.92)",
   },
-  corner: { position: "absolute", width: 26, height: 26, borderColor: colors.accent500 },
-  cornerTL: { top: -2, left: -2, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 10 },
-  cornerTR: { top: -2, right: -2, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 10 },
-  cornerBL: { bottom: -2, left: -2, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 10 },
-  cornerBR: { bottom: -2, right: -2, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 10 },
 
-  cuentaWrap: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  cuentaRing: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 3,
+    borderColor: colors.accent500,
+    backgroundColor: "rgba(6,30,31,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   cuentaNum: {
     color: "#FFFFFF",
-    fontSize: 96,
+    fontSize: 34,
     fontWeight: "800",
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
   },
 
   topBar: {
@@ -353,7 +378,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  topTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center" },
+  closeCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "700", flex: 1, textAlign: "center" },
 
   bottomArea: {
     position: "absolute",
@@ -372,16 +405,18 @@ const styles = StyleSheet.create({
   },
   pasoPillActivo: { backgroundColor: "#FFFFFF" },
   pasoPillHecho: { backgroundColor: colors.accent500 },
-  instruccion: { color: "#FFFFFF", fontSize: 17, fontWeight: "700", textAlign: "center" },
+  instruccion: { color: "#FFFFFF", fontSize: 17, fontWeight: "800", textAlign: "center" },
   hint: {
-    color: "#E2E8F0",
+    color: "rgba(255,255,255,0.92)",
     fontSize: 13,
     textAlign: "center",
     lineHeight: 18,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(6,30,31,0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingVertical: 9,
+    borderRadius: 12,
   },
   empezarBtn: {
     marginTop: 4,
@@ -392,14 +427,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  empezarText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  empezarText: { color: colors.primary900, fontSize: 16, fontWeight: "800" },
 
   revisarTop: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 20, gap: 20 },
-  revisarTitulo: { color: "#FFFFFF", fontSize: 17, fontWeight: "700", textAlign: "center" },
+  revisarTitulo: { color: "#FFFFFF", fontSize: 18, fontWeight: "800", textAlign: "center" },
   revisarFotos: { flexDirection: "row", gap: 16 },
   revisarItem: { alignItems: "center", gap: 8 },
-  revisarImg: { width: 130, height: 170, borderRadius: 12, backgroundColor: "#111827" },
-  revisarPie: { color: "#CBD5E1", fontSize: 13, fontWeight: "600" },
+  revisarImg: { width: 130, height: 170, borderRadius: 12, backgroundColor: colors.primary900 },
+  revisarPie: { color: colors.darkTextMuted, fontSize: 13, fontWeight: "600" },
 
   previewActions: {
     flexDirection: "row",
@@ -412,13 +447,13 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderColor: "rgba(255,255,255,0.3)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-  retakeText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  retakeText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
   useBtn: {
     flex: 1.6,
     height: 52,
@@ -427,5 +462,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  useText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  useText: { color: colors.primary900, fontSize: 15, fontWeight: "800" },
 });

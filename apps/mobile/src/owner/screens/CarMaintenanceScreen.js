@@ -86,6 +86,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
   );
 
   const guardar = async () => {
+    if (saving) return;
     if (!f.nombre.trim()) {
       showAlert("Falta el nombre", "Ingresa el nombre del documento o servicio.");
       return;

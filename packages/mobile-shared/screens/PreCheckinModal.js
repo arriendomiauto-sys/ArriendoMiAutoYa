@@ -38,6 +38,7 @@ export function PreCheckinModal({
   const isDriver = role === "dueno";
 
   const handleConfirmar = async () => {
+    if (loading) return;
     if (!asistencia || !lugarHora || !licenciaOAuto || !reglas) {
       showAlert("Confirmación requerida", "Por favor marca todas las casillas de verificación para confirmar el viaje.");
       return;

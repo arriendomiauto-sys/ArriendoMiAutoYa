@@ -44,7 +44,7 @@ export function ContractModal({ visible, onClose, reservation }) {
       // Nativo: descargar el PDF autenticado a un archivo y abrir la hoja de
       // compartir del sistema (ver / guardar / imprimir). RN no tiene
       // URL.createObjectURL, por eso no se puede usar el blob directamente.
-      const fileUri = await ApiClient.descargarContratoPdfArchivo(reservation.id);
+      const fileUri = await ApiClient.descargarContratoPdfArchivo(reservation?.id);
       let Sharing = null;
       try {
         Sharing = require("expo-sharing");
@@ -58,16 +58,38 @@ export function ContractModal({ visible, onClose, reservation }) {
           UTI: "com.adobe.pdf",
         });
       } else {
+        // Sin hoja de compartir (raro): intentar abrir el archivo directo.
         await Linking.openURL(fileUri);
       }
     } catch (err) {
-      showAlert("No se pudo abrir el contrato", err.message);
+      showAlert(
+        "No se pudo abrir el contrato",
+        err?.message || "Inténtalo de nuevo en unos segundos."
+      );
     } finally {
       setDescargando(false);
     }
   };
 
   const auto = reservation?.auto || reservation?.car || {};
+
+  // Firmas reales de la reserva (POST /reservas/{id}/firmar-contrato). El
+  // contrato está "firmado por las dos partes" cuando hay firma de
+  // arrendatario y de arrendador.
+  const firmas = Array.isArray(reservation?.firmas) ? reservation.firmas : [];
+  const firmaDe = (rol) => firmas.find((f) => f.rol === rol);
+  const ambasFirmas = firmaDe("arrendatario") && firmaDe("arrendador");
+  const METODO_LABEL = { facial: "Face ID", huella: "huella dactilar", escrita: "firma manuscrita" };
+  const fechaFirma = (() => {
+    const ts = firmas
+      .map((f) => f.timestamp || f.creado_en || f.fecha)
+      .filter(Boolean)
+      .sort()
+      .pop();
+    if (!ts) return null;
+    const d = new Date(ts);
+    return isNaN(d) ? null : d.toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
+  })();
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -79,6 +101,17 @@ export function ContractModal({ visible, onClose, reservation }) {
               <Text style={styles.title}>Contrato digital de arriendo</Text>
               <Text style={styles.sub}>Válido ante Carabineros y la aseguradora</Text>
             </View>
+            {reservation ? (
+              <TouchableOpacity
+                onPress={descargarPdf}
+                hitSlop={theme.control.hitSlop}
+                style={styles.close}
+                accessibilityRole="button"
+                accessibilityLabel="Descargar o compartir el contrato en PDF"
+              >
+                <Icon name="share" size={18} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity onPress={onClose} hitSlop={theme.control.hitSlop} style={styles.close}>
               <Icon name="close" size={18} color={colors.textMuted} />
             </TouchableOpacity>
@@ -88,6 +121,17 @@ export function ContractModal({ visible, onClose, reservation }) {
             <Text style={styles.empty}>Selecciona una reserva para ver su contrato.</Text>
           ) : (
             <>
+              {ambasFirmas ? (
+                <View style={styles.firmadoBanner}>
+                  <Icon name="shield" size={16} color={colors.accent700} />
+                  <Text style={styles.firmadoText}>
+                    {fechaFirma
+                      ? `Firmado por las dos partes el ${fechaFirma}.`
+                      : "Firmado por las dos partes."}
+                  </Text>
+                </View>
+              ) : null}
+
               <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
                 <View style={styles.legalBox}>
                   <Text style={styles.folio}>Folio digital {String(reservation.id).toUpperCase()}</Text>
@@ -122,7 +166,16 @@ export function ContractModal({ visible, onClose, reservation }) {
                     <Icon name="shield" size={18} color={colors.success} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.stampTitle}>Firma electrónica avanzada</Text>
-                      <Text style={styles.stampMeta}>SHA-256 · {new Date().toISOString()}</Text>
+                      {firmas.length ? (
+                        firmas.map((f, i) => (
+                          <Text key={f.rol || i} style={styles.stampMeta}>
+                            {f.rol === "arrendador" ? "Dueño" : "Arrendatario"}:{" "}
+                            {METODO_LABEL[f.metodo] || f.metodo || "firma registrada"}
+                          </Text>
+                        ))
+                      ) : (
+                        <Text style={styles.stampMeta}>Pendiente de firma de ambas partes.</Text>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -170,6 +223,16 @@ const styles = StyleSheet.create({
   close: { padding: 4 },
   empty: { fontSize: 14, color: colors.textMuted, paddingVertical: theme.spacing.xl, textAlign: "center" },
   body: { marginVertical: 4 },
+  firmadoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    backgroundColor: colors.accent100,
+    borderRadius: theme.radius.field,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+  },
+  firmadoText: { flex: 1, fontSize: 12.5, fontWeight: "600", color: colors.accent800, lineHeight: 17 },
   legalBox: {
     backgroundColor: colors.surfaceSubtle,
     borderRadius: theme.radius.field,

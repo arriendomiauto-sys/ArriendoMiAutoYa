@@ -1,16 +1,13 @@
 /**
- * Formulario de tarjeta de crédito.
- *
- * Se pide dentro del KYC porque sin tarjeta validada no se puede arrendar ni
- * publicar un auto. Validar acá el número con Luhn evita gastarle al usuario
- * un intento contra la pasarela por un dígito mal tecleado.
+ * Formulario de tarjeta (se usa al agregar un medio de pago). Validar acá el
+ * número con Luhn evita gastarle al usuario un intento contra Mercado Pago por
+ * un dígito mal tecleado.
  */
 import {
   numeroTarjetaValido,
   vencimientoValido,
   detectarMarca,
   validarFormularioTarjeta,
-  tokenizarTarjeta,
 } from "@rentacar/mobile-shared/components/FormularioTarjeta";
 
 describe("Número de tarjeta", () => {
@@ -79,19 +76,5 @@ describe("Validación del formulario", () => {
 
   it("un código de seguridad de menos de 3 dígitos no pasa", () => {
     expect(validarFormularioTarjeta({ ...valida, cvv: "12" }).cvv).toBeTruthy();
-  });
-});
-
-describe("Tokenización", () => {
-  it("al backend solo viajan el token, los últimos 4 y la marca", () => {
-    const datos = tokenizarTarjeta({ numero: "4242 4242 4242 4242", nombre: "Ana Soto" });
-
-    expect(datos.tarjeta_ultimos4).toBe("4242");
-    expect(datos.tarjeta_marca).toBe("visa");
-    expect(datos.tarjeta_token).toBeTruthy();
-
-    // El número completo no puede salir del teléfono por ningún campo.
-    const serializado = JSON.stringify(datos);
-    expect(serializado).not.toContain("4242424242424242");
   });
 });

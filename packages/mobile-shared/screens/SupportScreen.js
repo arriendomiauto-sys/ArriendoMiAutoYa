@@ -166,6 +166,7 @@ export function SupportScreen({ onBack, variant = "renter" }) {
   }, [tab, cargarTickets]);
 
   const enviarTicket = async () => {
+    if (enviando) return;
     if (!asunto.trim() || !descripcion.trim()) {
       showAlert("Campos requeridos", "Completa el asunto y la descripción.");
       return;
@@ -217,7 +218,7 @@ export function SupportScreen({ onBack, variant = "renter" }) {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: c.bg }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScreenHeader tone={tone} title="Centro de ayuda" subtitle="Atención 24/7" onBack={onBack} />
 

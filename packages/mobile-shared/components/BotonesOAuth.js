@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
@@ -81,14 +81,15 @@ export function BotonesOAuth({ preferredMode, onDone, divider = true }) {
       ) : null}
 
       {(PROVEEDORES_OAUTH || ["google"]).map((provider) => (
-        <View
+        <TouchableOpacity
           key={provider}
           style={[styles.boton, cargando && cargando !== provider && styles.botonOff]}
-          accessible
+          activeOpacity={0.7}
+          disabled={!!cargando}
+          onPress={() => entrar(provider)}
           accessibilityRole="button"
+          accessibilityState={{ disabled: !!cargando, busy: cargando === provider }}
           accessibilityLabel={`Continuar con ${NOMBRE_PROVEEDOR[provider] || provider}`}
-          onStartShouldSetResponder={() => !cargando}
-          onResponderRelease={() => !cargando && entrar(provider)}
         >
           {cargando === provider ? (
             <ActivityIndicator size="small" color={colors.primary} />
@@ -100,7 +101,7 @@ export function BotonesOAuth({ preferredMode, onDone, divider = true }) {
               </Text>
             </>
           )}
-        </View>
+        </TouchableOpacity>
       ))}
     </View>
   );

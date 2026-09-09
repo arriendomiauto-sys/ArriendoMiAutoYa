@@ -66,6 +66,7 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
   }, [cargar]);
 
   const handleSaveBank = async () => {
+    if (savingBank) return;
     if (!form.banco || !form.tipo_cuenta || !form.numero || !form.titular || !form.rut) {
       showAlert("Datos incompletos", "Completa el banco, el tipo de cuenta, el número, el titular y su RUT.");
       return;

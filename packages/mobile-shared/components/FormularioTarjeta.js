@@ -75,22 +75,8 @@ export function formatearVencimiento(valor) {
   return limpio.length <= 2 ? limpio : `${limpio.slice(0, 2)}/${limpio.slice(2)}`;
 }
 
-/**
- * Datos listos para el backend a partir de lo que se escribió en el formulario.
- *
- * BLOQUE TEMPORAL: mientras no exista la pasarela real, el token se arma acá
- * con una marca reconocible. Cuando se conecte Mercado Pago, esto se reemplaza
- * por la tokenización de la pasarela y el resto del flujo no cambia.
- */
-export function tokenizarTarjeta({ numero, nombre }) {
-  const limpio = (numero || "").replace(/\D/g, "");
-  return {
-    tarjeta_token: `SIMULADO-TARJ-${limpio.slice(-4)}-${Date.now().toString(36).toUpperCase()}`,
-    tarjeta_ultimos4: limpio.slice(-4),
-    tarjeta_marca: detectarMarca(numero),
-    tarjeta_titular: (nombre || "").trim() || undefined,
-  };
-}
+// La tokenización real vive en `api/mercadopago.js` (`crearCardToken`): el
+// número va app -> api.mercadopago.com y nunca a nuestro backend.
 
 /**
  * `nombreTitular`: el nombre verificado del dueño de la cuenta (viene de la

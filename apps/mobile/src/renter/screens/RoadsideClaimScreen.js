@@ -73,6 +73,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   };
 
   const enviarReporte = async () => {
+    if (enviando) return;
     if (!descripcion.trim()) {
       showAlert("Falta la descripción", "Describe brevemente lo sucedido.");
       return;
@@ -102,7 +103,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Auxilio en ruta" subtitle="Siniestros y asistencia 24/7" onBack={onBack} />
 

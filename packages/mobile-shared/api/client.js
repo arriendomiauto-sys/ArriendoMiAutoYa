@@ -232,18 +232,41 @@ export class ApiClient {
           .map((e) => (typeof e === "string" ? e : e.msg || e.message || JSON.stringify(e)))
           .join("\n");
       } else if (errorData.detail && typeof errorData.detail === "object") {
-        msg = errorData.detail.motivo || errorData.detail.message || JSON.stringify(errorData.detail);
+        msg =
+          errorData.detail.mensaje ||
+          errorData.detail.motivo ||
+          errorData.detail.message ||
+          errorData.detail.msg ||
+          JSON.stringify(errorData.detail);
+      } else if (errorData.mensaje) {
+        msg = errorData.mensaje;
       } else if (errorData.message) {
         msg = errorData.message;
       }
+
+      // Si por alguna razón vino como JSON serializado en string, extraer el mensaje humano
+      if (typeof msg === "string" && msg.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(msg);
+          msg = parsed.mensaje || parsed.motivo || parsed.message || parsed.msg || msg;
+        } catch {}
+      }
+
       const err = new Error(msg);
       err.status = response.status;
       // Categoría de error que algunos endpoints (p. ej. /enrolamiento/completar)
       // mandan en `detail.categoria` para que la pantalla reaccione distinto
       // según el tipo de fallo, sin tener que parsear el texto del mensaje.
-      if (errorData.detail && typeof errorData.detail === "object" && errorData.detail.categoria) {
-        err.categoria = errorData.detail.categoria;
-      }
+      const detalle =
+        errorData.detail && typeof errorData.detail === "object" ? errorData.detail : errorData;
+      if (detalle.categoria) err.categoria = detalle.categoria;
+      // `codigo` / `campo`: los usa el flujo de pago (SIN_CUPO, COBRO_RECHAZADO,
+      // NOMBRE_NO_COINCIDE…) para mostrar el error en el lugar correcto sin
+      // depender del texto. `titular_detectado` acompaña a NOMBRE_NO_COINCIDE.
+      if (detalle.codigo) err.codigo = detalle.codigo;
+      if (detalle.campo) err.campo = detalle.campo;
+      if (detalle.mensaje) err.mensaje = detalle.mensaje;
+      if (detalle.titular_detectado) err.titularDetectado = detalle.titular_detectado;
       throw err;
     }
 
@@ -342,6 +365,16 @@ export class ApiClient {
   static async actualizarEstadoReserva(reservaId, nuevoEstado) {
     return this.request(`/reservas/${reservaId}/estado?nuevo_estado=${nuevoEstado}`, {
       method: "PATCH",
+    });
+  }
+
+  // Firma del contrato de arriendo por una de las partes. `metodo` es
+  // "huella" | "facial" | "escrita"; `firma_svg` solo va con "escrita".
+  // El backend deduce el rol (arrendatario/arrendador) del usuario autenticado.
+  static async firmarContrato(reservaId, { metodo, firma_svg, nombre_firmante, acepta_terminos = true }) {
+    return this.request(`/reservas/${reservaId}/firmar-contrato`, {
+      method: "POST",
+      body: JSON.stringify({ metodo, firma_svg, nombre_firmante, acepta_terminos }),
     });
   }
 
@@ -678,6 +711,60 @@ export class ApiClient {
     });
   }
 
+  // ── Vault de tarjetas (Mercado Pago) ─────────────────────────────────────
+  // El PAN nunca pasa por acá: el mobile tokeniza contra api.mercadopago.com
+  // (ver api/mercadopago.js) y a nuestro backend solo le llega el card_token.
+  // El backend consulta la tarjeta en MP y de ahí saca marca, últimos 4,
+  // vencimiento, tipo (crédito/débito) y titular.
+  static async getTarjetas() {
+    const r = await this.request("/usuarios/me/tarjetas");
+    return Array.isArray(r?.tarjetas) ? r.tarjetas : Array.isArray(r) ? r : [];
+  }
+
+  static async agregarTarjeta({
+    card_token,
+    payment_method_id,
+    device_id = null,
+    tipo = null,
+    ultimos4 = null,
+    marca = null,
+  }) {
+    // `tipo` / `ultimos4` / `marca` son pistas: el backend las usa solo si no
+    // puede consultar la tarjeta en Mercado Pago (modo simulado sin credenciales).
+    const r = await this.request("/usuarios/me/tarjetas", {
+      method: "POST",
+      body: JSON.stringify({ card_token, payment_method_id, device_id, tipo, ultimos4, marca }),
+    });
+    return r?.tarjeta || r;
+  }
+
+  static async eliminarTarjeta(tarjetaId) {
+    return this.request(`/usuarios/me/tarjetas/${tarjetaId}`, { method: "DELETE" });
+  }
+
+  // Cobra el arriendo (a la tarjeta de débito) y autoriza el hold de garantía
+  // (a la de crédito) en un solo paso. Va DESPUÉS de firmar el contrato.
+  static async pagarReserva(reservaId, { tarjeta_cobro_id, tarjeta_garantia_id, device_id = null }) {
+    return this.request(`/reservas/${reservaId}/pagar`, {
+      method: "POST",
+      body: JSON.stringify({ tarjeta_cobro_id, tarjeta_garantia_id, device_id }),
+    });
+  }
+
+  // ── Telemetría GPS ────────────────────────────────────────────────────────
+  // El celular del arrendatario reporta ubicación periódicamente mientras el
+  // arriendo esté en curso. El dueño o admin pueden consultar la posición en vivo.
+  static async enviarTelemetria(reservaId, { latitud, longitud, precision = null, velocidad = null, altitud = null, bateria = null }) {
+    return this.request(`/reservas/${reservaId}/telemetria`, {
+      method: "POST",
+      body: JSON.stringify({ latitud, longitud, precision, velocidad, altitud, bateria }),
+    });
+  }
+
+  static async getPosicionGpsAuto(autoId) {
+    return this.request(`/autos/${autoId}/gps/posicion`);
+  }
+
   // Almacenamiento de Fotos / Documentos (Supabase Storage vía backend)
   static async subirArchivoStorage(fileUriOrBlob, filename = "foto.jpg", bucket = "general") {
     const formData = new FormData();
@@ -730,17 +817,64 @@ export class ApiClient {
   // sistema (expo-sharing). En RN no hay URL.createObjectURL, así que el
   // flujo de blob de arriba no aplica acá.
   static async descargarContratoPdfArchivo(reservaId) {
+    // Bloque: validación de entrada — sin reserva no hay contrato que pedir
+    if (!reservaId) {
+      throw new Error("La reserva no tiene un identificador válido.");
+    }
+
     const { File, Paths } = require("expo-file-system");
     const token = await getAccessToken();
+
+    // Bloque: descarga autenticada a un archivo fijo del caché.
+    // `downloadFileAsync` rechaza si el servidor responde con HTTP != 2xx
+    // (el mensaje incluye el status). `idempotent` permite sobrescribir una
+    // descarga previa sin fallar.
     const destino = new File(Paths.cache, `contrato-${reservaId}.pdf`);
-    const archivo = await File.downloadFileAsync(
-      this.getContratoPdfUrl(reservaId),
-      destino,
-      {
+    let archivo;
+    try {
+      archivo = await File.downloadFileAsync(this.getContratoPdfUrl(reservaId), destino, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         idempotent: true,
+      });
+    } catch (err) {
+      const detalle = err?.message ? ` (${err.message})` : "";
+      throw new Error(`No se pudo descargar el contrato desde el servidor${detalle}.`);
+    }
+
+    // Bloque: verificación de que lo descargado es realmente un PDF y no una
+    // página de error (JSON/HTML) guardada con extensión .pdf — eso es lo que
+    // hace que el visor del sistema diga "no se puede abrir el documento".
+    let bytes = null;
+    try {
+      bytes = new Uint8Array(await archivo.arrayBuffer());
+    } catch {
+      bytes = null;
+    }
+    // "%PDF" = 0x25 0x50 0x44 0x46
+    const esPdf =
+      bytes && bytes.length > 4 &&
+      bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+
+    if (!esPdf) {
+      // Decodifica los primeros bytes como ASCII para mostrar el error real
+      // del servidor (sin depender de TextDecoder).
+      let cuerpo = "";
+      if (bytes) {
+        for (let i = 0; i < Math.min(bytes.length, 200); i++) {
+          cuerpo += String.fromCharCode(bytes[i]);
+        }
+        cuerpo = cuerpo.trim();
       }
-    );
+      try {
+        archivo.delete();
+      } catch {}
+      throw new Error(
+        cuerpo
+          ? `El servidor no devolvió un PDF válido: ${cuerpo}`
+          : "El servidor no devolvió un PDF válido."
+      );
+    }
+
     return archivo.uri;
   }
 }

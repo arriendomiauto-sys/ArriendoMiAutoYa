@@ -132,6 +132,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   };
 
   const handleConfirmarIdentidad = async () => {
+    if (confirmando) return;
     setConfirmando(true);
     try {
       const resultado = await ApiClient.confirmarVerificacionIdentidad(reservaIdActiva, {
@@ -155,6 +156,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   };
 
   const handleRechazarIdentidad = async () => {
+    if (confirmando) return;
     if (!motivoRechazo.trim()) {
       showAlert("Motivo requerido", "Describe brevemente por qué no coincide la identidad.");
       return;
@@ -219,6 +221,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   };
 
   const handleTomarFoto = async () => {
+    if (subiendoFoto) return;
     setSubiendoFoto(true);
     let uri;
     try {
@@ -290,6 +293,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   };
 
   const enviarChecklist = async (notasExtra) => {
+    if (enviandoChecklist) return;
     setEnviandoChecklist(true);
     try {
       // Último intento de lo que haya quedado sin subir antes de mandar el
@@ -334,7 +338,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   };
 
   const handleCalificarCliente = async () => {
-    if (!puntajeCliente || !reserva?.cliente_id) return;
+    if (enviandoCalificacion || !puntajeCliente || !reserva?.cliente_id) return;
     setEnviandoCalificacion(true);
     try {
       await ApiClient.crearCalificacion({
@@ -466,7 +470,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   if (stage === "05_code") {
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title={tipo === "antes" ? "Verificar entrega" : "Verificar devolución"} onBack={onBack} />
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -533,7 +537,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   if (stage === "06_confirm" && datosValidados) {
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Confirmar identidad" onBack={() => setStage("05_code")} />
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -674,7 +678,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   if (stage === "22_metrics") {
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader
           title="Kilometraje y combustible"
@@ -822,7 +826,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   if (stage === "27_damage") {
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Reportar una diferencia" onBack={() => setStage("26_compare")} />
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -870,7 +874,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   if (stage === "28_done") {
     const r = resultadoChecklist || {};
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScrollView contentContainerStyle={styles.centerBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <SuccessCheck style={styles.successMark} />

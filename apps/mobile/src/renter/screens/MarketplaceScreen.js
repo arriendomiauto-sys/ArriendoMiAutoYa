@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,8 +9,6 @@ import {
   StatusBar,
   RefreshControl,
   Modal,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import {
   colors,
@@ -24,7 +22,7 @@ import {
   VerifyIdentityBanner,
   useFavoritos,
 } from "@rentacar/mobile-shared";
-import { CarCard } from "../components/CarCard";
+import { CarCard, CarCardSkeleton } from "../components/CarCard";
 
 const CATEGORIES = [
   { id: "Todos", cat: null },
@@ -63,12 +61,49 @@ const ORDENES = [
 
 const FILTROS_VACIOS = { tarifaMax: "", transmision: null, combustible: null };
 
+// Tope discreto del slider de precio.
+const PASO_PRECIO = 5000;
+const PRECIO_MIN_FALLBACK = 10000;
+const PRECIO_MAX_FALLBACK = 100000;
+const aTope = (n, fn) => fn(n / PASO_PRECIO) * PASO_PRECIO;
+
+// Rango real del slider = min/max de la flota cargada, redondeado al tope.
+function rangoPreciosFlota(cars) {
+  const precios = (cars || []).map((c) => c.tarifa_dia).filter((n) => Number.isFinite(n) && n > 0);
+  if (precios.length < 2) return { min: PRECIO_MIN_FALLBACK, max: PRECIO_MAX_FALLBACK };
+  const min = Math.max(PASO_PRECIO, aTope(Math.min(...precios), Math.floor));
+  const max = aTope(Math.max(...precios), Math.ceil);
+  return max > min ? { min, max } : { min: PRECIO_MIN_FALLBACK, max: PRECIO_MAX_FALLBACK };
+}
+
 function contarFiltrosActivos(f) {
   let n = 0;
   if (f.tarifaMax) n += 1;
   if (f.transmision) n += 1;
   if (f.combustible) n += 1;
   return n;
+}
+
+// Predicado único de filtrado, compartido por la lista y por el contador de
+// resultados del modal (así "Aplicar · N autos" y lo que se ve coinciden).
+function autoCoincide(car, { q, catActiva, tarifaMax, transmision, combustible }) {
+  if (q) {
+    const hay = `${car.marca} ${car.modelo} ${car.ubicacion_base || ""} ${car.comuna || ""}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  if (catActiva) {
+    if (car.categoria) {
+      if (car.categoria !== catActiva) return false;
+    } else if (catActiva === "economico") {
+      if (!((car.tarifa_dia || 0) > 0 && car.tarifa_dia <= 35000)) return false;
+    } else if (CAT_KEYWORDS[catActiva]) {
+      if (!CAT_KEYWORDS[catActiva].some((m) => car.modelo?.toLowerCase().includes(m))) return false;
+    }
+  }
+  if (tarifaMax && (car.tarifa_dia || 0) > tarifaMax) return false;
+  if (transmision && car.transmision !== transmision) return false;
+  if (combustible && car.combustible !== combustible) return false;
+  return true;
 }
 
 /** Ordena una copia — nunca muta el array que viene del contexto. */
@@ -93,7 +128,64 @@ function ordenarAutos(autos, orden) {
   }
 }
 
-function ModalFiltros({ visible, valor, onCambiar, onCerrar, onLimpiar, orden, onCambiarOrden }) {
+// Slider de tarifa máxima — mismo patrón PanResponder que el wizard del dueño.
+// El tope máximo equivale a "sin límite" (tarifaMax = "").
+function SliderPrecio({ min, max, valor, onChange }) {
+  const anchoRef = useRef(0);
+  const [ancho, setAncho] = useState(0);
+  const actual = valor ? Math.min(max, Math.max(min, valor)) : max;
+  const sinLimite = !valor || actual >= max;
+
+  const fijarPorX = (x) => {
+    const w = anchoRef.current;
+    if (!w) return;
+    const frac = Math.min(1, Math.max(0, x / w));
+    const bruto = min + frac * (max - min);
+    const escalonado = Math.round(bruto / PASO_PRECIO) * PASO_PRECIO;
+    onChange(escalonado >= max ? "" : String(escalonado));
+  };
+
+  // Sistema de responder nativo del View (sin PanResponder): basta para un
+  // deslizador de un eje y es directamente verificable.
+  const responder = {
+    onStartShouldSetResponder: () => true,
+    onMoveShouldSetResponder: () => true,
+    onResponderGrant: (e) => fijarPorX(e.nativeEvent.locationX),
+    onResponderMove: (e) => fijarPorX(e.nativeEvent.locationX),
+  };
+
+  const pos = max > min ? ((actual - min) / (max - min)) * 100 : 100;
+
+  return (
+    <View>
+      <View style={styles.sliderCabecera}>
+        <Text style={styles.sliderValor}>
+          {sinLimite ? "Sin límite" : `Hasta $${actual.toLocaleString("es-CL")}`}
+        </Text>
+      </View>
+      <View
+        style={styles.sliderZona}
+        testID="filtro-slider-precio"
+        onLayout={(e) => {
+          anchoRef.current = e.nativeEvent.layout.width;
+          setAncho(e.nativeEvent.layout.width);
+        }}
+        {...responder}
+      >
+        <View style={styles.sliderTrack}>
+          <View style={[styles.sliderFill, { width: `${pos}%` }]} />
+          {ancho > 0 && <View style={[styles.sliderThumb, { left: `${pos}%` }]} />}
+        </View>
+      </View>
+      <View style={styles.sliderExtremos}>
+        <Text style={styles.sliderExtremo}>${min.toLocaleString("es-CL")}</Text>
+        <Text style={styles.sliderExtremo}>${max.toLocaleString("es-CL")}+</Text>
+      </View>
+    </View>
+  );
+}
+
+function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar, onLimpiar, orden, onCambiarOrden }) {
   // Borrador local: "Aplicar" confirma de una vez, no filtro tecla a tecla.
   // El orden es distinto: se aplica al toque, no necesita confirmación.
   const [borrador, setBorrador] = useState(valor);
@@ -101,9 +193,19 @@ function ModalFiltros({ visible, valor, onCambiar, onCerrar, onLimpiar, orden, o
     if (visible) setBorrador(valor);
   }, [visible, valor]);
 
+  const { min, max } = useMemo(() => rangoPreciosFlota(cars), [cars]);
+
+  // Cuántos autos calzarían si se aplicara el borrador actual (para el CTA).
+  const nResultados = useMemo(() => {
+    const tarifaMax = borrador.tarifaMax ? parseInt(borrador.tarifaMax, 10) : null;
+    return (cars || []).filter((c) =>
+      autoCoincide(c, { q, catActiva, tarifaMax, transmision: borrador.transmision, combustible: borrador.combustible })
+    ).length;
+  }, [cars, q, catActiva, borrador]);
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCerrar}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.sheetHeader}>
@@ -113,7 +215,7 @@ function ModalFiltros({ visible, valor, onCambiar, onCerrar, onLimpiar, orden, o
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView showsVerticalScrollIndicator={false}>
             <SectionLabel>Ordenar por</SectionLabel>
             <View style={styles.chipsRow}>
               {ORDENES.map((o) => (
@@ -127,17 +229,12 @@ function ModalFiltros({ visible, valor, onCambiar, onCerrar, onLimpiar, orden, o
             </View>
 
             <SectionLabel style={{ marginTop: theme.spacing.lg }}>Tarifa máxima por día</SectionLabel>
-            <View style={styles.tarifaInputWrap}>
-              <Text style={styles.tarifaPrefijo}>$</Text>
-              <TextInput
-                style={styles.tarifaInput}
-                value={borrador.tarifaMax}
-                onChangeText={(t) => setBorrador((p) => ({ ...p, tarifaMax: t.replace(/\D/g, "") }))}
-                placeholder="Sin límite"
-                placeholderTextColor={colors.textPlaceholder}
-                keyboardType="number-pad"
-              />
-            </View>
+            <SliderPrecio
+              min={min}
+              max={max}
+              valor={borrador.tarifaMax ? parseInt(borrador.tarifaMax, 10) : null}
+              onChange={(t) => setBorrador((p) => ({ ...p, tarifaMax: t }))}
+            />
 
             <SectionLabel style={{ marginTop: theme.spacing.lg }}>Transmisión</SectionLabel>
             <View style={styles.chipsRow}>
@@ -176,14 +273,14 @@ function ModalFiltros({ visible, valor, onCambiar, onCerrar, onLimpiar, orden, o
               style={{ flex: 1 }}
             />
             <Button
-              label="Aplicar"
+              label={`Aplicar · ${nResultados} ${nResultados === 1 ? "auto" : "autos"}`}
               onPress={() => onCambiar(borrador)}
               fullWidth={false}
-              style={{ flex: 1.4 }}
+              style={{ flex: 1.6 }}
             />
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -203,31 +300,26 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
   const tarifaMaxNum = filtros.tarifaMax ? parseInt(filtros.tarifaMax, 10) : null;
 
   const filteredCars = useMemo(() => {
-    const base = (cars || []).filter((car) => {
-      if (q) {
-        const hay = `${car.marca} ${car.modelo} ${car.ubicacion_base || ""} ${car.comuna || ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      if (catActiva) {
-        if (car.categoria) {
-          if (car.categoria !== catActiva) return false;
-        } else if (catActiva === "economico") {
-          if (!((car.tarifa_dia || 0) > 0 && car.tarifa_dia <= 35000)) return false;
-        } else if (CAT_KEYWORDS[catActiva]) {
-          if (!CAT_KEYWORDS[catActiva].some((m) => car.modelo?.toLowerCase().includes(m))) return false;
-        }
-      }
-      if (tarifaMaxNum && (car.tarifa_dia || 0) > tarifaMaxNum) return false;
-      if (filtros.transmision && car.transmision !== filtros.transmision) return false;
-      if (filtros.combustible && car.combustible !== filtros.combustible) return false;
-      return true;
-    });
+    const base = (cars || []).filter((car) =>
+      autoCoincide(car, {
+        q,
+        catActiva,
+        tarifaMax: tarifaMaxNum,
+        transmision: filtros.transmision,
+        combustible: filtros.combustible,
+      })
+    );
     return ordenarAutos(base, orden);
   }, [cars, q, catActiva, tarifaMaxNum, filtros.transmision, filtros.combustible, orden]);
 
   const primerNombre = (currentUser?.nombre || "").split(" ")[0];
   const filtrosActivos = contarFiltrosActivos(filtros);
   const hayFiltrosOOrden = filtrosActivos > 0 || orden !== "recientes";
+
+  // Skeleton solo en la PRIMERA carga (sin autos y sin error todavía).
+  const cargandoInicial = !!loading && !(cars || []).length && !carsError;
+  // Distingue "no calza con filtros" (hay autos) de "no hay autos" (lista vacía).
+  const hayResultadosSinFiltros = (cars || []).length > 0;
 
   const limpiarTodo = () => {
     setFiltros(FILTROS_VACIOS);
@@ -385,39 +477,48 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
           </View>
         )}
 
-        {carsError && !(cars || []).length ? (
-          // El backend respondió con error: distinto de "no hay autos".
-          <EmptyState
-            icon="alert"
-            title="No pudimos cargar los autos"
-            message={`${carsError} Desliza hacia abajo o toca Reintentar.`}
-            action="Reintentar"
-            onAction={loadData}
-          />
+        {cargandoInicial ? (
+          // Primera carga sin datos aún: silueta de la lista.
+          <>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={{ marginBottom: theme.spacing.lg }}>
+                <CarCardSkeleton />
+              </View>
+            ))}
+          </>
+        ) : carsError && !(cars || []).length ? (
+          // El backend respondió con error: los filtros quedan guardados.
+          <View style={styles.errorCard}>
+            <Text style={styles.errorTitle}>No pudimos cargar los autos</Text>
+            <Text style={styles.errorBody}>
+              {carsError} Revisa tu conexión; tus filtros quedan guardados.
+            </Text>
+            <TouchableOpacity style={styles.errorBtn} onPress={loadData} activeOpacity={0.85}>
+              <Text style={styles.errorBtnText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
         ) : filteredCars.length > 0 ? (
           <>
             <Text style={styles.count}>
               {filteredCars.length} {filteredCars.length === 1 ? "auto disponible" : "autos disponibles"}
             </Text>
             {filteredCars.map((car) => (
-              <CarCard
-                key={car.id || car._id}
-                car={car}
-                onPress={() => onSelectCar(car)}
-                esFavorito={esFavorito(car.id || car._id)}
-                onToggleFavorito={(c) => toggleFavorito(c.id || c._id)}
-              />
+              <View key={car.id || car._id} style={{ marginBottom: theme.spacing.md }}>
+                <CarCard
+                  car={car}
+                  onPress={() => onSelectCar(car)}
+                  esFavorito={esFavorito(car.id || car._id)}
+                  onToggleFavorito={(c) => toggleFavorito(c.id || c._id)}
+                />
+              </View>
             ))}
           </>
-        ) : (
+        ) : hayResultadosSinFiltros ? (
+          // Hay autos, pero ninguno calza con la búsqueda/filtros del usuario.
           <EmptyState
-            icon="car"
-            title="No hay autos con estos filtros"
-            message={
-              q
-                ? "Prueba con otra marca o comuna, o limpia la búsqueda."
-                : "Ajusta la categoría o los filtros para ver más resultados."
-            }
+            icon="search"
+            title="Ningún auto calza con tus filtros"
+            message="Prueba subir la tarifa máxima, cambiar el tipo de combustible o limpiar la búsqueda."
             action="Limpiar filtros"
             onAction={() => {
               setQuery("");
@@ -425,12 +526,24 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
               limpiarTodo();
             }}
           />
+        ) : (
+          // No hay autos publicados en absoluto (o la zona no tiene).
+          <EmptyState
+            icon="car"
+            title="Todavía no hay autos en tu zona"
+            message="Aún no hay vehículos publicados cerca. Revisa el mapa o vuelve a intentarlo en unos días."
+            action="Ver el mapa"
+            onAction={onOpenMap}
+          />
         )}
       </ScrollView>
 
       <ModalFiltros
         visible={modalAbierto}
         valor={filtros}
+        cars={cars}
+        q={q}
+        catActiva={catActiva}
         orden={orden}
         onCambiarOrden={setOrden}
         onCambiar={(nuevo) => {
@@ -533,6 +646,25 @@ const styles = StyleSheet.create({
   limpiarTodoText: { fontSize: 12, fontWeight: "600", color: colors.textMuted, textDecorationLine: "underline" },
   list: { padding: theme.spacing.screen, paddingBottom: theme.spacing.xxxl },
   count: { fontSize: 13, color: colors.textMuted, marginBottom: theme.spacing.md, fontWeight: "500" },
+  errorCard: {
+    borderRadius: theme.radius.card,
+    backgroundColor: colors.dangerBg,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
+    padding: theme.spacing.lg,
+    gap: theme.spacing.sm,
+  },
+  errorTitle: { fontSize: 15, fontWeight: "700", color: colors.dangerText },
+  errorBody: { fontSize: 14, lineHeight: 20, color: colors.dangerText },
+  errorBtn: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: theme.radius.field,
+    backgroundColor: colors.danger,
+  },
+  errorBtnText: { fontSize: 14, fontWeight: "700", color: colors.textWhite },
   overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.8)", justifyContent: "flex-end" },
   sheet: {
     backgroundColor: colors.surface,
@@ -553,18 +685,24 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   sheetTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
-  tarifaInputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: theme.control.height,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.sm,
+  sliderCabecera: { marginTop: theme.spacing.sm },
+  sliderValor: { fontSize: 15, fontWeight: "700", color: colors.text },
+  sliderZona: { paddingVertical: 12 },
+  sliderTrack: { height: 8, borderRadius: 999, backgroundColor: colors.surfaceSecondary, justifyContent: "center" },
+  sliderFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 999, backgroundColor: colors.primary },
+  sliderThumb: {
+    position: "absolute",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    marginLeft: -13,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 3,
+    borderColor: colors.primary,
+    ...theme.shadow.sm,
   },
-  tarifaPrefijo: { fontSize: 15, fontWeight: "700", color: colors.textMuted, marginRight: 4 },
-  tarifaInput: { flex: 1, fontSize: 15, color: colors.text },
+  sliderExtremos: { flexDirection: "row", justifyContent: "space-between" },
+  sliderExtremo: { fontSize: 12, color: colors.textMuted },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm, marginTop: theme.spacing.sm },
   sheetFooter: { flexDirection: "row", gap: theme.spacing.md, paddingTop: theme.spacing.sm },
 });

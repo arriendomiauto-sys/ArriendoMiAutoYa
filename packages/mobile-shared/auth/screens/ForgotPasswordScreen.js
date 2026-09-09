@@ -25,6 +25,7 @@ export function ForgotPasswordScreen({ onNavigate }) {
   const [enviado, setEnviado] = useState(false);
 
   const handleEnviar = async () => {
+    if (loading) return;
     if (!email.trim()) {
       showAlert("Campo requerido", "Ingresa el correo con el que te registraste.");
       return;
@@ -41,13 +42,11 @@ export function ForgotPasswordScreen({ onNavigate }) {
   };
 
   return (
+    // En Android el "pan" nativo (app.json) desplaza la ventana al campo
+    // enfocado; el KAV es solo para iOS. Detalle completo en LoginScreen.js.
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      // Android ya no redimensiona la ventana con el teclado (ver app.json,
-      // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
-      // Detalle completo en LoginScreen.js.
-      keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="dark-content" />
 
@@ -58,6 +57,7 @@ export function ForgotPasswordScreen({ onNavigate }) {
       />
 
       <ScrollView
+        style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingBottom: 40 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -80,6 +80,8 @@ export function ForgotPasswordScreen({ onNavigate }) {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              returnKeyType="go"
+              onSubmitEditing={handleEnviar}
             />
 
             <Button
@@ -108,6 +110,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     padding: theme.spacing.screen,

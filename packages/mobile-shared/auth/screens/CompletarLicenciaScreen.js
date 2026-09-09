@@ -13,6 +13,7 @@ import {
 import { colors } from "../../theme/colors";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
+import { BackButton } from "../../components/ui";
 import { DocumentCameraModal } from "../../components/DocumentCameraModal";
 import { ApiClient } from "../../api/client";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../../utils/imagenes";
@@ -176,12 +177,9 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <TouchableOpacity onPress={onCancel} style={styles.backBtn} hitSlop={12}>
-        <Icon name="arrow-left" size={20} color={colors.primary} />
-      </TouchableOpacity>
+      <BackButton onPress={onCancel} style={styles.backBtn} />
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.iconCircle}>
@@ -301,7 +299,7 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 20, paddingTop: 16 },
-  backBtn: { alignSelf: "flex-start", marginBottom: 4 },
+  backBtn: { alignSelf: "flex-start", marginBottom: 8 },
   scroll: { paddingBottom: 48, alignItems: "center", gap: 16 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
   iconCircle: {

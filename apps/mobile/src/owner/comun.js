@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { colors, theme, Icon } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, BackButton } from "@rentacar/mobile-shared";
 
 /**
  * Piezas compartidas de las pantallas del dueño. Base clara idéntica a la del
@@ -49,17 +49,7 @@ export function BotonMensajes({ noLeidos = 0, onPress }) {
 export function CabeceraOwner({ titulo, subtitulo, noLeidos, onMensajes, onBack, right }) {
   return (
     <View style={oc.header}>
-      {onBack ? (
-        <TouchableOpacity
-          style={oc.backBtn}
-          onPress={onBack}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel="Volver"
-        >
-          <Icon name="arrow-left" size={20} color={colors.primary} />
-        </TouchableOpacity>
-      ) : null}
+      {onBack ? <BackButton onPress={onBack} /> : null}
       <View style={{ flex: 1 }}>
         <Text style={oc.title}>{titulo}</Text>
         {subtitulo ? <Text style={oc.subtitle}>{subtitulo}</Text> : null}
@@ -102,17 +92,6 @@ export const oc = StyleSheet.create({
   },
   title: { ...theme.typography.title, color: colors.text },
   subtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 
   msgBtn: {
     width: 40,

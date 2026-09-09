@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
-import { Button, Field, ScreenHeader, SectionLabel } from "../components/ui";
+import { Button, Field, ScreenHeader } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { ApiClient } from "../api/client";
 import { useApp } from "../context/AppContext";
@@ -29,7 +29,6 @@ const soloDigitos = (s) => (s || "").replace(/\D/g, "");
 
 export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" }) {
   const insets = useSafeAreaInsets();
-  const dark = tone === "dark";
   const { currentUser, setCurrentUser, syncProfile } = useApp();
 
   const [nombre, setNombre] = useState(currentUser?.nombre || "");
@@ -47,20 +46,18 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
   const fotoActual = currentUser?.foto_perfil_verificada_url || currentUser?.foto_perfil_url;
   const tieneFotoVerificada = !!currentUser?.foto_perfil_verificada_url;
   const tieneFoto = !!fotoActual && !imgError;
+  const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
-  const subirNuevaFoto = async (origen) => {
+  const subirNuevaFoto = async () => {
     setSubiendoFoto(true);
     try {
       const res = await elegirYSubirImagen({
-        origen,
-        bucket: "general",
+        origen: "camera",
+        bucket: "documentos-kyc",
         filename: `perfil_${currentUser?.id || "user"}_${Date.now()}.jpg`,
-        calidad: 0.8,
-        maxAncho: 800,
-        motivoPermiso:
-          origen === "camera"
-            ? "Necesitamos acceso a la cámara para tomar tu foto de perfil."
-            : "Necesitamos acceso a tu galería para elegir tu foto de perfil.",
+        calidad: 0.9,
+        maxAncho: 1200,
+        motivoPermiso: "Por seguridad de la comunidad, necesitamos acceso a la cámara para tomar tu foto de perfil en vivo.",
       });
       if (res.cancelado || !res.url) return;
 
@@ -72,43 +69,31 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
       if (perfil && perfil.id) setCurrentUser(perfil);
       else await syncProfile();
       setImgError(false);
-      showAlert("Foto actualizada", "Tu foto de perfil quedó guardada exitosamente.");
+      showAlert("Foto actualizada", "Tu foto de perfil quedó guardada.");
     } catch (err) {
-      showAlert("Error al subir foto", err.message || "No se pudo actualizar la foto de perfil.");
+      showAlert("No se pudo subir la foto", err.message || "Inténtalo de nuevo en unos segundos.");
     } finally {
       setSubiendoFoto(false);
     }
   };
 
   const handleFotoPress = () => {
-    const opciones = [
-      {
-        text: "Elegir de la galería",
-        onPress: () => subirNuevaFoto("library"),
-      },
-      {
-        text: "Tomar foto con cámara",
-        onPress: () => subirNuevaFoto("camera"),
-      },
-    ];
-
+    const opciones = [{ text: "Tomar foto con cámara", onPress: () => subirNuevaFoto() }];
     if (onOpenKyc) {
       opciones.push({
-        text: tieneFotoVerificada ? "Renovar selfie KYC" : "Verificar identidad con selfie (KYC)",
+        text: tieneFotoVerificada ? "Renovar selfie de verificación" : "Verificar identidad",
         onPress: () => {
           (onDone || onBack)?.();
           onOpenKyc?.();
         },
       });
     }
-
     opciones.push({ text: "Cancelar", style: "cancel" });
-
     showAlert(
       "Foto de perfil",
       tieneFotoVerificada
-        ? "Tu foto está validada mediante tu cédula. Puedes cambiar tu foto de perfil o renovar tu verificación KYC."
-        : "Elige una foto para tu perfil o completa tu verificación KYC con selfie.",
+        ? "Tu foto está validada con tu cédula. Puedes tomar una nueva con la cámara o renovar tu verificación."
+        : "Por seguridad, tu foto de perfil se toma con la cámara en vivo o durante tu verificación de identidad.",
       opciones
     );
   };
@@ -136,39 +121,27 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
   };
 
   return (
-    <View style={[styles.container, dark && { backgroundColor: colors.darkBg }]}>
-      <StatusBar barStyle={dark ? "light-content" : "dark-content"} />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       <ScreenHeader tone={tone} title="Editar perfil" onBack={onBack} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      {/* En Android el "pan" nativo sube el campo enfocado; el KAV es solo iOS. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* AVATAR KYC / PERFIL */}
+          {/* Foto — una línea + botón, centrado */}
           <View style={styles.avatarSection}>
-            <TouchableOpacity
-              style={styles.avatarWrapper}
-              onPress={handleFotoPress}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={styles.avatarWrapper} onPress={handleFotoPress} activeOpacity={0.8}>
               {tieneFoto ? (
-                <Image
-                  source={{ uri: fotoActual }}
-                  style={styles.avatar}
-                  onError={() => setImgError(true)}
-                />
+                <Image source={{ uri: fotoActual }} style={styles.avatar} onError={() => setImgError(true)} />
               ) : (
                 <View style={[styles.avatar, styles.avatarEmpty]}>
                   <Icon name="user" size={34} color={colors.textMuted} />
                 </View>
               )}
-              <View
-                style={[
-                  styles.shieldBadge,
-                  tieneFotoVerificada ? styles.badgeVerified : styles.badgePending,
-                ]}
-              >
+              <View style={[styles.badge, tieneFotoVerificada ? styles.badgeOk : styles.badgePending]}>
                 <Icon
                   name={tieneFotoVerificada ? "check" : tieneFoto ? "camera" : "shield"}
                   size={12}
@@ -177,64 +150,102 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={handleFotoPress} style={styles.hintContainer}>
-              <Text style={[styles.verifiedBadgeText, dark && { color: colors.mint }]}>
-                {subiendoFoto
-                  ? "Subiendo foto..."
-                  : tieneFotoVerificada
-                  ? "✓ Foto verificada con tu cédula"
+            <Text style={[styles.photoNote, tieneFotoVerificada && styles.photoNoteVerified]}>
+              {subiendoFoto
+                ? "Subiendo foto…"
+                : tieneFotoVerificada
+                  ? "Foto verificada con tu cédula"
                   : tieneFoto
-                  ? "Foto de perfil (Toca para cambiar)"
-                  : "Agregar foto de perfil"}
-              </Text>
-              <Text style={[styles.verifiedSubText, dark && { color: colors.textSilver }]}>
-                {tieneFotoVerificada
-                  ? "(Toca para cambiar foto o renovar KYC)"
-                  : "(Toca para subir foto de galería o cámara)"}
-              </Text>
+                    ? "Tu foto de perfil"
+                    : "Sin foto de perfil"}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.changePhoto}
+              onPress={handleFotoPress}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Cambiar foto de perfil"
+            >
+              <Icon name="camera" size={13} color={colors.accent700} />
+              <Text style={styles.changePhotoText}>{tieneFoto ? "Cambiar foto" : "Agregar foto"}</Text>
             </TouchableOpacity>
           </View>
 
-          <Field
-            tone={tone}
-            label="Nombre completo"
-            value={nombre}
-            onChangeText={setNombre}
-            placeholder="Ej. Rodrigo Muñoz"
-            autoCapitalize="words"
-            error={errorNombre}
-          />
+          <View style={styles.group}>
+            <Text style={styles.section}>Tus datos</Text>
+            <Field
+              tone={tone}
+              label="Nombre completo"
+              value={nombre}
+              onChangeText={setNombre}
+              placeholder="Ej. Rodrigo Muñoz"
+              autoCapitalize="words"
+              error={errorNombre}
+            />
+            <Field
+              tone={tone}
+              label="Teléfono"
+              value={telefono}
+              onChangeText={setTelefono}
+              format={formatearTelefonoInput}
+              maxLength={9}
+              placeholder="7734 1208"
+              prefix="+56 9"
+              keyboardType="phone-pad"
+              error={errorTelefono}
+              helper="Lo usamos para coordinar entregas y avisarte de tus arriendos."
+            />
+          </View>
 
-          <Field
-            tone={tone}
-            label="Teléfono"
-            value={telefono}
-            onChangeText={(t) => setTelefono(formatearTelefonoInput(t))}
-            placeholder="7734 1208"
-            prefix="+56 9"
-            keyboardType="phone-pad"
-            error={errorTelefono}
-            helper="Lo usamos para coordinar entregas y avisarte de tus arriendos."
-          />
-
-          <View style={styles.readonly}>
-            <SectionLabel tone={tone}>Correo</SectionLabel>
-            <Text style={[styles.readonlyValue, dark && { color: colors.textWhite }]}>
-              {currentUser?.email || "—"}
-            </Text>
-            <Text style={[styles.readonlyHint, dark && { color: colors.textSilver }]}>
-              El correo y los datos de identidad (RUT, dirección y foto biométrica) se validan mediante Verificación de identidad.
+          <View style={styles.group}>
+            <Text style={styles.section}>De tu verificación de identidad</Text>
+            <View style={styles.idCard}>
+              <View style={styles.idHead}>
+                <Icon name="shield" size={14} color={colors.accent800} />
+                <Text style={styles.idHeadText}>No editable aquí</Text>
+              </View>
+              <View style={styles.idRow}>
+                <Text style={styles.idKey}>Correo</Text>
+                <Text style={styles.idValue}>{currentUser?.email || "—"}</Text>
+              </View>
+              {currentUser?.rut ? (
+                <View style={styles.idRow}>
+                  <Text style={styles.idKey}>RUT</Text>
+                  <Text style={styles.idValue}>{currentUser.rut}</Text>
+                </View>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.idRow, styles.idRowTap]}
+                onPress={onOpenKyc}
+                disabled={!onOpenKyc}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Verificación de identidad"
+              >
+                <View>
+                  <Text style={styles.idKey}>Identidad</Text>
+                  <View style={[styles.idBadge, identidadVerificada ? styles.idBadgeOk : styles.idBadgePending]}>
+                    <Icon
+                      name={identidadVerificada ? "check" : "clock"}
+                      size={11}
+                      color={identidadVerificada ? colors.accent800 : colors.warningText}
+                    />
+                    <Text style={[styles.idBadgeText, !identidadVerificada && { color: colors.warningText }]}>
+                      {identidadVerificada ? "Verificada" : "Pendiente"}
+                    </Text>
+                  </View>
+                </View>
+                {onOpenKyc ? <Icon name="chevron-right" size={16} color={colors.textMuted} /> : null}
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.idCaption}>
+              Estos datos salen de tu verificación de identidad. Para cambiarlos, vuelve a verificarte.
             </Text>
           </View>
         </ScrollView>
 
-        <View
-          style={[
-            styles.footer,
-            dark && { backgroundColor: colors.darkCard, borderTopColor: colors.darkBorder },
-            { paddingBottom: Math.max(insets.bottom, 12) + 8 },
-          ]}
-        >
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
           <Button tone={tone} label="Guardar cambios" onPress={guardar} loading={guardando} />
         </View>
       </KeyboardAvoidingView>
@@ -244,31 +255,84 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  avatarSection: { alignItems: "center", justifyContent: "center", marginVertical: 8, gap: 6 },
+  content: { padding: theme.spacing.screen, gap: theme.spacing.xl },
+
+  avatarSection: { alignItems: "center", gap: 9, paddingTop: 4 },
   avatarWrapper: { position: "relative" },
-  avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.surfaceMuted },
+  avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.surfaceSecondary },
   avatarEmpty: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  shieldBadge: {
+  badge: {
     position: "absolute",
     bottom: 0,
     right: 0,
-    width: 26,
-    height: 26,
+    width: 25,
+    height: 25,
     borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
     borderColor: colors.surface,
   },
-  badgeVerified: { backgroundColor: colors.success },
+  badgeOk: { backgroundColor: colors.accent500 },
   badgePending: { backgroundColor: colors.warning },
-  hintContainer: { alignItems: "center", gap: 2 },
-  verifiedBadgeText: { fontSize: 13, fontWeight: "700", color: colors.primary },
-  verifiedSubText: { fontSize: 11, color: colors.textMuted },
-  readonly: { gap: 6 },
-  readonlyValue: { fontSize: 15, color: colors.text, fontWeight: "500" },
-  readonlyHint: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
+  photoNote: { fontSize: 12.5, color: colors.textMuted },
+  photoNoteVerified: { color: colors.accent800, fontWeight: "600" },
+  changePhoto: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: theme.radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 13,
+    backgroundColor: colors.surface,
+  },
+  changePhotoText: { fontSize: 12.5, fontWeight: "700", color: colors.accent700 },
+
+  group: { gap: theme.spacing.md },
+  section: { fontSize: 13, fontWeight: "700", color: colors.textMuted, marginBottom: 2 },
+
+  idCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: theme.radius.field,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+  },
+  idHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
+    backgroundColor: colors.accent100,
+  },
+  idHeadText: { fontSize: 12, fontWeight: "700", color: colors.accent800 },
+  idRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 13,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  idRowTap: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  idKey: { fontSize: 11, fontWeight: "700", letterSpacing: 0.3, color: colors.textMuted },
+  idValue: { fontSize: 14, fontWeight: "500", color: colors.text, marginTop: 2 },
+  idBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    borderRadius: theme.radius.pill,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    marginTop: 4,
+  },
+  idBadgeOk: { backgroundColor: colors.accent100 },
+  idBadgePending: { backgroundColor: colors.warningBg },
+  idBadgeText: { fontSize: 11.5, fontWeight: "700", color: colors.accent800 },
+  idCaption: { fontSize: 11.5, color: colors.textMuted, lineHeight: 16, paddingHorizontal: 2 },
+
   footer: {
     paddingHorizontal: theme.spacing.screen,
     paddingTop: theme.spacing.md,

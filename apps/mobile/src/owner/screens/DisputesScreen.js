@@ -63,6 +63,7 @@ export function DisputesScreen({ onBack }) {
   const set = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
 
   const crear = async () => {
+    if (enviando) return;
     if (!form.monto || !form.descripcion) {
       showAlert("Campos requeridos", "Ingresa el monto del cobro y la descripción.");
       return;
@@ -96,7 +97,7 @@ export function DisputesScreen({ onBack }) {
   return (
     <KeyboardAvoidingView
       style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <CabeceraOwner
         titulo="Disputas y garantías"

@@ -67,7 +67,7 @@ export function MyCarsScreen({
   };
 
   const handleSaveRate = async () => {
-    if (!editingCar || !newTarifa) return;
+    if (saving || !editingCar || !newTarifa) return;
     const tarifaNum = aTramo(newTarifa);
     if (tarifaNum < 15000) {
       showAlert("Tarifa inválida", "La tarifa mínima es $15.000 CLP por día.");

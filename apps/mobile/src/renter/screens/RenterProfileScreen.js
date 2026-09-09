@@ -8,14 +8,14 @@ import {
   Icon,
   AvatarFoto,
   Card,
-  Button,
+  Rating,
   MenuList,
   MenuRow,
   ApiClient,
   showAlert,
   ReferralCodeCard,
   LegalModal,
-  AccountStatusCard,
+  ReadinessBand,
   ModeSwitchRow,
   MandatoDuenoModal,
   verificarMandatoAceptado,
@@ -23,10 +23,9 @@ import {
 
 /**
  * Perfil del arrendatario. Es el centro de la cuenta, no un menú de atajos:
- * responde primero "¿puedo reservar?" (identidad + tarjeta) y después da
- * acceso a los ajustes. Lo que ya vive en una pestaña (arriendos, mensajes)
- * o en el arriendo activo (asistencia en ruta, contrato de una reserva) no
- * se repite aquí.
+ * responde primero "¿puedo reservar?" (banda de estado) y después da acceso a
+ * los ajustes en una sola lista. Lo que ya vive en una pestaña (arriendos,
+ * mensajes) o en el arriendo activo no se repite aquí.
  */
 export function RenterProfileScreen({
   onOpenEnrolment,
@@ -45,9 +44,6 @@ export function RenterProfileScreen({
 
   useEffect(() => {
     if (!currentUser?.id) return;
-    // Sin catch, un backend caído al abrir la app dejaba un rechazo sin
-    // manejar. Las calificaciones son secundarias: si no llegan, la
-    // pantalla se muestra igual.
     ApiClient.getCalificaciones(currentUser.id)
       .then(setCalificaciones)
       .catch(() => {});
@@ -73,24 +69,29 @@ export function RenterProfileScreen({
     onOpenEnrolment?.();
   };
 
-  const promedioRating =
-    calificaciones.length > 0
-      ? (calificaciones.reduce((sum, c) => sum + c.puntaje, 0) / calificaciones.length).toFixed(1)
-      : null;
+  const resolverEstado = (tipo) => (tipo === "identidad" ? handleKycPress() : onOpenPaymentMethods?.());
+
+  const ratingNum = calificaciones.length
+    ? calificaciones.reduce((sum, c) => sum + (c.puntaje || 0), 0) / calificaciones.length
+    : null;
   const totalArriendos = reservations?.length || 0;
-  const actividad = promedioRating
-    ? `★ ${promedioRating} · ${totalArriendos} ${totalArriendos === 1 ? "arriendo" : "arriendos"}`
-    : totalArriendos > 0
-      ? `${totalArriendos} ${totalArriendos === 1 ? "arriendo" : "arriendos"}`
-      : "Aún sin arriendos";
+
+  const identidadMeta =
+    user.estado_documentos === "verificado"
+      ? "Verificada"
+      : user.estado_documentos === "requiere_revision_manual"
+        ? "En revisión"
+        : "Pendiente";
+  const tarjetaMeta = user.tarjeta_ultimos4
+    ? `•• ${user.tarjeta_ultimos4}`
+    : user.tarjeta_estado === "validada"
+      ? "Listo"
+      : "Agregar";
 
   const handleSwitchToOwner = async () => {
     const yaAcepto = await verificarMandatoAceptado(currentUser?.id);
-    if (!yaAcepto) {
-      setShowMandato(true);
-    } else {
-      setMode("owner");
-    }
+    if (!yaAcepto) setShowMandato(true);
+    else setMode("owner");
   };
 
   const handleLogout = () => {
@@ -138,7 +139,7 @@ export function RenterProfileScreen({
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
-        <Text style={styles.title}>Mi perfil</Text>
+        <Text style={styles.eyebrow}>Mi perfil</Text>
 
         <Card padded={false}>
           <TouchableOpacity
@@ -148,37 +149,46 @@ export function RenterProfileScreen({
             accessibilityRole="button"
             accessibilityLabel="Editar perfil"
           >
-            <AvatarFoto size={56} iconSize={24} />
-            <View style={{ flex: 1, gap: 3 }}>
+            <AvatarFoto size={64} iconSize={26} />
+            <View style={styles.heroId}>
               <Text style={styles.name} numberOfLines={1}>
                 {user.nombre || user.email || "Mi cuenta"}
               </Text>
-              <Text style={styles.actividad}>{actividad}</Text>
+              {ratingNum ? (
+                <Rating value={ratingNum} count={totalArriendos} size="sm" style={{ marginTop: 3 }} />
+              ) : (
+                <Text style={styles.actividad}>
+                  {totalArriendos > 0
+                    ? `${totalArriendos} ${totalArriendos === 1 ? "arriendo" : "arriendos"}`
+                    : "Aún sin arriendos"}
+                </Text>
+              )}
             </View>
-            <View style={styles.editHint}>
-              <Icon name="pencil" size={13} color={colors.textMuted} />
-              <Text style={styles.editHintText}>Editar</Text>
+            <View style={styles.editBtn}>
+              <Icon name="pencil" size={16} color={colors.accent700} />
             </View>
           </TouchableOpacity>
 
-          <AccountStatusCard
+          <ReadinessBand
             estadoDocumentos={user.estado_documentos}
-            tarjetaUltimos4={user.tarjeta_ultimos4}
             tarjetaEstado={user.tarjeta_estado}
             rol="renter"
-            onPressIdentidad={handleKycPress}
-            onPressTarjeta={onOpenPaymentMethods}
+            onResolver={resolverEstado}
           />
         </Card>
 
-        <ReferralCodeCard />
-
-        <MenuList>
-          <MenuRow icon="heart" label="Autos guardados" onPress={onOpenFavorites} />
-          <MenuRow icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
-          <MenuRow icon="help" label="Centro de ayuda y soporte" onPress={onOpenSupport} />
-          <MenuRow icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
-        </MenuList>
+        <View>
+          <Text style={styles.section}>Cuenta</Text>
+          <MenuList>
+            <MenuRow tile tileTone="menta" icon="shield" label="Identidad" meta={identidadMeta} onPress={handleKycPress} />
+            <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenPaymentMethods} />
+            <MenuRow tile icon="heart" label="Autos guardados" onPress={onOpenFavorites} />
+            <MenuRow tile icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
+            <MenuRow tile icon="help" label="Centro de ayuda" onPress={onOpenSupport} />
+            <MenuRow tile icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
+            <MenuRow tile tileTone="danger" icon="logout" label="Cerrar sesión" danger onPress={handleLogout} />
+          </MenuList>
+        </View>
 
         <ModeSwitchRow
           target="owner"
@@ -187,19 +197,18 @@ export function RenterProfileScreen({
           onPress={handleSwitchToOwner}
         />
 
-        <View style={styles.footerActions}>
-          <Button label="Cerrar sesión" variant="danger" onPress={handleLogout} />
-          <TouchableOpacity
-            onPress={handleEliminarCuenta}
-            disabled={eliminando}
-            hitSlop={theme.control.hitSlop}
-            accessibilityRole="button"
-            accessibilityLabel="Eliminar mi cuenta"
-            style={styles.deleteBtn}
-          >
-            <Text style={styles.deleteText}>{eliminando ? "Enviando solicitud…" : "Eliminar mi cuenta"}</Text>
-          </TouchableOpacity>
-        </View>
+        <ReferralCodeCard />
+
+        <TouchableOpacity
+          onPress={handleEliminarCuenta}
+          disabled={eliminando}
+          hitSlop={theme.control.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel="Eliminar mi cuenta"
+          style={styles.deleteBtn}
+        >
+          <Text style={styles.deleteText}>{eliminando ? "Enviando solicitud…" : "Eliminar mi cuenta"}</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <LegalModal visible={showLegal} doc="terminos" onClose={() => setShowLegal(false)} />
@@ -219,7 +228,7 @@ export function RenterProfileScreen({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  title: { ...theme.typography.title, color: colors.text },
+  eyebrow: { fontSize: 13, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.3, marginBottom: -4 },
 
   heroHead: {
     flexDirection: "row",
@@ -227,12 +236,22 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     padding: theme.spacing.lg,
   },
-  name: { fontSize: 18, fontWeight: "700", color: colors.text },
-  actividad: { fontSize: 13, color: colors.textMuted },
-  editHint: { flexDirection: "row", alignItems: "center", gap: 4 },
-  editHintText: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
+  heroId: { flex: 1, minWidth: 0 },
+  name: { fontSize: 20, fontWeight: "700", color: colors.text, letterSpacing: -0.2 },
+  actividad: { fontSize: 13, color: colors.textMuted, marginTop: 3 },
+  editBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
 
-  footerActions: { gap: theme.spacing.md, alignItems: "center" },
-  deleteBtn: { paddingVertical: 6, paddingHorizontal: theme.spacing.md },
+  section: { fontSize: 13, fontWeight: "700", color: colors.textMuted, marginBottom: theme.spacing.sm, marginLeft: 4 },
+
+  deleteBtn: { alignSelf: "center", paddingVertical: 6, paddingHorizontal: theme.spacing.md },
   deleteText: { fontSize: 13, color: colors.danger, fontWeight: "600" },
 });

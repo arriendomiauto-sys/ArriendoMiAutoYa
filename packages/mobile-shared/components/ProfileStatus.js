@@ -6,102 +6,103 @@ import { Icon } from "./Icon";
 
 /**
  * Piezas compartidas por los dos perfiles (arrendatario y dueño). Ambos hacen
- * lo mismo — mostrar si la cuenta está lista para operar y ofrecer el cambio
- * de rol — solo cambia el `tone` (crema vs. teal oscuro) y algo de copy.
+ * lo mismo — decir si la cuenta está lista para operar y ofrecer el cambio de
+ * rol — solo cambia el `tone` (crema vs. teal oscuro) y algo de copy.
  */
 
-function coloresEstado(tone, estado) {
-  const dark = tone === "dark";
-  const paletas = dark
-    ? {
-        ok: { fg: colors.accent, bg: "rgba(47,191,155,0.15)" },
-        espera: { fg: colors.warningAccent, bg: "rgba(242,200,121,0.15)" },
-        accion: { fg: colors.warningAccent, bg: "rgba(242,200,121,0.15)" },
-      }
-    : {
-        ok: { fg: colors.accent800, bg: colors.accent100 },
-        espera: { fg: colors.warningText, bg: colors.warningBg },
-        accion: { fg: colors.warningText, bg: colors.warningBg },
-      };
+// ───────────────────────────────────────────────────────────────────────────
+// Estado de la cuenta: ¿puede reservar / publicar? Función pura, la usan los
+// dos perfiles para la banda de estado y para el copy de las filas.
+// ───────────────────────────────────────────────────────────────────────────
+export function estadoCuenta({ estadoDocumentos, tarjetaEstado, rol = "renter" }) {
+  const accion = rol === "owner" ? "publicar" : "reservar";
+  const idOk = estadoDocumentos === "verificado";
+  const tarjetaOk = tarjetaEstado === "validada";
+
+  if (idOk && tarjetaOk) {
+    return { tono: "ok", titulo: `Tu cuenta puede ${accion}`, detalle: "Identidad y medios de pago al día" };
+  }
+  if (estadoDocumentos === "requiere_revision_manual" || tarjetaEstado === "requiere_revision_manual") {
+    return { tono: "espera", titulo: "Estamos revisando tu cuenta", detalle: "Te avisamos apenas quede lista." };
+  }
+
+  const detalle =
+    !idOk && !tarjetaOk
+      ? "Te falta verificar tu identidad y agregar una tarjeta."
+      : !idOk
+        ? "Te falta verificar tu identidad."
+        : "Te falta agregar un medio de pago.";
   return {
-    text: dark ? colors.textWhite : colors.text,
-    hint: dark ? colors.textSilver : colors.textMuted,
-    border: dark ? colors.darkBorder : colors.border,
-    ...(paletas[estado] || paletas.ok),
+    tono: "accion",
+    titulo: `Falta un paso para ${accion}`,
+    detalle,
+    resolver: !idOk ? "identidad" : "tarjeta",
   };
 }
 
-function FilaEstado({ tone, estado, icon, label, hint, onPress, last }) {
-  const c = coloresEstado(tone, estado);
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`${label}. ${hint}`}
-      style={[styles.fila, !last && { borderBottomWidth: 1, borderBottomColor: c.border }]}
-    >
-      <View style={[styles.filaIcon, { backgroundColor: c.bg }]}>
-        <Icon name={icon} size={15} color={c.fg} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.filaLabel, { color: c.text }]}>{label}</Text>
-        <Text style={[styles.filaHint, { color: c.hint }]} numberOfLines={1}>
-          {hint}
-        </Text>
-      </View>
-      <Icon name="chevron-right" size={16} color={c.hint} />
-    </TouchableOpacity>
-  );
-}
+const BANDA_COLORES = {
+  ok: { bg: colors.accent100, ink: colors.accent800, icon: "check" },
+  espera: { bg: colors.warningBg, ink: colors.warningText, icon: "clock" },
+  accion: { bg: colors.warningBg, ink: colors.warningText, icon: "alert" },
+};
 
 /**
- * Las dos condiciones que la app exige para reservar o publicar: identidad
- * verificada y tarjeta registrada. Pensada para ir dentro del `Card` de
- * cabecera del perfil, justo debajo del nombre.
+ * Banda de estado — el ancla del perfil. Va pegada abajo del hero (bordes
+ * inferiores redondeados) o suelta como tarjeta propia (`standalone`).
+ * Cuando falta un paso, toda la banda es tocable y lleva a resolverlo.
  */
-export function AccountStatusCard({
+export function ReadinessBand({
   estadoDocumentos,
-  tarjetaUltimos4,
   tarjetaEstado,
   rol = "renter",
-  tone = "light",
-  onPressIdentidad,
-  onPressTarjeta,
+  onResolver,
+  standalone = false,
+  style,
 }) {
-  const accion = rol === "owner" ? "publicar tus autos" : "reservar un auto";
+  const e = estadoCuenta({ estadoDocumentos, tarjetaEstado, rol });
+  const c = BANDA_COLORES[e.tono] || BANDA_COLORES.ok;
+  const accionable = e.tono === "accion" && typeof onResolver === "function";
 
-  const identidad =
-    estadoDocumentos === "verificado"
-      ? { estado: "ok", icon: "shield", label: "Identidad verificada", hint: `Tu cuenta puede ${accion}.` }
-      : estadoDocumentos === "requiere_revision_manual"
-        ? { estado: "espera", icon: "clock", label: "Identidad en revisión", hint: "Te avisamos apenas la aprobemos." }
-        : { estado: "accion", icon: "warning", label: "Verifica tu identidad", hint: `La necesitas para ${accion}.` };
+  const contenido = (
+    <>
+      <View style={[styles.bandIcon, { backgroundColor: "rgba(0,0,0,0.05)" }]}>
+        <Icon name={c.icon} size={13} color={c.ink} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.bandTitle, { color: c.ink }]}>{e.titulo}</Text>
+        <Text style={[styles.bandDetail, { color: c.ink }]}>{e.detalle}</Text>
+      </View>
+      {accionable ? <Icon name="chevron-right" size={16} color={c.ink} /> : null}
+    </>
+  );
 
-  const tarjeta = tarjetaUltimos4
-    ? { estado: "ok", icon: "card", label: "Tarjeta de crédito", hint: `Terminada en ${tarjetaUltimos4}` }
-    : tarjetaEstado === "requiere_revision_manual"
-      ? { estado: "espera", icon: "card", label: "Tarjeta de crédito", hint: "En revisión" }
-      : {
-          estado: "accion",
-          icon: "card",
-          label: "Agrega una tarjeta",
-          hint: rol === "owner" ? "Cubre deducible y cargos posteriores." : "Es la garantía de tu reserva.",
-        };
+  const estilo = [
+    styles.band,
+    { backgroundColor: c.bg },
+    standalone ? styles.bandStandalone : styles.bandAttached,
+    style,
+  ];
 
-  const border = tone === "dark" ? colors.darkBorder : colors.border;
-
-  return (
-    <View style={[styles.wrap, { borderTopColor: border }]}>
-      <FilaEstado tone={tone} {...identidad} onPress={onPressIdentidad} />
-      <FilaEstado tone={tone} {...tarjeta} onPress={onPressTarjeta} last />
+  return accionable ? (
+    <TouchableOpacity
+      style={estilo}
+      onPress={() => onResolver(e.resolver)}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={`${e.titulo}. ${e.detalle}`}
+    >
+      {contenido}
+    </TouchableOpacity>
+  ) : (
+    <View style={estilo} accessibilityRole="text" accessibilityLabel={`${e.titulo}. ${e.detalle}`}>
+      {contenido}
     </View>
   );
 }
 
 /**
- * Botón de cambio de rol. Se conserva de la versión anterior del perfil: es
- * central en una app que es un solo binario con dos experiencias.
+ * Botón de cambio de rol. Central en una app que es un solo binario con dos
+ * experiencias.
  */
 export function ModeSwitchRow({ target, title, desc, onPress, tone = "light" }) {
   const dark = tone === "dark";
@@ -132,23 +133,33 @@ export function ModeSwitchRow({ target, title, desc, onPress, tone = "light" }) 
 }
 
 const styles = StyleSheet.create({
-  wrap: { borderTopWidth: 1 },
-  fila: {
+  band: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing.md,
-    paddingVertical: 13,
+    gap: theme.spacing.sm,
+    paddingVertical: 12,
     paddingHorizontal: theme.spacing.lg,
   },
-  filaIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  bandAttached: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    borderBottomLeftRadius: theme.radius.card - 1,
+    borderBottomRightRadius: theme.radius.card - 1,
+  },
+  bandStandalone: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: theme.radius.card,
+  },
+  bandIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
     alignItems: "center",
     justifyContent: "center",
   },
-  filaLabel: { fontSize: 15, fontWeight: "600" },
-  filaHint: { fontSize: 13, marginTop: 1 },
+  bandTitle: { fontSize: 13.5, fontWeight: "700" },
+  bandDetail: { fontSize: 12, marginTop: 1, opacity: 0.85, lineHeight: 16 },
 
   switch: {
     flexDirection: "row",

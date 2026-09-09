@@ -19,7 +19,8 @@ describe("CarCard", () => {
     expect(t).toContain("Suzuki Swift 2023");
     expect(t).toContain("Providencia");
     expect(t).toContain("38.000");
-    expect(t).toContain("4.8");
+    // <Rating> formatea el puntaje en es-CL (coma decimal).
+    expect(t).toContain("4,8");
   });
 
   it("pasa el auto completo a onPress", () => {

@@ -19,7 +19,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
   const fmt = (d) => d.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
 
   const handleExtender = async () => {
-    if (!res.id) return;
+    if (loading || !res.id) return;
     setLoading(true);
     try {
       const actualizada = await ApiClient.extenderReserva(res.id, dias);

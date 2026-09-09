@@ -16,8 +16,10 @@ import {
   Icon,
   Button,
   Card,
+  BackButton,
   ScreenHeader,
   SectionLabel,
+  Rating,
   DateTimeField,
   formatearFechaHora,
   aISOLocal,
@@ -61,7 +63,7 @@ const EQUIPAMIENTO_LABELS = {
 
 export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const insets = useSafeAreaInsets();
-  // Step: 'detail' | 'schedule' | 'summary'
+  // Step: 'detail' (ficha + fechas en línea) | 'summary' (hoja de resumen)
   const [step, setStep] = useState("detail");
   const [fotoActiva, setFotoActiva] = useState(0);
   const [heroW, setHeroW] = useState(0);
@@ -100,7 +102,14 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
   const tarifaDia = car?.tarifa_dia || 0;
   const dias = useMemo(() => calcularDias(fechaInicio, fechaFin), [fechaInicio, fechaFin]);
-  const montoHold = tarifaDia * dias;
+  // Se COBRA: días × tarifa (IVA incl.). La GARANTÍA es un hold aparte, monto
+  // fijo por categoría que define el backend (cae a la estimación si el auto
+  // aún no trae `monto_garantia`).
+  const montoCobro = tarifaDia * dias;
+  const montoGarantia = car?.monto_garantia ?? 0;
+  // Desglose de IVA sobre el cobro (la tarifa ya lo incluye), solo para mostrarlo.
+  const subtotalNeto = Math.round(montoCobro / 1.19);
+  const ivaMonto = montoCobro - subtotalNeto;
 
   // Reseñas del dueño (no del auto: acá no hay calificación por vehículo,
   // solo por persona — dos autos del mismo dueño comparten reputación).
@@ -128,7 +137,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
     ? calificaciones.reduce((suma, c) => suma + (c.puntaje || 0), 0) / calificaciones.length
     : null;
 
-  const fotos = car?.fotos?.length ? car.fotos : ["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800"];
+  const fotos = car?.fotos?.length ? car.fotos : [];
   const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
   const dueno = car?.dueno;
   const duenoNombre = car?.dueno_nombre || dueno?.nombre || "Anfitrión";
@@ -190,13 +199,11 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 />
               ))}
             </ScrollView>
-            <TouchableOpacity
-              style={[styles.heroBack, { top: insets.top + 8 }]}
+            <BackButton
+              variant="overlay"
               onPress={onBack}
-              hitSlop={theme.control.hitSlop}
-            >
-              <Icon name="arrow-left" size={20} color={colors.primary} />
-            </TouchableOpacity>
+              style={[styles.heroBack, { top: insets.top + 8 }]}
+            />
             <View style={[styles.heroActions, { top: insets.top + 8 }]}>
               <TouchableOpacity
                 style={styles.heroActionBtn}
@@ -256,11 +263,13 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 ))}
               </View>
             )}
-            {car?.descripcion ? <Text style={styles.descripcion}>{car.descripcion}</Text> : null}
 
+            {/* Tarjeta del anfitrión — bloque premium pino oscuro con hairline
+                menta, por encima de la descripción (dirección 1d). */}
             {tieneDueno ? (
-              <Card style={styles.hostCard} padded>
-                <View style={styles.hostAvatar}>
+              <View style={styles.hostCardDark}>
+                <View style={styles.hostHairline} />
+                <View style={styles.hostAvatarDark}>
                   {duenoFoto && !hostFotoError ? (
                     <Image
                       source={{ uri: duenoFoto }}
@@ -268,22 +277,29 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                       onError={() => setHostFotoError(true)}
                     />
                   ) : (
-                    <Icon name="user" size={20} color={colors.textMuted} />
+                    <Icon name="user" size={20} color={colors.accent500} />
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.hostName}>{duenoNombre}</Text>
-                  <Text style={styles.hostMeta}>
-                    {dueno?.rating || car?.rating_promedio ? `★ ${dueno?.rating || car?.rating_promedio}` : "Anfitrión verificado"}
-                    {dueno?.viajes || car?.rating_cantidad ? ` · ${dueno?.viajes || car?.rating_cantidad} arriendos` : ""}
-                  </Text>
+                  <Text style={styles.hostNameDark}>{duenoNombre}</Text>
+                  <Text style={styles.hostSubDark}>Anfitrión verificado</Text>
+                  {promedioResenas || dueno?.rating || car?.rating_promedio ? (
+                    <Rating
+                      tone="dark"
+                      size="sm"
+                      value={promedioResenas || dueno?.rating || car?.rating_promedio}
+                      count={calificaciones.length || dueno?.viajes || car?.rating_cantidad}
+                      style={{ marginTop: 4 }}
+                    />
+                  ) : null}
                 </View>
-                <View style={styles.verifBadge}>
-                  <Icon name="shield" size={13} color={colors.accent800} />
-                  <Text style={styles.verifText}>Verificado</Text>
+                <View style={styles.hostShield}>
+                  <Icon name="shield" size={14} color={colors.accent500} />
                 </View>
-              </Card>
+              </View>
             ) : null}
+
+            {car?.descripcion ? <Text style={styles.descripcion}>{car.descripcion}</Text> : null}
 
             <View style={styles.priceRow}>
               {[
@@ -325,7 +341,8 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                           key={n}
                           name={n <= Math.round(promedioResenas) ? "star" : "star-outline"}
                           size={14}
-                          color={colors.warning}
+                          color={colors.accent500}
+                          fill={n <= Math.round(promedioResenas) ? colors.accent500 : "none"}
                         />
                       ))}
                     </View>
@@ -349,7 +366,8 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                               key={n}
                               name={n <= r.puntaje ? "star" : "star-outline"}
                               size={11}
-                              color={colors.warning}
+                              color={colors.accent500}
+                              fill={n <= r.puntaje ? colors.accent500 : "none"}
                             />
                           ))}
                         </View>
@@ -368,6 +386,47 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 </ScrollView>
               </View>
             ) : null}
+
+            {/* Fechas del arriendo — en línea en la ficha (dirección 1c):
+                ya no hay un paso aparte de calendario. */}
+            <View style={{ gap: theme.spacing.sm }}>
+              <SectionLabel>Fechas del arriendo</SectionLabel>
+              <View style={styles.datesRow}>
+                <DateTimeField
+                  label="Retiro"
+                  value={fechaInicio}
+                  onChange={cambiarInicio}
+                  minimumDate={ahora}
+                />
+                <DateTimeField
+                  label="Devolución"
+                  value={fechaFin}
+                  onChange={cambiarFin}
+                  minimumDate={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
+                />
+              </View>
+
+              {dateError && (
+                <View style={styles.warnBox}>
+                  <Text style={styles.warnTitle}>Fechas inválidas</Text>
+                  <Text style={styles.warnText}>{dateError}</Text>
+                </View>
+              )}
+
+              <Card style={styles.subtotalCard} padded>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.subtotalTitle}>
+                    {dias > 0 ? `${dias} ${dias === 1 ? "día" : "días"} de arriendo` : "Elige fechas válidas"}
+                  </Text>
+                  {dias > 0 && (
+                    <Text style={styles.subtotalRange}>
+                      {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.subtotalValue}>{precioCLP(montoCobro)}</Text>
+              </Card>
+            </View>
 
             {/* Punto de Encuentro / Entrega */}
             <Card style={styles.locationCard} padded>
@@ -403,58 +462,13 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             <Text style={styles.barPrice}>{precioCLP(tarifaDia)}</Text>
             <Text style={styles.barPer}>por día</Text>
           </View>
-          <Button label="Elegir fechas" onPress={() => setStep("schedule")} fullWidth={false} style={{ flex: 1 }} />
-        </View>
-      </View>
-    );
-  }
-
-  // --------------------------------------------------------------- FECHAS
-  if (step === "schedule") {
-    return (
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" />
-        <ScreenHeader title="Fechas y horarios" onBack={() => setStep("detail")} />
-        <ScrollView contentContainerStyle={styles.stepBody} showsVerticalScrollIndicator={false}>
-          <View style={styles.datesRow}>
-            <DateTimeField
-              label="Retiro"
-              value={fechaInicio}
-              onChange={cambiarInicio}
-              minimumDate={ahora}
-            />
-            <DateTimeField
-              label="Devolución"
-              value={fechaFin}
-              onChange={cambiarFin}
-              minimumDate={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
-            />
-          </View>
-
-          {dateError && (
-            <View style={styles.warnBox}>
-              <Text style={styles.warnTitle}>Fechas inválidas</Text>
-              <Text style={styles.warnText}>{dateError}</Text>
-            </View>
-          )}
-
-          <Card style={styles.subtotalCard} padded>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.subtotalTitle}>
-                {dias > 0 ? `${dias} ${dias === 1 ? "día" : "días"} de arriendo` : "Elige fechas válidas"}
-              </Text>
-              {dias > 0 && (
-                <Text style={styles.subtotalRange}>
-                  {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
-                </Text>
-              )}
-            </View>
-            <Text style={styles.subtotalValue}>{precioCLP(montoHold)}</Text>
-          </Card>
-        </ScrollView>
-
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
-          <Button label="Ver el resumen" onPress={irAResumen} />
+          <Button
+            label={dias > 0 ? "Ver resumen" : "Elige fechas válidas"}
+            onPress={irAResumen}
+            disabled={dias === 0}
+            fullWidth={false}
+            style={{ flex: 1 }}
+          />
         </View>
       </View>
     );
@@ -464,10 +478,16 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      <ScreenHeader title="Resumen de la reserva" onBack={() => setStep("schedule")} />
+      <ScreenHeader title="Resumen de la reserva" onBack={() => setStep("detail")} />
       <ScrollView contentContainerStyle={styles.stepBody} showsVerticalScrollIndicator={false}>
         <Card style={styles.sumCarCard} padded>
-          <Image source={{ uri: fotos[0] }} style={styles.sumThumb} />
+          {fotos[0] ? (
+            <Image source={{ uri: fotos[0] }} style={styles.sumThumb} />
+          ) : (
+            <View style={[styles.sumThumb, styles.sumThumbEmpty]}>
+              <Icon name="car" size={22} color={colors.primary300} />
+            </View>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={styles.sumName}>{nombreAuto || "Vehículo"}</Text>
             <Text style={styles.sumMeta}>
@@ -477,27 +497,37 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
           </View>
         </Card>
 
+        {/* Desglose — el arriendo SE COBRA (IVA incl., ya en la tarifa); la
+            garantía es un hold aparte que no se cobra. */}
         <Card padded style={{ gap: theme.spacing.md }}>
           <View style={styles.bdRow}>
-            <Text style={styles.bdLabel}>Tarifa diaria</Text>
-            <Text style={styles.bdValue}>{precioCLP(tarifaDia)}</Text>
+            <Text style={styles.bdLabel}>Arriendo · {dias} {dias === 1 ? "día" : "días"}</Text>
+            <Text style={styles.bdValue}>{precioCLP(subtotalNeto)}</Text>
           </View>
           <View style={styles.bdRow}>
-            <Text style={styles.bdLabel}>Días de arriendo</Text>
-            <Text style={styles.bdValue}>{dias}</Text>
+            <Text style={styles.bdLabel}>IVA 19%</Text>
+            <Text style={styles.bdValue}>{precioCLP(ivaMonto)}</Text>
           </View>
+          {montoGarantia > 0 ? (
+            <View style={styles.bdRow}>
+              <Text style={styles.bdLabel}>Garantía retenida</Text>
+              <Text style={styles.bdValue}>{precioCLP(montoGarantia)}</Text>
+            </View>
+          ) : null}
           <View style={[styles.bdRow, styles.bdTotal]}>
-            <Text style={styles.bdTotalLabel}>Total retenido (hold)</Text>
-            <Text style={styles.bdTotalValue}>{precioCLP(montoHold)}</Text>
+            <Text style={styles.bdTotalLabel}>Se cobra al reservar</Text>
+            <Text style={styles.bdTotalValue}>{precioCLP(montoCobro)}</Text>
           </View>
         </Card>
 
-        <View style={styles.warnBox}>
-          <Text style={styles.warnTitle}>No es un cobro inmediato</Text>
-          <Text style={styles.warnText}>
-            Se retiene una pre-autorización de {precioCLP(montoHold)} en tu tarjeta. Se libera cuando el dueño
-            confirme el estado del auto al devolverlo, descontando solo cargos justificados (limpieza,
-            combustible, km extra).
+        <View style={styles.holdBox}>
+          <Icon name="shield" size={16} color={colors.accent700} />
+          <Text style={styles.holdText}>
+            {montoGarantia > 0
+              ? `La garantía de ${precioCLP(montoGarantia)} queda bloqueada en tu tarjeta de crédito, no se cobra. `
+              : "La garantía queda bloqueada en tu tarjeta de crédito, no se cobra. "}
+            Se libera cuando el dueño confirme el estado del auto al devolverlo, descontando solo cargos
+            justificados (limpieza, combustible, km extra).
           </Text>
         </View>
       </ScrollView>
@@ -511,10 +541,14 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               fechaInicio: aISOLocal(fechaInicio),
               fechaFin: aISOLocal(fechaFin),
               dias,
-              montoHold,
+              montoCobro,
+              montoHold: montoGarantia,
             })
           }
         />
+        <Text style={styles.footerHelp}>
+          En el paso siguiente eliges el medio de pago y firmas el contrato.
+        </Text>
       </View>
     </View>
   );
@@ -523,18 +557,11 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
-  hero: { height: 260, backgroundColor: colors.primary100 },
+  hero: { height: 300, backgroundColor: colors.primary100 },
   heroImg: { width: "100%", height: "100%" },
   heroBack: {
     position: "absolute",
     left: theme.spacing.screen,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.94)",
-    alignItems: "center",
-    justifyContent: "center",
-    ...theme.shadow.sm,
   },
   heroActions: {
     position: "absolute",
@@ -566,29 +593,44 @@ const styles = StyleSheet.create({
   metaText: { fontSize: 13, color: colors.textMuted },
   metaDot: { color: colors.textMuted },
 
-  hostCard: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  hostAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surfaceSecondary,
+  // Tarjeta del anfitrión — bloque premium pino oscuro con hairline menta.
+  hostCardDark: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md,
+    backgroundColor: colors.primary900,
+    borderRadius: theme.radius.card,
+    padding: theme.spacing.lg,
+    overflow: "hidden",
+  },
+  hostHairline: {
+    position: "absolute",
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1,
+    backgroundColor: colors.accent500,
+  },
+  hostAvatarDark: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(47,191,155,0.18)",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   hostAvatarImg: { width: "100%", height: "100%" },
-  hostName: { fontSize: 15, fontWeight: "600", color: colors.text },
-  hostMeta: { fontSize: 13, color: colors.textMuted, marginTop: 1 },
-  verifBadge: {
-    flexDirection: "row",
+  hostNameDark: { fontSize: 15, fontWeight: "600", color: colors.textWhite },
+  hostSubDark: { fontSize: 12.5, color: colors.accent200, marginTop: 2 },
+  hostShield: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: "rgba(47,191,155,0.18)",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.accent100,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: theme.radius.pill,
+    justifyContent: "center",
   },
-  verifText: { fontSize: 11, fontWeight: "700", color: colors.accent800 },
 
   ratingSummaryRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
   ratingSummaryNum: { fontSize: 32, fontWeight: "800", color: colors.text, letterSpacing: -1 },
@@ -690,9 +732,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  footerHelp: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: theme.spacing.sm,
+    lineHeight: 17,
+  },
 
   sumCarCard: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
   sumThumb: { width: 76, height: 58, borderRadius: theme.radius.field, backgroundColor: colors.primary100 },
+  sumThumbEmpty: { backgroundColor: colors.accent100, alignItems: "center", justifyContent: "center" },
   sumName: { fontSize: 15, fontWeight: "700", color: colors.text },
   sumMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
 
@@ -702,4 +752,14 @@ const styles = StyleSheet.create({
   bdTotal: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: theme.spacing.md },
   bdTotalLabel: { fontSize: 17, fontWeight: "700", color: colors.text },
   bdTotalValue: { fontSize: 18, fontWeight: "700", color: colors.text },
+
+  // Caja menta "garantía retenida" del resumen (dirección Lote 3, pantalla 20).
+  holdBox: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    backgroundColor: colors.accent100,
+    borderRadius: theme.radius.field,
+    padding: theme.spacing.lg,
+  },
+  holdText: { flex: 1, fontSize: 13, color: colors.accent800, lineHeight: 19 },
 });

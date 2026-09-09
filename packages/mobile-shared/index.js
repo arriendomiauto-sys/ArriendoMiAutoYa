@@ -3,9 +3,11 @@ export { theme, spacing, radius, typography, shadow, control } from "./theme/tok
 export {
   Button,
   Card,
+  BackButton,
   ScreenHeader,
   Chip,
   Badge,
+  Rating,
   SectionLabel,
   StatRow,
   MenuList,
@@ -31,7 +33,7 @@ export {
 export { DocumentCameraModal } from "./components/DocumentCameraModal";
 export { QRScannerModal } from "./components/QRScannerModal";
 export { ReferralCodeCard } from "./components/ReferralCodeCard";
-export { AccountStatusCard, ModeSwitchRow } from "./components/ProfileStatus";
+export { ReadinessBand, ModeSwitchRow, estadoCuenta } from "./components/ProfileStatus";
 export { FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "./vehiculo/fotosAuto";
 export {
   TIPOS_VEHICULO,
@@ -55,7 +57,15 @@ export { ApiClient, MOCK_CARS } from "./api/client";
 export { conectarChat, urlDelSocket } from "./api/chatSocket";
 export { useConversaciones } from "./hooks/useConversaciones";
 export { useFavoritos } from "./hooks/useFavoritos";
-export { confirmarBiometria, hayHardwareBiometrico } from "./hooks/biometria";
+export { useTarjetas, limpiarCacheTarjetas } from "./hooks/useTarjetas";
+export { useCuentaRegresiva } from "./hooks/useCuentaRegresiva";
+export { useTelemetriaArriendo } from "./hooks/useTelemetriaArriendo";
+export {
+  confirmarBiometria,
+  hayHardwareBiometrico,
+  tipoBiometriaDisponible,
+  autenticarParaFirmar,
+} from "./hooks/biometria";
 export { supabase } from "./api/supabase";
 export { AppProvider, useApp } from "./context/AppContext";
 export { AuthFlow } from "./auth/AuthFlow";
@@ -69,16 +79,21 @@ export {
 export {
   FormularioTarjeta,
   validarFormularioTarjeta,
-  tokenizarTarjeta,
   detectarMarca,
   numeroTarjetaValido,
   vencimientoValido,
 } from "./components/FormularioTarjeta";
+export { AgregarTarjetaModal } from "./components/AgregarTarjetaModal";
+export { configMercadoPago, crearCardToken, consultarMetodoPago } from "./api/mercadopago";
 export { ContractModal } from "./screens/ContractModal";
+export { ContractSignatureModal } from "./screens/ContractSignatureModal";
 export { RatingModal } from "./components/RatingModal";
+export { GpsTrackingModal } from "./components/GpsTrackingModal";
 export { SignaturePad } from "./components/SignaturePad";
 export { SuccessCheck, SuccessFlash } from "./components/SuccessCheck";
-export { TarjetaScreen } from "./screens/TarjetaScreen";
+export { MisTarjetasScreen } from "./screens/MisTarjetasScreen";
+// Compat: el nombre viejo apunta a la pantalla nueva de multi-tarjeta.
+export { MisTarjetasScreen as TarjetaScreen } from "./screens/MisTarjetasScreen";
 export { EditProfileScreen } from "./screens/EditProfileScreen";
 export { LegalModal } from "./screens/LegalModal";
 export { DOCUMENTOS_LEGALES, EDAD_MINIMA_ARRENDATARIO } from "./legal/documentos";

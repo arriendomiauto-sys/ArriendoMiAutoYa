@@ -4,6 +4,7 @@ import { ApiClient, MOCK_CARS } from "../api/client";
 import { supabase, vigilarSesionEnPrimerPlano } from "../api/supabase";
 import { iniciarSesionConProveedor } from "../utils/oauth";
 import { urlWeb } from "../utils/webUrl";
+import { limpiarCacheTarjetas } from "../hooks/useTarjetas";
 
 const AppContext = createContext();
 
@@ -152,6 +153,7 @@ export function AppProvider({ children }) {
         await supabase.auth.signOut().catch(() => {});
         setCurrentUser(null);
         setIsLoggedIn(false);
+        limpiarCacheTarjetas();
         return;
       }
       // El usuario existe en Supabase Auth pero aún no completó el
@@ -363,6 +365,7 @@ export function AppProvider({ children }) {
       await supabase.auth.signOut();
       setCurrentUser(null);
       setActiveReservation(null);
+      limpiarCacheTarjetas();
     } finally {
       endTransition();
     }

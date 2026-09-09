@@ -94,6 +94,10 @@ export function RenterApp() {
         <EditProfileScreen
           onBack={() => setShowEditProfile(false)}
           onDone={() => setShowEditProfile(false)}
+          onOpenKyc={() => {
+            setShowEditProfile(false);
+            setShowEnrolment(true);
+          }}
         />
       );
     }

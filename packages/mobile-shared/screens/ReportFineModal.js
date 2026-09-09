@@ -147,6 +147,7 @@ export function ReportFineModal({
   };
 
   const handleAplicar = async () => {
+    if (loading) return;
     const montoNum = parseInt(monto, 10);
     if (isNaN(montoNum) || montoNum <= 0) {
       showAlert("Monto inválido", "Ingresa un monto válido para el cargo en pesos chilenos.");

@@ -14,6 +14,7 @@ import {
   calcularDesgloseIva,
 } from "@rentacar/mobile-shared/vehiculo/catalogoPrecios";
 import { useCatalogoPrecios } from "@rentacar/mobile-shared/vehiculo/useCatalogoPrecios";
+import { formatearDireccionChile } from "@rentacar/mobile-shared/utils/direccion";
 import { validarPatenteChilena } from "@rentacar/shared-schemas";
 
 // Mapa nativo y GPS: opcionales, la app sigue si el módulo no está.
@@ -205,8 +206,8 @@ export function useCarWizard({ onComplete }) {
     try {
       const [rev] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lon });
       if (!rev) return respaldo;
-      const partes = [rev.street, rev.name, rev.district || rev.subregion || rev.city].filter(Boolean);
-      return partes.length ? partes.join(", ") : respaldo;
+      // Formato: "calle número, ciudad, comuna (si aplica), región".
+      return formatearDireccionChile(rev) || respaldo;
     } catch {
       return respaldo;
     }
@@ -447,6 +448,7 @@ export function useCarWizard({ onComplete }) {
   };
 
   const enviar = async () => {
+    if (loading) return;
     if (docsBloqueantes.length) {
       showAlert(
         "Documentos que no sirven para publicar",

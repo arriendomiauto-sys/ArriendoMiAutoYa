@@ -11,6 +11,8 @@ import {
   EmptyState,
   ApiClient,
   RatingModal,
+  ContractSignatureModal,
+  GpsTrackingModal,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc } from "../comun";
 
@@ -48,6 +50,8 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
   const [filter, setFilter] = useState("confirmada");
   const [calificadas, setCalificadas] = useState({});
   const [reservaACalificar, setReservaACalificar] = useState(null);
+  const [reservaAFirmar, setReservaAFirmar] = useState(null);
+  const [autoRastreo, setAutoRastreo] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -97,6 +101,9 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
     const badge = ESTADO_BADGE[item.estado] || ESTADO_BADGE.pendiente;
     const puedeEntregar = item.estado === "confirmada";
     const puedeDevolver = item.estado === "en_curso";
+    // El dueño firma su parte del contrato antes de entregar el vehículo.
+    const yaFirmoDueno = (item.firmas || []).some((f) => f.rol === "arrendador");
+    const debeFirmar = !yaFirmoDueno && ["pendiente", "confirmada"].includes(item.estado);
 
     return (
       <View style={[oc.card, styles.card]}>
@@ -125,11 +132,28 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
           </View>
         </View>
 
+        {debeFirmar && (
+          <Button
+            label="Firmar el contrato"
+            iconLeft="document"
+            onPress={() => setReservaAFirmar(item)}
+          />
+        )}
         {(puedeEntregar || puedeDevolver) && (
           <Button
             label={puedeEntregar ? "Iniciar entrega con QR" : "Iniciar devolución con QR"}
             iconRight="arrow-right"
+            variant={debeFirmar ? "secondary" : "primary"}
             onPress={() => onOpenDelivery?.(item)}
+          />
+        )}
+        {item.estado === "en_curso" && auto.id && (
+          <Button
+            variant="secondary"
+            size="sm"
+            label="Ver ubicación GPS en vivo"
+            iconLeft="pin"
+            onPress={() => setAutoRastreo({ ...auto, reservaId: item.id })}
           />
         )}
         {item.estado === "finalizada" && calificadas[item.id] === false && (
@@ -204,6 +228,26 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
           setCalificadas((prev) => ({ ...prev, [reservaACalificar.id]: true }));
           setReservaACalificar(null);
         }}
+      />
+
+      <ContractSignatureModal
+        visible={!!reservaAFirmar}
+        reservaId={reservaAFirmar?.id}
+        parte="arrendador"
+        onClose={() => setReservaAFirmar(null)}
+        onSigned={() => {
+          setReservaAFirmar(null);
+          cargar();
+        }}
+        onVerContrato={reservaAFirmar ? () => onOpenContract?.(reservaAFirmar) : undefined}
+      />
+
+      <GpsTrackingModal
+        visible={!!autoRastreo}
+        autoId={autoRastreo?.id}
+        patente={autoRastreo?.patente}
+        nombreAuto={[autoRastreo?.marca, autoRastreo?.modelo].filter(Boolean).join(" ")}
+        onClose={() => setAutoRastreo(null)}
       />
     </View>
   );

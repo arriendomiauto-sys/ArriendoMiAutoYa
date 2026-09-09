@@ -17,6 +17,12 @@ describe("formato.js - Utilidades de formateo frontend", () => {
       expect(formatearRutEnVivo("")).toBe("");
       expect(formatearRutEnVivo(null)).toBe("");
     });
+
+    it("capa a 9 caracteres: pegar o spamear de más no explota el RUT", () => {
+      expect(formatearRutEnVivo("21377285600000000")).toBe("21.377.285-6");
+      expect(formatearRutEnVivo("999999999999999")).toBe("99.999.999-9");
+      expect(formatearRutEnVivo("18.456.789-K y algo más")).toBe("18.456.789-K");
+    });
   });
 
   describe("formatearTelefonoInput", () => {

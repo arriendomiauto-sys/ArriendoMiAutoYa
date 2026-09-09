@@ -18,9 +18,8 @@ const car = {
 };
 
 describe("CarDetailScreen · elección de fechas", () => {
-  it("elige retiro y devolución con calendario, sin campos de texto libre", () => {
+  it("las fechas van en línea en la ficha, con calendario y sin campos de texto libre", () => {
     const tr = renderTree(<CarDetailScreen car={car} onBack={() => {}} onProceedToPayment={() => {}} />);
-    pressText(tr, "Elegir fechas");
 
     const t = textOf(tr);
     expect(t).toContain("Retiro");
@@ -28,7 +27,7 @@ describe("CarDetailScreen · elección de fechas", () => {
     // Los placeholders del formato escrito a mano ya no existen…
     expect(t).not.toContain("AAAA-MM-DD");
     expect(t).not.toContain("HH:MM");
-    // …y no queda ningún input tipeable en el paso de fechas.
+    // …y no queda ningún input tipeable en la ficha.
     expect(tr.root.findAllByType(TextInput)).toHaveLength(0);
   });
 
@@ -38,8 +37,7 @@ describe("CarDetailScreen · elección de fechas", () => {
       <CarDetailScreen car={car} onBack={() => {}} onProceedToPayment={onProceedToPayment} />
     );
 
-    pressText(tr, "Elegir fechas");
-    pressText(tr, "Ver el resumen");
+    pressText(tr, "Ver resumen");
     pressText(tr, "Ir a pagar");
 
     expect(onProceedToPayment).toHaveBeenCalledTimes(1);
@@ -54,6 +52,9 @@ describe("CarDetailScreen · elección de fechas", () => {
     // Por defecto: mañana 10:00 → +4 días 18:00 = 3 días y 8 horas, que la
     // app cobra como 4 (mismo redondeo hacia arriba que el backend).
     expect(draft.dias).toBe(4);
-    expect(draft.montoHold).toBe(4 * car.tarifa_dia);
+    // El cobro del arriendo = días × tarifa. La garantía (montoHold) es un
+    // monto fijo por categoría; el auto de prueba no lo trae → 0.
+    expect(draft.montoCobro).toBe(4 * car.tarifa_dia);
+    expect(draft.montoHold).toBe(0);
   });
 });

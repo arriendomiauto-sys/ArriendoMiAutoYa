@@ -43,6 +43,7 @@ export function RatingModal({
   };
 
   const enviar = async () => {
+    if (enviando) return;
     setEnviando(true);
     try {
       const calificacion = await ApiClient.crearCalificacion({
