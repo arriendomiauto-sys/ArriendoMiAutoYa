@@ -1,6 +1,8 @@
 // Cliente API centralizado para la aplicación Web Next.js
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://arriendomiautoya.onrender.com/api/v1";
+const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://arriendomiautoya.onrender.com/api/v1";
+export const API_BASE_URL = RAW_API_URL.includes("localhost")
+  ? "https://arriendomiautoya.onrender.com/api/v1"
+  : RAW_API_URL;
 
 export async function fetchApi(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;

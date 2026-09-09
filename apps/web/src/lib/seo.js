@@ -6,9 +6,11 @@ export const SITE_URL = "https://arriendomiautoya.cl";
 export const SITE_NAME = "ArriendoMiAutoYa";
 
 export const DEFAULT_TITLE =
-  "ArriendoMiAutoYa — Arrienda autos directamente de sus dueños";
+  "Arriendo de Autos y Financia tu Auto | ArriendoMiAutoYa Chile";
 export const DEFAULT_DESCRIPTION =
-  "Arrienda autos particulares verificados desde la app. Seguro con deducible de 15 UF (50/50), verificación de identidad en 60 segundos y entrega con código QR.";
+  "Arrienda autos desde $19.000/día o financia la cuota de tu auto ganando hasta $800.000/mes. Seguro con deducible 15 UF, sin mesón ni trámites en Chile.";
+export const DEFAULT_KEYWORDS =
+  "arriendo de autos chile, rent a car santiago, financia tu auto, pagar cuota auto arriendo, rent a car economico, arriendo autos particulares, financiamiento automotriz, arriendo auto por dia, ganar dinero con mi auto chile, rent a car viña del mar, arriendomiautoya";
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/hero-car.jpg`;
 
 /**

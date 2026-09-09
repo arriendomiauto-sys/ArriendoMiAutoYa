@@ -7,14 +7,16 @@ export default function Document() {
     "@context": "https://schema.org",
     "@type": "AutoRental",
     "@id": `${SITE_URL}/#business`,
-    name: "ArriendoMiAutoYa",
+    name: "ArriendoMiAutoYa Chile — Arriendo de Autos y Financiamiento Automotriz",
     description:
-      "Plataforma de arriendo de autos entre personas (P2P). Seguro con deducible de 15 UF (50/50), traspaso seguro con código QR y verificación de identidad digital.",
+      "Plataforma oficial de arriendo de autos entre personas en Chile. Arrienda autos desde $19.000/día o financia la cuota de tu auto ganando hasta $800.000/mes. Seguro con deducible 15 UF y verificación digital en 60 segundos.",
     url: SITE_URL,
     logo: `${SITE_URL}/logo.png`,
     image: `${SITE_URL}/hero-car.jpg`,
     telephone: "+56912345678",
-    priceRange: "$24.000 - $58.000 CLP",
+    priceRange: "$19.000 - $65.000 CLP",
+    currenciesAccepted: "CLP",
+    paymentAccepted: "Tarjeta de crédito, Redcompra, Transferencia bancaria",
     address: {
       "@type": "PostalAddress",
       addressCountry: "CL",
@@ -97,6 +99,14 @@ export default function Document() {
           href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
+
+        {/* Meta Keywords & Geo */}
+        <meta
+          name="keywords"
+          content="arriendo de autos chile, rent a car santiago, financia tu auto, pagar cuota auto arriendo, rent a car economico, arriendo autos particulares, financiamiento automotriz, arriendo auto por dia, ganar dinero con mi auto chile, arriendomiautoya"
+        />
+        <meta name="geo.region" content="CL" />
+        <meta name="geo.placename" content="Santiago, Chile" />
 
         {/* Open Graph / Twitter — valores globales (los específicos van por página vía <Seo/>) */}
         <meta property="og:site_name" content="ArriendoMiAutoYa Chile" />

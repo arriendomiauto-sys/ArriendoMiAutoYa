@@ -143,7 +143,11 @@ export default function SelectorUbicacion({
           <button
             type="button"
             onClick={() => setComunasAbierto((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-xl border border-brand-line px-4 py-2.5 text-[13px] font-semibold text-brand-ink hover:border-brand-ink"
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold transition-all ${
+              permiso === "denied"
+                ? "bg-brand-teal text-[#04231b] hover:bg-[#12b78d] shadow-sm"
+                : "border border-brand-line text-brand-ink hover:border-brand-ink"
+            }`}
             aria-haspopup="listbox"
             aria-expanded={comunasAbierto}
           >
@@ -176,9 +180,9 @@ export default function SelectorUbicacion({
       </div>
 
       {estado === "error" && errorMsg && (
-        <p className="w-full text-xs text-brand-amber sm:w-auto sm:basis-full">
-          {errorMsg} Elige tu comuna de la lista.
-        </p>
+        <div className="w-full sm:basis-full flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+          <span>{errorMsg} Por favor elige tu comuna de la lista arriba.</span>
+        </div>
       )}
     </div>
   );

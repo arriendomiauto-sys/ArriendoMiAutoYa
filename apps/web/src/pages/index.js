@@ -87,6 +87,14 @@ const KYC_EXT = [
 
 const FAQS = [
   {
+    q: "¿Cómo puedo financiar la cuota de mi auto con ArriendoMiAutoYa?",
+    a: "Si estás pagando un crédito automotriz, puedes publicar tu auto los días que no lo usas (por ejemplo 8 a 12 días al mes). Con una tarifa promedio de $35.000/día, generas entre $350.000 y $800.000 líquidos mensuales, cubriendo la cuota mensual de tu crédito, seguro y mantenciones con respaldo legal y seguro con deducible de 15 UF.",
+  },
+  {
+    q: "¿Es más conveniente que un Rent a Car tradicional en Chile?",
+    a: "Sí, arrendar un auto particular en ArriendoMiAutoYa es hasta un 40% más económico que las agencias tradicionales de Rent a Car. Encuentras tarifas desde $19.000/día, sin mesón ni cobros ocultos de última hora, con seguro incluido y entrega coordinada cerca de tu comuna o aeropuerto.",
+  },
+  {
     q: "¿Cómo funciona el seguro y el deducible de 15 UF?",
     a: "Cada arriendo incluye un seguro con deducible de 15 UF. Ante un siniestro cubierto, ese deducible se reparte 50 / 50 entre el arrendatario y el dueño, y la aseguradora cubre el resto. El detalle queda escrito en el contrato digital de cada reserva.",
   },
@@ -223,8 +231,9 @@ export default function Home() {
   return (
     <>
       <Seo
-        title="arriendomiautoya — Arrienda autos directamente de sus dueños"
-        description="Arrienda autos particulares verificados desde la app. Seguro con deducible de 15 UF, verificación de identidad en 60 segundos y entrega con código QR."
+        title="Arriendo de Autos en Chile · Financia la Cuota de tu Auto"
+        description="Arrienda autos particulares desde $19.000/día o financia la cuota de tu auto ganando hasta $800.000/mes. Seguro con deducible 15 UF, sin mesón ni trámites en Chile."
+        keywords="arriendo de autos chile, financia tu auto, rent a car santiago, pagar cuota auto arriendo, rent a car economico chile, arriendo autos particulares, ganar dinero con mi auto, financiamiento de autos, arriendomiautoya"
         path="/"
         jsonLd={faqJsonLd}
       />
@@ -241,15 +250,15 @@ export default function Home() {
               <div className="flex flex-col gap-6">
                 <span className="inline-flex w-fit items-center gap-2 rounded-full border border-brand-line bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-tealInk">
                   <MapPin className="h-3.5 w-3.5" />
-                  Arriendo de autos entre personas
+                  Arriendo de autos en Chile · Financia la cuota de tu auto
                 </span>
                 <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-[3.6rem]">
                   El auto que necesitas, con las llaves de{" "}
                   <span className="bg-[linear-gradient(180deg,transparent_62%,#e8f5f0_62%)]">alguien de tu barrio.</span>
                 </h1>
                 <p className="max-w-lg text-lg text-[#63645f]">
-                  Reserva autos particulares verificados desde la app. Seguro con deducible de 15 UF,
-                  verificación de identidad en 60 segundos y entrega con código QR. Sin mesón, sin letra chica.
+                  Arrienda autos particulares desde $19.000/día o financia la cuota de tu auto ganando hasta $800.000/mes.
+                  Seguro con deducible de 15 UF, verificación de identidad en 60 segundos y entrega con código QR.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <Link href="#descargar-app">
@@ -309,9 +318,9 @@ export default function Home() {
         <section className="container mx-auto max-w-7xl px-4 pb-10 sm:px-6">
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-brand-line bg-brand-line md:grid-cols-4">
             {[
-              ["+500", "viajes completados*"],
+              ["+500", "viajes completados en Chile"],
               ["60 s", "verificación de identidad"],
-              ["100%", "pago por depósito bancario"],
+              ["Hasta $800K", "para pagar la cuota de tu auto"],
               ["0 $", "publicar tu auto"],
             ].map(([big, small]) => (
               <div key={small} className="bg-brand-soft px-7 py-6">
@@ -607,12 +616,11 @@ export default function Home() {
           <div className="container relative mx-auto max-w-6xl px-4 sm:px-6">
             <div className="grid items-center gap-14 lg:grid-cols-2">
               <div className="flex flex-col gap-5">
-                <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Para dueños</span>
-                <h2 className="font-display text-3xl font-bold leading-[1.1] sm:text-[2.7rem]">Tu auto puede pagar sus propias cuotas.</h2>
+                <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">• Financia tu auto</span>
+                <h2 className="font-display text-3xl font-bold leading-[1.1] sm:text-[2.7rem]">Tu auto puede pagar la cuota de su crédito automotriz.</h2>
                 <div className="accent-rule" />
                 <p className="max-w-md text-[17px] text-[#63645f]">
-                  Publicar es gratis. Tú fijas el precio y los días disponibles, y cobras por depósito bancario
-                  después de cada viaje. El 100% de los cargos por lavado son tuyos.
+                  Publicar es gratis. Si estás pagando un crédito o quieres rentabilizar tu vehículo, ponlo en arriendo los días que no lo usas. Con 10 a 12 días al mes cubres holgadamente tu cuota bancaria, seguro y mantenciones con respaldo legal.
                 </p>
                 <ul className="flex flex-col gap-3">
                   {[

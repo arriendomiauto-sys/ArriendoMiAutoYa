@@ -4,6 +4,7 @@ import {
   SITE_NAME,
   DEFAULT_TITLE,
   DEFAULT_DESCRIPTION,
+  DEFAULT_KEYWORDS,
   DEFAULT_OG_IMAGE,
   absoluteUrl,
 } from "../lib/seo";
@@ -12,19 +13,11 @@ import {
  * Componente SEO reutilizable.
  * Centraliza title, description, canonical, Open Graph, Twitter Card
  * y datos estructurados JSON-LD por página.
- *
- * Props:
- *  - title:        título de la pestaña / og:title
- *  - description:  meta description / og:description
- *  - path:         path canónico (por defecto la ruta actual sin query)
- *  - image:        URL (absoluta o relativa) de la imagen para compartir
- *  - noindex:      true para excluir la página de los buscadores
- *  - ogType:       "website" (default) | "article"
- *  - jsonLd:       objeto u array de objetos Schema.org
  */
 export default function Seo({
   title,
   description = DEFAULT_DESCRIPTION,
+  keywords = DEFAULT_KEYWORDS,
   path,
   image = DEFAULT_OG_IMAGE,
   noindex = false,
@@ -34,24 +27,29 @@ export default function Seo({
   const router = useRouter();
   const canonicalPath = path ?? router?.asPath ?? "/";
   const canonical = absoluteUrl(canonicalPath);
-  const fullTitle = title
-    ? `${title}${title.includes(SITE_NAME) ? "" : ` | ${SITE_NAME}`}`
-    : DEFAULT_TITLE;
-  const ogImage = image?.startsWith("http") ? image : absoluteUrl(image);
 
+  // Evita duplicar el nombre de la marca si ya está en el título o si el título es largo
+  let fullTitle = DEFAULT_TITLE;
+  if (title) {
+    const hasBrand = /arriendomiauto/i.test(title);
+    fullTitle = hasBrand || title.length > 45 ? title : `${title} | ${SITE_NAME}`;
+  }
+
+  const ogImage = image?.startsWith("http") ? image : absoluteUrl(image);
   const blocks = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [];
 
   return (
     <Head>
       <title>{fullTitle}</title>
       <meta name="description" content={description} />
+      {keywords && <meta name="keywords" content={keywords} />}
       <link rel="canonical" href={canonical} />
       {noindex ? (
         <meta name="robots" content="noindex, nofollow" />
       ) : (
         <meta
           name="robots"
-          content="index, follow, max-image-preview:large, max-snippet:-1"
+          content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
         />
       )}
 

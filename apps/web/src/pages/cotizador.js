@@ -145,8 +145,9 @@ export default function CotizadorPage() {
   return (
     <>
       <Seo
-        title="Cotizador Interactivo de Arriendo de Autos"
-        description="Calcula en tiempo real el valor total de tu arriendo con seguro 15 UF (50/50), kilometraje libre y hold de garantía en Los Ángeles, Biobío."
+        title="Cotizador de Arriendo de Autos en Chile · Precios Claros"
+        description="Calcula en tiempo real el valor total de tu arriendo desde $19.000/día con seguro 15 UF incluido y sin mesón en Santiago y todo Chile."
+        keywords="cotizador arriendo autos chile, rent a car precios chile, cotizar auto arriendo, rent a car barato santiago"
         path="/cotizador"
       />
 

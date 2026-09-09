@@ -37,8 +37,9 @@ export default function SimuladorDuenosPage() {
   return (
     <>
       <Seo
-        title="Simulador de Ingresos para Dueños de Autos"
-        description="Calcula cuánto dinero puedes ganar al mes arrendando tu auto en Los Ángeles. Simulación en tiempo real con comisiones transparentes y seguro protegido."
+        title="Simulador de Ingresos y Financiamiento de Autos · Paga tu Cuota"
+        description="Calcula cuánto dinero ganas al mes para pagar la cuota de tu crédito automotriz arrendando tu auto. Genera hasta $800.000/mes con seguro protegido en Chile."
+        keywords="simulador ingresos auto, financia tu auto, pagar cuota auto, rentabilidad arriendo auto chile, simulador arriendo vehiculo"
         path="/simulador-duenos"
       />
 
@@ -54,13 +55,13 @@ export default function SimuladorDuenosPage() {
           <div className="text-center max-w-2xl mx-auto space-y-3">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-line bg-brand-tealTint px-3.5 py-1 text-xs font-bold text-brand-tealInk">
               <TrendingUp className="h-3.5 w-3.5" />
-              SIMULADOR DE RENTABILIDAD
+              FINANCIAMIENTO & RENTABILIDAD
             </span>
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-brand-ink">
-              ¿Cuánto puedes ganar con tu auto?
+              ¿Cuánto puedes ganar para pagar tu auto?
             </h1>
             <p className="text-sm sm:text-base text-[#63645f]">
-              Ajusta los días al mes y tu tarifa estimada para calcular tus ingresos netos en Los Ángeles.
+              Ajusta los días al mes y tu tarifa estimada para calcular cuántos ingresos netos puedes generar y cubrir la cuota de tu auto en Chile.
             </p>
           </div>
 

@@ -19,7 +19,10 @@ import { MapSkeleton } from "./Skeleton";
  * (endpoint GET /autos).
  */
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_GOOGLE_MAPS_API_KEY || "";
+const API_KEY =
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+  process.env.NEXT_GOOGLE_MAPS_API_KEY ||
+  "AIzaSyDlTxzYR7A5vqKB4lCuvIdTyTBDfqwqrdU";
 const LIBRARIES = []; // constante estable: evita recargas del loader
 
 const DEFAULT_CENTER = { lat: -33.45, lng: -70.66 }; // Región Metropolitana
@@ -76,10 +79,47 @@ const tieneCoords = (a) =>
 const fmtCLP = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
 const fmtCorto = (n) => `$${Math.round(Number(n || 0) / 1000)}K`;
 
-function Aviso({ children }) {
+function OpenStreetMapFallback({ autos = [], userLocation, seleccionado, setSeleccionado, radioKm }) {
+  const centerLat = userLocation?.lat ?? (autos[0]?.latitud ?? -33.45);
+  const centerLng = userLocation?.lng ?? (autos[0]?.longitud ?? -70.66);
+  const delta = radioKm ? Math.min(1.2, radioKm / 35) : 0.5;
+  const bbox = `${(centerLng - delta).toFixed(4)},${(centerLat - delta * 0.7).toFixed(4)},${(centerLng + delta).toFixed(4)},${(centerLat + delta * 0.7).toFixed(4)}`;
+  const osmUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik`;
+
   return (
-    <div className="flex h-[380px] w-full items-center justify-center bg-brand-soft p-6 text-center text-sm text-[#63645f] sm:h-[520px]">
-      {children}
+    <div className="relative h-[380px] w-full overflow-hidden rounded-3xl bg-[#e8ece9] sm:h-[520px]">
+      <iframe
+        title="Mapa de autos disponibles"
+        src={osmUrl}
+        className="h-full w-full border-0"
+        loading="lazy"
+      />
+      <div className="pointer-events-none absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full border border-brand-line bg-white/95 px-3.5 py-1.5 text-xs font-semibold shadow-sm">
+        <span className="h-2 w-2 rounded-full bg-brand-teal" />
+        {autos.length} {autos.length === 1 ? "auto disponible" : "autos disponibles"}
+      </div>
+      {autos.length > 0 && (
+        <div className="absolute bottom-3 left-3 right-3 z-10 flex gap-2 overflow-x-auto pb-1">
+          {autos.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => setSeleccionado(a.id)}
+              className={`flex shrink-0 items-center gap-2 rounded-xl border bg-white px-3 py-2 text-left shadow-md transition-all ${
+                seleccionado === a.id ? "border-brand-teal ring-2 ring-brand-teal" : "border-brand-line hover:border-brand-ink"
+              }`}
+            >
+              <div className="text-xs">
+                <div className="font-bold text-brand-ink">{a.marca} {a.modelo}</div>
+                <div className="text-[11px] text-[#63645f]">{a.ubicacion_base || "Chile"}</div>
+              </div>
+              <span className="rounded-lg bg-brand-tealTint px-2 py-1 text-xs font-bold text-brand-tealInk">
+                {fmtCLP(a.tarifa_dia)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -99,7 +139,6 @@ export default function MapaAutos({ autos = [], activoId, userLocation = null, r
   const ajustarVista = useCallback(
     (map) => {
       if (!map) return;
-      // Con ubicación del usuario: se centra ahí y se encuadra el radio.
       if (userLocation) {
         map.setCenter({ lat: userLocation.lat, lng: userLocation.lng });
         map.setZoom(zoomParaRadio(radioKm));
@@ -111,9 +150,11 @@ export default function MapaAutos({ autos = [], activoId, userLocation = null, r
         map.setZoom(14);
         return;
       }
-      const bounds = new window.google.maps.LatLngBounds();
-      conCoords.forEach((a) => bounds.extend({ lat: a.latitud, lng: a.longitud }));
-      map.fitBounds(bounds, 64);
+      if (window.google?.maps?.LatLngBounds) {
+        const bounds = new window.google.maps.LatLngBounds();
+        conCoords.forEach((a) => bounds.extend({ lat: a.latitud, lng: a.longitud }));
+        map.fitBounds(bounds, 64);
+      }
     },
     [conCoords, userLocation, radioKm]
   );
@@ -126,7 +167,6 @@ export default function MapaAutos({ autos = [], activoId, userLocation = null, r
     [ajustarVista]
   );
 
-  // Reencuadrar cuando cambian los autos, la ubicación o el radio.
   useEffect(() => {
     if (mapRef.current) ajustarVista(mapRef.current);
   }, [ajustarVista]);
@@ -135,16 +175,27 @@ export default function MapaAutos({ autos = [], activoId, userLocation = null, r
     if (mapRef.current) ajustarVista(mapRef.current);
   }, [ajustarVista]);
 
-  if (!API_KEY) {
-    return <Aviso>Configura <code className="mx-1 rounded bg-white px-1 py-0.5 text-xs">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> para ver el mapa.</Aviso>;
+  if (loadError) {
+    return (
+      <OpenStreetMapFallback
+        autos={conCoords}
+        userLocation={userLocation}
+        seleccionado={seleccionado}
+        setSeleccionado={setSeleccionado}
+        radioKm={radioKm}
+      />
+    );
   }
-  if (loadError) return <Aviso>No se pudo cargar Google Maps.</Aviso>;
-  if (!isLoaded || (cargando && autos.length === 0)) return <MapSkeleton />;
+
+  if (!isLoaded || (cargando && autos.length === 0)) {
+    return <MapSkeleton />;
+  }
 
   return (
-    <div className="relative h-[380px] w-full sm:h-[520px]">
+    <div className="relative h-[380px] w-full min-h-[380px] sm:h-[520px]">
       <GoogleMap
-        mapContainerClassName="absolute inset-0"
+        mapContainerStyle={{ width: "100%", height: "100%", minHeight: "380px" }}
+        mapContainerClassName="w-full h-full absolute inset-0"
         center={userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : DEFAULT_CENTER}
         zoom={userLocation ? zoomParaRadio(radioKm) : DEFAULT_ZOOM}
         options={MAP_OPTIONS}
