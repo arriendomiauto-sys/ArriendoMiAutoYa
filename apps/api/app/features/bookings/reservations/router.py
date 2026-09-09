@@ -29,8 +29,20 @@ import uuid
 from app.core.validators import validar_disponibilidad_reserva
 from app.features.auth.onboarding.license_service import evaluar_licencia_usuario
 from app.services import tarjetas
+from app.features.payments import checkout_service
 
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
+
+
+def _con_desglose_pago(reserva: Reserva):
+    """
+    Adjunta a la reserva (atributos transitorios, no columnas) el desglose del
+    pago dual que BookingOut expone: `cobro` = {monto, neto, iva} a la tarjeta
+    de débito, `garantia` = {monto} del hold sobre la de crédito.
+    """
+    reserva.cobro = checkout_service.desglose_cobro(reserva.monto_cobro or 0)
+    reserva.garantia = {"monto": int(reserva.monto_hold or 0)}
+    return reserva
 
 @router.post("", response_model=BookingOut, summary="Crear una nueva solicitud de reserva (Cliente)")
 @limiter.limit("20/minute")
@@ -82,9 +94,16 @@ def crear_reserva(
             detail="El vehículo no se encuentra disponible para las fechas seleccionadas (ya cuenta con otra reserva activa)."
         )
 
-    # Calcular monto de hold
+    # Pago dual: `monto_cobro` (días × tarifa, IVA incl.) se cobra a una tarjeta
+    # de débito; `monto_hold` (garantía fija por categoría) se retiene en una de
+    # crédito. La reserva nace "pendiente_pago" y vive un rato (TTL) antes de
+    # expirar si no se paga.
     dias = PricingService.calcular_dias_reserva(payload.fecha_inicio, payload.fecha_fin)
-    monto_hold = PricingService.calcular_monto_hold_reserva(auto.tarifa_dia, dias)
+    monto_cobro = PricingService.calcular_monto_hold_reserva(auto.tarifa_dia, dias)
+    monto_hold = checkout_service.monto_garantia(config, auto.categoria)
+    expira_en = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
+        minutes=checkout_service.TTL_RESERVA_MINUTOS
+    )
 
     reserva_id = str(uuid.uuid4())
     contrato_url = f"/api/v1/reservas/{reserva_id}/contrato-pdf"
@@ -100,8 +119,10 @@ def crear_reserva(
         cliente_id=current_user.id,
         fecha_inicio=payload.fecha_inicio,
         fecha_fin=payload.fecha_fin,
-        estado="pendiente",
+        estado="pendiente_pago",
+        monto_cobro=monto_cobro,
         monto_hold=monto_hold,
+        expira_en=expira_en,
         lugar_entrega_acordado=payload.lugar_entrega_acordado,
         contrato_pdf_url=contrato_url
     )
@@ -139,7 +160,7 @@ def crear_reserva(
 
     db.commit()
     db.refresh(reserva)
-    return reserva
+    return _con_desglose_pago(reserva)
 
 @router.get("", response_model=List[BookingOut], summary="Listar reservas del usuario actual")
 def listar_reservas(
@@ -157,11 +178,12 @@ def listar_reservas(
     )
     if rol == "dueno":
         autos_ids = [a.id for a in current_user.autos]
-        return base.filter(Reserva.auto_id.in_(autos_ids)).all()
+        filas = base.filter(Reserva.auto_id.in_(autos_ids)).all()
     elif rol == "cliente":
-        return base.filter(Reserva.cliente_id == current_user.id).all()
+        filas = base.filter(Reserva.cliente_id == current_user.id).all()
     else:
-        return base.all()
+        filas = base.all()
+    return [_con_desglose_pago(r) for r in filas]
 
 def _verificar_acceso_reserva(reserva: Reserva, current_user: Usuario, db: Session):
     if "admin" in (current_user.roles_activos or []):
@@ -193,7 +215,7 @@ def obtener_reserva(
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
     _verificar_acceso_reserva(reserva, current_user, db)
-    return reserva
+    return _con_desglose_pago(reserva)
 
 # ============================================================================
 # Helper: arma el PDF del contrato para una reserva (lo usan el endpoint de

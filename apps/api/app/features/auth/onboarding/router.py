@@ -248,24 +248,19 @@ def completar_enrolamiento(
             detail={"motivo": detalle_duplicado, "categoria": "documento_duplicado"},
         )
 
-    # La tarjeta es requisito para operar y se pide acá, junto con los
-    # documentos, para que un problema no parta el flujo en dos.
-    if not payload.tarjeta_token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Necesitas registrar una tarjeta de crédito para completar tu cuenta. "
-                "Es la garantía con la que se retiene el hold y se cobran los cargos del arriendo."
-            ),
+    # El medio de pago YA NO se pide en el KYC: las tarjetas se agregan después
+    # desde "Mis tarjetas" (bóveda multi-tarjeta), con su propio cruce de
+    # titular. El KYC solo verifica identidad. Si por compatibilidad llega un
+    # `tarjeta_token` en el payload, se valida y se guarda igual.
+    resultado_tarjeta = None
+    if payload.tarjeta_token:
+        resultado_tarjeta = tarjetas.validar_tarjeta(
+            payload.tarjeta_token,
+            payload.tarjeta_ultimos4,
+            payload.tarjeta_marca,
+            titular=payload.tarjeta_titular,
+            nombre_cuenta=payload.nombre,
         )
-
-    resultado_tarjeta = tarjetas.validar_tarjeta(
-        payload.tarjeta_token,
-        payload.tarjeta_ultimos4,
-        payload.tarjeta_marca,
-        titular=payload.tarjeta_titular,
-        nombre_cuenta=payload.nombre,
-    )
 
     # Procesar documentos para calcular confianza.
     #
@@ -356,11 +351,12 @@ def completar_enrolamiento(
     current_user.es_residente_chile = payload.es_residente_chile
     current_user.fecha_inicio_residencia = payload.fecha_inicio_residencia
 
-    current_user.tarjeta_token = payload.tarjeta_token
-    current_user.tarjeta_ultimos4 = payload.tarjeta_ultimos4
-    current_user.tarjeta_marca = resultado_tarjeta["marca"]
-    current_user.tarjeta_estado = resultado_tarjeta["estado"]
-    current_user.tarjeta_titular = payload.tarjeta_titular
+    if resultado_tarjeta:
+        current_user.tarjeta_token = payload.tarjeta_token
+        current_user.tarjeta_ultimos4 = payload.tarjeta_ultimos4
+        current_user.tarjeta_marca = resultado_tarjeta["marca"]
+        current_user.tarjeta_estado = resultado_tarjeta["estado"]
+        current_user.tarjeta_titular = payload.tarjeta_titular
 
     if payload.email:
         current_user.email = payload.email
@@ -423,7 +419,7 @@ def completar_enrolamiento(
             f"Documento: {payload.licencia_url}"
         )
 
-    if resultado_tarjeta["estado"] == tarjetas.REVISION_MANUAL:
+    if resultado_tarjeta and resultado_tarjeta["estado"] == tarjetas.REVISION_MANUAL:
         problemas.append(f"Medio de pago: {resultado_tarjeta['motivo']}")
 
     if problemas:

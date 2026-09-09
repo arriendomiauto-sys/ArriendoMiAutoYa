@@ -15,6 +15,7 @@ from app.schemas.schemas import (
 from app.models.entities import Auto, Usuario, TicketSoporte, Calificacion
 from app.features.auth.login.service import get_current_user, get_optional_current_user
 from app.services import tarjetas
+from app.features.payments import checkout_service
 from app.features.vehicles.verification.car_doc_validator import CarDocValidator
 from app.core.limiter import limiter
 
@@ -38,6 +39,8 @@ def _sanear_auto_out(auto: Auto, current_user: Optional[Usuario] = None) -> Auto
     if auto.dueno:
         out.dueno_nombre = auto.dueno.nombre or "Anfitrión"
         out.dueno_foto_url = auto.dueno.foto_perfil_verificada_url or getattr(auto.dueno, "foto_perfil_url", None)
+    # Garantía estimada por categoría (sin config: usa los valores por defecto).
+    out.monto_garantia = checkout_service.monto_garantia(None, auto.categoria)
     return out
 
 def _adjuntar_calificaciones(db: Session, autos: List[Auto]) -> List[Auto]:

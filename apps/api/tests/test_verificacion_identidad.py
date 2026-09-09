@@ -152,11 +152,11 @@ def test_publicar_auto_guarda_specs_de_ficha(usuario_factory, auth_as):
     assert data["asientos"] == 5
 
 
-def test_reserva_nace_pendiente_hasta_pagar_el_hold(usuario_factory, auth_as, db_session):
+def test_reserva_nace_pendiente_pago_hasta_pagar(usuario_factory, auth_as, db_session):
     from app.models.entities import Auto
     dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
     auto = Auto(
-        dueno_id=dueno.id, marca="Kia", modelo="Rio", anio=2021,
+        dueno_id=dueno.id, marca="Kia", modelo="Rio", anio=2021, categoria="economico",
         patente="PEND-01", tarifa_dia=18000, estado="activo", ubicacion_base="Los Ángeles",
     )
     db_session.add(auto)
@@ -173,4 +173,11 @@ def test_reserva_nace_pendiente_hasta_pagar_el_hold(usuario_factory, auth_as, db
         },
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["estado"] == "pendiente"
+    data = resp.json()
+    # La reserva nace esperando el pago dual (cobro del arriendo + hold de garantía).
+    assert data["estado"] == "pendiente_pago"
+    assert data["monto_cobro"] == 18000 * 2
+    assert data["cobro"]["monto"] == 18000 * 2
+    assert data["cobro"]["neto"] + data["cobro"]["iva"] == data["cobro"]["monto"]
+    assert data["garantia"]["monto"] == 250000  # garantía default categoría "economico"
+    assert data["expira_en"] is not None

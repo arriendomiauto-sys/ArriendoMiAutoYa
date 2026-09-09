@@ -72,6 +72,47 @@ def crear_preferencia_simulada(referencia_externa: str, monto: int, return_url: 
     }
 
 
+def pagar_simulado(monto: int, capturar: bool = True, rechazar: bool = False) -> Dict[str, Any]:
+    """
+    Equivalente de `MercadoPagoService.crear_pago_con_tarjeta` sin salir a la
+    red, para el pago dual (cobro a débito + hold a crédito).
+
+    `capturar=False` deja el pago "retenido" (hold de garantía). `rechazar=True`
+    simula un rechazo del banco — lo usa el checkout para probar los caminos
+    de error (tarjeta terminada en 0000).
+    """
+    if rechazar:
+        logger.warning("[PAGOS SIMULADOS] Movimiento rechazado a propósito (monto=%s)", monto)
+        return {
+            "success": True,
+            "autorizada": False,
+            "capturado": False,
+            "retenido": False,
+            "estado": "rejected",
+            "detalle_estado": "cc_rejected_insufficient_amount",
+            "payment_id": f"{PREFIJO_TOKEN}{uuid.uuid4().hex[:16].upper()}",
+            "monto": monto,
+            "simulado": True,
+        }
+
+    payment_id = f"{PREFIJO_TOKEN}{uuid.uuid4().hex[:16].upper()}"
+    logger.warning(
+        "[PAGOS SIMULADOS] Movimiento aprobado sin pasarela real: monto=%s capturar=%s id=%s",
+        monto, capturar, payment_id,
+    )
+    return {
+        "success": True,
+        "autorizada": True,
+        "capturado": bool(capturar),
+        "retenido": not capturar,
+        "estado": "approved" if capturar else "authorized",
+        "detalle_estado": "accredited",
+        "payment_id": payment_id,
+        "monto": monto,
+        "simulado": True,
+    }
+
+
 def obtener_pago_simulado(payment_id: str, monto: int = 0, retenido: bool = False) -> Dict[str, Any]:
     """
     Equivalente de `MercadoPagoService.obtener_pago`: da el pago por aprobado,

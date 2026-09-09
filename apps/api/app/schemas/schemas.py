@@ -236,6 +236,24 @@ class TarjetaOut(BaseModel):
     tarjeta_marca: Optional[str] = None
     motivo: Optional[str] = None
 
+
+class TarjetaVaultCreate(BaseModel):
+    """
+    Alta de una tarjeta en la bóveda. La app tokeniza contra Mercado Pago y
+    manda solo el `card_token` (de un solo uso) más el `payment_method_id` que
+    devolvió `/payment_methods`. El número de la tarjeta nunca llega al backend.
+    """
+    card_token: str
+    payment_method_id: Optional[str] = None
+    device_id: Optional[str] = None
+
+
+class PagarReservaRequest(BaseModel):
+    """Elección de tarjetas en el checkout: débito para el cobro, crédito para la garantía."""
+    tarjeta_cobro_id: str
+    tarjeta_garantia_id: str
+    device_id: Optional[str] = None
+
 class PerfilBasicoUpdate(BaseModel):
     """
     Datos de perfil que NO son de identidad (no pasan por OCR/Módulo-11) —
@@ -503,6 +521,11 @@ class AutoOut(AutoBase):
     rating_promedio: Optional[float] = None
     rating_cantidad: int = 0
 
+    # Garantía (hold) que se retendrá al reservar, en CLP. Estimada por
+    # categoría — el monto final lo fija el checkout con la config de la
+    # plataforma. Lo llena el router, no es columna.
+    monto_garantia: Optional[int] = None
+
     # Filas anteriores a que la columna existiera pueden traer NULL (ver
     # app/core/schema_sync.py). Con el campo tipado `bool` a secas eso
     # tumbaba GET /autos entero con un 500 de validación de respuesta.
@@ -688,6 +711,14 @@ class BookingOut(BaseModel):
     fecha_fin: datetime
     estado: str
     monto_hold: int
+    monto_cobro: int = 0
+    expira_en: Optional[datetime] = None
+    # Desglose del pago dual. Los llena el router al serializar (no son
+    # columnas): `cobro` = lo que se cobra hoy a la tarjeta de débito
+    # (`{monto, neto, iva}`), `garantia` = el hold sobre la de crédito
+    # (`{monto}`).
+    cobro: Optional[Dict[str, int]] = None
+    garantia: Optional[Dict[str, int]] = None
     cargo_limpieza_clp: int = 0
     cargo_combustible_clp: int = 0
     cargo_km_extra_clp: int = 0

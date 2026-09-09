@@ -89,6 +89,9 @@ class Usuario(Base):
     # seguridad debe coincidir con el titular de la cuenta (`nombre`, viene de
     # la cédula) — se guarda para que soporte pueda auditar qué se declaró.
     tarjeta_titular = Column(String, nullable=True)
+    # Id del `customer` en el vault de Mercado Pago. Se crea la primera vez que
+    # el usuario guarda una tarjeta y agrupa todas sus tarjetas guardadas allá.
+    mp_customer_id = Column(String, nullable=True)
 
     # Programa de invitación. `codigo_referido` es el código propio para
     # compartir (se genera perezosamente si viene NULL — ver
@@ -105,6 +108,45 @@ class Usuario(Base):
     autos = relationship("Auto", back_populates="dueno", foreign_keys="Auto.dueno_id")
     reservas_cliente = relationship("Reserva", back_populates="cliente", foreign_keys="Reserva.cliente_id")
     tickets = relationship("TicketSoporte", back_populates="usuario")
+    tarjetas = relationship("Tarjeta", back_populates="usuario", cascade="all, delete-orphan")
+
+
+class Tarjeta(Base):
+    """
+    Tarjeta guardada del usuario (bóveda multi-tarjeta en Mercado Pago).
+
+    El usuario puede tener varias: el cobro del arriendo va a una de **débito**
+    y la garantía (hold) a una de **crédito**. El `tipo` y el `titular` los
+    define Mercado Pago al tokenizar — no se confía en lo que declare la app.
+    Nunca se guarda el número: solo el `mp_card_id` del vault y los últimos
+    cuatro dígitos.
+    """
+    __tablename__ = "tarjetas"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
+
+    # Referencias en el vault de Mercado Pago.
+    mp_customer_id = Column(String, nullable=True)
+    mp_card_id = Column(String, nullable=True)
+
+    marca = Column(String, nullable=True)        # visa | mastercard | amex | diners | otra
+    ultimos4 = Column(String, nullable=True)
+    vencimiento = Column(String, nullable=True)  # "MM/AA"
+    tipo = Column(String, nullable=False)        # "credito" | "debito"
+    titular = Column(String, nullable=True)
+    # validada | requiere_revision_manual | rechazada
+    estado = Column(String, default="validada", nullable=False)
+
+    # Una por columna: la tarjeta preferida para el cobro y la preferida para
+    # la garantía pueden ser distintas.
+    predeterminada_cobro = Column(Boolean, default=False)
+    predeterminada_garantia = Column(Boolean, default=False)
+
+    creada_en = Column(DateTime, default=utc_now, nullable=False)
+
+    usuario = relationship("Usuario", back_populates="tarjetas")
+
 
 class Auto(Base):
     __tablename__ = "autos"
@@ -168,8 +210,20 @@ class Reserva(Base):
     cliente_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
     fecha_inicio = Column(DateTime, nullable=False)
     fecha_fin = Column(DateTime, nullable=False)
-    estado = Column(String, default="pendiente") # pendiente, confirmada, en_curso, finalizada, cancelada, disputada
+    estado = Column(String, default="pendiente") # pendiente, pendiente_pago, confirmada, en_curso, finalizada, cancelada, disputada
+    # `monto_cobro` = días × tarifa_dia (IVA incl.), se COBRA a la tarjeta de
+    # débito. `monto_hold` = garantía fija por categoría, se RETIENE (hold) en
+    # la tarjeta de crédito. Son dos movimientos distintos (ver el pago dual).
+    monto_cobro = Column(Integer, default=0) # CLP
     monto_hold = Column(Integer, default=0) # CLP
+    # TTL de la reserva mientras está en "pendiente_pago": si no se paga antes
+    # de esta fecha, se libera el auto y la reserva pasa a "cancelada".
+    expira_en = Column(DateTime, nullable=True)
+    # Tarjetas elegidas en el checkout (bóveda). Se guardan para poder
+    # reintentar el pago de una reserva pendiente y para bloquear el borrado
+    # de una tarjeta que está respaldando un arriendo vivo.
+    tarjeta_cobro_id = Column(String, ForeignKey("tarjetas.id"), nullable=True)
+    tarjeta_garantia_id = Column(String, ForeignKey("tarjetas.id"), nullable=True)
     cargo_limpieza_clp = Column(Integer, default=0) # CLP (multa por devolución sucia)
     cargo_combustible_clp = Column(Integer, default=0) # CLP (estanque devuelto incompleto)
     cargo_km_extra_clp = Column(Integer, default=0) # CLP (exceso de kilometraje)
@@ -473,6 +527,18 @@ class ConfiguracionPlataforma(Base):
         "suv": {"base": 80000, "min": 45000},
         "camioneta": {"base": 95000, "min": 55000},
         "premium": {"base": 180000, "min": 80000},
+    })
+
+    # Garantía (hold sobre la tarjeta de crédito) fija por categoría de
+    # vehículo, en CLP. Editable desde el panel (Configuración → "Garantía por
+    # categoría"). Si una categoría no está acá, el checkout usa el default de
+    # `catalogo_garantias.GARANTIA_CATEGORIA_DEFECTO`.
+    garantia_categoria_clp = Column(JSON, default=lambda: {
+        "economico": 250000,
+        "sedan": 350000,
+        "suv": 500000,
+        "camioneta": 600000,
+        "premium": 1000000,
     })
 
     actualizado_en = Column(DateTime, default=utc_now, onupdate=utc_now)

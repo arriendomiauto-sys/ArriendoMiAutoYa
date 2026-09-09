@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, Body, HTTPException
+from fastapi import APIRouter, Depends, Body, HTTPException, Response, status
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.entities import Usuario
-from app.schemas.schemas import UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate, TarjetaUpdate, TarjetaOut, CodigoReferidoUpdate
+from app.schemas.schemas import (
+    UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate, TarjetaUpdate, TarjetaOut,
+    CodigoReferidoUpdate, TarjetaVaultCreate,
+)
 from app.features.auth.login.service import get_current_user
 from app.services import tarjetas, referidos
+from app.features.payments import wallet_service
 from app.features.system.storage.service import StorageService
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
@@ -94,6 +98,53 @@ def actualizar_tarjeta(
         tarjeta_marca=current_user.tarjeta_marca,
         motivo=resultado["motivo"],
     )
+
+# ============================================================================
+# Bóveda de tarjetas (multi-tarjeta). Reemplaza a PUT /me/tarjeta para el
+# flujo nuevo: el usuario guarda varias y en el checkout elige débito (cobro)
+# y crédito (garantía).
+# ============================================================================
+@router.get("/me/tarjetas", summary="Listar las tarjetas guardadas del usuario")
+def listar_tarjetas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    return {"tarjetas": [wallet_service.serializar(t) for t in wallet_service.listar(db, current_user)]}
+
+
+@router.post("/me/tarjetas", status_code=status.HTTP_201_CREATED, summary="Guardar una tarjeta en la bóveda")
+def agregar_tarjeta(
+    payload: TarjetaVaultCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    # Sin identidad verificada no hay nombre contra el cual cruzar el titular.
+    if current_user.estado_documentos != "verificado":
+        raise HTTPException(status_code=403, detail="Verifica tu identidad antes de registrar una tarjeta.")
+    try:
+        tarjeta = wallet_service.agregar(
+            db, current_user,
+            card_token=payload.card_token,
+            payment_method_id=payload.payment_method_id,
+            device_id=payload.device_id,
+        )
+    except wallet_service.WalletError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.as_detail())
+    return {"tarjeta": wallet_service.serializar(tarjeta)}
+
+
+@router.delete("/me/tarjetas/{tarjeta_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Eliminar una tarjeta de la bóveda")
+def eliminar_tarjeta(
+    tarjeta_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    try:
+        wallet_service.eliminar(db, current_user, tarjeta_id)
+    except wallet_service.WalletError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.as_detail())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 
 @router.put(
     "/me/perfil-basico",

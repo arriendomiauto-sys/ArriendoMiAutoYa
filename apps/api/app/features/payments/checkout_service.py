@@ -1,0 +1,253 @@
+"""
+Checkout de la reserva: pago dual (cobro del arriendo + hold de garantía).
+
+- El **arriendo** (días × tarifa, IVA incl.) se **cobra** a una tarjeta de
+  **débito**.
+- La **garantía** es un **hold** (autorización sin captura) sobre una tarjeta
+  de **crédito**, con monto fijo por categoría de vehículo.
+
+El movimiento es atómico para el usuario: si el cobro falla después de tomar
+el hold, el hold se libera y la reserva queda igual que antes ("pendiente_pago").
+"""
+import logging
+import uuid
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from sqlalchemy.orm import Session
+
+from app.models.entities import Pago, Reserva, Tarjeta, Usuario
+from app.features.payments import card_vault
+from app.features.payments.mercadopago_service import MercadoPagoService
+from app.features.communications.notifications.service import crear_notificacion
+from app.services import pagos_simulados
+
+logger = logging.getLogger(__name__)
+
+# IVA Chile. `monto_cobro` se guarda con IVA incluido; el desglose es informativo.
+IVA_PCT = 0.19
+
+# Garantía por categoría cuando la plataforma no la tiene configurada en
+# ConfiguracionPlataforma.garantia_categoria_clp.
+GARANTIA_CATEGORIA_DEFECTO: Dict[str, int] = {
+    "economico": 250000,
+    "sedan": 350000,
+    "suv": 500000,
+    "camioneta": 600000,
+    "premium": 1000000,
+}
+GARANTIA_FALLBACK_CLP = 350000
+
+# Minutos que vive una reserva en "pendiente_pago" antes de expirar.
+TTL_RESERVA_MINUTOS = 30
+
+
+class CheckoutError(Exception):
+    """Falla de negocio del checkout. `http_status`, `codigo` y `campo` estables."""
+
+    def __init__(self, http_status: int, codigo: str, mensaje: str, campo: Optional[str] = None):
+        super().__init__(mensaje)
+        self.http_status = http_status
+        self.codigo = codigo
+        self.mensaje = mensaje
+        self.campo = campo
+
+    def as_detail(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {"codigo": self.codigo, "mensaje": self.mensaje}
+        if self.campo:
+            d["campo"] = self.campo
+        return d
+
+
+# ===========================================================================
+# Montos
+# ===========================================================================
+def desglose_cobro(monto_total_iva_incl: int) -> Dict[str, int]:
+    """`{monto, neto, iva}` a partir del total con IVA incluido."""
+    monto = int(monto_total_iva_incl or 0)
+    neto = round(monto / (1 + IVA_PCT))
+    return {"monto": monto, "neto": int(neto), "iva": monto - int(neto)}
+
+
+def monto_garantia(config: Any, categoria: Optional[str]) -> int:
+    """Garantía fija (hold) para la categoría del auto, en CLP."""
+    tabla = getattr(config, "garantia_categoria_clp", None) or {}
+    if not isinstance(tabla, dict):
+        tabla = {}
+    cat = (categoria or "").strip().lower()
+    if cat in tabla:
+        return int(tabla[cat])
+    if cat in GARANTIA_CATEGORIA_DEFECTO:
+        return GARANTIA_CATEGORIA_DEFECTO[cat]
+    return GARANTIA_FALLBACK_CLP
+
+
+def _ahora() -> datetime:
+    return datetime.utcnow()
+
+
+# ===========================================================================
+# Movimientos contra la pasarela
+# ===========================================================================
+def _mover(tarjeta: Tarjeta, usuario: Usuario, monto: int, capturar: bool, ref: str) -> Dict[str, Any]:
+    """Cobra (`capturar=True`) o retiene un hold (`capturar=False`) sobre `tarjeta`."""
+    if pagos_simulados.pagos_simulados_activos():
+        # Convención de pruebas: una tarjeta terminada en 0000 siempre rechaza.
+        rechazar = (tarjeta.ultimos4 or "") == "0000"
+        return pagos_simulados.pagar_simulado(monto, capturar=capturar, rechazar=rechazar)
+
+    token = card_vault.token_para_movimiento(tarjeta.mp_customer_id, tarjeta.mp_card_id)
+    if not token:
+        return {"autorizada": False, "estado": "error", "detalle_estado": "sin_token", "success": False}
+
+    return MercadoPagoService.crear_pago_con_tarjeta(
+        token_tarjeta=token,
+        monto=monto,
+        descripcion=("Garantía de arriendo" if not capturar else "Arriendo de vehículo"),
+        email_pagador=usuario.email,
+        referencia_externa=ref,
+        capturar=capturar,
+    )
+
+
+def _liberar(payment_id: Optional[str]) -> None:
+    """Suelta un hold ya tomado (rollback cuando el cobro posterior falla)."""
+    if not payment_id or pagos_simulados.es_pago_simulado(payment_id):
+        return
+    try:
+        MercadoPagoService.liberar_hold(payment_id)
+    except Exception as e:  # noqa: BLE001
+        logger.error("[CHECKOUT] No se pudo liberar el hold %s tras un cobro fallido: %s", payment_id, e)
+
+
+# ===========================================================================
+# Checkout
+# ===========================================================================
+def _tarjeta_de(db: Session, usuario: Usuario, tarjeta_id: str) -> Optional[Tarjeta]:
+    return (
+        db.query(Tarjeta)
+        .filter(Tarjeta.id == tarjeta_id, Tarjeta.usuario_id == usuario.id)
+        .first()
+    )
+
+
+def procesar_pago(
+    db: Session,
+    reserva: Reserva,
+    usuario: Usuario,
+    tarjeta_cobro_id: str,
+    tarjeta_garantia_id: str,
+    device_id: Optional[str] = None,  # noqa: ARG001 — plumbing MP fingerprint pendiente
+) -> Dict[str, Any]:
+    """
+    Ejecuta el pago dual de la reserva. Devuelve `{estado: "confirmada"}` o
+    `{estado: "pendiente", motivo, expira_en}`. Lanza `CheckoutError` en los
+    caminos de error (tarjeta inválida, sin cupo, cobro rechazado, expirada).
+    """
+    if reserva.estado == "confirmada":
+        return {"estado": "confirmada"}
+    if reserva.estado != "pendiente_pago":
+        raise CheckoutError(409, "ESTADO_INVALIDO", "La reserva no está esperando pago.")
+
+    if reserva.expira_en and _ahora() > reserva.expira_en:
+        reserva.estado = "cancelada"
+        db.commit()
+        raise CheckoutError(409, "RESERVA_EXPIRADA", "La reserva expiró. Vuelve a solicitarla.")
+
+    # El contrato se firma ANTES de pagar (al menos por el arrendatario).
+    if "arrendatario" not in {f.rol for f in reserva.firmas}:
+        raise CheckoutError(409, "CONTRATO_NO_FIRMADO", "Firma el contrato antes de pagar.")
+
+    tc = _tarjeta_de(db, usuario, tarjeta_cobro_id)
+    if not tc or tc.tipo != "debito" or tc.estado != "validada":
+        raise CheckoutError(402, "TARJETA_TIPO_INVALIDO",
+                            "El arriendo se cobra a una tarjeta de débito validada.", campo="cobro")
+    tg = _tarjeta_de(db, usuario, tarjeta_garantia_id)
+    if not tg or tg.tipo != "credito" or tg.estado != "validada":
+        raise CheckoutError(402, "TARJETA_TIPO_INVALIDO",
+                            "La garantía se retiene en una tarjeta de crédito validada.", campo="garantia")
+
+    monto_cobro = int(reserva.monto_cobro or 0)
+    monto_hold = int(reserva.monto_hold or 0)
+    ref_base = f"{reserva.id[:8]}-{uuid.uuid4().hex[:6]}"
+
+    # --- Paso 1: hold de la garantía (autorización sin captura) --------------
+    res_hold = _mover(tg, usuario, monto_hold, capturar=False, ref=f"HOLD-{ref_base}")
+    if not res_hold.get("autorizada"):
+        raise CheckoutError(402, "SIN_CUPO",
+                            "Tu tarjeta de crédito no tiene cupo para la garantía.", campo="garantia")
+
+    # --- Paso 2: cobro del arriendo ----------------------------------------
+    res_cobro = _mover(tc, usuario, monto_cobro, capturar=True, ref=f"COBRO-{ref_base}")
+
+    if res_cobro.get("estado") == "pending":
+        # Cobro en revisión del banco: se deja la garantía tomada y la reserva
+        # a la espera; el webhook / reintento la confirma.
+        _registrar_pago(db, reserva, usuario, "hold_reserva", monto_hold, "retenido", res_hold.get("payment_id"))
+        _registrar_pago(db, reserva, usuario, "cobro_arriendo", monto_cobro, "pendiente", res_cobro.get("payment_id"))
+        reserva.tarjeta_cobro_id = tc.id
+        reserva.tarjeta_garantia_id = tg.id
+        db.commit()
+        return {
+            "estado": "pendiente",
+            "motivo": "El cobro quedó en revisión de tu banco. Te avisamos apenas se acredite.",
+            "expira_en": reserva.expira_en.isoformat() if reserva.expira_en else None,
+        }
+
+    if not res_cobro.get("autorizada"):
+        _liberar(res_hold.get("payment_id"))
+        raise CheckoutError(402, "COBRO_RECHAZADO",
+                            _motivo_rechazo(res_cobro), campo="cobro")
+
+    # --- Éxito: se persiste todo junto -----------------------------------
+    _registrar_pago(db, reserva, usuario, "hold_reserva", monto_hold, "retenido", res_hold.get("payment_id"))
+    _registrar_pago(db, reserva, usuario, "cobro_arriendo", monto_cobro, "capturado", res_cobro.get("payment_id"))
+    reserva.estado = "confirmada"
+    reserva.tarjeta_cobro_id = tc.id
+    reserva.tarjeta_garantia_id = tg.id
+    db.commit()
+
+    _notificar_confirmada(db, reserva)
+    return {"estado": "confirmada"}
+
+
+def _registrar_pago(db, reserva, usuario, tipo, monto, estado, payment_id) -> None:
+    db.add(Pago(
+        reserva_id=reserva.id,
+        usuario_id=usuario.id,
+        tipo=tipo,
+        monto=int(monto or 0),
+        estado=estado,
+        referencia_pago=str(payment_id) if payment_id else None,
+    ))
+    db.flush()
+
+
+def _motivo_rechazo(res: Dict[str, Any]) -> str:
+    detalle = (res.get("detalle_estado") or "").lower()
+    mapa = {
+        "cc_rejected_insufficient_amount": "Tu tarjeta de débito no tiene saldo suficiente.",
+        "cc_rejected_bad_filled_security_code": "El código de seguridad de la tarjeta es incorrecto.",
+        "cc_rejected_high_risk": "Tu banco rechazó el cobro por seguridad. Prueba con otra tarjeta.",
+        "cc_rejected_call_for_authorize": "Tu banco necesita que autorices este monto. Llámalos y reintenta.",
+    }
+    return mapa.get(detalle, "No se pudo cobrar el arriendo. No se retuvo ninguna garantía.")
+
+
+def _notificar_confirmada(db: Session, reserva: Reserva) -> None:
+    auto = reserva.auto
+    nombre_auto = f"{auto.marca} {auto.modelo}" if auto else "tu vehículo"
+    if auto:
+        crear_notificacion(
+            db, usuario_id=auto.dueno_id, tipo="reserva",
+            titulo="Nueva reserva confirmada",
+            mensaje=f"Te reservaron el {nombre_auto} y ya se pagó. Coordina la entrega.",
+            entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
+        )
+    crear_notificacion(
+        db, usuario_id=reserva.cliente_id, tipo="reserva",
+        titulo="Reserva confirmada",
+        mensaje=f"Tu reserva del {nombre_auto} quedó confirmada y la garantía retenida.",
+        entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
+    )
+    db.commit()

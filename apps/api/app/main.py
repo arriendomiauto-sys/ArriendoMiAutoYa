@@ -34,6 +34,7 @@ from app.features.bookings.delivery.router import router as delivery_router
 
 # Payments
 from app.features.payments.router import router as payments_router
+from app.features.payments.checkout_router import router as checkout_router
 
 # Communications
 from app.features.communications.messages.router import router as messages_router
@@ -157,6 +158,7 @@ app.include_router(support_router, prefix=api_prefix)
 app.include_router(admin_router, prefix=api_prefix)
 app.include_router(reviews_router, prefix=api_prefix)
 app.include_router(payments_router, prefix=api_prefix)
+app.include_router(checkout_router, prefix=api_prefix)
 app.include_router(storage_router, prefix=api_prefix)
 app.include_router(users_router, prefix=api_prefix)
 app.include_router(fleet_router, prefix=api_prefix)
