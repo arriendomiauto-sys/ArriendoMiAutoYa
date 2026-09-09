@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     ADMIN_PANEL_ORIGIN: Optional[str] = "https://admin.arriendomiautoya.cl"
     PAGO_DEFAULT_RETURN_URL: str = "https://arriendomiautoya.cl/pago/retorno"
 
-    # CORS: orígenes explícitos y seguros permitidos en producción y desarrollo
+    # CORS: orígenes explícitos y seguros permitidos en producción (solo dominios de plataforma)
     CORS_ORIGINS: List[str] = [
         "https://arriendomiautoya.cl",
         "https://www.arriendomiautoya.cl",
@@ -123,22 +123,6 @@ class Settings(BaseSettings):
         "https://app.arriendatuauto.com",
         "https://admin.arriendatuauto.com",
         "https://rgxiyidijtoazcrmijly.supabase.co",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:5173",
-        "http://localhost:8000",
-        "http://localhost:8080",
-        "http://localhost:8081",
-        "http://localhost:19006",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3002",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8080",
-        "http://127.0.0.1:8081",
-        "http://127.0.0.1:19006",
     ]
 
     # Rate limiting (slowapi/limits). "memory://" alcanza para un solo
@@ -157,9 +141,8 @@ class Settings(BaseSettings):
         origins = list(self.CORS_ORIGINS)
         if self.ADMIN_PANEL_ORIGIN and self.ADMIN_PANEL_ORIGIN not in origins:
             origins.append(self.ADMIN_PANEL_ORIGIN)
-        if self.ENVIRONMENT == "production":
-            origins = [o for o in origins if not ("localhost" in o or "127.0.0.1" in o)]
-        return origins
+        # Solo orígenes seguros de la plataforma; rechazar estrictamente localhost y 127.0.0.1
+        return [o for o in origins if not ("localhost" in o or "127.0.0.1" in o)]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

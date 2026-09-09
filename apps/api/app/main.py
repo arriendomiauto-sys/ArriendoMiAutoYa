@@ -111,26 +111,16 @@ app.add_middleware(RequestSizeLimitMiddleware)
 # (RentACar-admin, proyecto aparte) se agrega por separado vía
 # ADMIN_PANEL_ORIGIN — no vive en CORS_ORIGINS porque es un cliente
 # administrativo distinto, no una app de cara al público.
+# CORS: solo orígenes oficiales de producción (ver settings.allowed_cors_origins).
 _cors_origins = settings.allowed_cors_origins
 
-# En desarrollo, permitir dinámicamente localhost, 127.0.0.1 y cualquier IP de red local en cualquier puerto
-if settings.ENVIRONMENT == "development":
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors_origins,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)(:\d+)?$",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # Servir archivos estáticos locales de respaldo (Uploads).
