@@ -1,5 +1,6 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "https://arriendomiautoya.onrender.com/api/v1"
+).replace(/\/+$/, "");
 
 const STORAGE_KEY = "rentacar_admin_session";
 
