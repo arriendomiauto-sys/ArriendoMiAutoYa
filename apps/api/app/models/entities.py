@@ -37,6 +37,9 @@ class Usuario(Base):
     metodo_verificacion = Column(String, nullable=True)  # "didit" | "casero" | "manual_admin"
     antecedentes_estado = Column(String, nullable=True)  # "limpio" | "revision" | "bloqueado"
     roles_activos = Column(JSON, default=lambda: ["cliente"]) # ["dueno", "cliente", "manager", "admin"]
+    # Cuenta suspendida por un admin desde el panel: no puede iniciar sesión de
+    # negocio (reservar, publicar). Se levanta desde el mismo panel.
+    suspendido = Column(Boolean, default=False)
     sucursal_id = Column(String, ForeignKey("sucursales.id"), nullable=True)
     fecha_registro = Column(DateTime, default=utc_now)
     cuenta_bancaria = Column(JSON, nullable=True) # {"banco","tipo_cuenta","numero","titular","rut"} — solo dueños

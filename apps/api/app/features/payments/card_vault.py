@@ -14,6 +14,7 @@ Modo simulado (`pagos_simulados_activos()`): no se sale a la red. El tipo de
 tarjeta (débito / crédito) y los últimos 4 dígitos se leen del propio token
 falso `SIMULADO-DEBITO-1234` / `SIMULADO-CREDITO-1234`.
 """
+import json
 import logging
 import re
 import uuid
@@ -196,7 +197,24 @@ def registrar_tarjeta(
         cuerpo["payment_method_id"] = payment_method_id
     alta = _pedir("POST", f"/v1/customers/{customer_id}/cards", json=cuerpo)
     if not alta["success"]:
-        raise VaultError("TARJETA_INVALIDA", "La tarjeta no se pudo validar con el banco. Prueba con otra.")
+        mensaje_error = "La tarjeta no se pudo validar con el banco. Prueba con otra."
+        err_raw = alta.get("error")
+        if isinstance(err_raw, str):
+            try:
+                err_json = json.loads(err_raw)
+                causes = err_json.get("cause") or []
+                codigos = [str(c.get("code")) for c in causes if isinstance(c, dict) and c.get("code")]
+                if any(c in codigos for c in ("205", "E301")):
+                    mensaje_error = "El número de tarjeta es inválido o no pudimos procesarlo."
+                elif any(c in codigos for c in ("208", "325", "326")):
+                    mensaje_error = "La fecha de vencimiento es inválida."
+                elif "E302" in codigos:
+                    mensaje_error = "El código de seguridad (CVV) es inválido."
+                elif err_json.get("message") and "not found" in str(err_json.get("message")).lower():
+                    mensaje_error = "El token de la tarjeta expiró o es inválido. Intenta registrarla nuevamente."
+            except Exception:
+                pass
+        raise VaultError("TARJETA_INVALIDA", mensaje_error)
 
     datos = _normalizar_tarjeta_mp(alta["data"])
     datos["mp_customer_id"] = customer_id

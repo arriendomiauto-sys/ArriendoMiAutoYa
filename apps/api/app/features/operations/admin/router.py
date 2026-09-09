@@ -10,6 +10,8 @@ from app.schemas.schemas import (
 from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.auth.login.service import get_current_user
 from app.features.system.storage.service import StorageService
+from app.features.operations.admin.reservations_router import router as reservations_router
+from app.features.operations.admin.users_router import router as users_router
 
 router = APIRouter(prefix="/admin", tags=["Panel Admin & Financiero"])
 
@@ -316,3 +318,85 @@ def revisar_documentos_auto(
         dueno_email=auto.dueno.email if auto.dueno else None,
         dueno_telefono=auto.dueno.telefono if auto.dueno else None,
     )
+
+
+@router.get("/liquidaciones", summary="Listar liquidaciones a dueños (Admin)")
+def listar_liquidaciones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
+    
+    pagos = (
+        db.query(Pago)
+        .filter(Pago.tipo == "liquidacion_dueno")
+        .order_by(Pago.timestamp.desc())
+        .all()
+    )
+    resultado = []
+    for p in pagos:
+        dueno = db.query(Usuario).filter(Usuario.id == p.usuario_id).first()
+        resultado.append({
+            "id": p.id,
+            "reserva_id": p.reserva_id,
+            "monto": p.monto,
+            "estado": p.estado,
+            "timestamp": p.timestamp,
+            "dueno_nombre": dueno.nombre if dueno else "Dueño",
+            "dueno_rut": dueno.rut if dueno else None,
+            "cuenta_bancaria": dueno.cuenta_bancaria if dueno else None,
+        })
+    return resultado
+
+
+@router.post("/liquidaciones/{liquidacion_id}/pagar", summary="Marcar liquidación a dueño como pagada (Admin)")
+def marcar_liquidacion_pagada(
+    liquidacion_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
+    
+    pago = db.query(Pago).filter(Pago.id == liquidacion_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Liquidación no encontrada.")
+    
+    pago.estado = "pagado"
+    db.commit()
+    db.refresh(pago)
+    return {"id": pago.id, "estado": pago.estado}
+
+
+@router.get("/pagos", summary="Listado de transacciones de la plataforma (Admin)")
+def listar_pagos_admin(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
+    
+    pagos = db.query(Pago).order_by(Pago.timestamp.desc()).limit(limit).all()
+    resultado = []
+    for p in pagos:
+        u = db.query(Usuario).filter(Usuario.id == p.usuario_id).first()
+        resultado.append({
+            "id": p.id,
+            "reserva_id": p.reserva_id,
+            "tipo": p.tipo,
+            "monto": p.monto,
+            "estado": p.estado,
+            "referencia_pago": p.referencia_pago,
+            "timestamp": p.timestamp,
+            "usuario_nombre": u.nombre if u else "Usuario",
+            "usuario_email": u.email if u else None,
+        })
+    return resultado
+
+
+# Montar sub-routers de reservas y usuarios para el panel
+router.include_router(reservations_router)
+router.include_router(users_router)
+

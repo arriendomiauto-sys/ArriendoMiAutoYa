@@ -124,7 +124,8 @@ def agregar(
             marca_hint=marca_hint,
         )
     except card_vault.VaultError as e:
-        raise WalletError(422, e.codigo, e.mensaje)
+        extra = {"titular_detectado": e.titular_detectado} if getattr(e, "titular_detectado", None) else {}
+        raise WalletError(422, e.codigo, e.mensaje, **extra)
 
     if datos.get("tipo") not in ("credito", "debito"):
         raise WalletError(
@@ -139,7 +140,7 @@ def agregar(
     if titular and usuario.nombre and not nombres_coinciden(titular, usuario.nombre):
         raise WalletError(
             422, "NOMBRE_NO_COINCIDE",
-            "El nombre del titular de la tarjeta no coincide con tu nombre registrado. "
+            f"El titular de la tarjeta ('{titular}') no coincide con tu nombre registrado ('{usuario.nombre}'). "
             "Por seguridad solo se aceptan tarjetas a tu propio nombre.",
             titular_detectado=titular,
         )

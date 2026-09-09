@@ -895,6 +895,19 @@ class PlatformConfigOut(BaseModel):
     edad_minima_arriendo: int = 21
     # { "<categoria>": {"base": int, "min": int} } — tarifas por categoría.
     tarifas_categoria: Optional[Dict[str, Dict[str, int]]] = {}
+    # { "<categoria>": CLP } — garantía (hold) fija por categoría de vehículo.
+    garantia_categoria_clp: Optional[Dict[str, int]] = {}
+    # Programa de invitación (tramos decrecientes).
+    bono_invitado_pct_t1: Optional[float] = None
+    bono_invitado_pct_t2: Optional[float] = None
+    bono_invitado_pct_t3: Optional[float] = None
+    bono_invitado_dias_t1: Optional[int] = None
+    bono_invitado_dias_t2: Optional[int] = None
+    bono_invitado_dias_t3: Optional[int] = None
+    bono_referente_pct_t1: Optional[float] = None
+    bono_referente_pct_t2: Optional[float] = None
+    bono_referente_dias_t1: Optional[int] = None
+    bono_referente_dias_t2: Optional[int] = None
     actualizado_en: Optional[datetime] = None
 
 class PlatformConfigUpdate(BaseModel):
@@ -910,6 +923,17 @@ class PlatformConfigUpdate(BaseModel):
     dias_cobro_posterior_peajes: Optional[int] = None
     edad_minima_arriendo: Optional[int] = None
     tarifas_categoria: Optional[Dict[str, Dict[str, int]]] = None
+    garantia_categoria_clp: Optional[Dict[str, int]] = None
+    bono_invitado_pct_t1: Optional[float] = None
+    bono_invitado_pct_t2: Optional[float] = None
+    bono_invitado_pct_t3: Optional[float] = None
+    bono_invitado_dias_t1: Optional[int] = None
+    bono_invitado_dias_t2: Optional[int] = None
+    bono_invitado_dias_t3: Optional[int] = None
+    bono_referente_pct_t1: Optional[float] = None
+    bono_referente_pct_t2: Optional[float] = None
+    bono_referente_dias_t1: Optional[int] = None
+    bono_referente_dias_t2: Optional[int] = None
 
 # ==============================================================================
 # DISPUTAS Y SOPORTE
