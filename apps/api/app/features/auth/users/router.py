@@ -127,6 +127,9 @@ def agregar_tarjeta(
             card_token=payload.card_token,
             payment_method_id=payload.payment_method_id,
             device_id=payload.device_id,
+            tipo_hint=payload.tipo,
+            ultimos4_hint=payload.ultimos4,
+            marca_hint=payload.marca,
         )
     except wallet_service.WalletError as e:
         raise HTTPException(status_code=e.http_status, detail=e.as_detail())

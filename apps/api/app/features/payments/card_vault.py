@@ -50,23 +50,46 @@ class VaultError(Exception):
         self.titular_detectado = titular_detectado
 
 
-# ===========================================================================
-# Modo simulado
-# ===========================================================================
-def _tarjeta_desde_token_simulado(card_token: str, titular: Optional[str]) -> Dict[str, Any]:
+_MARCAS_OK = {"visa", "mastercard", "amex", "diners", "magna", "otra"}
+
+
+def _tarjeta_desde_token_simulado(
+    card_token: str,
+    titular: Optional[str],
+    tipo_hint: Optional[str] = None,
+    ultimos4_hint: Optional[str] = None,
+    marca_hint: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Arma la tarjeta sin salir a la red. Cubre dos casos:
+
+    - Token falso `SIMULADO-DEBITO-1234` / `SIMULADO-CREDITO-1234`: el tipo y los
+      últimos 4 se leen del propio token.
+    - Token REAL de una llave `TEST-` de Mercado Pago mientras el backend está en
+      modo simulado (no hay `MERCADOPAGO_ACCESS_TOKEN`): no se puede consultar la
+      tarjeta en MP, así que se usa lo que la app detectó/eligió (`*_hint`).
+    """
     m = SIMULADO_RE.match(card_token or "")
-    if not m:
+    if m:
+        tipo = "debito" if m.group(1).upper() == "DEBITO" else "credito"
+        ultimos4 = m.group(2).rjust(4, "0")[-4:]
+    else:
+        tipo = tipo_hint if tipo_hint in ("credito", "debito") else None
+        ultimos4 = re.sub(r"\D", "", ultimos4_hint or "")[-4:] or None
+
+    if tipo not in ("credito", "debito"):
         raise VaultError(
-            "TARJETA_INVALIDA",
-            "El token de la tarjeta no es válido. Vuelve a ingresarla.",
+            "TARJETA_TIPO_DESCONOCIDO",
+            "No pudimos determinar si la tarjeta es de crédito o débito. "
+            "Elige el tipo y vuelve a intentarlo.",
         )
-    tipo = "debito" if m.group(1).upper() == "DEBITO" else "credito"
-    ultimos4 = m.group(2).rjust(4, "0")[-4:]
+
+    marca = (marca_hint or "").strip().lower()
     return {
         "mp_customer_id": f"SIM-CUST-{uuid.uuid4().hex[:12]}",
         "mp_card_id": f"SIM-CARD-{uuid.uuid4().hex[:12]}",
-        "marca": "visa",
-        "ultimos4": ultimos4,
+        "marca": marca if marca in _MARCAS_OK else "visa",
+        "ultimos4": ultimos4 or "0000",
         "vencimiento": "12/30",
         "tipo": tipo,
         "titular": (titular or "").strip() or None,
@@ -144,15 +167,27 @@ def registrar_tarjeta(
     card_token: str,
     payment_method_id: Optional[str] = None,
     mp_customer_id: Optional[str] = None,
+    tipo_hint: Optional[str] = None,
+    ultimos4_hint: Optional[str] = None,
+    marca_hint: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Guarda la tarjeta tokenizada en el vault del usuario.
 
     Devuelve `{mp_customer_id, mp_card_id, marca, ultimos4, vencimiento, tipo,
     titular}`. Lanza `VaultError` si el token es inválido o la pasarela falla.
+
+    En modo simulado NUNCA se contacta a Mercado Pago — ni con un token real de
+    una llave `TEST-`: sin `MERCADOPAGO_ACCESS_TOKEN` no hay a quién preguntarle,
+    así que se arma la tarjeta con lo que detectó/eligió la app. Un token falso
+    `SIMULADO-...` fuerza el camino simulado aunque el flag esté apagado (solo la
+    app local lo genera y no hay nada real que hacer con él).
     """
-    if pagos_simulados.pagos_simulados_activos() and (card_token or "").upper().startswith("SIMULADO-"):
-        return _tarjeta_desde_token_simulado(card_token, nombre)
+    token_falso = (card_token or "").upper().startswith("SIMULADO-")
+    if token_falso or pagos_simulados.pagos_simulados_activos():
+        return _tarjeta_desde_token_simulado(
+            card_token, nombre, tipo_hint, ultimos4_hint, marca_hint
+        )
 
     customer_id = _asegurar_cliente(email, nombre, mp_customer_id)
 
@@ -166,9 +201,13 @@ def registrar_tarjeta(
     datos = _normalizar_tarjeta_mp(alta["data"])
     datos["mp_customer_id"] = customer_id
     if not datos.get("tipo"):
-        # Sin `payment_type_id` en la respuesta, se infiere del id del método
-        # que mandó la app (la app ya distingue credit_card / debit_card).
-        datos["tipo"] = "debito" if (payment_method_id or "").startswith("deb") else "credito"
+        # Sin `payment_type_id` en la respuesta: primero lo que detectó la app
+        # (`/payment_methods` ya distingue credit_card / debit_card), y si no,
+        # se infiere del id del método.
+        if tipo_hint in ("credito", "debito"):
+            datos["tipo"] = tipo_hint
+        else:
+            datos["tipo"] = "debito" if (payment_method_id or "").startswith("deb") else "credito"
     return datos
 
 

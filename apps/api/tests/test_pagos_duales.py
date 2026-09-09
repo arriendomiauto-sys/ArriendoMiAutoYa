@@ -93,6 +93,40 @@ def test_no_se_puede_agregar_tarjeta_sin_identidad(usuario_factory, auth_as):
     assert _agregar_tarjeta(auth_as, user, "SIMULADO-DEBITO-4242").status_code == 403
 
 
+def test_token_real_de_key_test_usa_las_pistas_de_la_app(usuario_factory, auth_as):
+    """
+    Con una llave `TEST-` la app tokeniza contra Mercado Pago de verdad (el token
+    NO tiene prefijo SIMULADO-). Si el backend está en modo simulado no puede
+    consultar la tarjeta en MP: usa `tipo` / `ultimos4` / `marca` que manda la app.
+    """
+    user = usuario_factory(estado_documentos="verificado", tarjeta_estado="pendiente")
+    resp = auth_as(user).post(
+        "/api/v1/usuarios/me/tarjetas",
+        json={
+            "card_token": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",  # token estilo MP real
+            "payment_method_id": "master",
+            "tipo": "debito",
+            "ultimos4": "9012",
+            "marca": "mastercard",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    t = resp.json()["tarjeta"]
+    assert t["tipo"] == "debito"
+    assert t["ultimos4"] == "9012"
+    assert t["marca"] == "mastercard"
+
+
+def test_token_real_sin_pista_de_tipo_se_rechaza_claro(usuario_factory, auth_as):
+    user = usuario_factory(estado_documentos="verificado")
+    resp = auth_as(user).post(
+        "/api/v1/usuarios/me/tarjetas",
+        json={"card_token": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4", "payment_method_id": "visa"},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["codigo"] == "TARJETA_TIPO_DESCONOCIDO"
+
+
 # ===========================================================================
 # Checkout
 # ===========================================================================

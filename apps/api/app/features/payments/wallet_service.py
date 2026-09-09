@@ -108,6 +108,9 @@ def agregar(
     card_token: str,
     payment_method_id: Optional[str] = None,
     device_id: Optional[str] = None,  # noqa: ARG001 — plumbing listo, MP fingerprint pendiente
+    tipo_hint: Optional[str] = None,
+    ultimos4_hint: Optional[str] = None,
+    marca_hint: Optional[str] = None,
 ) -> Tarjeta:
     try:
         datos = card_vault.registrar_tarjeta(
@@ -116,14 +119,18 @@ def agregar(
             card_token=card_token,
             payment_method_id=payment_method_id,
             mp_customer_id=usuario.mp_customer_id,
+            tipo_hint=tipo_hint,
+            ultimos4_hint=ultimos4_hint,
+            marca_hint=marca_hint,
         )
     except card_vault.VaultError as e:
         raise WalletError(422, e.codigo, e.mensaje)
 
     if datos.get("tipo") not in ("credito", "debito"):
         raise WalletError(
-            422, "TARJETA_INVALIDA",
-            "No pudimos determinar si la tarjeta es de débito o crédito. Prueba con otra.",
+            422, "TARJETA_TIPO_DESCONOCIDO",
+            "No pudimos determinar si la tarjeta es de débito o crédito. "
+            "Elige el tipo y vuelve a intentarlo.",
         )
 
     # Protocolo de seguridad: la tarjeta tiene que ser de quien tiene la cuenta.

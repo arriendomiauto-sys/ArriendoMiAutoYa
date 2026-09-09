@@ -242,10 +242,18 @@ class TarjetaVaultCreate(BaseModel):
     Alta de una tarjeta en la bóveda. La app tokeniza contra Mercado Pago y
     manda solo el `card_token` (de un solo uso) más el `payment_method_id` que
     devolvió `/payment_methods`. El número de la tarjeta nunca llega al backend.
+
+    `tipo` / `ultimos4` / `marca` son PISTAS que la app ya conoce (del toggle en
+    modo prueba o de `/payment_methods`). El backend las usa cuando no puede
+    consultar la tarjeta en Mercado Pago (modo simulado sin credenciales); si
+    puede, manda MP.
     """
     card_token: str
     payment_method_id: Optional[str] = None
     device_id: Optional[str] = None
+    tipo: Optional[Literal["credito", "debito"]] = None
+    ultimos4: Optional[str] = None
+    marca: Optional[str] = None
 
 
 class PagarReservaRequest(BaseModel):
