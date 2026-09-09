@@ -1,9 +1,12 @@
 import hashlib
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+
+logger = logging.getLogger(__name__)
 
 from app.models.entities import Reserva, VerificacionEntrega, ChecklistAuto, Disputa, Pago, Auto, Usuario
 from app.features.vehicles.catalog.pricing_service import PricingService
@@ -361,14 +364,66 @@ class DeliveryService:
                         estado="pendiente",
                     ))
 
-            # Liberación inmediata de la garantía retenida (hold en tarjeta de crédito)
+            # Detección de reporte de daños o anomalías en la devolución
+            es_dano_reportado = bool(
+                notas and (
+                    notas.strip().startswith("[")
+                    or any(palabra in notas.lower() for palabra in (
+                        "daño", "dano", "golpe", "rayón", "rayon", "choque",
+                        "vidrio", "neumático", "neumatico", "avería", "averia", "siniestro"
+                    ))
+                )
+            )
+            disputa_existente = (
+                db.query(Disputa)
+                .filter(Disputa.reserva_id == reserva.id, Disputa.estado == "abierta")
+                .first()
+            )
+
+            # Gestión de la garantía retenida (hold en tarjeta de crédito):
+            # Si se reporta daño o existe una disputa abierta, la garantía NO se libera
+            # y se mantiene retenida para respaldar la reparación tras revisión de soporte/admin.
             pago_garantia = (
                 db.query(Pago)
                 .filter(Pago.reserva_id == reserva.id, Pago.tipo == "garantia", Pago.estado == "retenido")
                 .first()
             )
             garantia_liberada = False
-            if pago_garantia:
+
+            if es_dano_reportado or disputa_existente:
+                if not disputa_existente:
+                    disputa = Disputa(
+                        reserva_id=reserva.id,
+                        tipo="dano",
+                        estado="abierta",
+                        motivo=f"Reporte en devolución: {notas}",
+                        evidencia_fotos=fotos or [],
+                        foto_evidencia_url=fotos[0] if fotos else None,
+                    )
+                    db.add(disputa)
+                reserva.estado = "disputada"
+                crear_notificacion(
+                    db,
+                    usuario_id=reserva.cliente_id,
+                    tipo="disputa",
+                    titulo="Garantía retenida por reporte en devolución",
+                    mensaje=f"El dueño reportó una diferencia o daño en la devolución ({notas}). Tu garantía se mantendrá retenida mientras el equipo de soporte evalúa el caso.",
+                    entidad_tipo="reserva",
+                    entidad_id=reserva.id,
+                    commit=False,
+                )
+                if auto and auto.dueno_id:
+                    crear_notificacion(
+                        db,
+                        usuario_id=auto.dueno_id,
+                        tipo="disputa",
+                        titulo="Reporte de daño registrado",
+                        mensaje="Tu reporte fue recibido exitosamente. La garantía del arrendatario permanecerá retenida a la espera de presupuestos y resolución de soporte.",
+                        entidad_tipo="reserva",
+                        entidad_id=reserva.id,
+                        commit=False,
+                    )
+            elif pago_garantia:
                 try:
                     from app.features.payments.mercadopago_service import MercadoPagoService
                     from app.services import pagos_simulados
@@ -391,9 +446,11 @@ class DeliveryService:
                     logger.error("[DELIVERY] Error al liberar hold de garantía para reserva %s: %s", reserva.id, e)
 
             # Incentivo por entrega en óptimas condiciones:
-            # Combustible igual o mayor al recibido, vehículo limpio y sin atraso
+            # Sin daños reportados, combustible igual o mayor al recibido, vehículo limpio y sin atraso
             devolucion_optima = (
-                comb_inicial is not None
+                not es_dano_reportado
+                and not disputa_existente
+                and comb_inicial is not None
                 and nivel_combustible is not None
                 and nivel_combustible >= comb_inicial
                 and str(estado_limpieza).lower() in ("optimo", "limpio", "excelente", "bueno")
@@ -402,7 +459,11 @@ class DeliveryService:
 
             limpieza_msg = f" Cargo por limpieza: ${cargo_limpieza:,} CLP." if cargo_limpieza > 0 else ""
             comb_msg = f" Combustible faltante: ${cargo_combustible:,} CLP." if cargo_combustible > 0 else ""
-            garantia_msg = " Garantía liberada inmediatamente." if garantia_liberada else ""
+            garantia_msg = (
+                " Garantía liberada inmediatamente."
+                if garantia_liberada
+                else (" Garantía retenida por reporte de daño." if es_dano_reportado else "")
+            )
             premio_msg = " ¡Felicitaciones por entregar el vehículo en óptimas condiciones! Tienes un beneficio en tu próximo arriendo." if devolucion_optima else ""
 
             if devolucion_optima:

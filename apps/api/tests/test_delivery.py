@@ -1,4 +1,4 @@
-from app.models.entities import Reserva, Disputa, Usuario, ChecklistAuto
+from app.models.entities import Reserva, Disputa, Usuario, ChecklistAuto, Pago
 
 def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
     # 1. Obtener la reserva demo
@@ -174,3 +174,66 @@ def test_rechazo_identidad_crea_disputa_y_bloquea(client, db_session, auth_as):
     assert disputa is not None
     assert disputa.tipo == "no_coincidencia_identidad"
     assert disputa.estado == "abierta"
+
+
+def test_checklist_despues_con_dano_retiene_garantia_y_abre_disputa(client, db_session, auth_as):
+    """Si el dueño reporta un daño al devolver (stage 27_damage), la garantía NO se libera,
+    reserva pasa a disputada y se abre formalmente la Disputa con la evidencia."""
+    reserva = db_session.query(Reserva).first()
+    dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    c = auth_as(dueno)
+
+    # Simular que existía garantía retenida
+    pago_garantia = Pago(
+        reserva_id=reserva.id,
+        usuario_id=reserva.cliente_id,
+        tipo="garantia",
+        monto=200000,
+        estado="retenido",
+        referencia_pago="MP-HOLD-TEST-123"
+    )
+    db_session.add(pago_garantia)
+    db_session.commit()
+
+    # Checklist inicial de entrega
+    c.post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={
+            "tipo": "antes",
+            "fotos": ["https://ejemplo.com/foto_ini.jpg"],
+            "kilometraje": 25000,
+            "nivel_combustible": "lleno",
+            "firma_svg": "M1 1L2 2",
+        }
+    )
+
+    # Checklist de devolución con reporte de daño
+    resp_ret = c.post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={
+            "tipo": "despues",
+            "fotos": ["https://ejemplo.com/foto_dano.jpg"],
+            "kilometraje": 25100,
+            "nivel_combustible": "lleno",
+            "notas": "[Rayón] Parachoques delantero rayado en estacionamiento",
+        }
+    )
+    assert resp_ret.status_code == 200
+
+    # Verificar que el pago de la garantía permanece retenido
+    db_session.refresh(pago_garantia)
+    assert pago_garantia.estado == "retenido"
+
+    # Verificar que se creó la disputa por daño
+    disputa_dano = db_session.query(Disputa).filter(
+        Disputa.reserva_id == reserva.id,
+        Disputa.tipo == "dano"
+    ).first()
+    assert disputa_dano is not None
+    assert "Parachoques delantero rayado" in disputa_dano.motivo
+    assert disputa_dano.estado == "abierta"
+
+    # Verificar que la reserva refleja estado disputada
+    db_session.refresh(reserva)
+    assert reserva.estado == "disputada"
+
