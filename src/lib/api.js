@@ -199,4 +199,55 @@ export class ApiClient {
       body: JSON.stringify(payload),
     });
   }
+
+  // ── Reservas (panel) ────────────────────────────────────────────────────
+  // NOTA: los siguientes endpoints todavía no existen en apps/api. El panel
+  // los llama igual; mientras no estén, las pantallas muestran su estado de
+  // error/vacío. Contrato esperado documentado en docs/panel-endpoints.md.
+  static getReservas(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/admin/reservas${qs ? `?${qs}` : ""}`);
+  }
+
+  static getReserva(reservaId) {
+    return this.request(`/admin/reservas/${reservaId}`);
+  }
+
+  // ── Usuarios (panel) ────────────────────────────────────────────────────
+  static getUsuarios(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/admin/usuarios${qs ? `?${qs}` : ""}`);
+  }
+
+  static getUsuario(usuarioId) {
+    return this.request(`/admin/usuarios/${usuarioId}`);
+  }
+
+  static actualizarRolesUsuario(usuarioId, roles) {
+    return this.request(`/admin/usuarios/${usuarioId}/roles`, {
+      method: "PUT",
+      body: JSON.stringify({ roles_activos: roles }),
+    });
+  }
+
+  static suspenderUsuario(usuarioId, suspender = true) {
+    return this.request(`/admin/usuarios/${usuarioId}/suspension`, {
+      method: "POST",
+      body: JSON.stringify({ suspendido: suspender }),
+    });
+  }
+
+  // ── Finanzas ───────────────────────────────────────────────────────────
+  static getLiquidaciones() {
+    return this.request("/admin/liquidaciones");
+  }
+
+  static marcarLiquidacionPagada(liquidacionId) {
+    return this.request(`/admin/liquidaciones/${liquidacionId}/pagar`, { method: "POST" });
+  }
+
+  static getPagos(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/admin/pagos${qs ? `?${qs}` : ""}`);
+  }
 }

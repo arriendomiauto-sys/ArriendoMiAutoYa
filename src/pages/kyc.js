@@ -504,16 +504,25 @@ function CardUsuarioKYC({ usuario, onInspeccionar, tab = "identidad", destacarAl
         {/* Cabecera Tarjeta */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold overflow-hidden">
-              {usuario.foto_perfil_verificada_url ? (
+            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold overflow-hidden relative">
+              {usuario.foto_perfil_verificada_url || usuario.foto_perfil_url ? (
                 <img
-                  src={usuario.foto_perfil_verificada_url}
+                  src={usuario.foto_perfil_verificada_url || usuario.foto_perfil_url}
                   alt=""
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    const fallback = e.currentTarget.parentElement?.querySelector(".avatar-fallback");
+                    if (fallback) fallback.style.display = "flex";
+                  }}
                 />
-              ) : (
+              ) : null}
+              <div
+                className="avatar-fallback w-full h-full items-center justify-center"
+                style={{ display: usuario.foto_perfil_verificada_url || usuario.foto_perfil_url ? "none" : "flex" }}
+              >
                 <User size={18} />
-              )}
+              </div>
             </div>
             <div>
               <h4 className="text-sm font-bold text-slate-900 leading-tight">

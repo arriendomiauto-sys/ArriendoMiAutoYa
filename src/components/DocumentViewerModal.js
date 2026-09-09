@@ -58,13 +58,14 @@ export default function DocumentViewerModal({
 
     if (tipo === "usuario") {
       // Cédula / Identidad
-      if (item.foto_perfil_verificada_url) {
+      const fotoUrl = item.foto_perfil_verificada_url || item.foto_perfil_url;
+      if (fotoUrl) {
         docs.push({
           id: "selfie",
-          titulo: "Selfie Biométrica / Perfil",
+          titulo: item.foto_perfil_verificada_url ? "Selfie Biométrica / Perfil" : "Foto de Perfil",
           categoria: "Identidad",
-          url: item.foto_perfil_verificada_url,
-          estado: "verificado",
+          url: fotoUrl,
+          estado: item.foto_perfil_verificada_url ? "verificado" : "pendiente",
         });
       }
       if (item.carnet_frontal_url) {
