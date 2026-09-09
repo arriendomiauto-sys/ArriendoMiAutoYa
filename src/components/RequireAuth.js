@@ -12,18 +12,10 @@ export default function RequireAuth({ children }) {
     }
   }, [cargando, usuario, router]);
 
-  if (cargando) {
+  if (cargando || !usuario) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
-        Cargando…
-      </div>
-    );
-  }
-
-  if (!usuario) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
-        {errorAcceso || "Redirigiendo al login…"}
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--bg)", color: "var(--muted)", fontSize: 13 }}>
+        {cargando ? "Cargando…" : errorAcceso || "Redirigiendo al ingreso…"}
       </div>
     );
   }

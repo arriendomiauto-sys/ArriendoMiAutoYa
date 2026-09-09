@@ -231,7 +231,7 @@ export default function DocumentViewerModal({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="fixed inset-4 md:inset-8 lg:inset-12 z-50 flex flex-col rounded-2xl bg-[#0B1528] border border-slate-700/60 shadow-2xl text-white overflow-hidden animate-in zoom-in-95">
+        <Dialog.Content className="document-viewer-modal fixed inset-4 md:inset-8 lg:inset-12 z-50 flex flex-col rounded-2xl bg-[#0B1528] border border-slate-700/60 shadow-2xl text-white overflow-hidden animate-in zoom-in-95">
           
           {/* HEADER MODAL */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-[#0E1A32]">
@@ -492,11 +492,12 @@ export default function DocumentViewerModal({
                     <select
                       value={motivoRapido}
                       onChange={(e) => setMotivoRapido(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-teal-400"
+                      style={{ colorScheme: "dark" }}
+                      className="w-full bg-[#0F172A] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-teal-400"
                     >
-                      <option value="">-- Seleccionar motivo común --</option>
+                      <option value="" className="bg-[#0F172A] text-slate-100">-- Seleccionar motivo común --</option>
                       {MOTIVOS_RECHAZO_COMUNES.map((m, i) => (
-                        <option key={i} value={m}>
+                        <option key={i} value={m} className="bg-[#0F172A] text-slate-100">
                           {m}
                         </option>
                       ))}
@@ -513,7 +514,8 @@ export default function DocumentViewerModal({
                       value={notas}
                       onChange={(e) => setNotas(e.target.value)}
                       placeholder="Escribe detalles específicos para la notificación push y correo..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:border-teal-400 resize-none"
+                      style={{ colorScheme: "dark" }}
+                      className="w-full bg-[#0F172A] border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-teal-400 resize-none"
                     />
                   </div>
 
@@ -523,7 +525,7 @@ export default function DocumentViewerModal({
                       type="button"
                       onClick={() => ejecutarAccion("rechazar")}
                       disabled={procesando}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 font-semibold text-xs transition disabled:opacity-50"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-600/30 hover:bg-red-600/40 border border-red-500/50 text-red-100 font-semibold text-xs transition disabled:opacity-50"
                     >
                       <XCircle size={15} />
                       {procesando ? "Procesando…" : "Rechazar"}
@@ -532,7 +534,7 @@ export default function DocumentViewerModal({
                       type="button"
                       onClick={() => ejecutarAccion("aprobar")}
                       disabled={procesando}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition shadow-lg shadow-teal-500/20 disabled:opacity-50"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-bold text-xs transition shadow-lg shadow-teal-500/25 disabled:opacity-50"
                     >
                       <CheckCircle size={15} />
                       {procesando ? "Procesando…" : "Aprobar"}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
+import { KeyRound } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
@@ -30,47 +31,32 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-brand-tealDark">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg"
-      >
-        <h1 className="mb-1 text-lg font-semibold text-brand-tealDark">
-          Panel de administrador
-        </h1>
-        <p className="mb-6 text-sm text-slate-400">ArriendoMiAutoYa — acceso restringido</p>
+    <div className="login">
+      <form className="login-card" onSubmit={handleSubmit}>
+        <div className="logo"><KeyRound size={22} /></div>
+        <h1>Consola RentACar</h1>
+        <p className="lead">Ingreso del equipo de operaciones.</p>
 
-        <label className="mb-1 block text-xs font-medium text-slate-500">Email</label>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-mint focus:outline-none"
-        />
+        <div className="field">
+          <label>Correo</label>
+          <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+        </div>
+        <div className="field">
+          <label>Contraseña</label>
+          <input className="input" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+        </div>
 
-        <label className="mb-1 block text-xs font-medium text-slate-500">Contraseña</label>
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="mb-6 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-mint focus:outline-none"
-        />
+        {(error || errorAcceso) ? (
+          <div className="state-msg err" style={{ marginBottom: 12 }}>{error || errorAcceso}</div>
+        ) : null}
 
-        {(error || errorAcceso) && (
-          <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-xs text-red-600">
-            {error || errorAcceso}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={cargando}
-          className="w-full rounded-md bg-brand-mint py-2 text-sm font-medium text-brand-tealDark hover:bg-brand-mintHover disabled:opacity-60"
-        >
-          {cargando ? "Ingresando…" : "Ingresar"}
+        <button type="submit" className="btn btn-mint" disabled={cargando}>
+          {cargando ? "Ingresando…" : "Entrar"}
         </button>
+
+        <div className="login-note">
+          El panel habla solo con la API de RentACar. El acceso está limitado a cuentas con rol <b>admin</b>, <b>manager</b> o <b>soporte</b>.
+        </div>
       </form>
     </div>
   );

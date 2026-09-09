@@ -1,8 +1,9 @@
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
   LayoutDashboard, Calendar, Users, Car, ShieldCheck, Gavel, LifeBuoy,
-  Wallet, Settings, LogOut, ChevronRight, Search, KeyRound,
+  Wallet, Settings, LogOut, ChevronRight, Search, KeyRound, Sun, Moon,
 } from "lucide-react";
 import RequireAuth from "./RequireAuth";
 import { useAuth } from "../context/AuthContext";
@@ -48,6 +49,20 @@ function initials(s) {
 export default function Shell({ title, crumb = "Consola", counts = {}, actions, children }) {
   const { usuario, esAdmin, logout } = useAuth();
   const router = useRouter();
+  const [tema, setTema] = useState("light");
+
+  useEffect(() => {
+    const t = localStorage.getItem("rentacar_admin_theme") || "light";
+    setTema(t);
+    document.documentElement.setAttribute("data-theme", t);
+  }, []);
+
+  const toggleTema = () => {
+    const nuevo = tema === "dark" ? "light" : "dark";
+    setTema(nuevo);
+    localStorage.setItem("rentacar_admin_theme", nuevo);
+    document.documentElement.setAttribute("data-theme", nuevo);
+  };
 
   return (
     <RequireAuth>
@@ -93,7 +108,15 @@ export default function Shell({ title, crumb = "Consola", counts = {}, actions, 
               <b>{usuario?.nombre || usuario?.email || "—"}</b>
               <span>{(usuario?.roles_activos || []).filter((r) => ["admin", "manager", "soporte"].includes(r)).map((r) => ({ admin: "Admin", manager: "Manager", soporte: "Soporte" }[r])).join(" · ") || "—"}</span>
             </div>
-            <button className="logout" onClick={logout} aria-label="Cerrar sesión"><LogOut size={15} /></button>
+            <button
+              className="theme-toggle-btn"
+              onClick={toggleTema}
+              aria-label="Cambiar tema claro/oscuro"
+              title={tema === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+            >
+              {tema === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+            <button className="logout" onClick={logout} aria-label="Cerrar sesión" title="Cerrar sesión"><LogOut size={15} /></button>
           </div>
         </aside>
 
