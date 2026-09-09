@@ -30,7 +30,7 @@ def obtener_configuracion_plataforma(db: Session = Depends(get_db)):
             cargo_km_extra_clp=120,
             km_diarios_incluidos=250,
             periodo_gracia_minutos=30,
-            dias_cobro_posterior_peajes=60,
+            dias_cobro_posterior_peajes=30,
             edad_minima_arriendo=21
         )
         db.add(config)

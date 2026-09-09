@@ -890,8 +890,8 @@ class PlatformConfigOut(BaseModel):
     cargo_combustible_cuarto_clp: int
     cargo_km_extra_clp: int
     km_diarios_incluidos: int
-    periodo_gracia_minutos: int
-    dias_cobro_posterior_peajes: int = 60
+    periodo_gracia_minutos: int = 30
+    dias_cobro_posterior_peajes: int = 30
     edad_minima_arriendo: int = 21
     # { "<categoria>": {"base": int, "min": int} } — tarifas por categoría.
     tarifas_categoria: Optional[Dict[str, Dict[str, int]]] = {}

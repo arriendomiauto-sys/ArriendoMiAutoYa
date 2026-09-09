@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from app.models.entities import Reserva, VerificacionEntrega, ChecklistAuto, Disputa, Pago, Auto, Usuario
 from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.system.storage.service import StorageService
+from app.features.communications.notifications.service import crear_notificacion
 from app.services import referidos
 
 
@@ -403,6 +404,18 @@ class DeliveryService:
             comb_msg = f" Combustible faltante: ${cargo_combustible:,} CLP." if cargo_combustible > 0 else ""
             garantia_msg = " Garantía liberada inmediatamente." if garantia_liberada else ""
             premio_msg = " ¡Felicitaciones por entregar el vehículo en óptimas condiciones! Tienes un beneficio en tu próximo arriendo." if devolucion_optima else ""
+
+            if devolucion_optima:
+                crear_notificacion(
+                    db,
+                    usuario_id=reserva.cliente_id,
+                    tipo="premio",
+                    titulo="¡Vehículo devuelto en óptimas condiciones!",
+                    mensaje="Entregaste el vehículo con el estanque completo y en excelente estado. Tu garantía fue liberada de inmediato y cuentas con un beneficio especial en tu próximo arriendo.",
+                    entidad_tipo="reserva",
+                    entidad_id=reserva.id,
+                    commit=False,
+                )
 
             mensaje = f"Checklist final completado. Arriendo finalizado.{limpieza_msg}{comb_msg}{garantia_msg}{premio_msg}"
 

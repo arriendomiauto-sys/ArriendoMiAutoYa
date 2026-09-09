@@ -499,8 +499,8 @@ class ConfiguracionPlataforma(Base):
     cargo_combustible_cuarto_clp = Column(Integer, default=15000) # Cargo por 1/4 de estanque faltante
     cargo_km_extra_clp = Column(Integer, default=120) # CLP por km excedente
     km_diarios_incluidos = Column(Integer, default=250) # Km incluidos por día de arriendo
-    periodo_gracia_minutos = Column(Integer, default=30) # Minutos de gracia en devolución
-    dias_cobro_posterior_peajes = Column(Integer, default=60) # Plazo para imputar peajes/fotomultas tras la devolución
+    periodo_gracia_minutos = Column(Integer, default=30) # Gracia antes de aplicar cargo de atraso
+    dias_cobro_posterior_peajes = Column(Integer, default=30) # Plazo de 1 mes (30 días) para imputar peajes/fotomultas tras la devolución
     edad_minima_arriendo = Column(Integer, default=21) # Edad mínima del arrendatario
 
     # Bono/descuento de invitación, por tramos decrecientes. El invitado

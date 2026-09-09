@@ -171,17 +171,66 @@ def obtener_posicion_gps(
             status_code=403,
             detail="El dueño no ha autorizado el monitoreo GPS de este vehículo.",
         )
-    if not auto.gps_device_id:
-        raise HTTPException(status_code=404, detail="Este vehículo aún no tiene un equipo GPS instalado.")
 
-    posicion = GPSManager.get_provider().obtener_posicion(auto.gps_device_id)
+    posicion = None
+    if auto.gps_device_id:
+        try:
+            pos_obj = GPSManager.get_provider().obtener_posicion(auto.gps_device_id)
+            if pos_obj:
+                posicion = pos_obj.to_dict()
+                auto.gps_ultima_posicion = posicion
+                db.commit()
+        except Exception:
+            posicion = None
+
+    if not posicion and auto.gps_ultima_posicion:
+        posicion = auto.gps_ultima_posicion
+
     if not posicion:
-        raise HTTPException(status_code=503, detail="El equipo GPS no está reportando posición en este momento.")
+        raise HTTPException(
+            status_code=404 if not auto.gps_device_id else 503,
+            detail="El vehículo aún no reporta posiciones GPS.",
+        )
 
-    auto.gps_ultima_posicion = posicion.to_dict()
-    db.commit()
+    # Calcular estado de señal (alertas de 30m y 1h acordadas con el usuario)
+    ahora = datetime.now(timezone.utc)
+    ts_str = posicion.get("timestamp")
+    minutos_sin_senal = 0
+    if ts_str:
+        try:
+            ts = datetime.fromisoformat(str(ts_str).replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            minutos_sin_senal = max(0, int((ahora - ts).total_seconds() / 60))
+        except Exception:
+            minutos_sin_senal = 0
 
-    return {"auto_id": auto.id, "patente": auto.patente, "posicion": posicion.to_dict()}
+    if minutos_sin_senal < 30:
+        estado_senal = "en_linea"
+        alerta = None
+    elif minutos_sin_senal < 60:
+        estado_senal = "alerta_sin_senal"
+        alerta = f"Alerta preventiva: El vehículo lleva {minutos_sin_senal} min sin reportar señal."
+    else:
+        estado_senal = "alerta_critica"
+        alerta = f"Alerta crítica: El vehículo lleva más de 1 hora ({minutos_sin_senal} min) sin conexión."
+
+    reserva_activa = (
+        db.query(Reserva)
+        .filter(Reserva.auto_id == auto.id, Reserva.estado == "en_curso")
+        .first()
+    )
+
+    return {
+        "auto_id": auto.id,
+        "patente": auto.patente,
+        "posicion": posicion,
+        "minutos_sin_senal": minutos_sin_senal,
+        "estado_senal": estado_senal,
+        "alerta": alerta,
+        "en_arriendo": bool(reserva_activa),
+        "reserva_id": reserva_activa.id if reserva_activa else None,
+    }
 
 
 @router.post(

@@ -60,7 +60,7 @@ class ContractService:
         dias: int,
         monto_total_estimado_clp: int,
         valor_uf_clp: float = 38000.0,
-        dias_cobro_posterior_peajes: int = 60,
+        dias_cobro_posterior_peajes: int = 30,
         segundo_conductor_nombre: str = None,
         segundo_conductor_rut: str = None,
         segundo_conductor_telefono: str = None,

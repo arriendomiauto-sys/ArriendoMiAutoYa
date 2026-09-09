@@ -164,3 +164,58 @@ def test_corte_de_motor_procede_con_reserva_vencida_sin_devolucion(usuario_facto
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["ejecutado"] is True
+
+
+def test_telemetria_celular_arrendatario_y_consulta_dueno(usuario_factory, auth_as, db_session):
+    dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
+    cliente = usuario_factory(roles_activos=["cliente"])
+    auto, reserva = _auto_con_gps_y_reserva(db_session, dueno, cliente, "en_curso", "GPSX-07")
+    auto.gps_device_id = None  # Sin equipo OBD, rastreo 100% por celular
+
+    # 1. El arrendatario manda la ubicación desde su celular
+    resp_tel = auth_as(cliente).post(
+        f"/api/v1/reservas/{reserva.id}/telemetria",
+        json={"latitud": -33.4372, "longitud": -70.6506, "velocidad": 45.0, "precision": 10.0},
+    )
+    assert resp_tel.status_code == 200
+    assert resp_tel.json()["ok"] is True
+
+    # 2. El dueño consulta en vivo
+    resp_dueno = auth_as(dueno).get(f"/api/v1/autos/{auto.id}/gps/posicion")
+    assert resp_dueno.status_code == 200
+    data = resp_dueno.json()
+    assert data["posicion"]["latitud"] == -33.4372
+    assert data["posicion"]["fuente"] == "celular_arrendatario"
+    assert data["estado_senal"] == "en_linea"
+    assert data["alerta"] is None
+    assert data["en_arriendo"] is True
+
+
+def test_alertas_gps_30_minutos_y_1_hora(usuario_factory, auth_as, db_session):
+    dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
+    cliente = usuario_factory(roles_activos=["cliente"])
+    auto, reserva = _auto_con_gps_y_reserva(db_session, dueno, cliente, "en_curso", "GPSX-08")
+    auto.gps_device_id = None
+
+    ahora = datetime.now(timezone.utc)
+
+    # Caso A: 35 minutos sin señal -> Alerta preventiva
+    hace_35m = (ahora - timedelta(minutes=35)).isoformat()
+    auto.gps_ultima_posicion = {"latitud": -33.4, "longitud": -70.6, "timestamp": hace_35m}
+    db_session.commit()
+
+    resp_35 = auth_as(dueno).get(f"/api/v1/autos/{auto.id}/gps/posicion")
+    assert resp_35.status_code == 200
+    assert resp_35.json()["estado_senal"] == "alerta_sin_senal"
+    assert "preventiva" in resp_35.json()["alerta"]
+
+    # Caso B: 75 minutos sin señal -> Alerta crítica (+1h)
+    hace_75m = (ahora - timedelta(minutes=75)).isoformat()
+    auto.gps_ultima_posicion = {"latitud": -33.4, "longitud": -70.6, "timestamp": hace_75m}
+    db_session.commit()
+
+    resp_75 = auth_as(dueno).get(f"/api/v1/autos/{auto.id}/gps/posicion")
+    assert resp_75.status_code == 200
+    assert resp_75.json()["estado_senal"] == "alerta_critica"
+    assert "crítica" in resp_75.json()["alerta"]
+

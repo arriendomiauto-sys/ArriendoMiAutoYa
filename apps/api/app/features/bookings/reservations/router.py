@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
@@ -261,7 +262,7 @@ def _generar_pdf_contrato(reserva: Reserva, db: Session) -> bytes:
         dias=dias,
         monto_total_estimado_clp=dias * tarifa_dia,
         valor_uf_clp=float(cfg.valor_uf_clp),
-        dias_cobro_posterior_peajes=getattr(cfg, "dias_cobro_posterior_peajes", None) or 60,
+        dias_cobro_posterior_peajes=getattr(cfg, "dias_cobro_posterior_peajes", None) or 30,
         segundo_conductor_nombre=reserva.segundo_conductor.nombre if reserva.segundo_conductor else None,
         segundo_conductor_rut=(reserva.segundo_conductor.rut or reserva.segundo_conductor.numero_documento) if reserva.segundo_conductor else None,
         segundo_conductor_telefono=reserva.segundo_conductor.telefono if reserva.segundo_conductor else None,
@@ -588,7 +589,7 @@ def aplicar_multa_reserva(
             fecha_inicio=reserva.fecha_inicio,
             fecha_fin=reserva.fecha_fin,
             fecha_evento=payload.fecha_evento,
-            dias_limite=getattr(config, "dias_cobro_posterior_peajes", None) or 60,
+            dias_limite=getattr(config, "dias_cobro_posterior_peajes", None) or 30,
         )
         if error_ventana:
             raise HTTPException(status_code=400, detail=error_ventana)
@@ -824,4 +825,59 @@ def verificar_kyc_segundo_conductor(
     ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
     db.refresh(conductor)
     return conductor
+
+
+class TelemetriaCelularRequest(BaseModel):
+    latitud: float = Field(..., ge=-90, le=90, description="Latitud GPS")
+    longitud: float = Field(..., ge=-180, le=180, description="Longitud GPS")
+    precision: Optional[float] = Field(None, description="Precisión en metros")
+    velocidad: Optional[float] = Field(None, description="Velocidad en km/h o m/s")
+    altitud: Optional[float] = None
+    bateria: Optional[float] = None
+    timestamp: Optional[datetime] = None
+
+
+@router.post(
+    "/{reserva_id}/telemetria",
+    summary="Reportar posición GPS desde el celular del arrendatario durante el arriendo",
+)
+def reportar_telemetria_celular(
+    reserva_id: str,
+    payload: TelemetriaCelularRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    # Solo el cliente de la reserva o admin puede reportar telemetría
+    if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=403, detail="Solo el arrendatario puede reportar ubicación.")
+
+    if reserva.estado not in ("en_curso", "confirmada"):
+        return {"ok": False, "motivo": f"La reserva no está activa (estado actual: {reserva.estado})."}
+
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    if not auto:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado.")
+
+    ahora_iso = datetime.now(timezone.utc).isoformat()
+    posicion_dict = {
+        "latitud": payload.latitud,
+        "longitud": payload.longitud,
+        "precision": payload.precision,
+        "velocidad": payload.velocidad,
+        "altitud": payload.altitud,
+        "bateria": payload.bateria,
+        "timestamp": payload.timestamp.isoformat() if payload.timestamp else ahora_iso,
+        "fuente": "celular_arrendatario",
+        "reserva_id": reserva.id,
+    }
+
+    auto.gps_ultima_posicion = posicion_dict
+    db.commit()
+
+    return {"ok": True, "timestamp": ahora_iso}
+
 
