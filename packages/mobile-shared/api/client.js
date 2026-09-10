@@ -759,6 +759,31 @@ export class ApiClient {
     return this.request(`/usuarios/me/tarjetas/${tarjetaId}`, { method: "DELETE" });
   }
 
+  // Cuentas de cobro del dueño (dónde recibe sus liquidaciones)
+  static async getCuentasCobro() {
+    const r = await this.request("/usuarios/me/cuentas-cobro");
+    return r?.cuentas_cobro || [];
+  }
+
+  static async agregarCuentaCobro(datos) {
+    const r = await this.request("/usuarios/me/cuentas-cobro", {
+      method: "POST",
+      body: JSON.stringify(datos),
+    });
+    return r?.cuenta_cobro;
+  }
+
+  static async eliminarCuentaCobro(cuentaId) {
+    return this.request(`/usuarios/me/cuentas-cobro/${cuentaId}`, { method: "DELETE" });
+  }
+
+  static async marcarCuentaCobroPredeterminada(cuentaId) {
+    const r = await this.request(`/usuarios/me/cuentas-cobro/${cuentaId}/predeterminada`, {
+      method: "PATCH",
+    });
+    return r?.cuenta_cobro;
+  }
+
   // Cobra el arriendo (a la tarjeta de débito) y autoriza el hold de garantía
   // (a la de crédito) en un solo paso. Va DESPUÉS de firmar el contrato.
   static async pagarReserva(reservaId, { tarjeta_cobro_id, tarjeta_garantia_id, device_id = null }) {
