@@ -22,7 +22,7 @@ como Celery beat). No es el caso hoy.
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -45,8 +45,24 @@ _VENTANA = timedelta(minutes=30)
 ESTADOS_CON_RECORDATORIO = ("confirmada", "en_curso")
 
 
+def _utc_naive(dt: Optional[datetime]) -> Optional[datetime]:
+    """
+    Normaliza a UTC *naive*. Postgres (`timestamptz`) entrega `Reserva.fecha_*`
+    como datetimes aware y SQLite los da naive: sin esto, comparar uno con otro
+    revienta con `can't compare offset-naive and offset-aware datetimes` y el
+    bucle de recordatorios se cae en cada pasada.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 def _debe_enviarse(objetivo: datetime, ahora: datetime, horas_antes: int) -> bool:
     """`True` si `objetivo` cae dentro de la ventana alrededor de `horas_antes` horas desde `ahora`."""
+    objetivo = _utc_naive(objetivo)
+    ahora = _utc_naive(ahora)
     momento_aviso = objetivo - timedelta(hours=horas_antes)
     return momento_aviso - _VENTANA <= ahora <= momento_aviso + _VENTANA
 
@@ -67,7 +83,7 @@ def enviar_recordatorios_pendientes(db: Session, ahora: Optional[datetime] = Non
 
     Devuelve cuántos recordatorios se mandaron, para logging/tests.
     """
-    ahora = ahora or datetime.utcnow()
+    ahora = _utc_naive(ahora) or datetime.now(timezone.utc).replace(tzinfo=None)
     enviados = 0
 
     reservas = (
