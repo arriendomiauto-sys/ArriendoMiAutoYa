@@ -160,6 +160,17 @@ export class ApiClient {
     });
   }
 
+  static analizarDanosIA(reservaId, { fotos_despues, fotos_antes, notas } = {}) {
+    return this.request(`/entrega/${reservaId}/analisis-ia`, {
+      method: "POST",
+      body: JSON.stringify({
+        fotos_despues: fotos_despues || [],
+        fotos_antes: fotos_antes || undefined,
+        notas: notas || undefined,
+      }),
+    });
+  }
+
   // Revisión KYC Usuarios y Conductores
   static getDocumentosPendientes() {
     return this.request("/admin/documentos/pendientes");

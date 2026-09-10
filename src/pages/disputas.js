@@ -116,7 +116,20 @@ function Resolver({ d, onDone }) {
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState(null);
+  const [analisisIA, setAnalisisIA] = useState(null);
+  const [cargandoIA, setCargandoIA] = useState(false);
+
   const fotos = [...(d.foto_evidencia_url ? [d.foto_evidencia_url] : []), ...(Array.isArray(d.evidencia_fotos) ? d.evidencia_fotos : [])];
+
+  useEffect(() => {
+    if (d?.reserva_id && fotos.length) {
+      setCargandoIA(true);
+      ApiClient.analizarDanosIA(d.reserva_id, { fotos_despues: fotos, notas: d.motivo })
+        .then(setAnalisisIA)
+        .catch(() => {})
+        .finally(() => setCargandoIA(false));
+    }
+  }, [d?.id]);
 
   async function resolver() {
     if (!texto.trim()) { setErr("Escribe el fundamento de la resolución."); return; }
@@ -154,6 +167,49 @@ function Resolver({ d, onDone }) {
           </div>
         </>
       ) : null}
+
+      {/* Dictamen Asistido por IA */}
+      <div style={{ margin: "16px 0", padding: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <b style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+            ✦ Peritaje Asistido por IA (Visión Multimodal)
+          </b>
+          {cargandoIA ? (
+            <span style={{ fontSize: 11, color: "var(--muted)" }}>Analizando...</span>
+          ) : (
+            <span className={`chip ${analisisIA?.anomalia_detectada ? "warn" : "ok"}`}>
+              {analisisIA?.anomalia_detectada ? "Anomalía confirmada" : "Sin daño evidente"}
+            </span>
+          )}
+        </div>
+        {analisisIA ? (
+          <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+              <div style={{ padding: "6px 8px", background: "var(--surface)", borderRadius: 6 }}>
+                <div style={{ color: "var(--muted)", fontSize: 10 }}>Rayón</div>
+                <b>{analisisIA.probabilidades?.rayon || 0}%</b>
+              </div>
+              <div style={{ padding: "6px 8px", background: "var(--surface)", borderRadius: 6 }}>
+                <div style={{ color: "var(--muted)", fontSize: 10 }}>Golpe</div>
+                <b>{analisisIA.probabilidades?.abolladura || 0}%</b>
+              </div>
+              <div style={{ padding: "6px 8px", background: "var(--surface)", borderRadius: 6 }}>
+                <div style={{ color: "var(--muted)", fontSize: 10 }}>Choque</div>
+                <b>{analisisIA.probabilidades?.choque || 0}%</b>
+              </div>
+              <div style={{ padding: "6px 8px", background: "var(--surface)", borderRadius: 6 }}>
+                <div style={{ color: "var(--muted)", fontSize: 10 }}>Suciedad</div>
+                <b>{analisisIA.probabilidades?.suciedad || 0}%</b>
+              </div>
+            </div>
+            <p style={{ margin: "4px 0 0", color: "var(--ink-2)", lineHeight: 1.4 }}>
+              {analisisIA.sugerencia_dueno}
+            </p>
+          </div>
+        ) : cargandoIA ? (
+          <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>Evaluando fotografías con el motor de visión...</p>
+        ) : null}
+      </div>
 
       <h4>Resolución</h4>
       {!esAdmin ? <div className="state-msg warn">Solo un Admin puede resolver formalmente una disputa.</div> : null}
