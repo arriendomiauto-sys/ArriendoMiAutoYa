@@ -92,7 +92,13 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
     let vivo = true;
     ApiClient.getDisponibilidadAuto(car.id)
       .then((r) => vivo && setRangosOcupados(r?.rangos_ocupados || []))
-      .catch(() => {}); // que falle no debe romper la ficha; el backend igual valida al reservar
+      .catch((e) => {
+        // Que falle no debe romper la ficha; el backend igual valida al reservar.
+        // Pero en dev sí conviene verlo: si el endpoint no responde (404 de un
+        // backend viejo, red caída) el calendario queda sin días bloqueados y
+        // "deja elegir" fechas ocupadas sin ninguna señal visible.
+        if (__DEV__) console.warn("[disponibilidad] no se pudo cargar; el calendario no marcará días ocupados:", e?.message || e);
+      });
     return () => {
       vivo = false;
     };
