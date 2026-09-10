@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     # tarjeta sin que el número toque nuestro backend.
     MERCADOPAGO_PUBLIC_KEY: Optional[str] = None
     MERCADOPAGO_WEBHOOK_SECRET: Optional[str] = None
-    # Cuando está activo, usa test@testuser.com como pagador para que Mercado Pago
+    # Cuando está activo, usa test@test.com como pagador para que Mercado Pago
     # permita procesar tarjetas de prueba sin rechazar por comprador no autorizado.
     MERCADOPAGO_TEST_MODE: bool = True
 

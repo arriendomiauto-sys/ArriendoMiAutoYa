@@ -44,8 +44,18 @@ APROBADO = "approved"
 AUTORIZADO = "authorized"
 ESTADOS_OK = (APROBADO, AUTORIZADO)
 
+# Correo de pagador usado en modo prueba (sandbox) para evitar rechazos
+# o ensuciar el entorno con correos de usuarios reales.
+EMAIL_PRUEBA = "test@test.com"
+
 
 class MercadoPagoService:
+    @classmethod
+    def resolver_email_pagador(cls, email_pagador: Optional[str] = None) -> Optional[str]:
+        """En modo prueba siempre usa test@test.com para los cobros que pasen por MP."""
+        if getattr(settings, "MERCADOPAGO_TEST_MODE", True):
+            return EMAIL_PRUEBA
+        return email_pagador
     @classmethod
     def credenciales_configuradas(cls) -> bool:
         return bool((settings.MERCADOPAGO_ACCESS_TOKEN or "").strip())
@@ -147,10 +157,9 @@ class MercadoPagoService:
             # Una garantía en cuotas no tiene sentido: el hold es uno solo.
             "payment_methods": {"installments": 1},
         }
-        if getattr(settings, "MERCADOPAGO_TEST_MODE", True):
-            cuerpo["payer"] = {"email": "test@testuser.com"}
-        elif email_pagador:
-            cuerpo["payer"] = {"email": email_pagador}
+        email = cls.resolver_email_pagador(email_pagador)
+        if email:
+            cuerpo["payer"] = {"email": email}
         if notification_url:
             cuerpo["notification_url"] = notification_url
 
@@ -199,12 +208,13 @@ class MercadoPagoService:
         El número de la tarjeta nunca pasa por acá: el cliente tokeniza contra
         Mercado Pago y manda solo el token.
         """
+        email = cls.resolver_email_pagador(email_pagador) or EMAIL_PRUEBA
         cuerpo = {
             "transaction_amount": int(monto),
             "token": token_tarjeta,
             "description": descripcion,
             "installments": 1,
-            "payer": {"email": email_pagador},
+            "payer": {"email": email},
             "external_reference": referencia_externa,
             "capture": bool(capturar),
         }
