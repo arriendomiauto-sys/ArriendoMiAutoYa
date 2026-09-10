@@ -762,7 +762,7 @@ export class ApiClient {
   // Cuentas de cobro del dueño (dónde recibe sus liquidaciones)
   static async getCuentasCobro() {
     const r = await this.request("/usuarios/me/cuentas-cobro");
-    return r?.cuentas_cobro || [];
+    return Array.isArray(r?.cuentas_cobro) ? r.cuentas_cobro : Array.isArray(r) ? r : [];
   }
 
   static async agregarCuentaCobro(datos) {
@@ -770,7 +770,7 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify(datos),
     });
-    return r?.cuenta_cobro;
+    return r?.cuenta_cobro || r;
   }
 
   static async eliminarCuentaCobro(cuentaId) {

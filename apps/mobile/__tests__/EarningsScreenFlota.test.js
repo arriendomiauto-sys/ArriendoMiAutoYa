@@ -47,7 +47,11 @@ jest.mock("@rentacar/mobile-shared", () => {
   return {
     ...real,
     useApp: () => mockContexto,
-    ApiClient: { ...real.ApiClient, getMisGanancias: jest.fn(() => Promise.resolve(GANANCIAS)) },
+    ApiClient: {
+      ...real.ApiClient,
+      getMisGanancias: jest.fn(() => Promise.resolve(GANANCIAS)),
+      getCuentasCobro: jest.fn(() => Promise.resolve([])),
+    },
   };
 });
 

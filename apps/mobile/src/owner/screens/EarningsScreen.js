@@ -172,8 +172,8 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
             <TouchableOpacity style={styles.missingBankBanner} onPress={() => setCuentaModal(true)} activeOpacity={0.85}>
               <Icon name="alert" size={16} color="#FFFFFF" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.missingBankTitle}>Falta tu cuenta bancaria</Text>
-                <Text style={styles.missingBankSub}>Configúrala para recibir tus transferencias automáticas.</Text>
+                <Text style={styles.missingBankTitle}>Falta tu cuenta de cobro</Text>
+                <Text style={styles.missingBankSub}>Agrégala para recibir tus depósitos automáticos.</Text>
               </View>
               <Text style={styles.missingBankLink}>Configurar</Text>
             </TouchableOpacity>
