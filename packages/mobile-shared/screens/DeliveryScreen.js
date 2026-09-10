@@ -43,10 +43,15 @@ const ANGLES = [
 const FUEL_SYMBOL_TO_VALUE = { E: "vacio", "¼": "1/4", "½": "1/2", "¾": "3/4", F: "lleno" };
 const FUEL_LEVELS = ["E", "¼", "½", "¾", "F"];
 
+// La devolución es un recorrido de 3 pasos con avance visible; antes eran 7
+// stages sueltos sin ninguna señal de cuánto faltaba.
+const PASOS = ["Verificar", "Inspeccionar", "Cerrar"];
+
 export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   const insets = useSafeAreaInsets();
   // Reserva "en_curso" => devolución (checklist "despues"); si no, entrega ("antes").
   const tipo = reserva?.estado === "en_curso" ? "despues" : "antes";
+  const esDevolucion = tipo === "despues";
   const auto = reserva?.auto || reserva?.car || {};
 
   const [stage, setStage] = useState("05_code");
@@ -86,13 +91,40 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   const [km, setKm] = useState("");
   const [fuelLevel, setFuelLevel] = useState("¾");
 
-  // Reporte de diferencia en devolución
+  // Reporte de diferencia en devolución. `mostrarDano` expande la sección de
+  // reporte dentro de la misma pantalla de revisión — antes era el stage
+  // aparte "27_damage".
+  const [mostrarDano, setMostrarDano] = useState(false);
   const [damageType, setDamageType] = useState("Rayón");
   const [damageDesc, setDamageDesc] = useState("");
 
   // Envío del checklist
   const [enviandoChecklist, setEnviandoChecklist] = useState(false);
   const [resultadoChecklist, setResultadoChecklist] = useState(null);
+
+  // Peritaje asistido por IA (Computer Vision)
+  const [analisisIA, setAnalisisIA] = useState(null);
+  const [cargandoIA, setCargandoIA] = useState(false);
+
+  useEffect(() => {
+    if (stage === "26_review" && tipo === "despues" && !analisisIA && !cargandoIA && reservaIdActiva) {
+      setCargandoIA(true);
+      const urlsSubidas = colaFotos.map((f) => f.url).filter(Boolean);
+      ApiClient.analizarDanosIA(reservaIdActiva, {
+        fotos_despues: urlsSubidas,
+        notas: damageDesc || undefined,
+      })
+        .then((data) => {
+          setAnalisisIA(data);
+        })
+        .catch(() => {
+          // Fallback silencioso sin bloquear la experiencia
+        })
+        .finally(() => {
+          setCargandoIA(false);
+        });
+    }
+  }, [stage, tipo, reservaIdActiva]);
 
   // Firma del contrato (solo entrega/"antes"): trazo SVG capturado en el pad.
   const [firmaSvg, setFirmaSvg] = useState(null);
@@ -289,7 +321,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       showAlert("Kilometraje requerido", "Ingresa el kilometraje actual del vehículo.");
       return;
     }
-    setStage(tipo === "antes" ? "23_signature" : "26_compare");
+    setStage(tipo === "antes" ? "23_signature" : "26_review");
   };
 
   const enviarChecklist = async (notasExtra) => {
@@ -368,14 +400,47 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
     </View>
   );
 
+  // Barra de avance de 3 pasos. Solo en la devolución — la entrega es un
+  // trámite lineal más corto y con su propia firma al final.
+  const StepBar = ({ activo }) => (
+    <View style={styles.stepWrap}>
+      <View style={styles.stepSegs}>
+        {PASOS.map((p, i) => (
+          <View
+            key={p}
+            style={[
+              styles.stepSeg,
+              i < activo && styles.stepSegDone,
+              i === activo && styles.stepSegNow,
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.stepLabels}>
+        {PASOS.map((p, i) => (
+          <Text
+            key={p}
+            style={[styles.stepLbl, i === activo && styles.stepLblNow, i < activo && styles.stepLblDone]}
+          >
+            {i + 1} {p}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+
   // ---------------------------------------------------------------- cámara
+  // Chrome claro y translúcido en vez del negro sólido de antes: el registro
+  // de los 8 ángulos se hace de pie junto al auto, muchas veces a contraluz,
+  // y el fondo oscuro competía con la escena. Ahora el texto va oscuro sobre
+  // vidrio blanco, la caja guía y el obturador en el teal de marca.
   const renderCamara = ({ titulo, nota, onCloseBtn, onCounterPress }) => (
     <View style={styles.camContainer}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
       <View style={[styles.camTop, { paddingTop: insets.top + 8 }]}>
         <View style={styles.camHead}>
           <TouchableOpacity onPress={onCloseBtn} hitSlop={theme.control.hitSlop}>
-            <Icon name="close" size={22} color="#FFFFFF" />
+            <Icon name="close" size={22} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.camTitle}>{titulo}</Text>
           <Text style={styles.camFraction}>{fotos.length}/{ANGLES.length}</Text>
@@ -409,9 +474,9 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
                 <Text
                   style={[
                     styles.pillText,
-                    past && { color: colors.accent300, fontWeight: "500" },
-                    curr && { color: colors.primary900, fontWeight: "600" },
-                    !past && !curr && { color: "rgba(255,255,255,0.7)" },
+                    past && { color: colors.accentDark, fontWeight: "600" },
+                    curr && { color: "#FFFFFF", fontWeight: "600" },
+                    !past && !curr && { color: colors.textMuted },
                   ]}
                 >
                   {past ? `✓ ${a.name}` : a.name}
@@ -446,7 +511,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
             accessibilityRole="button"
             accessibilityLabel="Tomar foto"
           >
-            {subiendoFoto ? <ActivityIndicator color={colors.darkBg} /> : <View style={styles.shutterInner} />}
+            {subiendoFoto ? <ActivityIndicator color="#FFFFFF" /> : <View style={styles.shutterInner} />}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.thumbCounter}
@@ -473,6 +538,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title={tipo === "antes" ? "Verificar entrega" : "Verificar devolución"} onBack={onBack} />
+        {esDevolucion ? <StepBar activo={0} /> : null}
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.noticeTeal}>
             <Icon name="shield" size={18} color={colors.primary} />
@@ -540,7 +606,13 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
       <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Confirmar identidad" onBack={() => setStage("05_code")} />
+        {esDevolucion ? <StepBar activo={0} /> : null}
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={styles.okRow}>
+            <Icon name="check" size={15} color={colors.accentDark} />
+            <Text style={styles.okRowText}>Código verificado</Text>
+          </View>
+
           {datosValidados.foto_perfil_verificada_url ? (
             <Image source={{ uri: datosValidados.foto_perfil_verificada_url }} style={styles.perfilFoto} />
           ) : null}
@@ -556,12 +628,12 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
           {/* Segundo Conductor Verificado */}
           {datosValidados.segundo_conductor ? (
-            <Card padded style={{ gap: theme.spacing.sm, marginTop: 10, borderColor: colors.primary, borderWidth: 1 }}>
+            <Card padded style={{ gap: theme.spacing.sm, borderColor: colors.primary, borderWidth: 1 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text style={[styles.cardTitle, { fontSize: 14 }]}>
-                  Segundo Conductor Autorizado
+                  Segundo conductor autorizado
                 </Text>
-                <Badge label="KYC Verificado" variant="success" />
+                <Badge label="KYC verificado" variant="success" />
               </View>
               {datosValidados.segundo_conductor.foto_perfil_url ? (
                 <Image
@@ -621,7 +693,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
   if (stage === "25_return_cam") {
     return renderCamara({
       titulo: `Devolución · ${auto.marca || ""} ${auto.modelo || ""}`,
-      nota: `Repite el mismo ángulo que la entrega · ${fotos.length} de ${ANGLES.length}`,
+      nota: `Repite el mismo ángulo de la entrega · ${fotos.length} de ${ANGLES.length}`,
       onCloseBtn: onBack,
       onCounterPress: irAMetricas,
     });
@@ -684,6 +756,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           title="Kilometraje y combustible"
           onBack={() => setStage(tipo === "antes" ? "21_review" : "25_return_cam")}
         />
+        {esDevolucion ? <StepBar activo={1} /> : null}
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={{ gap: 6 }}>
             <SectionLabel>Kilometraje actual</SectionLabel>
@@ -721,7 +794,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           </View>
         </ScrollView>
         <Footer>
-          <Button label={tipo === "antes" ? "Ir a la firma" : "Continuar"} onPress={handleContinuarMetricas} />
+          <Button label={tipo === "antes" ? "Ir a la firma" : "Ver la revisión"} onPress={handleContinuarMetricas} />
         </Footer>
       </KeyboardAvoidingView>
     );
@@ -799,73 +872,168 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
     );
   }
 
-  if (stage === "26_compare") {
-    return (
-      <View style={styles.light}>
-        <StatusBar barStyle="dark-content" />
-        <ScreenHeader title="Confirmar devolución" onBack={() => setStage("22_metrics")} />
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          {[
-            { t: "Kilometraje registrado", s: `${km} km` },
-            { t: "Combustible registrado", s: fuelLevel },
-            { t: "Fotos de devolución", s: `${fotos.length} de ${ANGLES.length}` },
-          ].map((d) => (
-            <Card key={d.t} padded style={styles.deltaCard}>
-              <Text style={styles.deltaTitle}>{d.t}</Text>
-              <Text style={styles.deltaSub}>{d.s}</Text>
-            </Card>
-          ))}
-        </ScrollView>
-        <Footer>
-          <Button label="Todo en orden, cerrar arriendo" onPress={() => enviarChecklist()} loading={enviandoChecklist} />
-          <Button variant="ghost" size="sm" label="Reportar daño o diferencia" onPress={() => setStage("27_damage")} />
-        </Footer>
-      </View>
-    );
-  }
-
-  if (stage === "27_damage") {
+  if (stage === "26_review") {
     return (
       <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
-        <ScreenHeader title="Reportar una diferencia" onBack={() => setStage("26_compare")} />
+        <ScreenHeader
+          title="Revisión de devolución"
+          onBack={() => (mostrarDano ? setMostrarDano(false) : setStage("22_metrics"))}
+        />
+        <StepBar activo={1} />
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={{ gap: theme.spacing.sm }}>
-            <SectionLabel>Tipo de diferencia</SectionLabel>
-            <View style={styles.chipsWrap}>
-              {["Rayón", "Golpe", "Vidrio", "Neumático", "Interior", "Falta combustible"].map((t) => (
-                <Chip key={t} label={t} selected={damageType === t} onPress={() => setDamageType(t)} />
-              ))}
+          <View style={styles.grid}>
+            {colaFotos.map((item, idx) => (
+              <View key={item.uriLocal + idx} style={styles.gridCardSm}>
+                <Image source={{ uri: item.uriLocal }} style={styles.gridThumbSm} />
+              </View>
+            ))}
+          </View>
+
+          <Card padded style={{ gap: 0 }}>
+            <View style={styles.deltaLine}>
+              <Text style={styles.deltaLabel}>Kilometraje</Text>
+              <Text style={styles.deltaVal}>{km} km</Text>
             </View>
-          </View>
+            <View style={styles.deltaLine}>
+              <Text style={styles.deltaLabel}>Combustible</Text>
+              <Text style={styles.deltaVal}>{fuelLevel}</Text>
+            </View>
+            <View style={[styles.deltaLine, { borderBottomWidth: 0 }]}>
+              <Text style={styles.deltaLabel}>Fotos de devolución</Text>
+              <Text style={styles.deltaVal}>{fotos.length} de {ANGLES.length}</Text>
+            </View>
+          </Card>
 
-          <View style={{ gap: 6 }}>
-            <SectionLabel>Qué pasó</SectionLabel>
-            <TextInput
-              style={[styles.input, styles.textarea]}
-              value={damageDesc}
-              onChangeText={setDamageDesc}
-              placeholder="Describe la diferencia encontrada"
-              placeholderTextColor={colors.textPlaceholder}
-              multiline
-            />
-          </View>
+          {/* Tarjeta de Peritaje Asistido por IA (Computer Vision) */}
+          <Card padded style={styles.aiCard}>
+            <View style={styles.aiHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="sparkles" size={18} color={colors.primary} />
+                <Text style={styles.aiTitle}>Peritaje Asistido por IA</Text>
+              </View>
+              {cargandoIA ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Badge
+                  variant={analisisIA?.anomalia_detectada ? "warning" : "success"}
+                  label={analisisIA?.anomalia_detectada ? "Posible diferencia" : "Sin novedades"}
+                />
+              )}
+            </View>
 
-          <View style={styles.noticeWarnBox}>
-            <Text style={styles.noticeWarnTitle}>La garantía sigue retenida</Text>
-            <Text style={styles.noticeWarnText}>
-              Este reporte queda como nota del checklist de devolución para respaldar el cargo correspondiente.
-            </Text>
-          </View>
+            {cargandoIA && (
+              <Text style={styles.aiLoadingText}>Analizando fotografías con Computer Vision...</Text>
+            )}
+
+            {analisisIA && (
+              <View style={{ gap: 8, marginTop: 4 }}>
+                <Text style={styles.aiSubtitle}>Probabilidades estimadas por visión:</Text>
+
+                <View style={styles.aiBars}>
+                  {[
+                    { label: "Rayón", pct: analisisIA.probabilidades?.rayon || 0 },
+                    { label: "Golpe", pct: analisisIA.probabilidades?.abolladura || 0 },
+                    { label: "Choque", pct: analisisIA.probabilidades?.choque || 0 },
+                    { label: "Suciedad", pct: analisisIA.probabilidades?.suciedad || 0 },
+                  ].map((item) => (
+                    <View key={item.label} style={styles.aiBarRow}>
+                      <Text style={styles.aiBarLabel}>{item.label}</Text>
+                      <View style={styles.aiBarTrack}>
+                        <View
+                          style={[
+                            styles.aiBarFill,
+                            {
+                              width: `${Math.max(item.pct, 3)}%`,
+                              backgroundColor: item.pct >= 70 ? colors.warning : item.pct >= 30 ? colors.primary : colors.accent300,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.aiBarPct, item.pct >= 70 && { fontWeight: "700", color: colors.warning }]}>
+                        {item.pct}%
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                <Text style={styles.aiDiagnosis}>{analisisIA.sugerencia_dueno}</Text>
+
+                {analisisIA.anomalia_detectada && !mostrarDano && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    label="✦ Cargar sugerencia de la IA"
+                    onPress={() => {
+                      setMostrarDano(true);
+                      const primerDano = analisisIA.danos_detectados?.[0];
+                      if (primerDano) {
+                        setDamageType(
+                          primerDano.tipo.includes("Rayón")
+                            ? "Rayón"
+                            : primerDano.tipo.includes("Golpe") || primerDano.tipo.includes("Abolladura")
+                            ? "Golpe"
+                            : "Otro"
+                        );
+                        setDamageDesc(primerDano.descripcion);
+                      }
+                    }}
+                  />
+                )}
+              </View>
+            )}
+          </Card>
+
+          {mostrarDano ? (
+            <>
+              <View style={{ gap: theme.spacing.sm }}>
+                <SectionLabel>Tipo de diferencia</SectionLabel>
+                <View style={styles.chipsWrap}>
+                  {["Rayón", "Golpe", "Vidrio", "Neumático", "Interior", "Falta combustible"].map((t) => (
+                    <Chip key={t} label={t} selected={damageType === t} onPress={() => setDamageType(t)} />
+                  ))}
+                </View>
+              </View>
+
+              <View style={{ gap: 6 }}>
+                <SectionLabel>Qué pasó</SectionLabel>
+                <TextInput
+                  style={[styles.input, styles.textarea]}
+                  value={damageDesc}
+                  onChangeText={setDamageDesc}
+                  placeholder="Describe la diferencia encontrada"
+                  placeholderTextColor={colors.textPlaceholder}
+                  multiline
+                />
+              </View>
+
+              <View style={styles.noticeWarnBox}>
+                <Text style={styles.noticeWarnTitle}>La garantía sigue retenida</Text>
+                <Text style={styles.noticeWarnText}>
+                  Se abre una disputa con estas {fotos.length} fotos como evidencia. Soporte revisa y define
+                  cuánto se transfiere para la reparación. No es un cobro directo.
+                </Text>
+              </View>
+            </>
+          ) : null}
         </ScrollView>
         <Footer>
-          <Button
-            variant="danger"
-            label="Enviar el reporte y cerrar"
-            onPress={() => enviarChecklist(`[${damageType}] ${damageDesc}`.trim())}
-            loading={enviandoChecklist}
-          />
-          <Button variant="ghost" size="sm" label="Cancelar" onPress={() => setStage("26_compare")} />
+          {mostrarDano ? (
+            <>
+              <Button
+                variant="danger"
+                label="Enviar reporte y cerrar"
+                onPress={() => enviarChecklist(`[${damageType}] ${damageDesc}`.trim())}
+                loading={enviandoChecklist}
+              />
+              <Button variant="ghost" size="sm" label="Cancelar" onPress={() => setMostrarDano(false)} />
+            </>
+          ) : (
+            <>
+              <Button label="Todo en orden, cerrar arriendo" onPress={() => enviarChecklist()} loading={enviandoChecklist} />
+              <Button variant="ghost" size="sm" label="Reportar una diferencia" onPress={() => setMostrarDano(true)} />
+            </>
+          )}
         </Footer>
       </KeyboardAvoidingView>
     );
@@ -873,20 +1041,42 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
 
   if (stage === "28_done") {
     const r = resultadoChecklist || {};
+    const enDisputa = r.estado_reserva === "disputada";
     return (
       <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
+        <StepBar activo={2} />
         <ScrollView contentContainerStyle={styles.centerBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <SuccessCheck style={styles.successMark} />
+          {enDisputa ? (
+            <View style={styles.markWarn}>
+              <Icon name="alert" size={30} color={colors.warning} />
+            </View>
+          ) : (
+            <SuccessCheck style={styles.successMark} />
+          )}
           <View style={styles.centerText}>
-            <Text style={styles.bigTitle}>Devolución confirmada</Text>
-            <Text style={styles.bigSub}>El arriendo quedó cerrado y liquidado.</Text>
+            <Text style={styles.bigTitle}>{enDisputa ? "Devolución con diferencia" : "Devolución confirmada"}</Text>
+            <Text style={styles.bigSub}>
+              {enDisputa
+                ? "El arriendo se cierra, pero la garantía queda en revisión de soporte."
+                : "El arriendo quedó cerrado y liquidado."}
+            </Text>
           </View>
+
+          {enDisputa ? (
+            <View style={styles.noticeWarnBox}>
+              <Text style={styles.noticeWarnTitle}>Garantía retenida · en revisión</Text>
+              <Text style={styles.noticeWarnText}>
+                Soporte compara las fotos de entrega y devolución y define cuánto se transfiere para la
+                reparación antes de liquidar.
+              </Text>
+            </View>
+          ) : null}
 
           <Card padded style={{ width: "100%", gap: theme.spacing.md }}>
             <View style={styles.rowBetween}>
               <Text style={styles.infoLabel}>Liquidación para ti</Text>
-              <Badge variant="warning" label="Pendiente de pago" />
+              <Badge variant={enDisputa ? "neutral" : "warning"} label={enDisputa ? "En pausa" : "Pendiente de pago"} />
             </View>
             <View style={styles.rowBetween}>
               <Text style={styles.infoLabel}>Monto</Text>
@@ -894,8 +1084,11 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
             </View>
             {r.cargo_limpieza > 0 && <InfoRow label="Cargo limpieza" value={`$${r.cargo_limpieza.toLocaleString("es-CL")}`} />}
             {r.cargo_combustible > 0 && <InfoRow label="Cargo combustible" value={`$${r.cargo_combustible.toLocaleString("es-CL")}`} />}
+            {r.cargo_km_extra > 0 && <InfoRow label="Cargo km extra" value={`$${r.cargo_km_extra.toLocaleString("es-CL")}`} />}
             <Text style={styles.footNoteLeft}>
-              La garantía se libera al cliente tras esta inspección de devolución.
+              {enDisputa
+                ? "La garantía no se libera hasta que se resuelva la disputa."
+                : "La garantía se libera al cliente tras esta inspección de devolución."}
             </Text>
           </Card>
 
@@ -932,7 +1125,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           )}
         </ScrollView>
         <Footer>
-          <Button label="Listo" onPress={onCompleteDelivery} />
+          <Button label={enDisputa ? "Ver la disputa" : "Listo"} onPress={onCompleteDelivery} />
         </Footer>
       </KeyboardAvoidingView>
     );
@@ -949,6 +1142,15 @@ const styles = StyleSheet.create({
   bigTitle: { ...theme.typography.title, color: colors.text, textAlign: "center" },
   bigSub: { fontSize: 15, color: colors.textMuted, lineHeight: 22, textAlign: "center" },
   successMark: { marginTop: theme.spacing.sm },
+  markWarn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.warningBg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: theme.spacing.sm,
+  },
   perfilFoto: { width: 96, height: 96, borderRadius: 48, alignSelf: "center" },
   cardTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
   infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },
@@ -957,6 +1159,17 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   divider: { height: 1, backgroundColor: colors.border },
   help: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
+  okRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: colors.accent100,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: theme.radius.pill,
+  },
+  okRowText: { fontSize: 13, fontWeight: "700", color: colors.accentDark },
   input: {
     minHeight: theme.control.height,
     borderWidth: 1.5,
@@ -988,6 +1201,7 @@ const styles = StyleSheet.create({
   },
   noticeWarnText: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.warningText },
   noticeWarnBox: {
+    width: "100%",
     backgroundColor: colors.warningBg,
     borderWidth: 1,
     borderColor: colors.warningBorder,
@@ -1008,6 +1222,24 @@ const styles = StyleSheet.create({
   gridThumb: { height: 84, width: "100%", backgroundColor: colors.surfaceSecondary },
   gridFoot: { padding: theme.spacing.sm, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 6 },
   gridName: { fontSize: 13, color: colors.text, flex: 1 },
+  gridCardSm: {
+    width: "22%",
+    aspectRatio: 1,
+    borderRadius: theme.radius.sm,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceSecondary,
+  },
+  gridThumbSm: { width: "100%", height: "100%" },
+  deltaLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  deltaLabel: { fontSize: 14, color: colors.textMuted },
+  deltaVal: { fontSize: 14, fontWeight: "600", color: colors.text },
   kmRow: {
     height: theme.control.height,
     borderWidth: 1.5,
@@ -1058,9 +1290,6 @@ const styles = StyleSheet.create({
   },
   faceTitle: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
   faceDesc: { fontSize: 13, color: colors.accent300, textAlign: "center", maxWidth: 240, lineHeight: 18 },
-  deltaCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  deltaTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
-  deltaSub: { fontSize: 14, color: colors.textMuted },
   liqMonto: { fontSize: 16, fontWeight: "800", color: colors.text },
   footNote: { fontSize: 12, color: colors.textMuted, textAlign: "center" },
   footNoteLeft: {
@@ -1084,26 +1313,52 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
 
-  // ---- cámara ----
-  camContainer: { flex: 1, backgroundColor: colors.darkBg },
-  camTop: { paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.md, gap: theme.spacing.md },
+  // ---- barra de 3 pasos (devolución) ----
+  stepWrap: {
+    paddingHorizontal: theme.spacing.screen,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: 6,
+  },
+  stepSegs: { flexDirection: "row", gap: 5 },
+  stepSeg: { flex: 1, height: 4, borderRadius: 999, backgroundColor: colors.border },
+  stepSegDone: { backgroundColor: colors.primary },
+  stepSegNow: { backgroundColor: colors.accent },
+  stepLabels: { flexDirection: "row", justifyContent: "space-between" },
+  stepLbl: { fontSize: 11, fontWeight: "600", color: colors.textPlaceholder, flex: 1, textAlign: "center" },
+  stepLblNow: { color: colors.primary },
+  stepLblDone: { color: colors.accentDark },
+
+  // ---- cámara (chrome claro translúcido) ----
+  camContainer: { flex: 1, backgroundColor: colors.background },
+  camTop: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+    gap: theme.spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   camHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  camTitle: { fontSize: 15, fontWeight: "600", color: "#FFFFFF", flex: 1, marginHorizontal: theme.spacing.md },
-  camFraction: { fontSize: 14, color: colors.accent300, fontWeight: "600" },
+  camTitle: { fontSize: 15, fontWeight: "700", color: colors.text, flex: 1, marginHorizontal: theme.spacing.md },
+  camFraction: { fontSize: 14, color: colors.primary, fontWeight: "700" },
   camBars: { flexDirection: "row", gap: 5 },
   camBar: { flex: 1, height: 4, borderRadius: 999 },
   barDone: { backgroundColor: colors.accent },
-  barActive: { backgroundColor: "#FFFFFF" },
-  barPending: { backgroundColor: "rgba(255,255,255,0.22)" },
+  barActive: { backgroundColor: colors.primary },
+  barPending: { backgroundColor: colors.border },
   anglePills: { flexDirection: "row", gap: theme.spacing.sm, paddingVertical: 2 },
-  anglePill: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: theme.radius.pill },
-  pillPast: { backgroundColor: "rgba(47,191,155,0.16)" },
-  pillCurr: { backgroundColor: "#FFFFFF" },
-  pillFuture: { backgroundColor: "rgba(255,255,255,0.12)" },
+  anglePill: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: theme.radius.pill, backgroundColor: colors.surfaceSecondary },
+  pillPast: { backgroundColor: colors.accent100 },
+  pillCurr: { backgroundColor: colors.primary },
+  pillFuture: { backgroundColor: colors.surfaceSecondary },
   pillText: { fontSize: 13 },
   viewfinder: {
     flex: 1,
-    backgroundColor: colors.darkSurface,
+    backgroundColor: colors.surfaceSecondary,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -1115,32 +1370,110 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.55)",
+    borderColor: colors.primary300,
     borderStyle: "dashed",
     borderRadius: theme.radius.card,
   },
   vfBadge: {
     position: "absolute",
     top: 22,
-    backgroundColor: "rgba(6,30,31,0.82)",
+    backgroundColor: "rgba(255,255,255,0.92)",
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  vfBadgeText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
-  camShutter: { paddingHorizontal: theme.spacing.xl, paddingTop: theme.spacing.lg, backgroundColor: colors.darkBg, gap: theme.spacing.md },
+  vfBadgeText: { color: colors.text, fontSize: 15, fontWeight: "600" },
+  camShutter: {
+    paddingHorizontal: theme.spacing.xl,
+    paddingTop: theme.spacing.lg,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: theme.spacing.md,
+  },
   shutterRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  skipText: { fontSize: 15, fontWeight: "600", color: colors.accent300 },
-  shutterBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
-  shutterInner: { width: 60, height: 60, borderRadius: 30, borderWidth: 3, borderColor: colors.darkBg },
+  skipText: { fontSize: 15, fontWeight: "700", color: colors.accentDark },
+  shutterBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  shutterInner: { width: 60, height: 60, borderRadius: 30, borderWidth: 3, borderColor: "#FFFFFF" },
   thumbCounter: {
     width: 52,
     height: 52,
     borderRadius: theme.radius.field,
-    backgroundColor: colors.primary500,
+    backgroundColor: colors.accent100,
     alignItems: "center",
     justifyContent: "center",
   },
-  thumbCounterText: { fontSize: 14, fontWeight: "800", color: "#FFFFFF" },
-  camNote: { fontSize: 13, color: "rgba(255,255,255,0.6)", textAlign: "center" },
+  thumbCounterText: { fontSize: 14, fontWeight: "800", color: colors.accentDark },
+  camNote: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
+
+  // ---- Tarjeta de Peritaje Asistido por IA ----
+  aiCard: {
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  aiHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  aiTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  aiLoadingText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontStyle: "italic",
+    paddingVertical: 4,
+  },
+  aiSubtitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.textMuted,
+  },
+  aiBars: {
+    gap: 6,
+    paddingVertical: 2,
+  },
+  aiBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  aiBarLabel: {
+    width: 68,
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: "500",
+  },
+  aiBarTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: colors.surfaceSecondary || "#F1F5F9",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  aiBarFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  aiBarPct: {
+    width: 36,
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.text,
+    textAlign: "right",
+  },
+  aiDiagnosis: {
+    fontSize: 12.5,
+    color: colors.textMuted,
+    lineHeight: 18,
+    marginTop: 2,
+  },
 });
+

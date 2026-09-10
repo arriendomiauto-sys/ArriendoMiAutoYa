@@ -35,6 +35,21 @@ import {
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
 
+// Cuenta regresiva compacta hasta la hora acordada de devolución. Reemplaza
+// el texto suelto "horas restantes" por algo que se lee de un vistazo.
+function restanteHasta(iso) {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  if (Number.isNaN(ms)) return null;
+  const vencido = ms <= 0;
+  const abs = Math.abs(ms);
+  const dias = Math.floor(abs / 86400000);
+  const horas = Math.floor((abs % 86400000) / 3600000);
+  const mins = Math.floor((abs % 3600000) / 60000);
+  const texto = dias >= 1 ? `${dias}d ${horas}h` : horas >= 1 ? `${horas}h ${mins}m` : `${mins}m`;
+  return { texto, vencido };
+}
+
 function fechaHora(iso, largo = false) {
   if (!iso) return "—";
   try {
@@ -408,6 +423,18 @@ export function ActiveRentalScreen({
           </View>
         </Card>
 
+        {res.estado === "en_curso" && (() => {
+          const cd = restanteHasta(res.fecha_fin);
+          return (
+            <View style={[styles.countCard, cd?.vencido && styles.countCardLate]}>
+              <Text style={styles.countValue}>{cd ? (cd.vencido ? `Atrasado ${cd.texto}` : cd.texto) : "—"}</Text>
+              <Text style={styles.countLabel}>
+                {cd?.vencido ? "pasada la hora de devolución" : "para la hora de devolución acordada"}
+              </Text>
+            </View>
+          );
+        })()}
+
         {res.estado === "en_curso" && (
           <Card padded style={{ gap: 6, backgroundColor: colors.accent100 || "#f0fdf4", borderColor: colors.primary, borderWidth: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -583,6 +610,16 @@ const styles = StyleSheet.create({
   },
   ownerName: { fontSize: 15, fontWeight: "700", color: colors.text },
   ownerSub: { fontSize: 13, color: colors.textMuted, marginTop: 1 },
+  countCard: {
+    backgroundColor: colors.primary,
+    borderRadius: theme.radius.card,
+    paddingVertical: theme.spacing.lg,
+    alignItems: "center",
+    gap: 3,
+  },
+  countCardLate: { backgroundColor: colors.warningText || "#8A5B0B" },
+  countValue: { fontSize: 24, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
+  countLabel: { fontSize: 11, color: colors.accent300, textTransform: "uppercase", letterSpacing: 0.6 },
   carRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
   carThumb: { width: 76, height: 58, borderRadius: theme.radius.field, backgroundColor: colors.primary100 },
   carThumbEmpty: { backgroundColor: colors.accent100, alignItems: "center", justifyContent: "center" },

@@ -90,6 +90,17 @@ export function MyQRCodeScreen({ reservation, onBack }) {
           )}
         </View>
 
+        {!loading && !error && codigo && (
+          <View style={styles.waitRow}>
+            <View style={styles.waitDot} />
+            <Text style={styles.waitText}>
+              {esDevolucion
+                ? "Esperando que el dueño escanee para cerrar el arriendo…"
+                : "Esperando que el dueño escanee para comenzar el arriendo…"}
+            </Text>
+          </View>
+        )}
+
         {reservation && (
           <Card padded style={{ gap: theme.spacing.md }}>
             <Row label="Vehículo" value={[auto.marca, auto.modelo, auto.anio].filter(Boolean).join(" ")} />
@@ -162,6 +173,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   codeHint: { fontSize: 12, color: colors.primary },
+  waitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+  },
+  waitDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  waitText: { fontSize: 12.5, color: colors.textMuted, textAlign: "center", flexShrink: 1 },
   errText: { fontSize: 14, color: colors.danger, textAlign: "center" },
   row: { flexDirection: "row", justifyContent: "space-between", gap: theme.spacing.md },
   rowLabel: { fontSize: 13, color: colors.textMuted },

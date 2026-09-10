@@ -373,6 +373,19 @@ export function Icon({
     case "edit":
       return renderSvg(<Path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" />);
 
+    case "sparkles":
+    case "ai":
+      return renderSvg(
+        <>
+          <Path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z" />
+          <Path d="M19 16l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" />
+        </>
+      );
+
+    case "zap":
+    case "rayo":
+      return renderSvg(<Polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill={fill !== "none" ? fill : color} />);
+
     default:
       return renderSvg(<Circle cx="12" cy="12" r="4" fill={color} />);
   }

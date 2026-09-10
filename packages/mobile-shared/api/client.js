@@ -542,6 +542,17 @@ export class ApiClient {
     });
   }
 
+  static async analizarDanosIA(reservaId, { fotos_despues, fotos_antes, notas } = {}) {
+    return this.request(`/entrega/${reservaId}/analisis-ia`, {
+      method: "POST",
+      body: JSON.stringify({
+        fotos_despues: fotos_despues || [],
+        fotos_antes: fotos_antes || undefined,
+        notas: notas || undefined,
+      }),
+    });
+  }
+
   // Mensajería de coordinación por reserva
   static async getMensajes(reservaId) {
     return this.request(`/reservas/${reservaId}/mensajes`);
