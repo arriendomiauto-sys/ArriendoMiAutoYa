@@ -62,7 +62,7 @@ const datosBasicos = (tr, { patente = "BBCL-10", marca = "Toyota", modelo = "RAV
   escribirModelo(tr, modelo);
   escribir(tr, "ABCD-12", patente);
   tocarMapa(tr);
-  escribir(tr, "ej. Copec Av. Alemania / Plaza de Armas", "Copec Av. Alemania");
+  escribir(tr, "Av. Alemania 6370, Temuco, Araucanía", "Av. Alemania 6370, Temuco, Araucanía");
 };
 
 const irAPaso2 = () => {
@@ -125,7 +125,7 @@ describe("Publicar un auto · paso 1 (el auto)", () => {
     escribir(tr, "Escribe y elige de la lista", "Toyota");
     escribirModelo(tr, "RAV4");
     escribir(tr, "ABCD-12", "BBCL-10");
-    escribir(tr, "ej. Copec Av. Alemania / Plaza de Armas", "Copec Av. Alemania");
+    escribir(tr, "Av. Alemania 6370, Temuco, Araucanía", "Av. Alemania 6370, Temuco, Araucanía");
     pressText(tr, "Siguiente: tarifa");
 
     const t = textOf(tr);

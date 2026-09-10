@@ -75,7 +75,7 @@ describe("AddEditCarScreen · paso de fotos", () => {
       (n) => typeof n.props?.onPress === "function" && n.props?.initialRegion
     )[0];
     act(() => mapa.props.onPress({ nativeEvent: { coordinate: { latitude: -37.47, longitude: -72.35 } } }));
-    escribir(tr, "ej. Copec Av. Alemania / Plaza de Armas", "Copec Av. Alemania");
+    escribir(tr, "Av. Alemania 6370, Temuco, Araucanía", "Av. Alemania 6370, Temuco, Araucanía");
     pressText(tr, "Siguiente: tarifa"); // paso 1 -> 2
     pressText(tr, "Siguiente: fotos"); // paso 2 -> 3
     return tr;
