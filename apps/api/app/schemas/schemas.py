@@ -875,6 +875,25 @@ class ChecklistResponse(BaseModel):
     cargo_atraso: Optional[int] = None
     liquidacion_dueno: Optional[int] = None
 
+class AIDamageDetail(BaseModel):
+    tipo: str
+    probabilidad_pct: int
+    zona: str
+    descripcion: str
+
+class AIDamageAnalysisRequest(BaseModel):
+    fotos_despues: List[str] = Field(default_factory=list)
+    fotos_antes: Optional[List[str]] = None
+    notas: Optional[str] = None
+
+class AIDamageAnalysisResponse(BaseModel):
+    anomalia_detectada: bool
+    confianza_general: int
+    probabilidades: Dict[str, int]
+    danos_detectados: List[AIDamageDetail] = Field(default_factory=list)
+    sugerencia_dueno: str
+    inspeccionado_en: str
+
 # ==============================================================================
 # CONFIGURACIÓN DE PLATAFORMA (RF-33)
 # ==============================================================================

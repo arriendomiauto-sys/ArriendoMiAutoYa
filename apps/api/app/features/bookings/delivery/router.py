@@ -8,9 +8,12 @@ from app.schemas.schemas import (
     ConfirmVerificationRequest,
     ConfirmVerificationResponse,
     ChecklistRequest,
-    ChecklistResponse
+    ChecklistResponse,
+    AIDamageAnalysisRequest,
+    AIDamageAnalysisResponse
 )
 from app.features.bookings.delivery.service import DeliveryService
+from app.features.bookings.delivery.ai_damage_service import AIDamageService
 from app.features.auth.login.service import get_current_user
 from app.models.entities import Usuario, Reserva, Auto
 
@@ -148,3 +151,38 @@ def registrar_checklist_auto(
             entidad_tipo="reserva", entidad_id=reserva_id,
         )
     return resultado
+
+
+@router.post(
+    "/entrega/{reserva_id}/analisis-ia",
+    response_model=AIDamageAnalysisResponse,
+    summary="Peritaje visual asistido por IA para detección de daños (Dueño, Cliente y Admin)"
+)
+def analizar_danos_ia(
+    reserva_id: str,
+    payload: AIDamageAnalysisRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Compara las fotos del checklist inicial vs. las fotos del checklist final y calcula
+    probabilidades de daños (rayones, abolladuras, etc.) mediante visión multimodal.
+    """
+    reserva = _obtener_reserva_o_404(reserva_id, db)
+    roles = current_user.roles_activos or []
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    es_dueno = auto and auto.dueno_id == current_user.id
+    es_cliente = reserva.cliente_id == current_user.id
+    es_admin = "admin" in roles or "manager" in roles
+
+    if not (es_dueno or es_cliente or es_admin):
+        raise HTTPException(status_code=403, detail="No tienes permiso para consultar el peritaje de esta reserva.")
+
+    return AIDamageService.analizar_danos(
+        reserva_id=reserva_id,
+        fotos_despues=payload.fotos_despues,
+        fotos_antes=payload.fotos_antes,
+        notas=payload.notas,
+        db=db,
+    )
+
