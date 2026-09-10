@@ -491,7 +491,9 @@ class DeliveryService:
 
         # Enganche con el depósito automático al dueño: best-effort, nunca
         # bloquea el cierre de la devolución (no-op salvo BCI_PAYOUTS_HABILITADO).
-        if tipo != "antes":
+        # Solo en una devolución que quedó "finalizada": si hubo daño/disputa la
+        # reserva pasa a "disputada" y la liquidación no se paga hasta resolverla.
+        if tipo != "antes" and reserva.estado == "finalizada":
             try:
                 from app.features.payments import liquidaciones_service
                 pago_liq_row = (

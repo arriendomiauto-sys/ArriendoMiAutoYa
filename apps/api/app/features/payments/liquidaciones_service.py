@@ -7,9 +7,25 @@ al cerrar la devolución (intentar_liquidar) y desde un bucle de fondo periódic
 
 No-op salvo `settings.BCI_PAYOUTS_HABILITADO`. Nunca toca holds ni cobros.
 
-El barrido corre en paralelo (loop de fondo + POST /admin/liquidaciones/ejecutar),
-así que el "claim" de cada fila es un UPDATE atómico con compare-and-set: dos
-barridos simultáneos jamás transfieren la misma fila dos veces (camino de plata).
+SEGURIDAD — dos hallazgos del review final, cerrados acá (camino de plata real):
+
+  1. Doble transferencia por barridos concurrentes. El barrido corre desde
+     varios lados a la vez (loop de fondo, POST /admin/liquidaciones/ejecutar,
+     y el enganche de la devolución). El diseño original leía la fila 'pendiente'
+     y luego la marcaba 'procesando' en un paso aparte: dos barridos podían leer
+     la misma fila antes de que ninguno escribiera y depositar dos veces. Ahora
+     `_claim()` es un `UPDATE ... WHERE estado=:prev` atómico y solo el que hace
+     `rowcount==1` transfiere. Además, una fila 'procesando' se considera
+     huérfana (re-transferible) solo si lleva > `_minutos_stale_procesando()`
+     ahí: mientras `bci_payouts.transferir()` está en vuelo, `procesando_desde`
+     es reciente y nadie la vuelve a tomar.
+
+  2. Barrido global disparable por cualquier usuario. `PUT /me/cuenta-bancaria`
+     y `POST /me/cuentas-cobro` (solo gated por sesión, cualquier autenticado)
+     llamaban a `ejecutar_liquidaciones_pendientes()` SIN filtro de usuario, o
+     sea una pasada de pagos de TODA la plataforma bajo demanda. Ahora esos
+     endpoints pasan `usuario_id=current_user.id` y el barrido global queda solo
+     para el loop de fondo y el endpoint de admin.
 """
 import logging
 from datetime import datetime, timedelta, timezone
@@ -19,7 +35,7 @@ from sqlalchemy import String, and_, cast, or_, text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.entities import Notificacion, Pago, Usuario
+from app.models.entities import Notificacion, Pago, Reserva, Usuario
 from app.features.payments import bci_payouts
 from app.features.communications.notifications.service import crear_notificacion
 
@@ -149,7 +165,6 @@ def _procesar_uno(db: Session, pago: Pago) -> str:
 
 def ejecutar_liquidaciones_pendientes(
     db: Session,
-    ahora: Optional[datetime] = None,
     usuario_id: Optional[str] = None,
 ) -> Dict[str, int]:
     """Barre las liquidaciones que faltan pagar.
@@ -167,8 +182,12 @@ def ejecutar_liquidaciones_pendientes(
     # re-tomarla sería un doble depósito. Solo entra al barrido cuando ya
     # lleva demasiado tiempo ahí (o viene de antes de esta columna: NULL).
     corte_procesando = _ahora() - timedelta(minutes=_minutos_stale_procesando())
+    # Una reserva "disputada" (daño reportado en la devolución) no paga su
+    # liquidación hasta que soporte la resuelve: el monto puede cambiar.
+    reservas_disputadas = db.query(Reserva.id).filter(Reserva.estado == "disputada")
     filtros = [
         Pago.tipo == "liquidacion_dueno",
+        ~Pago.reserva_id.in_(reservas_disputadas),
         or_(
             Pago.estado.in_(["pendiente", "fallido"]),
             and_(
