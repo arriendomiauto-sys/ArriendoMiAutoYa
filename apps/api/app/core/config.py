@@ -95,6 +95,18 @@ class Settings(BaseSettings):
     PAGOS_SIMULADOS: bool = True
     # ======================================================================
 
+    # ===== Pagos automáticos a dueños (transferencias BCI) ================
+    # OFF por defecto: encendido, las liquidaciones se transfieren solas.
+    BCI_PAYOUTS_HABILITADO: bool = False
+    # Mock por defecto: no sale a la red, da las transferencias por acreditadas.
+    BCI_PAYOUTS_MOCK: bool = True
+    BCI_API_URL: Optional[str] = None
+    BCI_API_KEY: Optional[str] = None
+    # No intentar transferencias por montos ínfimos (se acumulan / se pagan a mano).
+    BCI_PAYOUT_MIN_CLP: int = 1000
+    LIQUIDACIONES_INTERVALO_MINUTOS: int = 10
+    # ====================================================================
+
     # Storage Local Directory Fallback
     STORAGE_LOCAL_DIR: str = "./uploads"
 
