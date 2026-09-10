@@ -73,6 +73,9 @@ async def lifespan(app: FastAPI):
     # sync_missing_columns() emitiera cláusula DEFAULT (un campo Pydantic
     # no-Optional sobre una de esas columnas responde 500).
     backfill_null_defaults()
+    # Migra usuario.cuenta_bancaria (JSON) -> tabla cuentas_cobro (idempotente).
+    from app.core.schema_sync import backfill_cuentas_cobro
+    backfill_cuentas_cobro()
     os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
 
     # Recordatorios de entrega/devolución (24h y 2h antes)

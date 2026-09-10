@@ -71,6 +71,22 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_rut ON public.usuarios(rut);
 CREATE INDEX IF NOT EXISTS idx_usuarios_email ON public.usuarios(email);
 
 -- -------------------------------------------------------------------------
+-- CUENTAS DE COBRO (dónde el dueño recibe sus liquidaciones)
+-- -------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.cuentas_cobro (
+    id TEXT PRIMARY KEY,
+    usuario_id TEXT NOT NULL REFERENCES public.usuarios(id),
+    banco TEXT NOT NULL,
+    tipo_cuenta TEXT NOT NULL,
+    numero TEXT NOT NULL,
+    titular TEXT NOT NULL,
+    rut TEXT NOT NULL,
+    predeterminada BOOLEAN DEFAULT FALSE,
+    creada_en TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_cuentas_cobro_usuario ON public.cuentas_cobro(usuario_id);
+
+-- -------------------------------------------------------------------------
 -- AUTOS
 -- -------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.autos (

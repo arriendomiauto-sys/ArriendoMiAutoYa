@@ -35,7 +35,7 @@ from sqlalchemy import inspect, literal, text
 from sqlalchemy.schema import CreateColumn
 from sqlalchemy.types import JSON, DateTime
 
-from app.core.database import Base, engine
+from app.core.database import Base, engine, SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -314,3 +314,40 @@ def backfill_null_defaults() -> int:
                 )
 
     return columnas_reparadas
+
+
+def backfill_cuentas_cobro() -> int:
+    """
+    Crea una `CuentaCobro` predeterminada por cada usuario con `cuenta_bancaria`
+    JSON (con `numero`) y sin filas en `cuentas_cobro`. Idempotente; corre en
+    cualquier dialecto. Devuelve cuántas creó.
+    """
+    from app.models.entities import Usuario, CuentaCobro
+
+    creadas = 0
+    db = SessionLocal()
+    try:
+        usuarios = db.query(Usuario).filter(Usuario.cuenta_bancaria.isnot(None)).all()
+        for u in usuarios:
+            cb = u.cuenta_bancaria or {}
+            if not cb.get("numero"):
+                continue
+            if db.query(CuentaCobro).filter(CuentaCobro.usuario_id == u.id).first():
+                continue
+            db.add(CuentaCobro(
+                usuario_id=u.id,
+                banco=cb.get("banco") or "",
+                tipo_cuenta=cb.get("tipo_cuenta") or "",
+                numero=cb.get("numero") or "",
+                titular=cb.get("titular") or (u.nombre or ""),
+                rut=cb.get("rut") or (u.rut or ""),
+                predeterminada=True,
+            ))
+            creadas += 1
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        logger.error("schema_sync: backfill_cuentas_cobro falló: %s", e)
+        db.rollback()
+    finally:
+        db.close()
+    return creadas

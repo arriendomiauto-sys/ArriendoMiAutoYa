@@ -151,6 +151,25 @@ class Tarjeta(Base):
     usuario = relationship("Usuario", back_populates="tarjetas")
 
 
+class CuentaCobro(Base):
+    """
+    Cuenta bancaria / de débito donde el dueño recibe sus liquidaciones.
+    Varias por usuario, exactamente una `predeterminada`. `usuario.cuenta_bancaria`
+    (JSON) se mantiene como espejo de la predeterminada para compat.
+    """
+    __tablename__ = "cuentas_cobro"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
+    banco = Column(String, nullable=False)
+    tipo_cuenta = Column(String, nullable=False)
+    numero = Column(String, nullable=False)
+    titular = Column(String, nullable=False)
+    rut = Column(String, nullable=False)
+    predeterminada = Column(Boolean, default=False)
+    creada_en = Column(DateTime, default=utc_now)
+
+
 class Auto(Base):
     __tablename__ = "autos"
 
