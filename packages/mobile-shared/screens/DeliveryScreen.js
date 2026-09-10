@@ -1076,10 +1076,10 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           <Card padded style={{ width: "100%", gap: theme.spacing.md }}>
             <View style={styles.rowBetween}>
               <Text style={styles.infoLabel}>Liquidación para ti</Text>
-              <Badge variant={enDisputa ? "neutral" : "warning"} label={enDisputa ? "En pausa" : "Pendiente de pago"} />
+              <Badge variant={enDisputa ? "neutral" : "success"} label={enDisputa ? "En pausa por disputa" : "Depósito automático directo"} />
             </View>
             <View style={styles.rowBetween}>
-              <Text style={styles.infoLabel}>Monto</Text>
+              <Text style={styles.infoLabel}>Monto a transferir</Text>
               <Text style={styles.liqMonto}>${(r.liquidacion_dueno || 0).toLocaleString("es-CL")}</Text>
             </View>
             {r.cargo_limpieza > 0 && <InfoRow label="Cargo limpieza" value={`$${r.cargo_limpieza.toLocaleString("es-CL")}`} />}
@@ -1087,8 +1087,8 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
             {r.cargo_km_extra > 0 && <InfoRow label="Cargo km extra" value={`$${r.cargo_km_extra.toLocaleString("es-CL")}`} />}
             <Text style={styles.footNoteLeft}>
               {enDisputa
-                ? "La garantía no se libera hasta que se resuelva la disputa."
-                : "La garantía se libera al cliente tras esta inspección de devolución."}
+                ? "La garantía y liquidación quedan en pausa hasta que soporte resuelva la disputa."
+                : "El dinero se transfiere de forma automática a tu cuenta bancaria registrada."}
             </Text>
           </Card>
 

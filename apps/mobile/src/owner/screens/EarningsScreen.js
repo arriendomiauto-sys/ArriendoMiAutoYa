@@ -48,7 +48,6 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
 
   const [ganancias, setGanancias] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [requesting, setRequesting] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -75,7 +74,8 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
     try {
       await updateBankAccount(form);
       setBankModal(false);
-      showAlert("Cuenta guardada", "Tus liquidaciones se depositarán en esta cuenta.");
+      showAlert("Cuenta guardada", "Tus liquidaciones se depositarán automáticamente en esta cuenta.");
+      cargar();
     } catch (err) {
       showAlert("No se pudo guardar", err.message || "Verifica el RUT e intenta de nuevo.");
     } finally {
@@ -84,45 +84,11 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
   };
 
   const saldo = ganancias?.saldo_disponible_clp ?? 0;
+  const totalPagado = ganancias?.total_pagado_clp ?? 0;
+  const totalGanado = (ganancias?.total_ganado_clp ?? (saldo + totalPagado)) || saldo;
   const historial = ganancias?.historial ?? [];
   const porAuto = ganancias?.por_auto ?? [];
   const bonoReferidoPendiente = ganancias?.bono_referido_pendiente_clp ?? 0;
-
-  const handlePayout = () => {
-    if (!bankAccount) {
-      showAlert("Falta tu cuenta bancaria", "Configura una cuenta de depósito antes de solicitar el retiro.");
-      setBankModal(true);
-      return;
-    }
-    if (saldo <= 0) {
-      showAlert("Sin saldo disponible", "No tienes liquidaciones pendientes de retiro.");
-      return;
-    }
-    showAlert(
-      "Solicitar retiro",
-      `Se solicitará la transferencia de ${fmt(saldo)} a tu ${bankAccount.banco} N° ${bankAccount.numero}. Nuestro equipo la procesa manualmente.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Confirmar",
-          onPress: async () => {
-            setRequesting(true);
-            try {
-              await ApiClient.crearTicketSoporte(
-                "Solicitud de retiro inmediato",
-                `Solicito transferir mi saldo disponible (${fmt(saldo)}) a: ${bankAccount.banco}, ${bankAccount.tipo_cuenta} N° ${bankAccount.numero}, titular ${bankAccount.titular} (${bankAccount.rut}).`
-              );
-              showAlert("Solicitud enviada", "Quedó registrada y nuestro equipo gestionará la transferencia.");
-            } catch (err) {
-              showAlert("No se pudo enviar", err.message || "Intenta más tarde.");
-            } finally {
-              setRequesting(false);
-            }
-          },
-        },
-      ]
-    );
-  };
 
   const hoy = new Date();
   const barras = Array.from({ length: 7 }).map((_, i) => {
@@ -159,37 +125,47 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Saldo — el único bloque teal de la pantalla. */}
+        {/* Saldo y Depósito Automático — el bloque teal de la pantalla. */}
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Saldo disponible para retiro</Text>
+          <Text style={styles.balanceLabel}>Total generado</Text>
           {loading ? (
             <ActivityIndicator color="#FFFFFF" style={{ marginVertical: 10, alignSelf: "flex-start" }} />
           ) : (
-            <Text style={styles.balanceAmount}>{fmt(saldo)}</Text>
+            <Text style={styles.balanceAmount}>{fmt(totalGanado)}</Text>
           )}
           <Text style={styles.balanceSub}>
-            {ganancias ? `${ganancias.cantidad_liquidaciones} liquidación(es) en total` : "Cargando…"}
+            {ganancias ? `${ganancias.cantidad_liquidaciones} arriendo(s) liquidado(s) · Depósito directo a tu cuenta` : "Cargando…"}
           </Text>
           {bonoReferidoPendiente > 0 ? (
             <View style={styles.bonoReferidoRow}>
               <Icon name="star" size={13} color="#FFFFFF" />
               <Text style={styles.bonoReferidoTexto}>
-                + {fmt(bonoReferidoPendiente)} de bono por invitación (aparte del saldo de arriba)
+                + {fmt(bonoReferidoPendiente)} de bono por invitación incluido
               </Text>
             </View>
           ) : null}
-          <View style={styles.balanceBtns}>
-            <Button
-              tone="dark"
-              label="Solicitar retiro"
-              onPress={handlePayout}
-              loading={requesting}
-              style={{ flex: 1.4 }}
-            />
-            <TouchableOpacity style={styles.bankChip} onPress={() => setBankModal(true)} activeOpacity={0.85}>
-              <Text style={styles.bankChipText}>Cuenta</Text>
+
+          {bankAccount ? (
+            <TouchableOpacity style={styles.autoPayoutBanner} onPress={() => setBankModal(true)} activeOpacity={0.85}>
+              <View style={styles.autoPayoutDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.autoPayoutTitle}>Depósito automático activo</Text>
+                <Text style={styles.autoPayoutSub} numberOfLines={1}>
+                  {bankAccount.banco} · {bankAccount.tipo_cuenta} (N° {bankAccount.numero.slice(-4)})
+                </Text>
+              </View>
+              <Text style={styles.autoPayoutLink}>Cambiar</Text>
             </TouchableOpacity>
-          </View>
+          ) : (
+            <TouchableOpacity style={styles.missingBankBanner} onPress={() => setBankModal(true)} activeOpacity={0.85}>
+              <Icon name="alert" size={16} color="#FFFFFF" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.missingBankTitle}>Falta tu cuenta bancaria</Text>
+                <Text style={styles.missingBankSub}>Configúrala para recibir tus transferencias automáticas.</Text>
+              </View>
+              <Text style={styles.missingBankLink}>Configurar</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={[oc.card, oc.cardPadded, styles.cardBody]}>
@@ -202,6 +178,9 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
               <Text style={styles.link}>{bankAccount ? "Cambiar" : "Configurar"}</Text>
             </TouchableOpacity>
           </View>
+          <Text style={styles.bankExplain}>
+            El 85% neto del arriendo y el 100% de compensaciones (combustible, km extra y limpieza) se depositan automáticamente en esta cuenta al devolver el vehículo.
+          </Text>
           {bankAccount ? (
             <View style={{ gap: 2 }}>
               <Text style={styles.bankName}>{bankAccount.banco}</Text>
@@ -265,22 +244,25 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
               Aparecerán aquí cuando termines tu primer arriendo.
             </Text>
           ) : (
-            historial.map((item, i) => (
-              <View key={item.id} style={[styles.histRow, i === historial.length - 1 && { borderBottomWidth: 0 }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.histConcept}>
-                    Liquidación de arriendo
-                    {item.reserva_id ? ` · ${item.reserva_id.slice(0, 8)}` : ""}
-                  </Text>
-                  <Text style={styles.histDate}>
-                    {fmtFecha(item.timestamp)} · {item.estado === "pagado" ? "Pagada" : "Pendiente"}
+            historial.map((item, i) => {
+              const esPagado = item.estado === "pagado";
+              return (
+                <View key={item.id} style={[styles.histRow, i === historial.length - 1 && { borderBottomWidth: 0 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.histConcept}>
+                      Liquidación de arriendo
+                      {item.reserva_id ? ` · ${item.reserva_id.slice(0, 8)}` : ""}
+                    </Text>
+                    <Text style={styles.histDate}>
+                      {fmtFecha(item.timestamp)} · {esPagado ? "Transferido a tu cuenta" : bankAccount ? "Depósito en camino" : "Falta cuenta bancaria"}
+                    </Text>
+                  </View>
+                  <Text style={[styles.histAmount, { color: esPagado ? colors.accentDark : colors.textMuted }]}>
+                    +{fmt(item.monto)}
                   </Text>
                 </View>
-                <Text style={[styles.histAmount, { color: item.estado === "pagado" ? colors.accentDark : colors.textMuted }]}>
-                  +{fmt(item.monto)}
-                </Text>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -389,16 +371,38 @@ const styles = StyleSheet.create({
   balanceSub: { fontSize: 12, color: "rgba(255,255,255,0.75)", marginBottom: theme.spacing.md },
   bonoReferidoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: -6, marginBottom: theme.spacing.md },
   bonoReferidoTexto: { fontSize: 12, color: "rgba(255,255,255,0.85)", fontWeight: "600" },
-  balanceBtns: { flexDirection: "row", gap: theme.spacing.sm, alignItems: "stretch" },
-  bankChip: {
-    flex: 1,
+  autoPayoutBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(47,191,155,0.14)",
     borderRadius: theme.radius.field,
     borderWidth: 1,
-    borderColor: "rgba(47,191,155,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: "rgba(47,191,155,0.35)",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: theme.spacing.sm,
   },
-  bankChipText: { color: colors.accent, fontSize: 15, fontWeight: "600" },
+  autoPayoutDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
+  autoPayoutTitle: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
+  autoPayoutSub: { fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 1 },
+  autoPayoutLink: { fontSize: 13, fontWeight: "700", color: colors.accent },
+  missingBankBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(234,179,8,0.15)",
+    borderRadius: theme.radius.field,
+    borderWidth: 1,
+    borderColor: "rgba(234,179,8,0.4)",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: theme.spacing.sm,
+  },
+  missingBankTitle: { fontSize: 13, fontWeight: "700", color: "#FDE047" },
+  missingBankSub: { fontSize: 11.5, color: "rgba(255,255,255,0.85)", marginTop: 1 },
+  missingBankLink: { fontSize: 13, fontWeight: "700", color: "#FDE047" },
+  bankExplain: { fontSize: 12, color: colors.textMuted, lineHeight: 17, marginBottom: 2 },
 
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   link: { fontSize: 13, fontWeight: "700", color: colors.accentDark },

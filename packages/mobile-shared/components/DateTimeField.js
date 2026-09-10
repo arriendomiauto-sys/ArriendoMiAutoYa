@@ -71,6 +71,9 @@ export function DateTimeField({
   minuteStep = 30,
   helper,
   disabled = false,
+  // [{ fecha_inicio, fecha_fin }] — rangos ya reservados de este auto: sus
+  // días salen deshabilitados para no elegir fechas que el backend rechaza.
+  rangosBloqueados = [],
 }) {
   const [abierto, setAbierto] = useState(false);
   const valido = value instanceof Date && !isNaN(value);
@@ -110,6 +113,7 @@ export function DateTimeField({
         minimumDate={minimumDate}
         maximumDate={maximumDate}
         minuteStep={minuteStep}
+        rangosBloqueados={rangosBloqueados}
         onCancel={() => setAbierto(false)}
         onConfirm={(fecha) => {
           setAbierto(false);
@@ -132,6 +136,7 @@ export function DateTimePickerModal({
   minimumDate,
   maximumDate,
   minuteStep = 30,
+  rangosBloqueados = [],
   onConfirm,
   onCancel,
 }) {
@@ -148,6 +153,25 @@ export function DateTimePickerModal({
 
   const minDia = minimumDate ? inicioDelDia(minimumDate) : null;
   const maxDia = maximumDate ? inicioDelDia(maximumDate) : null;
+
+  // Rangos ocupados normalizados a [inicioMs, finMs] de día completo. Un día
+  // se bloquea si cae dentro de cualquier rango (extremos incluidos: entregar
+  // y retirar el mismo día es justo lo que queremos evitar).
+  const rangosDia = useMemo(
+    () =>
+      (rangosBloqueados || [])
+        .map((r) => {
+          const i = inicioDelDia(new Date(r.fecha_inicio)).getTime();
+          const f = inicioDelDia(new Date(r.fecha_fin)).getTime();
+          return [Math.min(i, f), Math.max(i, f)];
+        })
+        .filter(([i, f]) => !Number.isNaN(i) && !Number.isNaN(f)),
+    [rangosBloqueados]
+  );
+  const fechaBloqueada = (fecha) => {
+    const t = inicioDelDia(fecha).getTime();
+    return rangosDia.some(([i, f]) => t >= i && t <= f);
+  };
 
   const anio = mesVisible.getFullYear();
   const mes = mesVisible.getMonth();
@@ -174,6 +198,7 @@ export function DateTimePickerModal({
     const d = new Date(anio, mes, dia);
     if (minDia && d < minDia) return false;
     if (maxDia && d > maxDia) return false;
+    if (fechaBloqueada(d)) return false;
     return true;
   };
 
@@ -193,7 +218,10 @@ export function DateTimePickerModal({
 
   const puedeMesAnterior = !minDia || new Date(anio, mes, 1) > minDia;
   const puedeMesSiguiente = !maxDia || new Date(anio, mes + 1, 1) <= maxDia;
-  const seleccionValida = horaHabilitada(seleccion);
+  const seleccionValida = horaHabilitada(seleccion) && !fechaBloqueada(seleccion);
+  const hayBloqueadosEsteMes = Array.from({ length: diasEnMes }, (_, i) =>
+    fechaBloqueada(new Date(anio, mes, i + 1))
+  ).some(Boolean);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -245,23 +273,26 @@ export function DateTimePickerModal({
               <View key={`e${i}`} style={styles.cellEmpty} />
             ))}
             {Array.from({ length: diasEnMes }, (_, i) => i + 1).map((dia) => {
+              const bloqueado = fechaBloqueada(new Date(anio, mes, dia));
               const habilitado = diaHabilitado(dia);
               const elegido = mismoDia(seleccion, new Date(anio, mes, dia));
               const esHoy = mismoDia(new Date(), new Date(anio, mes, dia));
               return (
                 <TouchableOpacity
                   key={dia}
-                  style={[styles.cell, elegido && styles.cellSelected]}
+                  style={[styles.cell, elegido && styles.cellSelected, bloqueado && styles.cellBloqueado]}
                   onPress={() => elegirDia(dia)}
                   disabled={!habilitado}
                   activeOpacity={0.8}
                   accessibilityRole="button"
+                  accessibilityLabel={bloqueado ? `${dia}, no disponible` : String(dia)}
                   accessibilityState={{ disabled: !habilitado, selected: elegido }}
                 >
                   <Text
                     style={[
                       styles.dayNum,
                       !habilitado && styles.dayDisabled,
+                      bloqueado && styles.dayBloqueado,
                       elegido && styles.daySelected,
                       esHoy && !elegido && styles.dayToday,
                     ]}
@@ -272,6 +303,12 @@ export function DateTimePickerModal({
               );
             })}
           </View>
+
+          {hayBloqueadosEsteMes ? (
+            <Text style={styles.leyendaBloqueo}>
+              Los días tachados ya están reservados para este auto.
+            </Text>
+          ) : null}
 
           <Text style={styles.timeLabel}>Hora</Text>
           <ScrollView style={styles.timeBox} contentContainerStyle={styles.timeGrid}>
@@ -372,10 +409,13 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
   },
   cellSelected: { backgroundColor: colors.primary },
+  cellBloqueado: { backgroundColor: colors.dangerBg },
   dayNum: { fontSize: 14, fontWeight: "600", color: colors.text },
   daySelected: { color: colors.textWhite, fontWeight: "800" },
   dayDisabled: { color: colors.textDisabled },
+  dayBloqueado: { color: colors.dangerText, textDecorationLine: "line-through" },
   dayToday: { color: colors.accentDark, textDecorationLine: "underline" },
+  leyendaBloqueo: { fontSize: 11.5, color: colors.textMuted, marginTop: 4 },
 
   timeLabel: { ...theme.typography.label, color: colors.textMuted, marginTop: theme.spacing.sm },
   timeBox: { maxHeight: 132 },

@@ -84,6 +84,20 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const [dateError, setDateError] = useState(null);
   const ahora = useMemo(() => new Date(), []);
 
+  // Rangos ya reservados de este auto: el calendario los deshabilita para no
+  // elegir fechas que el backend va a rechazar con un 400.
+  const [rangosOcupados, setRangosOcupados] = useState([]);
+  useEffect(() => {
+    if (!car?.id || typeof ApiClient.getDisponibilidadAuto !== "function") return;
+    let vivo = true;
+    ApiClient.getDisponibilidadAuto(car.id)
+      .then((r) => vivo && setRangosOcupados(r?.rangos_ocupados || []))
+      .catch(() => {}); // que falle no debe romper la ficha; el backend igual valida al reservar
+    return () => {
+      vivo = false;
+    };
+  }, [car?.id]);
+
   // Mover el retiro más allá de la devolución dejaría un rango imposible:
   // se arrastra la devolución manteniendo la duración elegida.
   const cambiarInicio = (nuevoInicio) => {
@@ -397,12 +411,14 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                   value={fechaInicio}
                   onChange={cambiarInicio}
                   minimumDate={ahora}
+                  rangosBloqueados={rangosOcupados}
                 />
                 <DateTimeField
                   label="Devolución"
                   value={fechaFin}
                   onChange={cambiarFin}
                   minimumDate={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
+                  rangosBloqueados={rangosOcupados}
                 />
               </View>
 

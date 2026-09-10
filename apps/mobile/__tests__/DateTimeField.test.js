@@ -61,6 +61,29 @@ describe("DateTimeField", () => {
     // La selección no se movió del valor original.
     expect(aISOLocal(onChange.mock.calls[0][0])).toBe("2026-09-15T10:00:00");
   });
+
+  it("no deja elegir días dentro de un rango ya reservado", () => {
+    const onChange = jest.fn();
+    const tr = renderTree(
+      <DateTimeField
+        label="Retiro"
+        value={VALOR}
+        onChange={onChange}
+        rangosBloqueados={[
+          { fecha_inicio: "2026-09-20T10:00:00", fecha_fin: "2026-09-23T18:00:00" },
+        ]}
+      />
+    );
+
+    pressText(tr, "10:00");
+    expect(textOf(tr)).toContain("ya están reservados");
+
+    pressText(tr, "22"); // día dentro del rango bloqueado: TouchableOpacity disabled
+    pressText(tr, "Confirmar");
+
+    // La selección no se movió: el día 22 estaba bloqueado.
+    expect(aISOLocal(onChange.mock.calls[0][0])).toBe("2026-09-15T10:00:00");
+  });
 });
 
 describe("aISOLocal", () => {

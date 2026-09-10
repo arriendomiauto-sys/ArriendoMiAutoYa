@@ -315,6 +315,12 @@ export class ApiClient {
     return this.request(`/autos/${autoId}`);
   }
 
+  // Rangos de fechas ya reservados de un auto (reserva pendiente_pago vigente,
+  // confirmada o en_curso). El calendario deshabilita esos días.
+  static async getDisponibilidadAuto(autoId) {
+    return this.request(`/autos/${autoId}/disponibilidad`);
+  }
+
   /**
    * Pasa por OCR los documentos legales del auto (padron, permiso, SOAP,
    * seguro y revision tecnica) y devuelve por cada uno que documento es, de
