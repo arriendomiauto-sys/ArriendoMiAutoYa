@@ -12,7 +12,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
-from app.core.schema_sync import sync_missing_columns, backfill_null_defaults, reconcile_check_constraints
+from app.core.schema_sync import (
+    sync_missing_columns,
+    backfill_null_defaults,
+    reconcile_check_constraints,
+    backfill_cuentas_cobro,
+)
 from app.core.limiter import limiter
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.request_limit import RequestSizeLimitMiddleware
@@ -74,7 +79,6 @@ async def lifespan(app: FastAPI):
     # no-Optional sobre una de esas columnas responde 500).
     backfill_null_defaults()
     # Migra usuario.cuenta_bancaria (JSON) -> tabla cuentas_cobro (idempotente).
-    from app.core.schema_sync import backfill_cuentas_cobro
     backfill_cuentas_cobro()
     os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
 

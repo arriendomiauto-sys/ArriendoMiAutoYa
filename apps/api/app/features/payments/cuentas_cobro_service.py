@@ -5,7 +5,7 @@ Cuentas de cobro del dueño: alta, baja, listado y la predeterminada.
 predeterminada — igual que el patrón legacy `usuario.tarjeta_*` frente a la
 tabla `tarjetas`. Todo lo que escribe llama a `sincronizar_cuenta_espejo`.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 

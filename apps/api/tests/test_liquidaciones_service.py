@@ -251,3 +251,24 @@ def test_sin_cuenta_avisa_una_sola_vez_aunque_barra_muchas_veces(db_session, bci
     assert "cuenta de cobro" in notis[0].mensaje
     db_session.refresh(p)
     assert p.estado == "pendiente"
+
+
+def test_procesando_huerfano_todavia_en_proceso_se_deja_como_esta(db_session, bci_on, monkeypatch):
+    """Fila 'procesando' vieja + con referencia_pago, pero BCI dice que la
+    transferencia sigue en curso -> no se paga, no se marca fallida, no cuenta."""
+    u = _dueno_con_cuenta(db_session)
+    p = _liquidacion(db_session, u, estado="procesando")
+    p.referencia_pago = "BCI-REAL-EN-CURSO"
+    p.procesando_desde = liq._ahora() - timedelta(hours=2)  # ya es "huérfana" por antigüedad
+    db_session.commit()
+
+    monkeypatch.setattr(
+        liq.bci_payouts, "consultar_transferencia",
+        lambda tid: {"estado": "en_proceso"},
+    )
+
+    resumen = liq.ejecutar_liquidaciones_pendientes(db_session)
+    db_session.refresh(p)
+    assert p.estado == "procesando"
+    assert p.referencia_pago == "BCI-REAL-EN-CURSO"
+    assert resumen["intentadas"] == 0

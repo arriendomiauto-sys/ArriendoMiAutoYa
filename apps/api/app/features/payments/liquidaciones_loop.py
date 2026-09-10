@@ -9,10 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 async def _bucle(session_factory) -> None:
-    intervalo = max(1, settings.LIQUIDACIONES_INTERVALO_MINUTOS) * 60
     while True:
         try:
-            await asyncio.sleep(intervalo)
+            await asyncio.sleep(max(1, settings.LIQUIDACIONES_INTERVALO_MINUTOS) * 60)
             db = session_factory()
             try:
                 liquidaciones_service.ejecutar_liquidaciones_pendientes(db)

@@ -180,16 +180,20 @@ def actualizar_cuenta_bancaria(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    # Compat: crea/actualiza la cuenta de cobro predeterminada.
+    # Compat: crea/actualiza la cuenta de cobro predeterminada. Este endpoint
+    # maneja UNA sola cuenta, así que la que llega queda como predeterminada
+    # aunque el dueño tenga otras cargadas por la pantalla nueva.
     existentes = cuentas_cobro_service.listar(db, current_user)
     pred = next((c for c in existentes if c.predeterminada), None)
     if pred:
         cuentas_cobro_service.eliminar(db, current_user, pred.id)
-    cuentas_cobro_service.agregar(
+    nueva = cuentas_cobro_service.agregar(
         db, current_user,
         banco=payload.banco, tipo_cuenta=payload.tipo_cuenta,
         numero=payload.numero, titular=payload.titular, rut=payload.rut,
     )
+    if not nueva.predeterminada:
+        cuentas_cobro_service.marcar_predeterminada(db, current_user, nueva.id)
     # Intento de depósito de lo que estuviera pendiente por falta de cuenta.
     # Acotado a este usuario: el barrido global es solo del loop/admin.
     from app.features.payments import liquidaciones_service
@@ -228,11 +232,14 @@ def listar_cuentas_cobro(db: Session = Depends(get_db), current_user: Usuario = 
              summary="Agregar una cuenta de cobro")
 def agregar_cuenta_cobro(payload: CuentaCobroCreate, db: Session = Depends(get_db),
                          current_user: Usuario = Depends(get_current_user)):
-    c = cuentas_cobro_service.agregar(
-        db, current_user,
-        banco=payload.banco, tipo_cuenta=payload.tipo_cuenta,
-        numero=payload.numero, titular=payload.titular, rut=payload.rut,
-    )
+    try:
+        c = cuentas_cobro_service.agregar(
+            db, current_user,
+            banco=payload.banco, tipo_cuenta=payload.tipo_cuenta,
+            numero=payload.numero, titular=payload.titular, rut=payload.rut,
+        )
+    except cuentas_cobro_service.CuentaCobroError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.as_detail())
     # Solo las liquidaciones de este dueño (ver nota en actualizar_cuenta_bancaria).
     from app.features.payments import liquidaciones_service
     liquidaciones_service.ejecutar_liquidaciones_pendientes(db, usuario_id=current_user.id)

@@ -166,8 +166,8 @@ class CuentaCobro(Base):
     numero = Column(String, nullable=False)
     titular = Column(String, nullable=False)
     rut = Column(String, nullable=False)
-    predeterminada = Column(Boolean, default=False)
-    creada_en = Column(DateTime, default=utc_now)
+    predeterminada = Column(Boolean, default=False, nullable=False)
+    creada_en = Column(DateTime, default=utc_now, nullable=False)
 
 
 class Auto(Base):
@@ -391,7 +391,7 @@ class Pago(Base):
     usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
     tipo = Column(String, nullable=False) # hold_reserva, hold_enrolamiento, cobro_final, liquidacion_dueno, deducible_seguro, cargo_limpieza, cargo_combustible
     monto = Column(Integer, nullable=False)
-    estado = Column(String, default="pendiente") # pendiente, capturado, liberado, fallido, reembolsado, pagado
+    estado = Column(String, default="pendiente") # pendiente, procesando, capturado, retenido, liberado, fallido, reembolsado, pagado
     # Id del pago en la pasarela (Mercado Pago). Antes se llamaba
     # `referencia_transbank`; al cambiar de pasarela el nombre quedó mintiendo.
     referencia_pago = Column(String, nullable=True)
