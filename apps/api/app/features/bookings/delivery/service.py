@@ -358,23 +358,16 @@ class DeliveryService:
             )
 
             dueno = db.query(Usuario).filter(Usuario.id == auto.dueno_id).first() if auto else None
-            tiene_cuenta_bancaria = bool(dueno and dueno.cuenta_bancaria and dueno.cuenta_bancaria.get("numero"))
 
-            # Depósito automático de la liquidación al dueño:
-            # Si no hay daño reportado ni disputa abierta, y el dueño tiene cuenta configurada,
-            # el dinero se transfiere directamente a su cuenta bancaria de inmediato.
-            deposito_automatico = bool(not es_dano_reportado and not disputa_existente and tiene_cuenta_bancaria)
-            estado_liq = "pagado" if deposito_automatico else "pendiente"
-            ref_liq = f"TRANSF-AUTO-{uuid.uuid4().hex[:8].upper()}" if deposito_automatico else None
-
-            # Registrar liquidación para el dueño (incluye el 100% de compensaciones por limpieza, combustible y km)
+            # Registrar liquidación para el dueño (incluye el 100% de compensaciones por limpieza, combustible y km).
+            # Nace siempre "pendiente": el depósito real lo gestiona liquidaciones_service
+            # (enganche tras el commit + barrido de fondo/admin), nunca este flujo.
             pago_liq = Pago(
                 reserva_id=reserva.id,
                 usuario_id=auto.dueno_id if auto else reserva.cliente_id,
                 tipo="liquidacion_dueno",
                 monto=cobro_info["liquidacion_dueno"],
-                estado=estado_liq,
-                referencia_pago=ref_liq,
+                estado="pendiente",
             )
             db.add(pago_cobro)
             db.add(pago_liq)
@@ -455,31 +448,8 @@ class DeliveryService:
                 except Exception as e:
                     logger.error("[DELIVERY] Error al liberar hold de garantía para reserva %s: %s", reserva.id, e)
 
-            # Notificación al dueño sobre su depósito automático
-            if auto and auto.dueno_id and not (es_dano_reportado or disputa_existente):
-                if deposito_automatico:
-                    banco_nombre = (dueno.cuenta_bancaria or {}).get("banco", "tu cuenta")
-                    crear_notificacion(
-                        db,
-                        usuario_id=auto.dueno_id,
-                        tipo="pago",
-                        titulo="Ganancia transferida automáticamente",
-                        mensaje=f"Se transfirieron ${cobro_info['liquidacion_dueno']:,} CLP automáticamente a tu cuenta en {banco_nombre} tras la devolución del vehículo.",
-                        entidad_tipo="reserva",
-                        entidad_id=reserva.id,
-                        commit=False,
-                    )
-                else:
-                    crear_notificacion(
-                        db,
-                        usuario_id=auto.dueno_id,
-                        tipo="pago",
-                        titulo="Liquidación lista (falta cuenta bancaria)",
-                        mensaje=f"Tu arriendo finalizó y tu ganancia de ${cobro_info['liquidacion_dueno']:,} CLP está lista. Agrega tu cuenta bancaria en Ganancias para recibir tu depósito.",
-                        entidad_tipo="reserva",
-                        entidad_id=reserva.id,
-                        commit=False,
-                    )
+            # La notificación al dueño sobre su liquidación (transferida o a la
+            # espera de cuenta bancaria) la emite ahora liquidaciones_service.
 
             # Incentivo por entrega en óptimas condiciones:
             # Sin daños reportados, combustible igual o mayor al recibido, vehículo limpio y sin atraso
@@ -518,6 +488,22 @@ class DeliveryService:
 
         db.commit()
         db.refresh(reserva)
+
+        # Enganche con el depósito automático al dueño: best-effort, nunca
+        # bloquea el cierre de la devolución (no-op salvo BCI_PAYOUTS_HABILITADO).
+        if tipo != "antes":
+            try:
+                from app.features.payments import liquidaciones_service
+                pago_liq_row = (
+                    db.query(Pago)
+                    .filter(Pago.reserva_id == reserva.id, Pago.tipo == "liquidacion_dueno")
+                    .order_by(Pago.timestamp.desc())
+                    .first()
+                )
+                if pago_liq_row:
+                    liquidaciones_service.intentar_liquidar(db, pago_liq_row)
+            except Exception:  # noqa: BLE001
+                logger.exception("[DELIVERY] intentar_liquidar falló (no bloqueante)")
 
         if reserva.estado == "finalizada":
             _notificar_si_es_primera_finalizada(reserva, db)

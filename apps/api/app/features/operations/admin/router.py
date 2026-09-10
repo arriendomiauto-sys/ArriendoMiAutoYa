@@ -369,6 +369,14 @@ def marcar_liquidacion_pagada(
     return {"id": pago.id, "estado": pago.estado}
 
 
+@router.post("/liquidaciones/ejecutar", summary="Ejecutar el barrido de liquidaciones pendientes (Admin)")
+def ejecutar_liquidaciones(db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
+    from app.features.payments import liquidaciones_service
+    return {"resumen": liquidaciones_service.ejecutar_liquidaciones_pendientes(db)}
+
+
 @router.get("/pagos", summary="Listado de transacciones de la plataforma (Admin)")
 def listar_pagos_admin(
     limit: int = 100,

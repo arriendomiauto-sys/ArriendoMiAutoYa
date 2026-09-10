@@ -81,13 +81,23 @@ async def lifespan(app: FastAPI):
     # Recordatorios de entrega/devolución (24h y 2h antes)
     tarea_recordatorios = iniciar_bucle_recordatorios(SessionLocal)
 
+    # Barrido periódico de liquidaciones a dueños (solo si los payouts BCI están activos)
+    tarea_liquidaciones = None
+    if settings.BCI_PAYOUTS_HABILITADO:
+        from app.features.payments.liquidaciones_loop import iniciar_bucle_liquidaciones
+        tarea_liquidaciones = iniciar_bucle_liquidaciones(SessionLocal)
+
     yield
 
     tarea_recordatorios.cancel()
-    try:
-        await tarea_recordatorios
-    except asyncio.CancelledError:
-        pass
+    if tarea_liquidaciones:
+        tarea_liquidaciones.cancel()
+    for t in (tarea_recordatorios, tarea_liquidaciones):
+        if t:
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
