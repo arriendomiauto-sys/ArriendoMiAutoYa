@@ -2,7 +2,7 @@ import pytest
 from app.core.config import settings
 from app.features.payments import liquidaciones_service as liq
 from app.features.payments import cuentas_cobro_service as cc
-from app.models.entities import Pago, Usuario
+from app.models.entities import Notificacion, Pago, Usuario
 
 
 @pytest.fixture
@@ -35,6 +35,13 @@ def test_con_cuenta_paga_automatico(db_session, bci_on):
     assert p.referencia_pago.startswith("BCI-MOCK-")
     assert p.liquidado_en is not None
     assert resumen["pagadas"] == 1
+    # La notificación al dueño se persiste de verdad.
+    notis = (
+        db_session.query(Notificacion)
+        .filter(Notificacion.usuario_id == u.id, Notificacion.tipo == "pago")
+        .all()
+    )
+    assert any("Depósito enviado" == n.titulo for n in notis)
 
 
 def test_sin_cuenta_queda_pendiente(db_session, bci_on):
@@ -80,5 +87,40 @@ def test_habilitado_false_es_noop(db_session, monkeypatch):
 def test_pago_ya_pagado_no_se_retransfiere(db_session, bci_on):
     u = _dueno_con_cuenta(db_session)
     p = _liquidacion(db_session, u, estado="pagado")
+    p.referencia_pago = "BCI-MOCK-YAEXISTE"
+    db_session.commit()
     resumen = liq.ejecutar_liquidaciones_pendientes(db_session)
     assert resumen["intentadas"] == 0
+    db_session.refresh(p)
+    assert p.estado == "pagado"
+    assert p.referencia_pago == "BCI-MOCK-YAEXISTE"
+
+
+def test_intentar_liquidar_directo_paga(db_session, bci_on):
+    u = _dueno_con_cuenta(db_session)
+    p = _liquidacion(db_session, u)
+    liq.intentar_liquidar(db_session, p)
+    db_session.refresh(p)
+    assert p.estado == "pagado"
+    assert p.referencia_pago.startswith("BCI-MOCK-")
+
+
+def test_intentar_liquidar_noop_flag_off(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "BCI_PAYOUTS_HABILITADO", False)
+    u = _dueno_con_cuenta(db_session)
+    p = _liquidacion(db_session, u)
+    liq.intentar_liquidar(db_session, p)  # no debe lanzar
+    db_session.refresh(p)
+    assert p.estado == "pendiente"
+
+
+def test_procesando_huerfano_se_reconcilia(db_session, bci_on):
+    u = _dueno_con_cuenta(db_session)
+    p = _liquidacion(db_session, u, estado="procesando")
+    p.referencia_pago = "BCI-MOCK-HUERFANO01"  # mock -> "acreditada"
+    db_session.commit()
+    resumen = liq.ejecutar_liquidaciones_pendientes(db_session)
+    db_session.refresh(p)
+    assert p.estado == "pagado"
+    assert p.liquidado_en is not None
+    assert resumen["pagadas"] == 1
