@@ -9,6 +9,18 @@ const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "
 // Clave local de un día ("año-mes-día", mes 0-based) para indexar sin comparar Date.
 const claveDia = (y, m, d) => `${y}-${m}-${d}`;
 
+// Mismos estados que ocupan el auto en el backend (validators.ESTADOS_OCUPAN_AUTO):
+// una `pendiente_pago` cuenta mientras no venza su TTL. Sin esto el dueño veía
+// libre —y podía bloquear como "uso personal"— un día en pleno checkout de un
+// arrendatario, que el backend igual va a rechazar al confirmar.
+const reservaOcupaAuto = (r) => {
+  if (r.estado === "confirmada" || r.estado === "en_curso") return true;
+  if (r.estado === "pendiente_pago") {
+    return !r.expira_en || new Date(r.expira_en).getTime() > Date.now();
+  }
+  return false;
+};
+
 export function CarCalendarScreen({ car, onBack }) {
   const insets = useSafeAreaInsets();
   const { cars } = useApp();
@@ -70,7 +82,7 @@ export function CarCalendarScreen({ car, onBack }) {
 
     for (const r of reservas) {
       if (r.auto_id !== selectedCarId) continue;
-      if (!["confirmada", "en_curso"].includes(r.estado)) continue;
+      if (!reservaOcupaAuto(r)) continue;
       const ini = new Date(r.fecha_inicio);
       const fin = new Date(r.fecha_fin);
       const cursor = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate());
@@ -103,7 +115,7 @@ export function CarCalendarScreen({ car, onBack }) {
   const toggleDay = (day) => {
     const estado = estadoDelDia(day);
     if (estado === "booked") {
-      showAlert("Día con arriendo activo", "Este día tiene una reserva confirmada y no se puede bloquear.");
+      showAlert("Día con reserva", "Este día tiene una reserva de un arrendatario y no se puede bloquear.");
       return;
     }
     const fecha = new Date(anio, mes, day);
