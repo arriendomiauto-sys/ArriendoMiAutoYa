@@ -217,6 +217,31 @@ class CuentaBancariaUpdate(BaseModel):
             raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
         return formatear_rut(str(v)) or str(v)
 
+class CuentaCobroCreate(BaseModel):
+    banco: str
+    tipo_cuenta: str
+    numero: str
+    titular: str
+    rut: str
+
+    @field_validator("rut", mode="before")
+    @classmethod
+    def _rut_valido(cls, v: str) -> str:
+        if not validar_rut_chileno(str(v)):
+            raise ValueError("RUT chileno inválido (falla verificación Módulo 11)")
+        return formatear_rut(str(v)) or str(v)
+
+
+class CuentaCobroOut(BaseModel):
+    id: str
+    banco: str
+    tipo_cuenta: str
+    numero: str
+    titular: str
+    rut: str
+    predeterminada: bool
+
+
 class TarjetaUpdate(BaseModel):
     """
     Registrar o reemplazar la tarjeta FUERA del enrolamiento inicial — para

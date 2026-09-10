@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, Body, HTTPException, Response, status
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.entities import Usuario, Pago
+from app.models.entities import Usuario
 from app.schemas.schemas import (
     UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate, TarjetaUpdate, TarjetaOut,
-    CodigoReferidoUpdate, TarjetaVaultCreate,
+    CodigoReferidoUpdate, TarjetaVaultCreate, CuentaCobroCreate, CuentaCobroOut,
 )
 from app.features.auth.login.service import get_current_user
 from app.services import tarjetas, referidos
-from app.features.payments import wallet_service
+from app.features.payments import wallet_service, cuentas_cobro_service
 from app.features.system.storage.service import StorageService
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
@@ -180,20 +180,22 @@ def actualizar_cuenta_bancaria(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    import uuid
-    current_user.cuenta_bancaria = payload.model_dump()
-    # Si el dueño tenía liquidaciones pendientes por falta de cuenta previa,
-    # se procesa el depósito automático de inmediato a su nueva cuenta.
-    pendientes = (
-        db.query(Pago)
-        .filter(Pago.usuario_id == current_user.id, Pago.tipo == "liquidacion_dueno", Pago.estado == "pendiente")
-        .all()
+    # Compat: crea/actualiza la cuenta de cobro predeterminada.
+    existentes = cuentas_cobro_service.listar(db, current_user)
+    pred = next((c for c in existentes if c.predeterminada), None)
+    if pred:
+        cuentas_cobro_service.eliminar(db, current_user, pred.id)
+    cuentas_cobro_service.agregar(
+        db, current_user,
+        banco=payload.banco, tipo_cuenta=payload.tipo_cuenta,
+        numero=payload.numero, titular=payload.titular, rut=payload.rut,
     )
-    for p in pendientes:
-        p.estado = "pagado"
-        p.referencia_pago = p.referencia_pago or f"TRANSF-AUTO-{uuid.uuid4().hex[:8].upper()}"
-
-    db.commit()
+    # Intento de depósito de lo que estuviera pendiente por falta de cuenta.
+    try:
+        from app.features.payments import liquidaciones_service
+        liquidaciones_service.ejecutar_liquidaciones_pendientes(db)
+    except ImportError:
+        pass
     db.refresh(current_user)
     return current_user
 
@@ -210,3 +212,54 @@ def registrar_push_token(
     current_user.expo_push_token = (expo_push_token or "").strip() or None
     db.commit()
     return {"ok": True}
+
+
+# ============================================================================
+# Cuentas de cobro del dueño (multi-cuenta). La predeterminada es a la que se
+# depositan las liquidaciones; `usuario.cuenta_bancaria` la espeja.
+# ============================================================================
+@router.get("/me/cuentas-cobro", summary="Listar las cuentas de cobro del dueño")
+def listar_cuentas_cobro(db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    return {"cuentas_cobro": [
+        CuentaCobroOut(**cuentas_cobro_service.serializar(c))
+        for c in cuentas_cobro_service.listar(db, current_user)
+    ]}
+
+
+@router.post("/me/cuentas-cobro", status_code=status.HTTP_201_CREATED,
+             summary="Agregar una cuenta de cobro")
+def agregar_cuenta_cobro(payload: CuentaCobroCreate, db: Session = Depends(get_db),
+                         current_user: Usuario = Depends(get_current_user)):
+    c = cuentas_cobro_service.agregar(
+        db, current_user,
+        banco=payload.banco, tipo_cuenta=payload.tipo_cuenta,
+        numero=payload.numero, titular=payload.titular, rut=payload.rut,
+    )
+    try:
+        from app.features.payments import liquidaciones_service
+        liquidaciones_service.ejecutar_liquidaciones_pendientes(db)
+    except ImportError:
+        pass
+    return {"cuenta_cobro": CuentaCobroOut(**cuentas_cobro_service.serializar(c))}
+
+
+@router.delete("/me/cuentas-cobro/{cuenta_id}", status_code=status.HTTP_204_NO_CONTENT,
+               summary="Eliminar una cuenta de cobro")
+def eliminar_cuenta_cobro(cuenta_id: str, db: Session = Depends(get_db),
+                          current_user: Usuario = Depends(get_current_user)):
+    try:
+        cuentas_cobro_service.eliminar(db, current_user, cuenta_id)
+    except cuentas_cobro_service.CuentaCobroError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.as_detail())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/me/cuentas-cobro/{cuenta_id}/predeterminada",
+              summary="Marcar una cuenta de cobro como predeterminada")
+def predeterminar_cuenta_cobro(cuenta_id: str, db: Session = Depends(get_db),
+                               current_user: Usuario = Depends(get_current_user)):
+    try:
+        c = cuentas_cobro_service.marcar_predeterminada(db, current_user, cuenta_id)
+    except cuentas_cobro_service.CuentaCobroError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.as_detail())
+    return {"cuenta_cobro": CuentaCobroOut(**cuentas_cobro_service.serializar(c))}

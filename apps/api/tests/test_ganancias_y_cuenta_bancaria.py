@@ -199,10 +199,15 @@ def test_actualizar_cuenta_bancaria_persiste_y_valida_rut(usuario_factory, auth_
     assert resp_me.json()["cuenta_bancaria"]["numero"] == "123"
 
 
-def test_actualizar_cuenta_bancaria_libera_liquidaciones_pendientes(db_session, usuario_factory, auth_as):
+def test_actualizar_cuenta_bancaria_registra_cuenta_sin_pagar_liquidaciones(db_session, usuario_factory, auth_as):
     """
-    Si el dueño generó liquidaciones antes de configurar su cuenta bancaria,
-    al guardarla el sistema las deposita automáticamente de inmediato.
+    CAMBIO DE CONTRATO (feat/payouts, Task 3): guardar la cuenta bancaria ya
+    NO marca las liquidaciones pendientes como pagadas a mano. El depósito
+    automático pasa ahora por `liquidaciones_service.ejecutar_liquidaciones_pendientes`,
+    que está gateado por `BCI_PAYOUTS_HABILITADO` (default False) y, mientras
+    la Fase 2 no exista, ni siquiera se importa (try/except ImportError).
+    Resultado: tras guardar la cuenta, la liquidación sigue `pendiente`; lo
+    único que cambia es que la cuenta queda configurada.
     """
     dueno = usuario_factory(roles_activos=["dueno", "cliente"])
     c = auth_as(dueno)
@@ -223,10 +228,9 @@ def test_actualizar_cuenta_bancaria_libera_liquidaciones_pendientes(db_session, 
     )
     assert resp_guardar.status_code == 200
 
-    # La liquidación ahora está depositada automáticamente
+    # La liquidación NO se deposita sola: sigue pendiente. Solo queda configurada la cuenta.
     resp_despues = c.get("/api/v1/pagos/mis-ganancias")
-    assert resp_despues.json()["saldo_disponible_clp"] == 0
-    assert resp_despues.json()["total_depositado_clp"] == 85000
-    assert resp_despues.json()["total_ganado_clp"] == 85000
+    assert resp_despues.json()["saldo_disponible_clp"] == 85000
+    assert resp_despues.json()["total_depositado_clp"] == 0
     assert resp_despues.json()["cuenta_configurada"] is True
 
