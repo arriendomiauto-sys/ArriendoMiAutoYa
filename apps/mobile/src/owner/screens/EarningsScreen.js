@@ -13,6 +13,7 @@ import {
   theme,
   Icon,
   ApiClient,
+  showAlert,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
 import { CuentaCobroModal } from "./CuentaCobroModal";
@@ -34,6 +35,41 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
       /* silencioso */
     }
   }, []);
+
+  // Estas dos acciones mueven adónde va la plata del dueño: si el request
+  // falla tiene que enterarse, no quedarse creyendo que cambió algo.
+  const usarCuenta = useCallback(
+    async (cuentaId) => {
+      try {
+        await ApiClient.marcarCuentaCobroPredeterminada(cuentaId);
+        await cargarCuentas();
+      } catch (err) {
+        showAlert("No se pudo actualizar", err?.message || "Intentá de nuevo.");
+      }
+    },
+    [cargarCuentas]
+  );
+
+  const eliminarCuenta = useCallback(
+    (cuentaId) => {
+      showAlert("Eliminar cuenta", "¿Eliminar esta cuenta de cobro?", [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await ApiClient.eliminarCuentaCobro(cuentaId);
+              await cargarCuentas();
+            } catch (err) {
+              showAlert("No se pudo actualizar", err?.message || "Intentá de nuevo.");
+            }
+          },
+        },
+      ]);
+    },
+    [cargarCuentas]
+  );
 
   const [ganancias, setGanancias] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -171,20 +207,12 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
                 {c.predeterminada ? (
                   <Text style={styles.badgePred}>Predeterminada</Text>
                 ) : (
-                  <TouchableOpacity
-                    onPress={async () => {
-                      await ApiClient.marcarCuentaCobroPredeterminada(c.id);
-                      cargarCuentas();
-                    }}
-                  >
+                  <TouchableOpacity onPress={() => usarCuenta(c.id)}>
                     <Text style={styles.link}>Usar esta</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                  onPress={async () => {
-                    await ApiClient.eliminarCuentaCobro(c.id);
-                    cargarCuentas();
-                  }}
+                  onPress={() => eliminarCuenta(c.id)}
                   hitSlop={theme.control.hitSlop}
                   style={{ marginLeft: 10 }}
                 >
