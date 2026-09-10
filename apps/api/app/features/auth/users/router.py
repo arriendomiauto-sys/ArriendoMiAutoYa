@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Body, HTTPException, Response, status
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.entities import Usuario
+from app.models.entities import Usuario, Pago
 from app.schemas.schemas import (
     UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate, TarjetaUpdate, TarjetaOut,
     CodigoReferidoUpdate, TarjetaVaultCreate,
@@ -180,7 +180,19 @@ def actualizar_cuenta_bancaria(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
+    import uuid
     current_user.cuenta_bancaria = payload.model_dump()
+    # Si el dueño tenía liquidaciones pendientes por falta de cuenta previa,
+    # se procesa el depósito automático de inmediato a su nueva cuenta.
+    pendientes = (
+        db.query(Pago)
+        .filter(Pago.usuario_id == current_user.id, Pago.tipo == "liquidacion_dueno", Pago.estado == "pendiente")
+        .all()
+    )
+    for p in pendientes:
+        p.estado = "pagado"
+        p.referencia_pago = p.referencia_pago or f"TRANSF-AUTO-{uuid.uuid4().hex[:8].upper()}"
+
     db.commit()
     db.refresh(current_user)
     return current_user

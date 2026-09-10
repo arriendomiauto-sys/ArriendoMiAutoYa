@@ -17,6 +17,7 @@ from app.features.auth.login.service import get_current_user, get_optional_curre
 from app.services import tarjetas
 from app.features.payments import checkout_service
 from app.features.vehicles.verification.car_doc_validator import CarDocValidator
+from app.core.validators import rangos_ocupados_auto
 from app.core.limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,19 @@ def obtener_auto(
     if not auto:
         raise HTTPException(status_code=404, detail="Auto no encontrado")
     return _sanear_auto_out(auto, current_user)
+
+
+@router.get("/{auto_id}/disponibilidad", summary="Rangos de fechas ya ocupados de un auto")
+def disponibilidad_auto(auto_id: str, db: Session = Depends(get_db)):
+    """
+    Fechas en que el auto NO está disponible (reservas `pendiente_pago` no
+    expiradas, `confirmada` y `en_curso`). El calendario del móvil deshabilita
+    esos días para que no se elijan fechas que el backend va a rechazar.
+    """
+    auto = db.query(Auto).filter(Auto.id == auto_id).first()
+    if not auto:
+        raise HTTPException(status_code=404, detail="Auto no encontrado")
+    return {"rangos_ocupados": rangos_ocupados_auto(auto_id, db)}
 
 @router.post("", response_model=AutoOut, summary="Publicar un nuevo auto (Dueño)")
 @limiter.limit("20/minute")

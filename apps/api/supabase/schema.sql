@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS public.reservas (
     fecha_inicio TIMESTAMPTZ NOT NULL,
     fecha_fin TIMESTAMPTZ NOT NULL,
     estado TEXT DEFAULT 'pendiente'
-        CHECK (estado IN ('pendiente', 'confirmada', 'en_curso', 'finalizada', 'cancelada', 'disputada')),
+        CHECK (estado IN ('pendiente', 'pendiente_pago', 'confirmada', 'en_curso', 'finalizada', 'cancelada', 'disputada')),
     monto_hold INTEGER DEFAULT 0, -- CLP
     cargo_limpieza_clp INTEGER DEFAULT 0,
     cargo_combustible_clp INTEGER DEFAULT 0,

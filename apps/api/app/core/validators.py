@@ -172,6 +172,35 @@ def validar_telefono_chileno(telefono: str) -> bool:
 
     return False
 
+# Estados de reserva que "ocupan" el auto y bloquean el rango en el calendario.
+# `pendiente_pago` cuenta mientras no expire su TTL: si no, dos personas podrían
+# arrancar el checkout para las mismas fechas y solo se descubre al pagar.
+ESTADOS_OCUPAN_AUTO = ("pendiente_pago", "confirmada", "en_curso")
+
+
+def _reservas_que_ocupan(auto_id: str, db: Session, ahora: Optional[datetime] = None):
+    """Query base de reservas vigentes que ocupan el auto (sin filtro de rango)."""
+    ahora = ahora or datetime.now(timezone.utc).replace(tzinfo=None)
+    return db.query(Reserva).filter(
+        Reserva.auto_id == auto_id,
+        Reserva.estado.in_(ESTADOS_OCUPAN_AUTO),
+        # Un `pendiente_pago` ya expirado no bloquea nada (el barrido de TTL lo
+        # pasará a "cancelada", pero no hay que esperar a eso).
+        (Reserva.estado != "pendiente_pago")
+        | (Reserva.expira_en.is_(None))
+        | (Reserva.expira_en > ahora),
+    )
+
+
+def rangos_ocupados_auto(auto_id: str, db: Session) -> list:
+    """
+    Rangos `[{fecha_inicio, fecha_fin}]` en que el auto NO está disponible.
+    Lo consume el calendario del móvil para deshabilitar esos días.
+    """
+    reservas = _reservas_que_ocupan(auto_id, db).order_by(Reserva.fecha_inicio).all()
+    return [{"fecha_inicio": r.fecha_inicio, "fecha_fin": r.fecha_fin} for r in reservas]
+
+
 def validar_disponibilidad_reserva(
     auto_id: str,
     fecha_inicio: datetime,
@@ -180,14 +209,10 @@ def validar_disponibilidad_reserva(
     excluir_reserva_id: Optional[str] = None
 ) -> bool:
     """
-    Verifica que el auto no tenga otra reserva activa (confirmada o en_curso)
+    Verifica que el auto no tenga otra reserva vigente (ver `ESTADOS_OCUPAN_AUTO`)
     que se solape con el rango de fechas solicitado.
     """
-    # Asegurar que las fechas tengan timezone o sean comparables
-    query = db.query(Reserva).filter(
-        Reserva.auto_id == auto_id,
-        Reserva.estado.in_(["confirmada", "en_curso"])
-    )
+    query = _reservas_que_ocupan(auto_id, db)
 
     if excluir_reserva_id:
         query = query.filter(Reserva.id != excluir_reserva_id)

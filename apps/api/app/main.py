@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
-from app.core.schema_sync import sync_missing_columns, backfill_null_defaults
+from app.core.schema_sync import sync_missing_columns, backfill_null_defaults, reconcile_check_constraints
 from app.core.limiter import limiter
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.request_limit import RequestSizeLimitMiddleware
@@ -65,6 +65,10 @@ async def lifespan(app: FastAPI):
     # que se hayan sumado a los modelos (Postgres no se puede "regenerar
     # borrando el archivo" como el SQLite local).
     sync_missing_columns()
+    # Recrea las CHECK de Postgres que se quedaron viejas (schema.sql tenía un
+    # set de valores y el código sumó estados después, p. ej. reservas.estado
+    # 'pendiente_pago'). No-op en SQLite.
+    reconcile_check_constraints()
     # Repara los NULL que dejaron las columnas agregadas antes de que
     # sync_missing_columns() emitiera cláusula DEFAULT (un campo Pydantic
     # no-Optional sobre una de esas columnas responde 500).
@@ -162,7 +166,10 @@ import socketio
 from app.features.communications.messages.socketio_server import sio
 app.mount("/socket.io", socketio.ASGIApp(sio, socketio_path=""))
 
-@app.get("/", tags=["Health"])
+# GET + HEAD: Render y los uptime pingers hacen `HEAD /` para el health check;
+# sin HEAD explícito respondía 405 y ensuciaba los logs en cada sondeo.
+# Fuera del schema OpenAPI: son sondeos, no API.
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Health"], include_in_schema=False)
 def root():
     return {
         "status": "online",
@@ -171,6 +178,6 @@ def root():
         "docs": "/docs"
     }
 
-@app.get("/health", tags=["Health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"], include_in_schema=False)
 def health_check():
     return {"status": "healthy"}

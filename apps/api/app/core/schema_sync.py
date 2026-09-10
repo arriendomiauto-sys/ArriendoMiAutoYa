@@ -197,6 +197,66 @@ def sync_missing_columns() -> None:
                 logger.error("schema_sync: no se pudo agregar %s.%s: %s", tabla.name, col.name, e)
 
 
+# Constraints CHECK que quedaron viejas en Postgres: `schema.sql` las creó con
+# un set de valores y el código sumó estados después (p. ej. `pendiente_pago`
+# del pago dual). `create_all()` no las toca y este proyecto no tiene Alembic,
+# así que se reconcilian acá. Solo Postgres: el SQLite de dev/tests arma el
+# schema desde los modelos, que NO declaran estas CHECK.
+_CHECKS_ESPERADAS = {
+    # tabla: (nombre_constraint, columna, valores_permitidos)
+    "reservas": (
+        "reservas_estado_check",
+        "estado",
+        (
+            "pendiente", "pendiente_pago", "confirmada", "en_curso",
+            "finalizada", "cancelada", "disputada",
+        ),
+    ),
+}
+
+
+def reconcile_check_constraints() -> None:
+    """Recrea las CHECK de `_CHECKS_ESPERADAS` si les faltan valores. Idempotente."""
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = inspect(engine)
+    tablas_existentes = set(inspector.get_table_names())
+
+    for tabla, (nombre, columna, valores) in _CHECKS_ESPERADAS.items():
+        if tabla not in tablas_existentes:
+            continue
+
+        lista_sql = ", ".join(f"'{v}'" for v in valores)
+        try:
+            with engine.begin() as conn:
+                actual = conn.execute(
+                    text(
+                        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                        "WHERE conname = :n AND conrelid = :t::regclass"
+                    ),
+                    {"n": nombre, "t": tabla},
+                ).scalar()
+
+                # Ya cubre todos los valores esperados: nada que hacer.
+                if actual and all(f"'{v}'" in actual for v in valores):
+                    continue
+
+                conn.execute(text(f'ALTER TABLE "{tabla}" DROP CONSTRAINT IF EXISTS "{nombre}"'))
+                conn.execute(
+                    text(
+                        f'ALTER TABLE "{tabla}" ADD CONSTRAINT "{nombre}" '
+                        f'CHECK ("{columna}" IN ({lista_sql}))'
+                    )
+                )
+            logger.warning(
+                "schema_sync: constraint %s reconciliada -> %s IN (%s)",
+                nombre, columna, lista_sql,
+            )
+        except Exception as e:
+            logger.error("schema_sync: no se pudo reconciliar %s: %s", nombre, e)
+
+
 def backfill_null_defaults() -> int:
     """
     Rellena con su default los NULL de columnas que lo declaran en el modelo.

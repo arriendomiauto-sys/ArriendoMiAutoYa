@@ -197,3 +197,36 @@ def test_actualizar_cuenta_bancaria_persiste_y_valida_rut(usuario_factory, auth_
 
     resp_me = c.get("/api/v1/usuarios/me")
     assert resp_me.json()["cuenta_bancaria"]["numero"] == "123"
+
+
+def test_actualizar_cuenta_bancaria_libera_liquidaciones_pendientes(db_session, usuario_factory, auth_as):
+    """
+    Si el dueño generó liquidaciones antes de configurar su cuenta bancaria,
+    al guardarla el sistema las deposita automáticamente de inmediato.
+    """
+    dueno = usuario_factory(roles_activos=["dueno", "cliente"])
+    c = auth_as(dueno)
+
+    # Liquidación pendiente previa
+    pago = Pago(usuario_id=dueno.id, tipo="liquidacion_dueno", monto=85000, estado="pendiente")
+    db_session.add(pago)
+    db_session.commit()
+
+    resp_antes = c.get("/api/v1/pagos/mis-ganancias")
+    assert resp_antes.json()["saldo_disponible_clp"] == 85000
+    assert resp_antes.json()["total_depositado_clp"] == 0
+
+    # Guarda su cuenta bancaria
+    resp_guardar = c.put(
+        "/api/v1/usuarios/me/cuenta-bancaria",
+        json={"banco": "Banco de Chile", "tipo_cuenta": "Cuenta Corriente", "numero": "987654321", "titular": "Juan Dueño", "rut": "17.123.456-5"},
+    )
+    assert resp_guardar.status_code == 200
+
+    # La liquidación ahora está depositada automáticamente
+    resp_despues = c.get("/api/v1/pagos/mis-ganancias")
+    assert resp_despues.json()["saldo_disponible_clp"] == 0
+    assert resp_despues.json()["total_depositado_clp"] == 85000
+    assert resp_despues.json()["total_ganado_clp"] == 85000
+    assert resp_despues.json()["cuenta_configurada"] is True
+

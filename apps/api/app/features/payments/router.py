@@ -438,9 +438,15 @@ def obtener_mis_ganancias(
     bono_referido_pendiente_clp = sum(p.monto for p in pagos_bono if p.estado == "pendiente")
     bono_referido_pagado_clp = sum(p.monto for p in pagos_bono if p.estado == "pagado")
 
+    total_ganado_clp = saldo_disponible_clp + total_pagado_clp
+    cuenta_configurada = bool(current_user.cuenta_bancaria and current_user.cuenta_bancaria.get("numero"))
+
     return {
         "saldo_disponible_clp": saldo_disponible_clp,
         "total_pagado_clp": total_pagado_clp,
+        "total_depositado_clp": total_pagado_clp,
+        "total_ganado_clp": total_ganado_clp,
+        "cuenta_configurada": cuenta_configurada,
         "cantidad_liquidaciones": len(pagos_liquidacion),
         "historial": historial,
         "por_auto": por_auto,

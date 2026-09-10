@@ -341,29 +341,6 @@ class DeliveryService:
                 estado="capturado",
                 referencia_pago=f"MP-{uuid.uuid4().hex[:8].upper()}"
             )
-            # Registrar liquidación para el dueño (incluye el 100% de compensaciones por limpieza, combustible y km)
-            pago_liq = Pago(
-                reserva_id=reserva.id,
-                usuario_id=auto.dueno_id if auto else reserva.cliente_id,
-                tipo="liquidacion_dueno",
-                monto=cobro_info["liquidacion_dueno"],
-                estado="pendiente"
-            )
-            db.add(pago_cobro)
-            db.add(pago_liq)
-
-            dueno = db.query(Usuario).filter(Usuario.id == auto.dueno_id).first() if auto else None
-            if dueno:
-                bono_pct_dueno = referidos.calcular_bono_referido_pct(dueno, config_referidos)
-                if bono_pct_dueno > 0:
-                    db.add(Pago(
-                        reserva_id=reserva.id,
-                        usuario_id=dueno.id,
-                        tipo="bono_referido",
-                        monto=round(cobro_info["liquidacion_dueno"] * bono_pct_dueno / 100),
-                        estado="pendiente",
-                    ))
-
             # Detección de reporte de daños o anomalías en la devolución
             es_dano_reportado = bool(
                 notas and (
@@ -379,6 +356,39 @@ class DeliveryService:
                 .filter(Disputa.reserva_id == reserva.id, Disputa.estado == "abierta")
                 .first()
             )
+
+            dueno = db.query(Usuario).filter(Usuario.id == auto.dueno_id).first() if auto else None
+            tiene_cuenta_bancaria = bool(dueno and dueno.cuenta_bancaria and dueno.cuenta_bancaria.get("numero"))
+
+            # Depósito automático de la liquidación al dueño:
+            # Si no hay daño reportado ni disputa abierta, y el dueño tiene cuenta configurada,
+            # el dinero se transfiere directamente a su cuenta bancaria de inmediato.
+            deposito_automatico = bool(not es_dano_reportado and not disputa_existente and tiene_cuenta_bancaria)
+            estado_liq = "pagado" if deposito_automatico else "pendiente"
+            ref_liq = f"TRANSF-AUTO-{uuid.uuid4().hex[:8].upper()}" if deposito_automatico else None
+
+            # Registrar liquidación para el dueño (incluye el 100% de compensaciones por limpieza, combustible y km)
+            pago_liq = Pago(
+                reserva_id=reserva.id,
+                usuario_id=auto.dueno_id if auto else reserva.cliente_id,
+                tipo="liquidacion_dueno",
+                monto=cobro_info["liquidacion_dueno"],
+                estado=estado_liq,
+                referencia_pago=ref_liq,
+            )
+            db.add(pago_cobro)
+            db.add(pago_liq)
+
+            if dueno:
+                bono_pct_dueno = referidos.calcular_bono_referido_pct(dueno, config_referidos)
+                if bono_pct_dueno > 0:
+                    db.add(Pago(
+                        reserva_id=reserva.id,
+                        usuario_id=dueno.id,
+                        tipo="bono_referido",
+                        monto=round(cobro_info["liquidacion_dueno"] * bono_pct_dueno / 100),
+                        estado="pendiente",
+                    ))
 
             # Gestión de la garantía retenida (hold en tarjeta de crédito):
             # Si se reporta daño o existe una disputa abierta, la garantía NO se libera
@@ -444,6 +454,32 @@ class DeliveryService:
                     )
                 except Exception as e:
                     logger.error("[DELIVERY] Error al liberar hold de garantía para reserva %s: %s", reserva.id, e)
+
+            # Notificación al dueño sobre su depósito automático
+            if auto and auto.dueno_id and not (es_dano_reportado or disputa_existente):
+                if deposito_automatico:
+                    banco_nombre = (dueno.cuenta_bancaria or {}).get("banco", "tu cuenta")
+                    crear_notificacion(
+                        db,
+                        usuario_id=auto.dueno_id,
+                        tipo="pago",
+                        titulo="Ganancia transferida automáticamente",
+                        mensaje=f"Se transfirieron ${cobro_info['liquidacion_dueno']:,} CLP automáticamente a tu cuenta en {banco_nombre} tras la devolución del vehículo.",
+                        entidad_tipo="reserva",
+                        entidad_id=reserva.id,
+                        commit=False,
+                    )
+                else:
+                    crear_notificacion(
+                        db,
+                        usuario_id=auto.dueno_id,
+                        tipo="pago",
+                        titulo="Liquidación lista (falta cuenta bancaria)",
+                        mensaje=f"Tu arriendo finalizó y tu ganancia de ${cobro_info['liquidacion_dueno']:,} CLP está lista. Agrega tu cuenta bancaria en Ganancias para recibir tu depósito.",
+                        entidad_tipo="reserva",
+                        entidad_id=reserva.id,
+                        commit=False,
+                    )
 
             # Incentivo por entrega en óptimas condiciones:
             # Sin daños reportados, combustible igual o mayor al recibido, vehículo limpio y sin atraso

@@ -53,6 +53,16 @@ class VaultError(Exception):
 
 _MARCAS_OK = {"visa", "mastercard", "amex", "diners", "magna", "otra"}
 
+# Correo de "cliente" que se manda a Mercado Pago con `MERCADOPAGO_TEST_MODE`
+# encendido: en sandbox MP rechaza / ensucia el entorno con el correo real del
+# usuario, así que se usa uno ficticio (mismo criterio que el `payer` de
+# `mercadopago_service`).
+_EMAIL_PRUEBA = "test@test.com"
+
+
+def _en_modo_prueba() -> bool:
+    return bool(getattr(settings, "MERCADOPAGO_TEST_MODE", True))
+
 
 def _tarjeta_desde_token_simulado(
     card_token: str,
@@ -128,6 +138,13 @@ def _pedir(metodo: str, ruta: str, **kwargs) -> Dict[str, Any]:
 
 def _asegurar_cliente(email: str, nombre: Optional[str], mp_customer_id: Optional[str]) -> str:
     """Devuelve el `customer_id` del usuario, creándolo o reusándolo."""
+    if _en_modo_prueba():
+        # En sandbox el customer real (de producción) no existe bajo credenciales
+        # `TEST-` y MP no quiere el correo real: se resuelve siempre contra el
+        # correo de prueba.
+        email = _EMAIL_PRUEBA
+        mp_customer_id = None
+
     if mp_customer_id:
         return mp_customer_id
 
