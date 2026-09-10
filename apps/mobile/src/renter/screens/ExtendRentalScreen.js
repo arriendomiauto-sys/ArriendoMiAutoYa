@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, theme, useApp, Button, Card, ScreenHeader, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
+
+const DIA_MS = 86400000;
 
 export function ExtendRentalScreen({ onBack, onComplete }) {
   const insets = useSafeAreaInsets();
@@ -14,12 +16,56 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
   const tarifa = auto.tarifa_dia || 0;
   const adicional = tarifa * dias;
 
-  const finActual = new Date(res.fecha_fin || Date.now() + 2 * 86400000);
-  const finNuevo = new Date(finActual.getTime() + dias * 86400000);
+  const finActual = new Date(res.fecha_fin || Date.now() + 2 * DIA_MS);
+  const finNuevo = new Date(finActual.getTime() + dias * DIA_MS);
   const fmt = (d) => d.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
+
+  // Techo de la extensión: inicio de la próxima reserva del auto. Sin esto el
+  // usuario sube los días y recién al mandar se come el 400 del backend
+  // ("no disponible para esas fechas"). El arriendo actual arranca antes del
+  // fin actual, así que un rango que empieza en `finActual` o después es
+  // siempre OTRA reserva (incluida una back-to-back, que deja tope 0).
+  const [proximaReserva, setProximaReserva] = useState(null);
+  useEffect(() => {
+    const autoId = auto?.id;
+    if (!autoId || typeof ApiClient.getDisponibilidadAuto !== "function") return undefined;
+    let vivo = true;
+    ApiClient.getDisponibilidadAuto(autoId)
+      .then((r) => {
+        if (!vivo) return;
+        const siguientes = (r?.rangos_ocupados || [])
+          .map((x) => new Date(x.fecha_inicio))
+          .filter((d) => !isNaN(d) && d.getTime() >= finActual.getTime())
+          .sort((a, b) => a - b);
+        setProximaReserva(siguientes[0] || null);
+      })
+      .catch((e) => {
+        if (__DEV__) console.warn("[extender] no se pudo cargar disponibilidad:", e?.message || e);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [auto?.id, res.fecha_fin]);
+
+  // Días máximos que se pueden agregar sin pisar la próxima reserva. Extender
+  // justo hasta el inicio de la siguiente (back-to-back) está permitido.
+  const topeDias = proximaReserva
+    ? Math.max(0, Math.floor((proximaReserva.getTime() - finActual.getTime()) / DIA_MS))
+    : Infinity;
+  const sinMargen = topeDias === 0;
+  const colisiona = dias > topeDias;
 
   const handleExtender = async () => {
     if (loading || !res.id) return;
+    if (sinMargen || colisiona) {
+      showAlert(
+        "No se puede extender tanto",
+        proximaReserva
+          ? `El auto tiene otra reserva desde el ${fmt(proximaReserva)}. Elige menos días.`
+          : "El auto no está disponible para esas fechas.",
+      );
+      return;
+    }
     setLoading(true);
     try {
       const actualizada = await ApiClient.extenderReserva(res.id, dias);
@@ -66,10 +112,23 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
               <Text style={styles.pickerNum}>+{dias} {dias === 1 ? "día" : "días"}</Text>
               <Text style={styles.pickerSub}>Nueva fecha: {fmt(finNuevo)}</Text>
             </View>
-            <TouchableOpacity style={styles.pickerBtn} onPress={() => setDias(dias + 1)}>
+            <TouchableOpacity
+              style={[styles.pickerBtn, dias >= topeDias && styles.pickerBtnOff]}
+              onPress={() => setDias((d) => Math.min(d + 1, topeDias))}
+              disabled={dias >= topeDias}
+            >
               <Text style={styles.pickerSign}>+</Text>
             </TouchableOpacity>
           </View>
+          {sinMargen ? (
+            <Text style={styles.avisoBloqueo}>
+              El auto ya tiene otra reserva justo después de tu devolución. No se puede extender.
+            </Text>
+          ) : proximaReserva ? (
+            <Text style={styles.avisoTope}>
+              Máximo hasta el {fmt(proximaReserva)}: el auto está reservado desde esa fecha.
+            </Text>
+          ) : null}
         </Card>
 
         <Card padded style={{ gap: theme.spacing.sm }}>
@@ -97,10 +156,14 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
         <Button
-          label={`Solicitar extensión · $${adicional.toLocaleString("es-CL")}`}
+          label={
+            sinMargen || colisiona
+              ? "No disponible para esas fechas"
+              : `Solicitar extensión · $${adicional.toLocaleString("es-CL")}`
+          }
           onPress={handleExtender}
           loading={loading}
-          disabled={!res.id}
+          disabled={!res.id || sinMargen || colisiona}
         />
       </View>
     </View>
@@ -133,6 +196,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   pickerBtn: { width: 52, height: 56, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  pickerBtnOff: { opacity: 0.35 },
+  avisoTope: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
+  avisoBloqueo: { fontSize: 12.5, color: colors.danger, fontWeight: "600", lineHeight: 17 },
   pickerSign: { fontSize: 24, fontWeight: "700", color: colors.primary },
   pickerMid: { flex: 1, alignItems: "center", gap: 2 },
   pickerNum: { fontSize: 16, fontWeight: "700", color: colors.text },
