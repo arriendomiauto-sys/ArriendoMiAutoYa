@@ -1,5 +1,6 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.entities import Pago, Reserva, Usuario, Disputa, Auto, Sucursal, ConfiguracionPlataforma
@@ -79,7 +80,12 @@ def obtener_panel_financiero(
     
     total_holds_capturados = sum(p.monto for p in pagos if "hold" in p.tipo and p.estado == "capturado")
     total_cobros_finales = sum(p.monto for p in pagos if p.tipo == "cobro_final" and p.estado == "capturado")
-    total_liquidaciones_pendientes = sum(p.monto for p in pagos if p.tipo == "liquidacion_dueno" and p.estado == "pendiente")
+    # 'procesando' (transferencia BCI en vuelo) y 'fallido' (reintento pendiente)
+    # siguen siendo plata que se le debe al dueño: cuentan como pendientes.
+    total_liquidaciones_pendientes = sum(
+        p.monto for p in pagos
+        if p.tipo == "liquidacion_dueno" and p.estado in ("pendiente", "procesando", "fallido")
+    )
     total_liquidaciones_pagadas = sum(p.monto for p in pagos if p.tipo == "liquidacion_dueno" and p.estado == "pagado")
 
     return {
@@ -320,53 +326,146 @@ def revisar_documentos_auto(
     )
 
 
-@router.get("/liquidaciones", summary="Listar liquidaciones a dueños (Admin)")
+def _solo_admin(current_user: Usuario) -> None:
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
+
+
+def _cuenta_legible(cb: Optional[dict]) -> Optional[str]:
+    """`{"banco": "Banco de Chile", "tipo_cuenta": "Cuenta Corriente", ...}` ->
+    "Banco de Chile · Cuenta Corriente". `None` si no hay cuenta configurada."""
+    if not cb or not cb.get("numero"):
+        return None
+    partes = [str(cb.get(k)).strip() for k in ("banco", "tipo_cuenta") if cb.get(k)]
+    return " · ".join(partes) or None
+
+
+# Solo estas se pueden marcar pagadas a mano. Una 'procesando' es una
+# transferencia BCI en vuelo y una 'pagado' ya se depositó: el admin NO las pisa.
+_LIQ_PAGABLE_A_MANO = ("pendiente", "fallido")
+
+
+def _fila_liquidacion_dueno(db: Session, dueno_id: str) -> Optional[Dict[str, Any]]:
+    """Fila agrupada (una por dueño) para el panel de Finanzas.
+
+    `bruto`/`comisión` se reconstruyen: `liquidacion_dueno.monto` ya es el neto
+    (85%/80% del arriendo + 100% de compensaciones). Se le resta la compensación
+    guardada en la reserva para aislar la base del dueño, y de ahí sale la
+    comisión de plataforma.
+    """
+    pagos = (
+        db.query(Pago)
+        .filter(Pago.tipo == "liquidacion_dueno", Pago.usuario_id == dueno_id)
+        .all()
+    )
+    if not pagos:
+        return None
+
+    dueno = db.query(Usuario).filter(Usuario.id == dueno_id).first()
+    reserva_ids = {p.reserva_id for p in pagos if p.reserva_id}
+    reservas = (
+        {r.id: r for r in db.query(Reserva).filter(Reserva.id.in_(reserva_ids)).all()}
+        if reserva_ids else {}
+    )
+    cfg = PricingService.obtener_configuracion(db)
+    comision_pct = float(getattr(cfg, "comision_plataforma_pct", 20.0) or 20.0) / 100.0
+
+    neto = comision = 0
+    pendientes = otros = 0
+    pagada_en: Optional[datetime] = None
+    for p in pagos:
+        monto = int(p.monto or 0)
+        neto += monto
+        r = reservas.get(p.reserva_id)
+        compensaciones = (
+            int(getattr(r, "cargo_limpieza_clp", 0) or 0)
+            + int(getattr(r, "cargos_adicionales_clp", 0) or 0)
+        ) if r else 0
+        base_dueno = max(0, monto - compensaciones)
+        subtotal = round(base_dueno / (1 - comision_pct)) if comision_pct < 1 else base_dueno
+        comision += max(0, subtotal - base_dueno)
+
+        if p.estado == "pagado":
+            if p.liquidado_en and (pagada_en is None or p.liquidado_en > pagada_en):
+                pagada_en = p.liquidado_en
+        elif p.estado in _LIQ_PAGABLE_A_MANO:
+            pendientes += 1
+        else:  # 'procesando'
+            otros += 1
+
+    return {
+        "id": dueno_id,
+        "dueno_nombre": dueno.nombre if dueno else "Dueño",
+        "dueno_rut": dueno.rut if dueno else None,
+        "cuenta_bancaria": _cuenta_legible(dueno.cuenta_bancaria if dueno else None),
+        "reservas_count": len(reserva_ids),
+        "bruto_clp": neto + comision,
+        "comision_clp": comision,
+        "neto_clp": neto,
+        "estado": "pendiente" if (pendientes or otros) else "pagada",
+        "pagada_en": pagada_en.isoformat() if pagada_en else None,
+    }
+
+
+@router.get("/liquidaciones", summary="Liquidaciones a dueños, agrupadas por dueño (Admin)")
 def listar_liquidaciones(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    if "admin" not in (current_user.roles_activos or []):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
-    
-    pagos = (
-        db.query(Pago)
+    _solo_admin(current_user)
+    dueno_ids = [
+        row[0]
+        for row in db.query(Pago.usuario_id)
         .filter(Pago.tipo == "liquidacion_dueno")
-        .order_by(Pago.timestamp.desc())
+        .distinct()
         .all()
-    )
-    resultado = []
-    for p in pagos:
-        dueno = db.query(Usuario).filter(Usuario.id == p.usuario_id).first()
-        resultado.append({
-            "id": p.id,
-            "reserva_id": p.reserva_id,
-            "monto": p.monto,
-            "estado": p.estado,
-            "timestamp": p.timestamp,
-            "dueno_nombre": dueno.nombre if dueno else "Dueño",
-            "dueno_rut": dueno.rut if dueno else None,
-            "cuenta_bancaria": dueno.cuenta_bancaria if dueno else None,
-        })
-    return resultado
+    ]
+    filas = [f for did in dueno_ids if (f := _fila_liquidacion_dueno(db, did))]
+    # pendientes primero, luego por monto neto descendente
+    filas.sort(key=lambda f: (f["estado"] == "pagada", -f["neto_clp"]))
+    return filas
 
 
-@router.post("/liquidaciones/{liquidacion_id}/pagar", summary="Marcar liquidación a dueño como pagada (Admin)")
+@router.post("/liquidaciones/{dueno_id}/pagar", summary="Marcar como pagadas a mano las liquidaciones de un dueño (Admin)")
 def marcar_liquidacion_pagada(
-    liquidacion_id: str,
+    dueno_id: str,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    if "admin" not in (current_user.roles_activos or []):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
-    
-    pago = db.query(Pago).filter(Pago.id == liquidacion_id).first()
-    if not pago:
-        raise HTTPException(status_code=404, detail="Liquidación no encontrada.")
-    
-    pago.estado = "pagado"
+    """El `{dueno_id}` es el `id` de la fila que devuelve GET /admin/liquidaciones.
+
+    Marca `pagado` solo las liquidaciones en 'pendiente'/'fallido' de ese dueño
+    y les deja rastro (`liquidado_en` + `referencia_pago='MANUAL-ADMIN-<admin>'`,
+    distinguible de las `BCI-MOCK-*` / `BCI-*` del barrido automático). Las que
+    ya están `pagado` o `procesando` (depósito automático en curso) NO se tocan:
+    si no queda ninguna por pagar, responde 409 para no permitir un doble pago.
+    """
+    _solo_admin(current_user)
+
+    pagos = (
+        db.query(Pago)
+        .filter(Pago.tipo == "liquidacion_dueno", Pago.usuario_id == dueno_id)
+        .all()
+    )
+    if not pagos:
+        raise HTTPException(status_code=404, detail="Ese dueño no tiene liquidaciones.")
+
+    pagables = [p for p in pagos if p.estado in _LIQ_PAGABLE_A_MANO]
+    if not pagables:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No hay liquidaciones por pagar: ya están pagadas o el depósito automático está en curso.",
+        )
+
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    ref = f"MANUAL-ADMIN-{str(current_user.id)[:8]}"
+    for p in pagables:
+        p.estado = "pagado"
+        p.liquidado_en = p.liquidado_en or ahora
+        p.referencia_pago = ref
     db.commit()
-    db.refresh(pago)
-    return {"id": pago.id, "estado": pago.estado}
+
+    return _fila_liquidacion_dueno(db, dueno_id)
 
 
 @router.post("/liquidaciones/ejecutar", summary="Ejecutar el barrido de liquidaciones pendientes (Admin)")
