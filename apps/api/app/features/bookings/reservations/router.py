@@ -88,6 +88,37 @@ def crear_reserva(
     if auto.estado != "activo":
         raise HTTPException(status_code=400, detail="El auto no está disponible para arriendo")
 
+    # Reingreso al checkout: el usuario pudo arrancar el pago de este auto y
+    # salirse sin pagar. Su propia reserva `pendiente_pago` no expirada ya ocupa
+    # el auto (ver ESTADOS_OCUPAN_AUTO), así que el `validar_disponibilidad_reserva`
+    # de abajo lo bloquearía con su PROPIA reserva hasta que venza el TTL.
+    #   · mismas fechas    -> se devuelve la reserva que ya tenía (idempotente)
+    #   · fechas distintas -> se cancela la anterior para liberar el rango
+    ahora_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    propias_pendientes = (
+        db.query(Reserva)
+        .filter(
+            Reserva.auto_id == payload.auto_id,
+            Reserva.cliente_id == current_user.id,
+            Reserva.estado == "pendiente_pago",
+        )
+        .filter((Reserva.expira_en.is_(None)) | (Reserva.expira_en > ahora_naive))
+        .all()
+    )
+    exacta = next(
+        (
+            p for p in propias_pendientes
+            if p.fecha_inicio == payload.fecha_inicio and p.fecha_fin == payload.fecha_fin
+        ),
+        None,
+    )
+    if exacta:
+        return _con_desglose_pago(exacta)
+    for previa in propias_pendientes:
+        previa.estado = "cancelada"
+    if propias_pendientes:
+        db.flush()
+
     # Validar que no haya solapamiento de fechas con reservas existentes
     if not validar_disponibilidad_reserva(payload.auto_id, payload.fecha_inicio, payload.fecha_fin, db):
         raise HTTPException(

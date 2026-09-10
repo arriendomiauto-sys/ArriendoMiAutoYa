@@ -365,3 +365,62 @@ def test_cobro_posterior_tag_con_tarjeta_credito_vault(usuario_factory, auth_as,
     assert data["monto"] == 14500
     assert data["tipo"] == "tag"
     assert data["estado"] == "capturado"
+
+
+# ===========================================================================
+# Reingreso al checkout (no auto-bloqueo por la propia `pendiente_pago`)
+# ===========================================================================
+def test_reingreso_al_checkout_mismas_fechas_es_idempotente(usuario_factory, auth_as, db_session):
+    """El usuario arranca el pago, se sale sin pagar y vuelve a entrar con las
+    mismas fechas: su propia reserva `pendiente_pago` no debe bloquearlo — se le
+    devuelve la reserva que ya tenía, no un 400."""
+    dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
+    auto = _auto(db_session, dueno, patente="RENG-01")
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    _agregar_tarjeta(auth_as, cliente, "SIMULADO-DEBITO-4242")
+    _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111")
+
+    r1 = _crear_reserva(auth_as, cliente, auto)
+    assert r1.status_code == 200, r1.text
+    id1 = r1.json()["id"]
+
+    r2 = _crear_reserva(auth_as, cliente, auto)
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["id"] == id1   # misma reserva, no una nueva
+
+    assert db_session.query(Reserva).filter(
+        Reserva.auto_id == auto.id, Reserva.cliente_id == cliente.id
+    ).count() == 1
+
+    # Otro usuario SÍ sigue bloqueado por esa `pendiente_pago` vigente.
+    otro = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    _agregar_tarjeta(auth_as, otro, "SIMULADO-DEBITO-4242")
+    _agregar_tarjeta(auth_as, otro, "SIMULADO-CREDITO-1111")
+    r3 = _crear_reserva(auth_as, otro, auto)
+    assert r3.status_code == 400
+
+
+def test_reingreso_con_fechas_distintas_cancela_la_anterior(usuario_factory, auth_as, db_session):
+    dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
+    auto = _auto(db_session, dueno, patente="RENG-02")
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    _agregar_tarjeta(auth_as, cliente, "SIMULADO-DEBITO-4242")
+    _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111")
+
+    id1 = _crear_reserva(auth_as, cliente, auto).json()["id"]
+
+    r2 = auth_as(cliente).post(
+        "/api/v1/reservas",
+        json={
+            "auto_id": auto.id,
+            "fecha_inicio": "2027-02-10T10:00:00",
+            "fecha_fin": "2027-02-12T10:00:00",
+            "lugar_entrega_acordado": "Plaza de Armas",
+        },
+    )
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["id"] != id1
+
+    db_session.expire_all()
+    previa = db_session.query(Reserva).filter(Reserva.id == id1).first()
+    assert previa.estado == "cancelada"
