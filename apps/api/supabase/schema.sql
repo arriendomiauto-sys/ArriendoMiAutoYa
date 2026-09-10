@@ -200,7 +200,8 @@ CREATE TABLE IF NOT EXISTS public.pagos (
     referencia_pago TEXT,
     timestamp TIMESTAMPTZ DEFAULT NOW(),
     liquidado_en TIMESTAMPTZ,
-    intentos_liquidacion INTEGER DEFAULT 0
+    intentos_liquidacion INTEGER DEFAULT 0,
+    procesando_desde TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_pagos_reserva_id ON public.pagos(reserva_id);

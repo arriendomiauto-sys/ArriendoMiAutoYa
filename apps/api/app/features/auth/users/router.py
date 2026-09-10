@@ -191,8 +191,9 @@ def actualizar_cuenta_bancaria(
         numero=payload.numero, titular=payload.titular, rut=payload.rut,
     )
     # Intento de depósito de lo que estuviera pendiente por falta de cuenta.
+    # Acotado a este usuario: el barrido global es solo del loop/admin.
     from app.features.payments import liquidaciones_service
-    liquidaciones_service.ejecutar_liquidaciones_pendientes(db)
+    liquidaciones_service.ejecutar_liquidaciones_pendientes(db, usuario_id=current_user.id)
     db.refresh(current_user)
     return current_user
 
@@ -232,8 +233,9 @@ def agregar_cuenta_cobro(payload: CuentaCobroCreate, db: Session = Depends(get_d
         banco=payload.banco, tipo_cuenta=payload.tipo_cuenta,
         numero=payload.numero, titular=payload.titular, rut=payload.rut,
     )
+    # Solo las liquidaciones de este dueño (ver nota en actualizar_cuenta_bancaria).
     from app.features.payments import liquidaciones_service
-    liquidaciones_service.ejecutar_liquidaciones_pendientes(db)
+    liquidaciones_service.ejecutar_liquidaciones_pendientes(db, usuario_id=current_user.id)
     return {"cuenta_cobro": CuentaCobroOut(**cuentas_cobro_service.serializar(c))}
 
 

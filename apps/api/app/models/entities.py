@@ -400,6 +400,10 @@ class Pago(Base):
     # Liquidación automática a la cuenta de cobro del dueño (ver liquidaciones_service).
     liquidado_en = Column(DateTime, nullable=True)
     intentos_liquidacion = Column(Integer, default=0)
+    # Momento en que la fila entró a 'procesando'. Sirve para distinguir una
+    # transferencia en vuelo (fresca) de un huérfano (proceso muerto): solo se
+    # re-reclama cuando está demostrablemente vieja.
+    procesando_desde = Column(DateTime, nullable=True)
 
     # Relaciones
     reserva = relationship("Reserva", back_populates="pagos")

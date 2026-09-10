@@ -143,9 +143,10 @@ def test_mis_ganancias_flota_con_fecha_publicacion_nula_no_revienta(db_session, 
     assert fila["ganancia_total_clp"] == 0
 
 
-def test_mis_ganancias_flota_no_cuenta_liquidaciones_falladas_o_reembolsadas(db_session, usuario_factory, auth_as):
-    """Mismo criterio que saldo_disponible_clp/total_pagado_clp: una
-    liquidación fallida o reembolsada no es plata que el auto generó."""
+def test_mis_ganancias_flota_no_cuenta_liquidaciones_reembolsadas(db_session, usuario_factory, auth_as):
+    """Mismo criterio que saldo_disponible_clp/total_pagado_clp: 'fallido' y
+    'procesando' siguen siendo plata que el auto generó y que se le debe al
+    dueño; solo 'reembolsado' queda fuera."""
     dueno = usuario_factory(roles_activos=["dueno", "cliente"])
     cliente = usuario_factory(roles_activos=["cliente"])
 
@@ -167,15 +168,22 @@ def test_mis_ganancias_flota_no_cuenta_liquidaciones_falladas_o_reembolsadas(db_
     db_session.refresh(reserva)
 
     db_session.add_all([
-        Pago(usuario_id=dueno.id, reserva_id=reserva.id, tipo="liquidacion_dueno", monto=999999, estado="fallido"),
+        Pago(usuario_id=dueno.id, reserva_id=reserva.id, tipo="liquidacion_dueno", monto=100000, estado="fallido"),
         Pago(usuario_id=dueno.id, reserva_id=reserva.id, tipo="liquidacion_dueno", monto=888888, estado="reembolsado"),
         Pago(usuario_id=dueno.id, reserva_id=reserva.id, tipo="liquidacion_dueno", monto=50000, estado="pendiente"),
+        Pago(usuario_id=dueno.id, reserva_id=reserva.id, tipo="liquidacion_dueno", monto=20000, estado="procesando"),
+        Pago(usuario_id=dueno.id, reserva_id=reserva.id, tipo="liquidacion_dueno", monto=7000, estado="pagado"),
     ])
     db_session.commit()
 
-    resp = auth_as(dueno).get("/api/v1/pagos/mis-ganancias")
-    fila = next(a for a in resp.json()["por_auto"] if a["auto_id"] == auto.id)
-    assert fila["ganancia_total_clp"] == 50000
+    body = auth_as(dueno).get("/api/v1/pagos/mis-ganancias").json()
+    fila = next(a for a in body["por_auto"] if a["auto_id"] == auto.id)
+    assert fila["ganancia_total_clp"] == 100000 + 50000 + 20000 + 7000
+
+    # Lo que todavía se le debe: pendiente + procesando + fallido.
+    assert body["saldo_disponible_clp"] == 100000 + 50000 + 20000
+    assert body["total_pagado_clp"] == 7000
+    assert body["total_ganado_clp"] == 100000 + 50000 + 20000 + 7000
 
 
 def test_actualizar_cuenta_bancaria_persiste_y_valida_rut(usuario_factory, auth_as):

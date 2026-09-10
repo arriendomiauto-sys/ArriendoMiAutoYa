@@ -357,7 +357,12 @@ def obtener_mis_ganancias(
         .all()
     )
 
-    saldo_disponible_clp = sum(p.monto for p in pagos_liquidacion if p.estado == "pendiente")
+    # "Por cobrar" = todo lo que la plataforma todavía le debe: pendiente, más
+    # lo que está en vuelo ('procesando') y lo que falló y se va a reintentar
+    # ('fallido'). Si no, el saldo del dueño se desploma solo mientras el
+    # historial le sigue mostrando la fila.
+    ESTADOS_POR_COBRAR = ("pendiente", "procesando", "fallido")
+    saldo_disponible_clp = sum(p.monto for p in pagos_liquidacion if p.estado in ESTADOS_POR_COBRAR)
     total_pagado_clp = sum(p.monto for p in pagos_liquidacion if p.estado == "pagado")
 
     historial = [
@@ -382,12 +387,12 @@ def obtener_mis_ganancias(
         if reserva_ids
         else {}
     )
-    # Mismo criterio que saldo_disponible_clp/total_pagado_clp arriba: una
-    # liquidación "fallida" o "reembolsada" no es plata que el auto haya
-    # generado de verdad, aunque el registro exista.
+    # Mismo criterio que saldo_disponible_clp/total_pagado_clp arriba: cuenta
+    # lo pagado y lo que sigue debiéndose (pendiente/procesando/fallido); una
+    # liquidación "reembolsada" no es plata que el auto haya generado.
     ganancia_por_auto: Dict[str, int] = {}
     for p in pagos_liquidacion:
-        if p.estado not in ("pendiente", "pagado"):
+        if p.estado not in ESTADOS_POR_COBRAR + ("pagado",):
             continue
         r = reservas_de_pagos.get(p.reserva_id)
         if r:
