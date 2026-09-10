@@ -5,28 +5,17 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Modal,
-  TextInput,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
   theme,
-  useApp,
   Icon,
-  Button,
-  Chip,
-  SectionLabel,
-  showAlert,
   ApiClient,
-  CampoConSugerencias,
-  buscarBancos,
-  TIPOS_CUENTA_CHILE,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
+import { CuentaCobroModal } from "./CuentaCobroModal";
 
 const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const fmt = (m) => `$${Math.abs(m || 0).toLocaleString("es-CL")}`;
@@ -35,16 +24,16 @@ const fmtFecha = (t) =>
 
 export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
   const insets = useSafeAreaInsets();
-  const { bankAccount, updateBankAccount } = useApp();
-  const [bankModal, setBankModal] = useState(false);
-  const [form, setForm] = useState({
-    banco: bankAccount?.banco || "",
-    tipo_cuenta: bankAccount?.tipo_cuenta || "",
-    numero: bankAccount?.numero || "",
-    titular: bankAccount?.titular || "",
-    rut: bankAccount?.rut || "",
-  });
-  const [savingBank, setSavingBank] = useState(false);
+
+  const [cuentas, setCuentas] = useState([]);
+  const [cuentaModal, setCuentaModal] = useState(false);
+  const cargarCuentas = useCallback(async () => {
+    try {
+      setCuentas(await ApiClient.getCuentasCobro());
+    } catch (e) {
+      /* silencioso */
+    }
+  }, []);
 
   const [ganancias, setGanancias] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -64,24 +53,11 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
     cargar();
   }, [cargar]);
 
-  const handleSaveBank = async () => {
-    if (savingBank) return;
-    if (!form.banco || !form.tipo_cuenta || !form.numero || !form.titular || !form.rut) {
-      showAlert("Datos incompletos", "Completa el banco, el tipo de cuenta, el número, el titular y su RUT.");
-      return;
-    }
-    setSavingBank(true);
-    try {
-      await updateBankAccount(form);
-      setBankModal(false);
-      showAlert("Cuenta guardada", "Tus liquidaciones se depositarán automáticamente en esta cuenta.");
-      cargar();
-    } catch (err) {
-      showAlert("No se pudo guardar", err.message || "Verifica el RUT e intenta de nuevo.");
-    } finally {
-      setSavingBank(false);
-    }
-  };
+  useEffect(() => {
+    cargarCuentas();
+  }, [cargarCuentas]);
+
+  const predeterminada = cuentas.find((c) => c.predeterminada) || null;
 
   const saldo = ganancias?.saldo_disponible_clp ?? 0;
   const totalPagado = ganancias?.total_pagado_clp ?? 0;
@@ -145,19 +121,19 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
             </View>
           ) : null}
 
-          {bankAccount ? (
-            <TouchableOpacity style={styles.autoPayoutBanner} onPress={() => setBankModal(true)} activeOpacity={0.85}>
+          {predeterminada ? (
+            <TouchableOpacity style={styles.autoPayoutBanner} onPress={() => setCuentaModal(true)} activeOpacity={0.85}>
               <View style={styles.autoPayoutDot} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.autoPayoutTitle}>Depósito automático activo</Text>
                 <Text style={styles.autoPayoutSub} numberOfLines={1}>
-                  {bankAccount.banco} · {bankAccount.tipo_cuenta} (N° {bankAccount.numero.slice(-4)})
+                  {predeterminada.banco} · {predeterminada.tipo_cuenta} (N° {predeterminada.numero})
                 </Text>
               </View>
               <Text style={styles.autoPayoutLink}>Cambiar</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.missingBankBanner} onPress={() => setBankModal(true)} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.missingBankBanner} onPress={() => setCuentaModal(true)} activeOpacity={0.85}>
               <Icon name="alert" size={16} color="#FFFFFF" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.missingBankTitle}>Falta tu cuenta bancaria</Text>
@@ -172,27 +148,50 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
           <View style={styles.rowBetween}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Icon name="wallet" size={15} color={colors.accentDark} />
-              <Text style={oc.cardTitle}>Cuenta de depósito</Text>
+              <Text style={oc.cardTitle}>Cuentas de cobro</Text>
             </View>
-            <TouchableOpacity onPress={() => setBankModal(true)}>
-              <Text style={styles.link}>{bankAccount ? "Cambiar" : "Configurar"}</Text>
+            <TouchableOpacity onPress={() => setCuentaModal(true)}>
+              <Text style={styles.link}>Agregar cuenta</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.bankExplain}>
-            El 85% neto del arriendo y el 100% de compensaciones (combustible, km extra y limpieza) se depositan automáticamente en esta cuenta al devolver el vehículo.
+            El 85% neto del arriendo y el 100% de compensaciones se depositan automáticamente en tu cuenta predeterminada al devolver el vehículo.
           </Text>
-          {bankAccount ? (
-            <View style={{ gap: 2 }}>
-              <Text style={styles.bankName}>{bankAccount.banco}</Text>
-              <Text style={styles.bankLine}>
-                {bankAccount.tipo_cuenta} · N° {bankAccount.numero}
-              </Text>
-              <Text style={styles.bankLineMuted}>
-                {bankAccount.titular} ({bankAccount.rut})
-              </Text>
-            </View>
+          {cuentas.length === 0 ? (
+            <Text style={styles.bankLineMuted}>Aún no agregas una cuenta de cobro.</Text>
           ) : (
-            <Text style={styles.bankLineMuted}>Aún no configuras una cuenta de depósito.</Text>
+            cuentas.map((c) => (
+              <View key={c.id} style={styles.cuentaRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bankName}>{c.banco}</Text>
+                  <Text style={styles.bankLine}>
+                    {c.tipo_cuenta} · {c.numero}
+                  </Text>
+                </View>
+                {c.predeterminada ? (
+                  <Text style={styles.badgePred}>Predeterminada</Text>
+                ) : (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      await ApiClient.marcarCuentaCobroPredeterminada(c.id);
+                      cargarCuentas();
+                    }}
+                  >
+                    <Text style={styles.link}>Usar esta</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={async () => {
+                    await ApiClient.eliminarCuentaCobro(c.id);
+                    cargarCuentas();
+                  }}
+                  hitSlop={theme.control.hitSlop}
+                  style={{ marginLeft: 10 }}
+                >
+                  <Icon name="trash" size={15} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+            ))
           )}
         </View>
 
@@ -245,7 +244,6 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
             </Text>
           ) : (
             historial.map((item, i) => {
-              const esPagado = item.estado === "pagado";
               return (
                 <View key={item.id} style={[styles.histRow, i === historial.length - 1 && { borderBottomWidth: 0 }]}>
                   <View style={{ flex: 1 }}>
@@ -254,10 +252,24 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
                       {item.reserva_id ? ` · ${item.reserva_id.slice(0, 8)}` : ""}
                     </Text>
                     <Text style={styles.histDate}>
-                      {fmtFecha(item.timestamp)} · {esPagado ? "Transferido a tu cuenta" : bankAccount ? "Depósito en camino" : "Falta cuenta bancaria"}
+                      {fmtFecha(item.timestamp)} ·{" "}
+                      {item.estado === "pagado"
+                        ? "Transferido a tu cuenta"
+                        : item.estado === "procesando"
+                          ? "Depósito en proceso"
+                          : item.estado === "fallido"
+                            ? "No se pudo depositar — revisa tu cuenta"
+                            : predeterminada
+                              ? "Depósito en camino"
+                              : "Falta cuenta de cobro"}
                     </Text>
                   </View>
-                  <Text style={[styles.histAmount, { color: esPagado ? colors.accentDark : colors.textMuted }]}>
+                  <Text
+                    style={[
+                      styles.histAmount,
+                      { color: item.estado === "pagado" ? colors.accentDark : colors.textMuted },
+                    ]}
+                  >
                     +{fmt(item.monto)}
                   </Text>
                 </View>
@@ -267,68 +279,14 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
         </View>
       </ScrollView>
 
-      <Modal visible={bankModal} transparent animationType="slide" onRequestClose={() => setBankModal(false)}>
-        <KeyboardAvoidingView
-          style={styles.overlay}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.rowBetween}>
-              <Text style={styles.sheetTitle}>Cuenta bancaria</Text>
-              <TouchableOpacity onPress={() => setBankModal(false)} hitSlop={theme.control.hitSlop}>
-                <Icon name="close" size={18} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.sheetSub}>Los fondos se transfieren a esta cuenta bancaria chilena.</Text>
-            <ScrollView style={{ maxHeight: 360 }} keyboardShouldPersistTaps="handled">
-              <View style={{ marginBottom: theme.spacing.md }}>
-                <CampoConSugerencias
-                  etiqueta="Banco"
-                  valor={form.banco}
-                  onChange={(v) => setForm((p) => ({ ...p, banco: v }))}
-                  buscar={buscarBancos}
-                  placeholder="Escribe y elige de la lista"
-                />
-              </View>
-
-              <View style={{ gap: 8, marginBottom: theme.spacing.md }}>
-                <SectionLabel>Tipo de cuenta</SectionLabel>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm }}>
-                  {TIPOS_CUENTA_CHILE.map((tipo) => (
-                    <Chip
-                      key={tipo}
-                      label={tipo}
-                      selected={form.tipo_cuenta === tipo}
-                      onPress={() => setForm((p) => ({ ...p, tipo_cuenta: tipo }))}
-                    />
-                  ))}
-                </View>
-              </View>
-
-              {[
-                { k: "numero", label: "Número de cuenta", ph: "", kb: "number-pad" },
-                { k: "titular", label: "Nombre del titular", ph: "" },
-                { k: "rut", label: "RUT del titular", ph: "12.345.678-9" },
-              ].map((f) => (
-                <View key={f.k} style={{ gap: 6, marginBottom: theme.spacing.md }}>
-                  <SectionLabel>{f.label}</SectionLabel>
-                  <TextInput
-                    style={styles.input}
-                    value={form[f.k]}
-                    onChangeText={(v) => setForm((p) => ({ ...p, [f.k]: v }))}
-                    placeholder={f.ph}
-                    placeholderTextColor={colors.textPlaceholder}
-                    keyboardType={f.kb || "default"}
-                    accessibilityLabel={f.label}
-                  />
-                </View>
-              ))}
-            </ScrollView>
-            <Button label="Guardar cuenta" onPress={handleSaveBank} loading={savingBank} />
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <CuentaCobroModal
+        visible={cuentaModal}
+        onClose={() => setCuentaModal(false)}
+        onGuardada={() => {
+          cargarCuentas();
+          cargar();
+        }}
+      />
     </View>
   );
 }
@@ -409,6 +367,22 @@ const styles = StyleSheet.create({
   bankName: { fontSize: 15, fontWeight: "700", color: colors.text },
   bankLine: { fontSize: 13, color: colors.textMuted },
   bankLineMuted: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+  cuentaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  badgePred: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.accentDark,
+    backgroundColor: colors.accent100,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
   bars: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", height: 120, paddingTop: 8 },
   barCol: { alignItems: "center", flex: 1, gap: 6 },
   bar: { width: 16, backgroundColor: colors.accent, borderRadius: 4 },
@@ -441,27 +415,4 @@ const styles = StyleSheet.create({
   },
   occupancyFill: { height: "100%", borderRadius: 3, backgroundColor: colors.accent },
   fleetMeta: { fontSize: 11, color: colors.textMuted },
-  overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.45)", justifyContent: "flex-end" },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
-    padding: theme.spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: theme.spacing.md,
-  },
-  sheetHandle: { width: 40, height: 4, borderRadius: 999, backgroundColor: colors.border, alignSelf: "center" },
-  sheetTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
-  sheetSub: { fontSize: 13, color: colors.textMuted, marginTop: -6 },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.field,
-    paddingHorizontal: 14,
-    height: theme.control.height,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    fontSize: 15,
-    color: colors.text,
-  },
 });
