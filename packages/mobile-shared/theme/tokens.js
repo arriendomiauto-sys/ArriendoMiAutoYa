@@ -7,6 +7,9 @@
  * cálido (#FAFAF9). Los colores viven en ./colors; esto es todo lo demás.
  */
 
+import { colors } from "./colors";
+export { colors };
+
 // Escala de espaciado en múltiplos de 4. `screen` es el margen lateral
 // estándar de una pantalla; `gap` la separación por defecto entre bloques.
 export const spacing = {
@@ -80,6 +83,6 @@ export const control = {
   hitSlop: { top: 8, bottom: 8, left: 8, right: 8 },
 };
 
-export const theme = { spacing, radius, typography, shadow, control };
+export const theme = { spacing, radius, typography, shadow, control, colors };
 
 export default theme;

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Modal, View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { colors } from "../theme/colors";
@@ -19,6 +19,11 @@ import { hapticoExito } from "../utils/haptics";
  */
 export function QRScannerModal({ visible, titulo = "Escanear código", hint, onClose, onLeido }) {
   const insets = useSafeAreaInsets();
+  // El alto/ancho van EXPLÍCITOS al contenedor del Modal: con la New
+  // Architecture en Android, `<Modal>` mide a "wrap content" y un `flex:1`
+  // suelto colapsa, dejando el escáner apelotonado arriba de la pantalla.
+  // Mismo criterio que DocumentCameraModal y SelfieLivenessModal.
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   // `onBarcodeScanned` dispara por cada frame mientras el QR está en cuadro:
   // este cerrojo asegura que solo se procese la primera lectura.
@@ -100,7 +105,7 @@ export function QRScannerModal({ visible, titulo = "Escanear código", hint, onC
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={cerrar} statusBarTranslucent>
-      <View style={styles.root}>{contenido()}</View>
+      <View style={[styles.root, { width: SCREEN_W, height: SCREEN_H }]}>{contenido()}</View>
     </Modal>
   );
 }

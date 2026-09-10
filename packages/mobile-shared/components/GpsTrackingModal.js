@@ -10,7 +10,8 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme } from "../theme/tokens";
+import { colors } from "../theme/colors";
+import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 import { Button, Card, Badge } from "./ui";
 import { ApiClient } from "../api/client";
