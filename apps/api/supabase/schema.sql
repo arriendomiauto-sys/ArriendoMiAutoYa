@@ -196,9 +196,11 @@ CREATE TABLE IF NOT EXISTS public.pagos (
     )),
     monto INTEGER NOT NULL,
     estado TEXT DEFAULT 'pendiente'
-        CHECK (estado IN ('pendiente', 'capturado', 'liberado', 'fallido', 'reembolsado', 'pagado')),
+        CHECK (estado IN ('pendiente', 'procesando', 'capturado', 'retenido', 'liberado', 'fallido', 'reembolsado', 'pagado')),
     referencia_pago TEXT,
-    timestamp TIMESTAMPTZ DEFAULT NOW()
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    liquidado_en TIMESTAMPTZ,
+    intentos_liquidacion INTEGER DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_pagos_reserva_id ON public.pagos(reserva_id);

@@ -212,6 +212,12 @@ _CHECKS_ESPERADAS = {
             "finalizada", "cancelada", "disputada",
         ),
     ),
+    "pagos": (
+        "pagos_estado_check",
+        "estado",
+        ("pendiente", "procesando", "capturado", "retenido",
+         "liberado", "fallido", "reembolsado", "pagado"),
+    ),
 }
 
 

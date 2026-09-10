@@ -19,3 +19,9 @@ def test_reconcile_check_constraints_noop_en_sqlite():
 def test_constraint_reservas_incluye_pendiente_pago():
     _, _, valores = schema_sync._CHECKS_ESPERADAS["reservas"]
     assert "pendiente_pago" in valores
+
+
+def test_constraint_pagos_incluye_procesando_y_retenido():
+    _, _, valores = schema_sync._CHECKS_ESPERADAS["pagos"]
+    assert "procesando" in valores
+    assert "retenido" in valores  # ya se usa en el código y faltaba en schema.sql

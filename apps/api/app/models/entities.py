@@ -397,6 +397,10 @@ class Pago(Base):
     referencia_pago = Column(String, nullable=True)
     timestamp = Column(DateTime, default=utc_now)
 
+    # Liquidación automática a la cuenta de cobro del dueño (ver liquidaciones_service).
+    liquidado_en = Column(DateTime, nullable=True)
+    intentos_liquidacion = Column(Integer, default=0)
+
     # Relaciones
     reserva = relationship("Reserva", back_populates="pagos")
 
