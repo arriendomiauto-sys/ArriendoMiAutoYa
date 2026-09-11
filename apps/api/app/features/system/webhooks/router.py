@@ -156,12 +156,16 @@ async def webhook_didit(
         # Bloque: Persistencia permanente de las fotos del proveedor.
         # Didit entrega URLs temporales (expiran); se rebajan al bucket
         # privado "documentos-kyc" antes de guardarlas en el usuario.
+        #
+        # La licencia de conducir NO se toma de Didit: todavía no la
+        # reconoce de forma confiable (solo certifica cédula/pasaporte). Se
+        # verifica siempre aparte, con el pipeline casero de Google Vision
+        # (ver POST /enrolamiento/completar-licencia).
         persisted = persist_verification_assets(
             {
                 "verified_avatar_url": datos.get("foto_url"),
                 "front_card_url": datos.get("carnet_frontal_url"),
                 "back_card_url": datos.get("carnet_trasero_url"),
-                "license_url": datos.get("licencia_url"),
             },
             usuario.id,
         )
@@ -172,16 +176,6 @@ async def webhook_didit(
             usuario.carnet_frontal_url = persisted.get("front_card_url") or datos.get("carnet_frontal_url")
         if persisted.get("back_card_url") or datos.get("carnet_trasero_url"):
             usuario.carnet_trasero_url = persisted.get("back_card_url") or datos.get("carnet_trasero_url")
-
-        # Bloque: Datos de la licencia de conducir validada por Didit.
-        licencia_url = persisted.get("license_url") or datos.get("licencia_url")
-        if licencia_url:
-            usuario.licencia_url = licencia_url
-            usuario.licencia_vencimiento = (
-                _parse_fecha(datos.get("licencia_vencimiento")) or usuario.licencia_vencimiento
-            )
-            usuario.licencia_clase = datos.get("licencia_clase") or "Clase B"
-            usuario.licencia_estado = "aprobada"
 
         # Bloque: Método de verificación usado (para auditoría y el perfil).
         usuario.metodo_verificacion = "didit"

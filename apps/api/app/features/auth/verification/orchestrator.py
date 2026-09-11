@@ -64,13 +64,19 @@ class VerificationOrchestrator:
         # Bloque: Extracción de los datos normalizados del proveedor
         data = payload.get("datos") or payload.get("data") or {}
 
-        # Bloque: Persistencia permanente de cédula, licencia y selfie
+        # Bloque: Persistencia permanente de cédula y selfie
+        #
+        # La licencia de conducir NO se persiste ni se da por verificada acá:
+        # Didit todavía no reconoce licencias de conducir de forma confiable
+        # (su workflow solo certifica el documento de identidad). Verificarla
+        # queda enteramente a cargo del pipeline casero con Google Vision
+        # (ver `completar_licencia` / `OCRService`), sin importar si la
+        # identidad se resolvió por Didit o por el fallback casero.
         persisted = persist_verification_assets(
             {
                 "verified_avatar_url": data.get("foto_url") or data.get("foto_perfil_verificada_url"),
                 "front_card_url": data.get("carnet_frontal_url"),
                 "back_card_url": data.get("carnet_trasero_url"),
-                "license_url": data.get("licencia_url"),
             },
             user_id,
         )
@@ -80,17 +86,14 @@ class VerificationOrchestrator:
             status="approved",
             provider="didit",
             is_identity_verified=True,
-            is_license_verified=True,
+            is_license_verified=False,
             is_liveness_verified=True,
             extracted_full_name=data.get("nombre_completo") or data.get("nombre"),
             extracted_rut=data.get("rut"),
             extracted_birth_date=data.get("fecha_nacimiento"),
-            extracted_license_category=data.get("licencia_clase") or "Clase B",
-            extracted_license_expiration=data.get("licencia_vencimiento"),
             verified_avatar_url=persisted.get("verified_avatar_url") or data.get("foto_url"),
             front_card_url=persisted.get("front_card_url") or data.get("carnet_frontal_url"),
             back_card_url=persisted.get("back_card_url") or data.get("carnet_trasero_url"),
-            license_url=persisted.get("license_url") or data.get("licencia_url"),
             raw_payload=payload,
         )
 

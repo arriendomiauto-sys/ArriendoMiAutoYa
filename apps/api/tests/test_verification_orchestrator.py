@@ -22,17 +22,22 @@ client = TestClient(app)
 class TestVerificationOrchestrator:
 
     def test_didit_approved_flow(self):
-        """Didit aprobado debe retornar VerificationResult exitoso con provider='didit'."""
+        """
+        Didit aprobado debe retornar VerificationResult exitoso con
+        provider='didit' para identidad — pero NUNCA para la licencia:
+        Didit todavía no la reconoce de forma confiable, así que
+        is_license_verified debe quedar en False sin importar qué venga en
+        el payload (la licencia se verifica aparte, con el pipeline casero
+        de Google Vision).
+        """
         mock_payload = {
             "datos": {
                 "nombre_completo": "Juan Perez Gonzalez",
                 "rut": "12.345.678-5",
                 "fecha_nacimiento": "1990-05-15",
-                "licencia_clase": "Clase B",
                 "foto_url": "https://storage.didit.me/temp_avatar.jpg",
                 "carnet_frontal_url": "https://storage.didit.me/temp_front.jpg",
                 "carnet_trasero_url": "https://storage.didit.me/temp_back.jpg",
-                "licencia_url": "https://storage.didit.me/temp_lic.jpg",
             }
         }
 
@@ -41,7 +46,6 @@ class TestVerificationOrchestrator:
                 "verified_avatar_url": "https://supabase.co/storage/v1/object/sign/documentos-kyc/verified_avatar_123.jpg",
                 "front_card_url": "https://supabase.co/storage/v1/object/sign/documentos-kyc/id_card_front_123.jpg",
                 "back_card_url": "https://supabase.co/storage/v1/object/sign/documentos-kyc/id_card_back_123.jpg",
-                "license_url": "https://supabase.co/storage/v1/object/sign/documentos-kyc/driver_license_123.jpg",
             }
 
             result = VerificationOrchestrator.evaluate_user_verification(
@@ -55,11 +59,11 @@ class TestVerificationOrchestrator:
             assert result.status == "approved"
             assert result.provider == "didit"
             assert result.is_identity_verified is True
-            assert result.is_license_verified is True
+            assert result.is_license_verified is False
             assert result.is_liveness_verified is True
             assert result.extracted_full_name == "Juan Perez Gonzalez"
             assert result.extracted_rut == "12.345.678-5"
-            assert result.extracted_license_category == "Clase B"
+            assert result.license_url is None
             assert "supabase.co" in result.verified_avatar_url
 
     def test_inhouse_fallback_when_didit_failed_or_missing(self):

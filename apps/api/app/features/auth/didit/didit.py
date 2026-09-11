@@ -279,8 +279,8 @@ def interpretar_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
         "motivos": [str, ...],
         "datos": {"nombre","apellido","nombre_completo","rut",
                   "fecha_nacimiento","nacionalidad","documento_numero",
-                  "foto_url","carnet_frontal_url","carnet_trasero_url",
-                  "licencia_url","licencia_vencimiento","licencia_clase"},
+                  "foto_url","carnet_frontal_url","carnet_trasero_url"},
+                  # (sin licencia_*: Didit no la reconoce, ver nota más abajo)
         "rut_verificado_registro_civil": bool | None,
       }
     """
@@ -348,31 +348,23 @@ def interpretar_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
             if txt:
                 motivos.append(str(txt))
 
-    # Imágenes de los documentos y datos de la licencia. Didit V3 entrega
-    # `front_image` / `back_image` / `portrait_image` por cada id_verification.
-    # Si el workflow pide licencia de conducir, esta aparece como una entrada
-    # aparte de `id_verifications` con `document_type` tipo "driver license";
-    # el carnet de identidad es cualquier otra entrada.
-    _CLAVES_LICENCIA = ("driver", "licen", "conduc")
+    # Imágenes del documento de identidad. Didit V3 entrega `front_image` /
+    # `back_image` / `portrait_image` por cada id_verification.
+    #
+    # Didit todavía no reconoce licencias de conducir de forma confiable (su
+    # workflow solo certifica cédula/pasaporte) — antes acá se intentaba
+    # distinguir una entrada de tipo "driver license" para extraer
+    # licencia_url/licencia_vencimiento/licencia_clase, pero en la práctica
+    # esa rama nunca se poblaba con datos utilizables. Se sacó del todo: la
+    # licencia se verifica siempre con el pipeline casero de Google Vision
+    # (ver `completar_licencia`), nunca con lo que devuelva Didit.
     for _entry in decision.get("id_verifications") or []:
         if not isinstance(_entry, dict):
             continue
-        _tipo = str(_entry.get("document_type") or _entry.get("document_type_name") or "").lower()
-        if any(c in _tipo for c in _CLAVES_LICENCIA):
-            if not datos.get("licencia_url"):
-                datos["licencia_url"] = _buscar(_entry, "front_image", "portrait_image")
-            if not datos.get("licencia_vencimiento"):
-                datos["licencia_vencimiento"] = _buscar(
-                    _entry, "date_of_expiration", "expiration_date", "expiry_date"
-                )
-            _clase = _buscar(_entry, "license_category", "vehicle_category", "categories")
-            if _clase and not datos.get("licencia_clase"):
-                datos["licencia_clase"] = str(_clase)
-        else:
-            if not datos.get("carnet_frontal_url"):
-                datos["carnet_frontal_url"] = _buscar(_entry, "front_image")
-            if not datos.get("carnet_trasero_url"):
-                datos["carnet_trasero_url"] = _buscar(_entry, "back_image")
+        if not datos.get("carnet_frontal_url"):
+            datos["carnet_frontal_url"] = _buscar(_entry, "front_image")
+        if not datos.get("carnet_trasero_url"):
+            datos["carnet_trasero_url"] = _buscar(_entry, "back_image")
 
     face = _primero(decision.get("face_matches"))
     if _es_declined(face):

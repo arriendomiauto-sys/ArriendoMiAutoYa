@@ -56,7 +56,8 @@ def test_orchestrator_camino_didit_aprobado(monkeypatch):
     assert result.provider == "didit"
     assert result.is_identity_verified is True
     assert result.extracted_full_name == "Juan Pérez"
-    assert result.extracted_license_category == "Clase B"
+    # Didit no certifica licencia de conducir: se verifica aparte, casero.
+    assert result.is_license_verified is False
 
 
 def test_orchestrator_camino_fallback_casero(client):
@@ -126,7 +127,14 @@ def test_background_check_marca_usuario_bloqueado(db_session, monkeypatch):
 # ===========================================================================
 # Webhook de Didit: veredicto Approved
 # ===========================================================================
-def test_webhook_didit_approved_persiste_licencia_y_metodo(client, db_session, usuario_factory, monkeypatch):
+def test_webhook_didit_approved_persiste_identidad_pero_no_la_licencia(client, db_session, usuario_factory, monkeypatch):
+    """
+    Didit certifica identidad, nunca licencia de conducir (todavía no la
+    reconoce de forma confiable). Aunque el payload traiga una entrada de
+    tipo "Driver License", el webhook no debe darla por aprobada ni tocar
+    licencia_url/licencia_clase/licencia_estado -- eso queda enteramente a
+    cargo del pipeline casero de Google Vision (completar-licencia).
+    """
     from app.routers import webhooks
 
     usuario = usuario_factory(estado_documentos="pendiente", rut=None, nombre=None)
@@ -170,7 +178,7 @@ def test_webhook_didit_approved_persiste_licencia_y_metodo(client, db_session, u
     assert usuario.verificacion_externa_estado == "aprobada"
     assert usuario.metodo_verificacion == "didit"
     assert usuario.carnet_frontal_url == "https://didit/front.jpg"
-    assert usuario.licencia_url == "https://didit/license.jpg"
-    assert usuario.licencia_clase == "Clase B"
-    assert usuario.licencia_estado == "aprobada"
-    assert usuario.licencia_vencimiento.year == 2031
+    assert usuario.licencia_url is None
+    assert usuario.licencia_clase is None
+    assert usuario.licencia_estado is None
+    assert usuario.licencia_vencimiento is None
