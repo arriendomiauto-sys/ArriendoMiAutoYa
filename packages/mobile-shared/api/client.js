@@ -690,6 +690,13 @@ export class ApiClient {
     return this.request("/soporte/mis-tickets");
   }
 
+  // Solicita la baja de la cuenta. El backend bloquea con 409 (y el detalle
+  // exacto) si todavía hay arriendos o pagos en curso, como cliente o como
+  // dueño de flota.
+  static async solicitarEliminacionCuenta() {
+    return this.request("/usuarios/me/solicitar-eliminacion", { method: "POST" });
+  }
+
   // Pasarela de pagos: Mercado Pago (Checkout Pro)
   static async iniciarPago(monto, tipo = "hold_reserva", reservaId = null, returnUrl = null) {
     return this.request("/pagos/mercadopago/iniciar", {

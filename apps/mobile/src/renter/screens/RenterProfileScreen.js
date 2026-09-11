@@ -104,16 +104,14 @@ export function RenterProfileScreen({
   const solicitarEliminacion = async () => {
     setEliminando(true);
     try {
-      await ApiClient.crearTicketSoporte(
-        "Solicitud de eliminación de cuenta",
-        `El usuario ${user.email || user.id || "(sin correo)"} solicita eliminar de forma definitiva su cuenta y sus datos personales.`
-      );
-      showAlert(
-        "Solicitud enviada",
-        "Recibimos tu solicitud. Te escribiremos por correo para confirmar la eliminación una vez que no queden arriendos ni pagos en curso."
-      );
+      const res = await ApiClient.solicitarEliminacionCuenta();
+      showAlert("Solicitud enviada", res?.mensaje || "Recibimos tu solicitud.");
     } catch (err) {
-      showAlert("No se pudo enviar", err.message || "Inténtalo de nuevo en unos segundos.");
+      if (err?.status === 409) {
+        showAlert("Todavía no puedes eliminar tu cuenta", err.message);
+      } else {
+        showAlert("No se pudo enviar", err.message || "Inténtalo de nuevo en unos segundos.");
+      }
     } finally {
       setEliminando(false);
     }
@@ -122,7 +120,7 @@ export function RenterProfileScreen({
   const handleEliminarCuenta = () => {
     showAlert(
       "Eliminar mi cuenta",
-      "Enviaremos tu solicitud al equipo. Antes de borrar la cuenta verificamos que no tengas arriendos en curso ni pagos pendientes; te confirmamos por correo dentro de 48 horas. Esta acción no se puede deshacer.",
+      "Si tienes arriendos o pagos en curso, no podremos procesar la baja todavía — te lo diremos de inmediato. Si no, tu solicitud queda registrada y te confirmamos por correo dentro de 48 horas. Esta acción no se puede deshacer.",
       [
         { text: "Cancelar", style: "cancel" },
         { text: "Solicitar eliminación", style: "destructive", onPress: solicitarEliminacion },

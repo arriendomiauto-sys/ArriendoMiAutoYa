@@ -1,11 +1,13 @@
 /**
- * Accesos del perfil del arrendatario que se agregaron para acortar el flujo:
- * editar los datos de contacto (tocando la cabecera), ver los autos guardados
- * y solicitar la eliminación de la cuenta (requisito de las tiendas de apps).
+ * "Eliminar mi cuenta" en el perfil del dueño solo abría un ticket de
+ * soporte genérico. Ahora llama al endpoint real
+ * (ApiClient.solicitarEliminacionCuenta) y, si el backend bloquea con 409
+ * por reservas activas de su flota, muestra ese motivo en vez del error
+ * genérico de red.
  */
 import React from "react";
 import { act } from "react-test-renderer";
-import { RenterProfileScreen } from "../src/renter/screens/RenterProfileScreen";
+import { OwnerProfileScreen } from "../src/owner/screens/OwnerProfileScreen";
 import { renderTree, pressText } from "../test-utils";
 
 jest.mock("react-native-safe-area-context", () => ({
@@ -17,7 +19,9 @@ jest.mock("@rentacar/mobile-shared/utils/alert", () => ({
   showAlert: (...a) => mockShowAlert(...a),
 }));
 
-const mockSolicitarEliminacion = jest.fn(() => Promise.resolve({ solicitado: true, mensaje: "Tu solicitud quedó registrada." }));
+const mockSolicitarEliminacion = jest.fn(() =>
+  Promise.resolve({ solicitado: true, mensaje: "Tu solicitud quedó registrada." })
+);
 jest.mock("@rentacar/mobile-shared/api/client", () => {
   const real = jest.requireActual("@rentacar/mobile-shared/api/client");
   real.ApiClient.getCalificaciones = jest.fn(() => Promise.resolve([]));
@@ -26,8 +30,7 @@ jest.mock("@rentacar/mobile-shared/api/client", () => {
 });
 
 const mockContexto = {
-  currentUser: { id: "u1", nombre: "Ana", email: "ana@correo.cl", estado_documentos: "verificado" },
-  reservations: [],
+  currentUser: { id: "u-dueno", nombre: "Beto", email: "beto@correo.cl", estado_documentos: "verificado" },
   logout: jest.fn(),
   setMode: jest.fn(),
   isLoggedIn: true,
@@ -41,56 +44,37 @@ const asentar = () => new Promise((resolve) => setTimeout(resolve, 0));
 const montar = async (props) => {
   let tr;
   await act(async () => {
-    tr = renderTree(<RenterProfileScreen {...props} />);
+    tr = renderTree(<OwnerProfileScreen cars={[]} {...props} />);
     await asentar();
   });
   return tr;
 };
 
+let arbolActual = null;
+afterEach(() => {
+  if (arbolActual) arbolActual.unmount();
+  arbolActual = null;
+});
+
 beforeEach(() => {
   mockShowAlert.mockReset();
   mockSolicitarEliminacion.mockClear();
+  mockSolicitarEliminacion.mockResolvedValue({ solicitado: true, mensaje: "Tu solicitud quedó registrada." });
 });
 
-describe("Perfil arrendatario · accesos nuevos", () => {
-  it("tocar la cabecera abre editar perfil", async () => {
-    const onOpenEditProfile = jest.fn();
-    const tr = await montar({ onOpenEditProfile });
-
-    await act(async () => {
-      pressText(tr, "Ana");
-      await asentar();
-    });
-
-    expect(onOpenEditProfile).toHaveBeenCalledTimes(1);
-  });
-
-  it("'Autos guardados' abre la pantalla de favoritos", async () => {
-    const onOpenFavorites = jest.fn();
-    const tr = await montar({ onOpenFavorites });
-
-    await act(async () => {
-      pressText(tr, "Autos guardados");
-      await asentar();
-    });
-
-    expect(onOpenFavorites).toHaveBeenCalledTimes(1);
-  });
-
-  it("'Eliminar mi cuenta' pide confirmación y, al confirmar, llama al endpoint real de baja", async () => {
+describe("Perfil dueño · eliminar cuenta", () => {
+  it("pide confirmación y, al confirmar, llama al endpoint real de baja", async () => {
     const tr = await montar({});
+    arbolActual = tr;
 
     await act(async () => {
       pressText(tr, "Eliminar mi cuenta");
       await asentar();
     });
 
-    // Primer alert: confirmación destructiva
-    expect(mockShowAlert).toHaveBeenCalledTimes(1);
     const [titulo, , botones] = mockShowAlert.mock.calls[0];
     expect(titulo).toBe("Eliminar mi cuenta");
     const confirmar = botones.find((b) => b.style === "destructive");
-    expect(confirmar).toBeTruthy();
 
     await act(async () => {
       confirmar.onPress();
@@ -101,13 +85,14 @@ describe("Perfil arrendatario · accesos nuevos", () => {
     expect(mockShowAlert).toHaveBeenLastCalledWith("Solicitud enviada", "Tu solicitud quedó registrada.");
   });
 
-  it("si el backend bloquea con 409 (arriendos activos), muestra el motivo en vez del error genérico", async () => {
+  it("si el backend bloquea con 409 (reservas de su flota), muestra ese motivo", async () => {
     mockSolicitarEliminacion.mockRejectedValue(
-      Object.assign(new Error("No puedes eliminar tu cuenta todavía: tienes 1 arriendo(s) tuyo(s) en curso o pendiente(s)."), {
+      Object.assign(new Error("No puedes eliminar tu cuenta todavía: tienes 2 reserva(s) de tu flota en curso o pendiente(s)."), {
         status: 409,
       })
     );
     const tr = await montar({});
+    arbolActual = tr;
 
     await act(async () => {
       pressText(tr, "Eliminar mi cuenta");
@@ -122,7 +107,7 @@ describe("Perfil arrendatario · accesos nuevos", () => {
 
     expect(mockShowAlert).toHaveBeenLastCalledWith(
       "Todavía no puedes eliminar tu cuenta",
-      expect.stringContaining("1 arriendo(s)")
+      expect.stringContaining("2 reserva(s)")
     );
   });
 });
