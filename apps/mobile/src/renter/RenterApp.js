@@ -19,6 +19,7 @@ import { FavoritesScreen } from "./screens/FavoritesScreen";
 // Modales Compartidos
 import {
   RentalChatScreen,
+  ChatListScreen,
   NotificationsScreen,
   SupportScreen,
   ContractModal,
@@ -61,6 +62,9 @@ export function RenterApp() {
   const [showWallet, setShowWallet] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showLicencia, setShowLicencia] = useState(false);
+  // Conversación elegida a mano desde la lista de Mensajes (cuando no hay un
+  // arriendo activo obvio al que entrar directo).
+  const [chatReservaSeleccionada, setChatReservaSeleccionada] = useState(null);
 
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
@@ -321,10 +325,22 @@ export function RenterApp() {
         );
 
       case "chat":
+        // Con un arriendo activo, entra directo a esa conversación (como
+        // siempre); si no, o al volver de una elegida a mano, muestra la
+        // lista de conversaciones — igual que ya tiene el dueño.
+        if (chatReservaSeleccionada || activeReservation) {
+          return (
+            <RentalChatScreen
+              variant="renter"
+              reservation={chatReservaSeleccionada || activeReservation}
+              onBack={() => (chatReservaSeleccionada ? setChatReservaSeleccionada(null) : setActiveTab("explore"))}
+            />
+          );
+        }
         return (
-          <RentalChatScreen
-            variant="renter"
-            reservation={activeReservation}
+          <ChatListScreen
+            rol="renter"
+            onSelectReserva={setChatReservaSeleccionada}
             onBack={() => setActiveTab("explore")}
           />
         );

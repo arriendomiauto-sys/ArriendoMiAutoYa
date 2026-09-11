@@ -17,6 +17,7 @@ import {
   EditProfileScreen,
   MandatoDuenoModal,
   verificarMandatoAceptado,
+  ChatListScreen,
 } from "@rentacar/mobile-shared";
 
 // Screens del Dueño
@@ -28,7 +29,6 @@ import { DriverBookingsScreen } from "./screens/DriverBookingsScreen";
 import { EarningsScreen } from "./screens/EarningsScreen";
 import { DisputesScreen } from "./screens/DisputesScreen";
 import { OwnerProfileScreen } from "./screens/OwnerProfileScreen";
-import { ChatListScreen } from "./screens/ChatListScreen";
 
 export function OwnerApp() {
   const { currentUser } = useApp();
@@ -228,7 +228,7 @@ export function OwnerApp() {
           />
         );
       }
-      return <ChatListScreen onSelectReserva={setSelectedReservaForChat} onBack={cerrarMensajes} />;
+      return <ChatListScreen rol="owner" onSelectReserva={setSelectedReservaForChat} onBack={cerrarMensajes} />;
     }
 
     switch (activeTab) {

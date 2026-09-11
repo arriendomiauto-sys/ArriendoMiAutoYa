@@ -99,6 +99,7 @@ export { LegalModal } from "./screens/LegalModal";
 export { DOCUMENTOS_LEGALES, EDAD_MINIMA_ARRENDATARIO } from "./legal/documentos";
 export { parsearFechaCarnet, calcularEdad, edadDesdeOcr } from "./utils/edad";
 export { NotificationsScreen } from "./screens/NotificationsScreen";
+export { ChatListScreen } from "./screens/ChatListScreen";
 export { RentalChatScreen } from "./screens/RentalChatScreen";
 export { SupportScreen } from "./screens/SupportScreen";
 export { SwitchingScreen } from "./screens/SwitchingScreen";

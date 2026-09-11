@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient, useConversaciones } from "@rentacar/mobile-shared";
-import { oc } from "../comun";
+import { colors } from "../theme/colors";
+import { theme } from "../theme/tokens";
+import { Icon } from "../components/Icon";
+import { Badge, EmptyState, ScreenHeader } from "../components/ui";
+import { ApiClient } from "../api/client";
+import { useConversaciones } from "../hooks/useConversaciones";
 
 const ESTADO_BADGE = {
   confirmada: { variant: "info", label: "Por entregar" },
@@ -28,10 +32,17 @@ function tiempoRelativo(iso) {
   return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
 }
 
-// No hay un endpoint único de "conversaciones": se cruza el resumen de mensajes
-// (`/reservas/mensajes/resumen` — última línea + no leídos) con las reservas del
-// dueño, para pintar la lista con vista previa y sin abrir cada chat.
-export function ChatListScreen({ onSelectReserva, onBack }) {
+/**
+ * Lista de conversaciones por reserva. La usan tanto el dueño como el
+ * arrendatario — `rol` decide de quién son las reservas que se piden y el
+ * texto vacío.
+ *
+ * No hay un endpoint único de "conversaciones": se cruza el resumen de
+ * mensajes (`/reservas/mensajes/resumen` — última línea + no leídos) con las
+ * reservas del usuario, para pintar la lista con vista previa sin abrir cada
+ * chat.
+ */
+export function ChatListScreen({ rol = "owner", onSelectReserva, onBack }) {
   const insets = useSafeAreaInsets();
   // El resumen (última línea + no leídos) viene del hook, que se mantiene al
   // día con el poll de notificaciones — así la lista se refresca sola si llega
@@ -41,9 +52,11 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
   const [loading, setLoading] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
 
+  const rolBackend = rol === "owner" ? "dueno" : "cliente";
+
   const cargarReservas = useCallback(async () => {
     try {
-      const data = await ApiClient.getReservas("dueno");
+      const data = await ApiClient.getReservas(rolBackend);
       setReservas((data || []).filter((r) => r.estado !== "cancelada"));
     } catch {
       setReservas([]);
@@ -51,7 +64,7 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
       setLoading(false);
       setRefrescando(false);
     }
-  }, []);
+  }, [rolBackend]);
 
   useEffect(() => {
     cargarReservas();
@@ -84,8 +97,11 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
     const badge = ESTADO_BADGE[item.estado];
     const r = item._resumen;
     const noLeidos = r?.no_leidos || 0;
+    // Id de la CONTRAPARTE (no el propio): si el último mensaje es suyo, no
+    // se antepone "Tú:"; si no, el mensaje lo escribió el usuario actual.
+    const idContraparte = rol === "owner" ? item.cliente_id : item.auto?.dueno_id;
     const preview = r?.ultimo_mensaje
-      ? `${r.ultimo_autor_id === item.cliente_id ? "" : "Tú: "}${r.ultimo_mensaje}`
+      ? `${r.ultimo_autor_id === idContraparte ? "" : "Tú: "}${r.ultimo_mensaje}`
       : "Sin mensajes aún · toca para coordinar";
 
     return (
@@ -124,10 +140,14 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
   };
 
   return (
-    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+    <View style={[styles.screen, { paddingTop: Math.max(insets.top, 12) }]}>
       <ScreenHeader
         title="Mensajes"
-        subtitle="Coordina la entrega con cada arrendatario"
+        subtitle={
+          rol === "owner"
+            ? "Coordina la entrega con cada arrendatario"
+            : "Coordina tus arriendos con cada dueño"
+        }
         onBack={onBack}
       />
 
@@ -137,7 +157,7 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={[styles.list, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -147,7 +167,11 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
             <EmptyState
               icon="chat"
               title="Sin conversaciones aún"
-              message="Cuando tengas reservas confirmadas, podrás coordinar aquí con cada arrendatario."
+              message={
+                rol === "owner"
+                  ? "Cuando tengas reservas confirmadas, podrás coordinar aquí con cada arrendatario."
+                  : "Cuando tengas un arriendo activo o confirmado, podrás coordinar aquí con el dueño."
+              }
             />
           }
         />
@@ -157,7 +181,8 @@ export function ChatListScreen({ onSelectReserva, onBack }) {
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: theme.spacing.screen, gap: theme.spacing.sm },
+  screen: { flex: 1, backgroundColor: colors.background },
+  listContent: { paddingHorizontal: theme.spacing.screen, gap: theme.spacing.sm },
   card: {
     flexDirection: "row",
     alignItems: "center",
