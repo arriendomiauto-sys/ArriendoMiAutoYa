@@ -237,3 +237,34 @@ def test_checklist_despues_con_dano_retiene_garantia_y_abre_disputa(client, db_s
     db_session.refresh(reserva)
     assert reserva.estado == "disputada"
 
+
+def test_codigo_qr_expira_a_los_dos_minutos(client, db_session, auth_as):
+    from datetime import datetime, timezone, timedelta
+
+    reserva = db_session.query(Reserva).first()
+    cliente = db_session.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
+    dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+
+    # Cliente genera código QR
+    resp_qr = auth_as(cliente).post(f"/api/v1/reservas/{reserva.id}/generar-codigo")
+    assert resp_qr.status_code == 200
+    data = resp_qr.json()
+    qr_hash = data["codigo_qr_hash"]
+    assert data["validez_segundos"] == 120
+    assert "expira_en" in data
+
+    # Simular que transcurrieron más de 2 minutos (por ejemplo, 2 min y 5 seg)
+    reserva.codigo_qr_expira_en = datetime.now(timezone.utc) - timedelta(seconds=5)
+    db_session.commit()
+
+    # Intentar validar el código expirado
+    resp_val = auth_as(dueno).post("/api/v1/entrega/validar-codigo", json={"codigo_qr_hash": qr_hash})
+    assert resp_val.status_code == 400
+    assert "ha expirado" in resp_val.json()["detail"]
+
+    # Verificar que el código se invalidó en la base de datos
+    db_session.refresh(reserva)
+    assert reserva.codigo_qr_hash is None
+    assert reserva.codigo_qr_expira_en is None
+
+

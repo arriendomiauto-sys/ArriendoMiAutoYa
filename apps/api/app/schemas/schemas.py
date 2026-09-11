@@ -850,6 +850,8 @@ class AplicarMultaRequest(BaseModel):
 class GenerateQRResponse(BaseModel):
     reserva_id: str
     codigo_qr_hash: str
+    expira_en: Optional[datetime] = None
+    validez_segundos: int = 120
     foto_perfil_verificada_url: Optional[str] = None
     segundo_conductor: Optional[Dict[str, Any]] = None
     instrucciones: str
@@ -867,6 +869,7 @@ class ValidateQRResponse(BaseModel):
     segundo_conductor: Optional[Dict[str, Any]] = None
     estado_reserva: str
     lugar_entrega_acordado: str
+    arrendatario_ya_firmo: bool = False
 
 class ConfirmVerificationRequest(BaseModel):
     resultado: Literal["confirmada", "rechazada"]

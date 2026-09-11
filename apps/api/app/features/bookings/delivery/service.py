@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -91,11 +91,14 @@ class DeliveryService:
         if reserva.estado not in ["confirmada", "en_curso"]:
             raise HTTPException(status_code=400, detail=f"No se puede generar código en estado '{reserva.estado}'")
 
-        # Generar hash único para el QR
-        raw = f"{reserva_id}:{datetime.now(timezone.utc).isoformat()}:{uuid.uuid4()}"
+        # Generar hash único para el QR con vigencia estricta de 2 minutos (120s)
+        ahora = datetime.now(timezone.utc)
+        expira_en = ahora + timedelta(minutes=2)
+        raw = f"{reserva_id}:{ahora.isoformat()}:{uuid.uuid4()}"
         qr_hash = hashlib.sha256(raw.encode()).hexdigest()[:32]
         
         reserva.codigo_qr_hash = qr_hash
+        reserva.codigo_qr_expira_en = expira_en
         db.commit()
         db.refresh(reserva)
 
@@ -104,6 +107,8 @@ class DeliveryService:
         return {
             "reserva_id": reserva.id,
             "codigo_qr_hash": qr_hash,
+            "expira_en": expira_en,
+            "validez_segundos": 120,
             "foto_perfil_verificada_url": _foto_perfil_vigente(cliente, db),
             "segundo_conductor": _segundo_conductor_info(reserva, db),
             "instrucciones": "Muestra este código QR al dueño en el momento de la entrega o devolución."
@@ -115,6 +120,20 @@ class DeliveryService:
         if not reserva:
             raise HTTPException(status_code=404, detail="Código QR inválido o expirado")
 
+        # Validación estricta de expiración (2 minutos)
+        if reserva.codigo_qr_expira_en:
+            expira_con_tz = reserva.codigo_qr_expira_en
+            if expira_con_tz.tzinfo is None:
+                expira_con_tz = expira_con_tz.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > expira_con_tz:
+                reserva.codigo_qr_hash = None
+                reserva.codigo_qr_expira_en = None
+                db.commit()
+                raise HTTPException(
+                    status_code=400,
+                    detail="El código QR ha expirado (validez máxima de 2 minutos). Genera uno nuevo en la app."
+                )
+
         if reserva.estado not in ["confirmada", "en_curso"]:
             raise HTTPException(
                 status_code=400, 
@@ -123,6 +142,17 @@ class DeliveryService:
 
         auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
         cliente = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
+
+        from app.models.entities import FirmaContrato
+        firma_cliente = (
+            db.query(FirmaContrato)
+            .filter(
+                FirmaContrato.reserva_id == reserva.id,
+                FirmaContrato.rol == "arrendatario",
+            )
+            .first()
+        )
+        arrendatario_ya_firmo = bool(firma_cliente or reserva.fecha_firma_biometrica)
 
         return {
             "reserva_id": reserva.id,
@@ -133,7 +163,8 @@ class DeliveryService:
             "foto_perfil_verificada_url": _foto_perfil_vigente(cliente, db),
             "segundo_conductor": _segundo_conductor_info(reserva, db),
             "estado_reserva": reserva.estado,
-            "lugar_entrega_acordado": reserva.lugar_entrega_acordado
+            "lugar_entrega_acordado": reserva.lugar_entrega_acordado,
+            "arrendatario_ya_firmo": arrendatario_ya_firmo,
         }
 
     @staticmethod
