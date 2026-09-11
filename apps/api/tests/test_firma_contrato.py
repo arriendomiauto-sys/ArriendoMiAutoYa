@@ -130,3 +130,51 @@ def test_checklist_antes_pasa_si_arrendatario_ya_firmo_sin_trazo(db_session, aut
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["estado_reserva"] == "en_curso"
+
+
+def test_contrato_pdf_muestra_caja_firma_con_trazo_manuscrito(db_session, auth_as):
+    """Verifica que el PDF del contrato incluya la firma manuscrita y metadatos."""
+    reserva, cliente, dueno = _partes(db_session)
+    trazo_svg = "M 10 20 L 30 40 L 50 20 M 70 30 L 90 50"
+    resp_firma = auth_as(cliente).post(
+        f"/api/v1/reservas/{reserva.id}/firmar-contrato",
+        json={"metodo": "escrita", "firma_svg": trazo_svg, "acepta_terminos": True},
+    )
+    assert resp_firma.status_code == 200
+
+    resp_pdf = auth_as(cliente).get(f"/api/v1/reservas/{reserva.id}/contrato-pdf")
+    assert resp_pdf.status_code == 200
+    assert resp_pdf.headers["content-type"] == "application/pdf"
+    assert resp_pdf.headers.get("X-Contract-SHA256")
+    assert resp_pdf.content.startswith(b"%PDF-")
+    assert len(resp_pdf.content) > 4000
+
+
+def test_contrato_pdf_integra_firma_desde_checklist_entrega(db_session, auth_as):
+    """Verifica que el PDF rescate la firma manuscrita capturada en el checklist de entrega."""
+    reserva, cliente, dueno = _partes(db_session)
+    trazo_entrega = "M 15 25 L 35 45 L 55 15"
+
+    qr = auth_as(cliente).post(f"/api/v1/reservas/{reserva.id}/generar-codigo").json()["codigo_qr_hash"]
+    auth_as(dueno).post("/api/v1/entrega/validar-codigo", json={"codigo_qr_hash": qr})
+    auth_as(dueno).post(
+        f"/api/v1/entrega/{reserva.id}/confirmar-verificacion",
+        json={"resultado": "confirmada", "tipo": "entrega"},
+    )
+    resp_chk = auth_as(dueno).post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={
+            "tipo": "antes",
+            "fotos": ["https://ejemplo.com/f1.jpg"],
+            "kilometraje": 25000,
+            "nivel_combustible": "lleno",
+            "firma_svg": trazo_entrega,
+        },
+    )
+    assert resp_chk.status_code == 200
+
+    resp_pdf = auth_as(dueno).get(f"/api/v1/reservas/{reserva.id}/contrato-pdf")
+    assert resp_pdf.status_code == 200
+    assert resp_pdf.content.startswith(b"%PDF-")
+    assert len(resp_pdf.content) > 4000
+

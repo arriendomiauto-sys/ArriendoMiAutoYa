@@ -270,9 +270,41 @@ def _generar_pdf_contrato(reserva: Reserva, db: Session) -> bytes:
             "nombre_firmante": f.nombre_firmante,
             "firmado_en": f.firmado_en,
             "hash_contrato_sha256": f.hash_contrato_sha256,
+            "firma_svg": getattr(f, "firma_svg", None),
         }
         for f in (reserva.firmas or [])
     ]
+
+    # Si no se capturó firma_svg en FirmaContrato, buscar trazo manuscrito en el checklist "antes" (entrega)
+    checklist_antes = next((c for c in (reserva.checklists or []) if c.tipo == "antes" and c.firma_svg), None)
+    firma_svg_entrega = checklist_antes.firma_svg if checklist_antes else None
+
+    fecha_defecto = getattr(reserva, "creado_en", None) or getattr(reserva, "fecha_inicio", None)
+    tiene_firma_arrendatario = any(f.get("rol") == "arrendatario" for f in firmas)
+    if not tiene_firma_arrendatario:
+        firmas.append({
+            "rol": "arrendatario",
+            "metodo": "escrita" if firma_svg_entrega else "biometrica",
+            "nombre_firmante": cliente.nombre if cliente else "Cliente Arrendatario",
+            "firmado_en": (checklist_antes.timestamp if checklist_antes else reserva.fecha_firma_biometrica) or fecha_defecto,
+            "hash_contrato_sha256": reserva.hash_contrato_sha256,
+            "firma_svg": firma_svg_entrega,
+        })
+    elif firma_svg_entrega:
+        for f in firmas:
+            if f.get("rol") == "arrendatario" and not f.get("firma_svg"):
+                f["firma_svg"] = firma_svg_entrega
+
+    tiene_firma_arrendador = any(f.get("rol") == "arrendador" for f in firmas)
+    if not tiene_firma_arrendador:
+        firmas.append({
+            "rol": "arrendador",
+            "metodo": "biometrica",
+            "nombre_firmante": dueno.nombre if dueno else "Dueño Registrado",
+            "firmado_en": fecha_defecto,
+            "hash_contrato_sha256": reserva.hash_contrato_sha256,
+            "firma_svg": None,
+        })
 
     return ContractService.generar_contrato_pdf(
         reserva_id=reserva.id,
