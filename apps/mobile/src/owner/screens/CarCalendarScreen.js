@@ -208,7 +208,12 @@ export function CarCalendarScreen({ car, onBack }) {
                   return (
                     <TouchableOpacity
                       key={day}
-                      style={[styles.cell, booked && styles.cellBooked, blocked && styles.cellBlocked]}
+                      style={[
+                        styles.cell,
+                        !booked && !blocked && styles.cellAvailable,
+                        booked && styles.cellBooked,
+                        blocked && styles.cellBlocked,
+                      ]}
                       onPress={() => toggleDay(day)}
                       activeOpacity={0.8}
                     >
@@ -277,6 +282,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: theme.radius.sm,
   },
+  cellAvailable: { backgroundColor: colors.accent100 },
   cellBooked: { backgroundColor: colors.primary100 },
   cellBlocked: { backgroundColor: colors.dangerBg },
   dayNum: { fontSize: 13, fontWeight: "600", color: colors.text },
