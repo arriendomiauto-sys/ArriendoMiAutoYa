@@ -67,6 +67,84 @@ def _parse_fecha(valor) -> "datetime | None":
         return None
 
 
+def _procesar_webhook_conductor(
+    db: Session, conductor_id: str, session_id: "str | None", resultado: dict
+) -> dict:
+    """
+    Veredicto de Didit para un segundo conductor (ver
+    crear_sesion_verificacion_segundo_conductor). Solo actualiza identidad
+    (nombre/rut/fecha de nacimiento/fotos de cédula) — la licencia de
+    conducir nunca se toca acá, se valida aparte con OCR casero
+    (ConductorKycService, que además exige el checklist propio de licencia
+    aunque la identidad ya esté aprobada por Didit).
+    """
+    from app.models.entities import ConductorAdicional
+
+    conductor = db.query(ConductorAdicional).filter(ConductorAdicional.id == conductor_id).first()
+    if not conductor:
+        logger.warning("Webhook Didit: conductor adicional %s no existe", conductor_id)
+        return {"ok": True}
+
+    estado = resultado["estado"]
+    if (
+        conductor.verificacion_externa_ref
+        and session_id
+        and conductor.verificacion_externa_ref != session_id
+    ):
+        logger.info("Webhook Didit de una sesión antigua del conductor %s, ignorado", conductor.id)
+        return {"ok": True}
+
+    anterior = conductor.verificacion_externa_estado
+    conductor.verificacion_externa_estado = estado
+    conductor.verificacion_externa_actualizada = datetime.utcnow()
+    if not conductor.verificacion_externa_ref and session_id:
+        conductor.verificacion_externa_ref = session_id
+
+    datos = resultado.get("datos") or {}
+    if estado == "aprobada":
+        if not conductor.nombre and datos.get("nombre_completo"):
+            conductor.nombre = datos["nombre_completo"]
+        if not conductor.rut and datos.get("rut"):
+            conductor.rut = datos["rut"]
+        if not conductor.fecha_nacimiento and datos.get("fecha_nacimiento"):
+            conductor.fecha_nacimiento = _parse_fecha(datos["fecha_nacimiento"]) or conductor.fecha_nacimiento
+
+        persisted = persist_verification_assets(
+            {
+                "front_card_url": datos.get("carnet_frontal_url"),
+                "back_card_url": datos.get("carnet_trasero_url"),
+            },
+            conductor.id,
+        )
+        if persisted.get("front_card_url") or datos.get("carnet_frontal_url"):
+            conductor.carnet_frontal_url = persisted.get("front_card_url") or datos.get("carnet_frontal_url")
+        if persisted.get("back_card_url") or datos.get("carnet_trasero_url"):
+            conductor.carnet_trasero_url = persisted.get("back_card_url") or datos.get("carnet_trasero_url")
+
+    try:
+        db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("Webhook Didit: commit falló para conductor %s", conductor.id)
+        db.rollback()
+        return {"ok": True}
+
+    # Con la identidad resuelta por Didit, se re-evalúa el KYC completo del
+    # conductor: sigue exigiendo la licencia por el pipeline casero aunque
+    # la cédula ya esté aprobada.
+    if estado != anterior:
+        from app.features.auth.onboarding.driver_kyc_service import ConductorKycService
+        from app.models.entities import Reserva as _Reserva
+
+        reserva = db.query(_Reserva).filter(_Reserva.id == conductor.reserva_id).first()
+        if reserva:
+            ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
+
+    logger.info(
+        "Webhook Didit: conductor=%s estado %s -> %s", conductor.id, anterior, estado,
+    )
+    return {"ok": True}
+
+
 @router.post("/didit", summary="Webhook de resultado de verificación de identidad (Didit)")
 async def webhook_didit(
     request: Request,
@@ -98,6 +176,11 @@ async def webhook_didit(
     estado = resultado["estado"]
     vendor_data = resultado.get("vendor_data")
     session_id = resultado.get("session_id")
+
+    # Sesión de un segundo conductor (crear_sesion_verificacion_segundo_conductor
+    # la crea con vendor_data="conductor:{id}") en vez de la del titular.
+    if vendor_data and vendor_data.startswith("conductor:"):
+        return _procesar_webhook_conductor(db, vendor_data.split(":", 1)[1], session_id, resultado)
 
     usuario = None
     if vendor_data:

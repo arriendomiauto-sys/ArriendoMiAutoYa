@@ -16,6 +16,7 @@ from app.schemas.schemas import (
     ConductorAdicionalOut,
     FirmaContratoRequest,
     FirmaContratoOut,
+    SesionVerificacionExternaOut,
 )
 from app.models.entities import Reserva, Auto, Usuario, Pago, ConductorAdicional, FirmaContrato
 from app.features.vehicles.catalog.pricing_service import PricingService
@@ -23,6 +24,7 @@ from app.features.auth.onboarding.contract_service import ContractService
 from app.features.auth.onboarding.fines_service import FinesService
 from app.features.communications.notifications.service import crear_notificacion
 from app.features.auth.login.service import get_current_user
+from app.features.auth.didit import didit as verificacion_didit
 from app.features.auth.onboarding.driver_kyc_service import ConductorKycService
 from app.core.limiter import limiter
 import uuid
@@ -878,6 +880,70 @@ def verificar_kyc_segundo_conductor(
     ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
     db.refresh(conductor)
     return conductor
+
+@router.post(
+    "/{reserva_id}/segundo-conductor/verificacion-externa/sesion",
+    response_model=SesionVerificacionExternaOut,
+    summary="Crea una sesión de verificación de identidad con Didit para el segundo conductor",
+)
+@limiter.limit("10/minute")
+def crear_sesion_verificacion_segundo_conductor(
+    request: Request,
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Misma verificación de identidad hosted que ya usa el titular
+    (crear_sesion_verificacion_externa) — la app abre `url` para que el
+    segundo conductor complete la captura de cédula + selfie en su propio
+    celular. La licencia de conducir NUNCA pasa por acá: Didit no la
+    reconoce de forma confiable (ver commit b4d774e); se sigue subiendo y
+    validando aparte con el pipeline casero de Google Vision
+    (carnet_frontal_url/licencia_url en PUT .../segundo-conductor).
+    """
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=403, detail="Solo el titular de la reserva puede iniciar esta verificación.")
+
+    conductor = db.query(ConductorAdicional).filter(ConductorAdicional.reserva_id == reserva.id).first()
+    if not conductor:
+        raise HTTPException(status_code=404, detail="Esta reserva no tiene segundo conductor asignado.")
+    if conductor.verificacion_externa_estado == "aprobada":
+        raise HTTPException(status_code=400, detail="La identidad de este conductor ya está verificada.")
+    if not verificacion_didit.esta_habilitado():
+        raise HTTPException(status_code=503, detail="La verificación con proveedor externo no está habilitada.")
+
+    partes = (conductor.nombre or "").strip().split()
+    nombre = partes[0] if partes else None
+    apellido = " ".join(partes[1:]) or None
+
+    try:
+        sesion = verificacion_didit.crear_sesion(
+            # Prefijo para que el webhook distinga a un ConductorAdicional de
+            # un Usuario (ambos usan el mismo vendor_data como llave).
+            vendor_data=f"conductor:{conductor.id}",
+            nombre=nombre,
+            apellido=apellido,
+            rut=conductor.rut,
+            email=conductor.email,
+        )
+    except verificacion_didit.DiditNoConfigurado as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"No se pudo iniciar la verificación: {e}")
+
+    if not sesion.get("url") or not sesion.get("session_id"):
+        raise HTTPException(status_code=502, detail="El proveedor no devolvió una sesión válida.")
+
+    conductor.verificacion_externa_ref = sesion["session_id"]
+    conductor.verificacion_externa_estado = "pendiente"
+    conductor.verificacion_externa_actualizada = datetime.now(timezone.utc)
+    db.commit()
+
+    return SesionVerificacionExternaOut(url=sesion["url"], session_id=sesion["session_id"], estado="pendiente")
 
 
 class TelemetriaCelularRequest(BaseModel):

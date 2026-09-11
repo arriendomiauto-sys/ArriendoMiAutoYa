@@ -622,6 +622,13 @@ class ConductorAdicional(Base):
     confianza_ocr = Column(Float, default=1.0)
     notas_auditoria = Column(Text, nullable=True)
 
+    # Verificación de identidad con Didit (igual mecanismo que Usuario, ver
+    # crear_sesion_verificacion_externa) — NUNCA cubre la licencia, que
+    # siempre se valida con el pipeline casero de Google Vision.
+    verificacion_externa_ref = Column(String, index=True, nullable=True)
+    verificacion_externa_estado = Column(String, nullable=True)  # pendiente | aprobada | rechazada | revision | expirada
+    verificacion_externa_actualizada = Column(DateTime, nullable=True)
+
     creado_en = Column(DateTime, default=utc_now)
     actualizado_en = Column(DateTime, default=utc_now, onupdate=utc_now)
 

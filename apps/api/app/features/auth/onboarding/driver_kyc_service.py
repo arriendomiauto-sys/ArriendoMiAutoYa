@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
+from app.core.config import settings
 from app.models.entities import ConductorAdicional, Reserva, TicketSoporte, Usuario
 from app.core.validators import validar_documento_identidad
 from app.features.auth.ocr.ocr_engine import OCRService
@@ -78,9 +79,36 @@ class ConductorKycService:
                 "confianza_ocr": 0.0,
             }
 
-        # 2. OCR y Verificación Documental / Facial
+        # 2. Identidad (cédula + selfie) y Licencia de Conducir
+        #
+        # Si Didit ya aprobó la identidad de este conductor
+        # (crear_sesion_verificacion_segundo_conductor + webhook), la cédula
+        # y el control facial NO se vuelven a pasar por el OCR casero — pero
+        # la licencia SIEMPRE se revisa aparte con Vision, igual que
+        # completar_enrolamiento hace para el titular: Didit no la reconoce
+        # de forma confiable.
+        identidad_por_didit = conductor.verificacion_externa_estado == "aprobada"
+
         resultado_ocr = {}
-        if conductor.carnet_frontal_url:
+        if identidad_por_didit:
+            lic_a_soporte = False
+            if conductor.licencia_url:
+                lic_bytes = OCRService.descargar_imagen_bytes(conductor.licencia_url)
+                texto_lic, _ = OCRService.llamar_google_vision_api(lic_bytes) if lic_bytes else (None, 0.0)
+                api_key, tiene_creds = OCRService._credenciales_vision()
+                vision_on = bool(api_key or tiene_creds) and not settings.USE_OCR_MOCK
+                lic_a_soporte = (
+                    (vision_on and bool(lic_bytes) and not texto_lic)
+                    or (bool(texto_lic) and OCRService.clasificar_documento(texto_lic) != "licencia")
+                )
+            resultado_ocr = {
+                "estado_recomendado": "verificado",
+                "documentos_legibles": True,
+                "confianza_ocr": 0.99,
+                "licencia_a_soporte": lic_a_soporte,
+                "motivo": None,
+            }
+        elif conductor.carnet_frontal_url:
             try:
                 resultado_ocr = OCRService.procesar_documentos_enrolamiento(
                     carnet_frontal_url=conductor.carnet_frontal_url,
@@ -99,7 +127,7 @@ class ConductorKycService:
                     "confianza_ocr": 0.5,
                 }
         else:
-            # Si aún no subió fotos, queda pendiente
+            # Si aún no subió fotos ni tiene identidad por Didit, queda pendiente
             conductor.estado_kyc = "pendiente"
             conductor.notas_auditoria = "Faltan documentos por subir (cédula frontal y licencia)."
             db.commit()
