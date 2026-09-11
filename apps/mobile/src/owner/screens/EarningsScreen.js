@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -14,6 +15,7 @@ import {
   Icon,
   ApiClient,
   showAlert,
+  useApp,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
 import { CuentaCobroModal } from "./CuentaCobroModal";
@@ -25,6 +27,7 @@ const fmtFecha = (t) =>
 
 export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
   const insets = useSafeAreaInsets();
+  const { currentUser } = useApp?.() || {};
 
   const [cuentas, setCuentas] = useState([]);
   const [cuentaModal, setCuentaModal] = useState(false);
@@ -71,17 +74,23 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
     [cargarCuentas]
   );
 
-  const [ganancias, setGanancias] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cachedGanancias = ApiClient.getCachedGanancias?.() || null;
+  const [ganancias, setGanancias] = useState(cachedGanancias);
+  const [loading, setLoading] = useState(!cachedGanancias);
+  const [refrescando, setRefrescando] = useState(false);
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
+  const cargar = useCallback(async (forzar = false) => {
+    if (!forzar && !ApiClient.getCachedGanancias?.()) {
+      setLoading(true);
+    }
     try {
-      setGanancias(await ApiClient.getMisGanancias());
+      const data = await ApiClient.getMisGanancias(forzar ? { force: true } : {});
+      if (data) setGanancias(data);
     } catch (err) {
       console.warn("[EarningsScreen]", err.message);
     } finally {
       setLoading(false);
+      setRefrescando(false);
     }
   }, []);
 
@@ -136,6 +145,18 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refrescando}
+            onRefresh={() => {
+              setRefrescando(true);
+              cargar(true);
+              cargarCuentas();
+            }}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Saldo y Depósito Automático — el bloque teal de la pantalla. */}
         <View style={styles.balanceCard}>
@@ -312,8 +333,11 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
         onClose={() => setCuentaModal(false)}
         onGuardada={() => {
           cargarCuentas();
-          cargar();
+          cargar(true);
         }}
+        nombreTitular={currentUser?.nombre}
+        rutTitular={currentUser?.rut}
+        identidadVerificada={currentUser?.estado_documentos === "verificado"}
       />
     </View>
   );

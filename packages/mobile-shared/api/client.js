@@ -135,6 +135,10 @@ function enviarMultipartXHR(url, { headers = {}, body, signal }) {
   });
 }
 
+let _gananciasCache = null;
+let _gananciasCacheTime = 0;
+const GANANCIAS_CACHE_TTL = 30000; // 30s de datos frescos en memoria
+
 export class ApiClient {
   static async request(endpoint, options = {}, { reintentoDeAuth = false, intento = 0, esSubida = false } = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
@@ -729,8 +733,36 @@ export class ApiClient {
     });
   }
 
-  static async getMisGanancias() {
-    return this.request("/pagos/mis-ganancias");
+  static getCachedGanancias() {
+    return _gananciasCache;
+  }
+
+  static invalidateGananciasCache() {
+    _gananciasCache = null;
+    _gananciasCacheTime = 0;
+  }
+
+  static async prefetchMisGanancias() {
+    try {
+      const data = await this.request("/pagos/mis-ganancias");
+      _gananciasCache = data;
+      _gananciasCacheTime = Date.now();
+      return data;
+    } catch {
+      return _gananciasCache;
+    }
+  }
+
+  static async getMisGanancias(opciones = {}) {
+    const force = typeof opciones === "boolean" ? opciones : opciones?.force;
+    const now = Date.now();
+    if (!force && _gananciasCache && (now - _gananciasCacheTime < GANANCIAS_CACHE_TTL)) {
+      return _gananciasCache;
+    }
+    const data = await this.request("/pagos/mis-ganancias");
+    _gananciasCache = data;
+    _gananciasCacheTime = Date.now();
+    return data;
   }
 
   static async actualizarCuentaBancaria(cuentaBancaria) {

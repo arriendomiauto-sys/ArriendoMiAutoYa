@@ -57,6 +57,8 @@ export function OwnerApp() {
   }, []);
   useEffect(() => {
     cargarMisAutos();
+    // Pre-cargar ganancias en segundo plano para que la pestaña abra al instante
+    ApiClient.prefetchMisGanancias();
   }, [cargarMisAutos, currentUser?.id]);
 
   // Modales y Flujos Secundarios
