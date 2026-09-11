@@ -457,6 +457,25 @@ def firmar_contrato(
 
     return firma
 
+# Transiciones que este endpoint genérico tiene permitido aplicar. El resto
+# de los estados (confirmada -> en_curso, en_curso -> finalizada/disputada)
+# los fija el propio flujo de entrega/checklist (DeliveryService), que ya
+# valida sus propias condiciones (QR, firma, checklist) -- dejar que este
+# endpoint salte directo a esos estados permitiría saltarse esas
+# validaciones por completo. En la práctica, hoy el único uso real es que
+# el cliente cancele antes de retirar el auto (mobile ya oculta "Cancelar"
+# una vez que la reserva queda en_curso, ver hallazgo #10).
+TRANSICIONES_ESTADO_VALIDAS: dict[str, set[str]] = {
+    "pendiente": {"confirmada", "cancelada"},
+    "pendiente_pago": {"confirmada", "cancelada"},
+    "confirmada": {"cancelada"},
+    "en_curso": set(),
+    "finalizada": set(),
+    "cancelada": set(),
+    "disputada": set(),
+}
+
+
 @router.patch("/{reserva_id}/estado", response_model=BookingOut, summary="Actualizar estado de reserva (Aceptar/Rechazar)")
 def actualizar_estado_reserva(
     reserva_id: str,
@@ -468,6 +487,17 @@ def actualizar_estado_reserva(
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
     _verificar_acceso_reserva(reserva, current_user, db)
+
+    permitidos = TRANSICIONES_ESTADO_VALIDAS.get(reserva.estado, set())
+    if nuevo_estado not in permitidos:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No se puede pasar de '{reserva.estado}' a '{nuevo_estado}'. "
+                + (f"Desde este estado solo se permite: {', '.join(sorted(permitidos))}."
+                   if permitidos else "Este estado no admite cambios manuales.")
+            ),
+        )
 
     reserva.estado = nuevo_estado
     db.commit()
