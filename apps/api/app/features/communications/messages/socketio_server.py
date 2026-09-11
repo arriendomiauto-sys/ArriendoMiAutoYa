@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from urllib.parse import parse_qs
 
@@ -22,13 +23,45 @@ sio = socketio.AsyncServer(
 MAX_LARGO_TEXTO = 2000
 
 
-def _es_parte_de_la_reserva(reserva: Reserva, usuario: Usuario, db: Session) -> bool:
+def _es_parte_de_la_reserva(reserva: Reserva, usuario: Usuario, db: Session, auto: Auto | None = None) -> bool:
     if "admin" in (usuario.roles_activos or []):
         return True
     if reserva.cliente_id == usuario.id:
         return True
-    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    # `auto` ya cargado por el llamador (enviar_mensaje) evita una segunda
+    # consulta idéntica — este chequeo de acceso corre en el camino caliente
+    # de cada mensaje enviado.
+    if auto is None:
+        auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
     return bool(auto and auto.dueno_id == usuario.id)
+
+
+def _notificar_nuevo_mensaje_en_segundo_plano(destinatario_id: str, texto_recortado: str, reserva_id: str) -> None:
+    """
+    Crea la notificación (campana + push) del mensaje nuevo con su PROPIA
+    sesión de BD, en un hilo aparte del pool por defecto de asyncio.
+
+    Antes esto corría de forma síncrona dentro de `enviar_mensaje`, así que
+    el remitente esperaba un INSERT + commit extra (más un SELECT del token
+    de push) antes de recibir el ACK que confirma "enviado" en su pantalla.
+    El mensaje ya se persistió y ya se emitió a la sala — la notificación es
+    de adorno para la otra parte y no debe demorar la confirmación de nadie.
+    """
+    from app.features.communications.notifications.service import crear_notificacion
+
+    db = SessionLocal()
+    try:
+        crear_notificacion(
+            db,
+            usuario_id=destinatario_id,
+            tipo="mensaje",
+            titulo="Nuevo mensaje",
+            mensaje=texto_recortado,
+            entidad_tipo="reserva",
+            entidad_id=reserva_id,
+        )
+    finally:
+        db.close()
 
 
 def _obtener_token(environ: dict, auth: dict = None) -> str:
@@ -134,8 +167,11 @@ async def enviar_mensaje(sid, data):
     try:
         usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
         reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+        # Se carga una sola vez: la usan tanto el chequeo de acceso como la
+        # resolución del destinatario de la notificación, más abajo.
+        auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first() if reserva else None
 
-        if not usuario or not reserva or not _es_parte_de_la_reserva(reserva, usuario, db):
+        if not usuario or not reserva or not _es_parte_de_la_reserva(reserva, usuario, db, auto=auto):
             return {"ok": False, "error": "Sin permisos para escribir en esta reserva"}
 
         mensaje = Mensaje(reserva_id=reserva_id, autor_id=usuario.id, texto=texto)
@@ -146,26 +182,26 @@ async def enviar_mensaje(sid, data):
         mensaje_dict = MessageOut.model_validate(mensaje).model_dump(mode="json")
         room_name = f"reserva_{reserva_id}"
 
-        # Emitir a todos los miembros de la sala
+        # Emitir a todos los miembros de la sala. El remitente recibe su ACK
+        # (ok + mensaje) apenas esto termina — la notificación a la otra
+        # parte (campana + push) queda en segundo plano, después del return,
+        # para no sumarle ni un milisegundo a la confirmación de "enviado".
         await sio.emit("nuevo_mensaje", {"reserva_id": reserva_id, "mensaje": mensaje_dict}, room=room_name)
 
-        # Notificación push/campana al destinatario si corresponde
-        auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
         destinatario_id = (
             auto.dueno_id if (auto and usuario.id == reserva.cliente_id) else reserva.cliente_id
         )
         if destinatario_id and destinatario_id != usuario.id:
-            from app.features.communications.notifications.service import crear_notificacion
-
-            crear_notificacion(
-                db,
-                usuario_id=destinatario_id,
-                tipo="mensaje",
-                titulo="Nuevo mensaje",
-                mensaje=(texto[:120] + "…") if len(texto) > 120 else texto,
-                entidad_tipo="reserva",
-                entidad_id=reserva_id,
-            )
+            texto_recortado = (texto[:120] + "…") if len(texto) > 120 else texto
+            try:
+                asyncio.get_event_loop().run_in_executor(
+                    None, _notificar_nuevo_mensaje_en_segundo_plano, destinatario_id, texto_recortado, reserva_id
+                )
+            except RuntimeError:
+                # Sin loop corriendo (no debería pasar en producción, sí en
+                # algún test síncrono): se crea la notificación igual, solo
+                # que sin el beneficio de no bloquear.
+                _notificar_nuevo_mensaje_en_segundo_plano(destinatario_id, texto_recortado, reserva_id)
 
         return {"ok": True, "mensaje": mensaje_dict}
     except Exception as e:

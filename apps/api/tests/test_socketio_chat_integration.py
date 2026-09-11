@@ -7,6 +7,7 @@ Verifica la lógica del servidor Socket.IO para chat en tiempo real:
 4. Señales de tipeo (`escribiendo`, `dejo_de_escribir`).
 5. Difusión segura de eventos sin fugas de sala.
 """
+import asyncio
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from datetime import datetime
@@ -34,6 +35,19 @@ class NoCloseSession:
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+async def _esperar_llamada(mock, intentos: int = 50, espera: float = 0.01) -> None:
+    """
+    `enviar_mensaje` agenda la notificación en un hilo del pool por defecto
+    y no espera a que termine — por diseño, para no demorar el ACK. Un test
+    que verifica esa llamada necesita darle al hilo una chance de correr en
+    vez de asumir que ya ocurrió apenas `await enviar_mensaje(...)` retorna.
+    """
+    for _ in range(intentos):
+        if mock.called:
+            return
+        await asyncio.sleep(espera)
 
 
 @pytest.mark.anyio
@@ -130,6 +144,88 @@ async def test_socketio_enviar_mensaje_persiste_y_emite(usuario_factory, db_sess
             assert res["ok"] is True
             assert res["mensaje"]["texto"] == "Hola, estoy listo para retirar el auto."
             mock_emit.assert_called()
+
+
+@pytest.mark.anyio
+async def test_socketio_enviar_mensaje_no_espera_la_notificacion(usuario_factory, db_session):
+    """
+    El ACK ("ok": True) no debe esperar a que se cree la notificación (INSERT
+    + commit propio, más el SELECT del token de push) — esa demora la paga
+    hoy el remitente antes de ver "enviado" en su pantalla. La notificación
+    se agenda en segundo plano, con su propia sesión de BD.
+    """
+    dueno = usuario_factory(roles_activos=["dueno", "cliente"], estado_documentos="verificado")
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+
+    auto = Auto(
+        dueno_id=dueno.id, marca="Suzuki", modelo="Swift", anio=2021,
+        patente="SWIF-98", tarifa_dia=25000, estado="activo", ubicacion_base="Los Ángeles"
+    )
+    db_session.add(auto)
+    db_session.commit()
+
+    reserva = Reserva(
+        auto_id=auto.id, cliente_id=cliente.id,
+        fecha_inicio=datetime(2026, 9, 10, 10), fecha_fin=datetime(2026, 9, 12, 10),
+        estado="confirmada", monto_hold=50000, lugar_entrega_acordado="Terminal"
+    )
+    db_session.add(reserva)
+    db_session.commit()
+
+    with patch("app.features.communications.messages.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)), \
+         patch("app.features.communications.messages.socketio_server._notificar_nuevo_mensaje_en_segundo_plano") as mock_notificar, \
+         patch.object(sio, "get_session", new_callable=AsyncMock) as mock_get_session, \
+         patch.object(sio, "emit", new_callable=AsyncMock) as mock_emit:
+
+        mock_get_session.return_value = {"usuario_id": cliente.id}
+        res = await enviar_mensaje("sid_cliente", {
+            "reserva_id": reserva.id,
+            "texto": "¿A qué hora llegas?",
+        })
+
+        assert res["ok"] is True
+        mock_emit.assert_called_once()
+        # El emit (lo que resuelve el ACK del remitente) ya ocurrió antes de
+        # que la notificación al dueño llegue a correr en su hilo aparte.
+        await _esperar_llamada(mock_notificar)
+        mock_notificar.assert_called_once_with(dueno.id, "¿A qué hora llegas?", reserva.id)
+
+
+@pytest.mark.anyio
+async def test_socketio_enviar_mensaje_recorta_el_texto_largo_de_la_notificacion(usuario_factory, db_session):
+    dueno = usuario_factory(roles_activos=["dueno", "cliente"], estado_documentos="verificado")
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+
+    auto = Auto(
+        dueno_id=dueno.id, marca="Suzuki", modelo="Swift", anio=2021,
+        patente="SWIF-97", tarifa_dia=25000, estado="activo", ubicacion_base="Los Ángeles"
+    )
+    db_session.add(auto)
+    db_session.commit()
+
+    reserva = Reserva(
+        auto_id=auto.id, cliente_id=cliente.id,
+        fecha_inicio=datetime(2026, 9, 10, 10), fecha_fin=datetime(2026, 9, 12, 10),
+        estado="confirmada", monto_hold=50000, lugar_entrega_acordado="Terminal"
+    )
+    db_session.add(reserva)
+    db_session.commit()
+
+    texto_largo = "x" * 150
+
+    with patch("app.features.communications.messages.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)), \
+         patch("app.features.communications.messages.socketio_server._notificar_nuevo_mensaje_en_segundo_plano") as mock_notificar, \
+         patch.object(sio, "get_session", new_callable=AsyncMock) as mock_get_session, \
+         patch.object(sio, "emit", new_callable=AsyncMock):
+
+        mock_get_session.return_value = {"usuario_id": cliente.id}
+        await enviar_mensaje("sid_cliente", {"reserva_id": reserva.id, "texto": texto_largo})
+        await _esperar_llamada(mock_notificar)
+
+        args = mock_notificar.call_args[0]
+        assert args[0] == dueno.id
+        assert args[1] == ("x" * 120) + "…"
+        assert args[2] == reserva.id
 
 
 @pytest.mark.anyio
