@@ -37,13 +37,18 @@ export { ReadinessBand, ModeSwitchRow, estadoCuenta } from "./components/Profile
 export { FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "./vehiculo/fotosAuto";
 export {
   TIPOS_VEHICULO,
+  TARIFAS_CATEGORIA_DEFAULT,
   PASO_PRECIO_CLP,
   TARIFA_MINIMA_CLP,
   TARIFA_MAXIMA_CLP,
+  escalonesTarifa,
+  clampTarifa,
+  aplicarTarifasConfig,
   redondearATramo5000,
   obtenerConfiguracionTipo,
   calcularDesgloseIva,
 } from "./vehiculo/catalogoPrecios";
+export { useCatalogoPrecios } from "./vehiculo/useCatalogoPrecios";
 export {
   optimizarImagen,
   subirImagenOptimizada,

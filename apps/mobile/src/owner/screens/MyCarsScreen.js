@@ -9,7 +9,6 @@ import {
   Switch,
   Image,
   Modal,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -23,11 +22,15 @@ import {
   ApiClient,
   showAlert,
   VerifyIdentityBanner,
+  useCatalogoPrecios,
+  obtenerConfiguracionTipo,
+  clampTarifa,
+  calcularDesgloseIva,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, FranjaResumen, oc } from "../comun";
+import { ControlTarifa } from "./addcar/ControlTarifa";
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
-const aTramo = (n) => Math.max(15000, Math.round((parseInt(n, 10) || 0) / 5000) * 5000);
 
 // `cars`/`setCars` vienen como props (la flota real del dueño, desde
 // OwnerApp) — no del contexto global, que es el marketplace público completo.
@@ -46,9 +49,13 @@ export function MyCarsScreen({
   onVerifyIdentity,
 }) {
   const insets = useSafeAreaInsets();
+  const tipos = useCatalogoPrecios();
   const [editingCar, setEditingCar] = useState(null);
-  const [newTarifa, setNewTarifa] = useState("");
+  const [tarifaSeleccionada, setTarifaSeleccionada] = useState(0);
   const [saving, setSaving] = useState(false);
+
+  const tipoConfig = obtenerConfiguracionTipo(editingCar?.categoria, tipos);
+  const desgloseTarifa = calcularDesgloseIva(tarifaSeleccionada);
 
   const disponibles = (cars || []).filter((c) => c.estado === "activo").length;
   const potencialDia = (cars || [])
@@ -66,13 +73,24 @@ export function MyCarsScreen({
     }
   };
 
+  const handleOpenEdit = (car) => {
+    const cat = obtenerConfiguracionTipo(car?.categoria, tipos);
+    const inicial = clampTarifa(car?.tarifa_dia || cat.base, cat);
+    setEditingCar(car);
+    setTarifaSeleccionada(inicial);
+  };
+
+  const handleAjustarTarifa = (delta) => {
+    setTarifaSeleccionada((prev) => clampTarifa(prev + delta, tipoConfig));
+  };
+
+  const handleFijarTarifa = (precio) => {
+    setTarifaSeleccionada(clampTarifa(precio, tipoConfig));
+  };
+
   const handleSaveRate = async () => {
-    if (saving || !editingCar || !newTarifa) return;
-    const tarifaNum = aTramo(newTarifa);
-    if (tarifaNum < 15000) {
-      showAlert("Tarifa inválida", "La tarifa mínima es $15.000 CLP por día.");
-      return;
-    }
+    if (saving || !editingCar) return;
+    const tarifaNum = clampTarifa(tarifaSeleccionada, tipoConfig);
     setSaving(true);
     try {
       const actualizado = await ApiClient.actualizarAuto(editingCar.id, { tarifa_dia: tarifaNum });
@@ -138,10 +156,7 @@ export function MyCarsScreen({
             </View>
             <TouchableOpacity
               style={styles.editBtn}
-              onPress={() => {
-                setEditingCar(item);
-                setNewTarifa(String(tarifa));
-              }}
+              onPress={() => handleOpenEdit(item)}
             >
               <Icon name="settings" size={14} color="#FFFFFF" />
               <Text style={styles.editBtnText}>Editar</Text>
@@ -237,10 +252,17 @@ export function MyCarsScreen({
       <Modal visible={!!editingCar} transparent animationType="fade" onRequestClose={() => setEditingCar(null)}>
         <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Ajustar tarifa diaria</Text>
-            <Text style={styles.modalSub}>
-              {editingCar?.marca} {editingCar?.modelo} · {editingCar?.patente}
-            </Text>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Ajustar tarifa diaria</Text>
+                <Text style={styles.modalSub}>
+                  {editingCar?.marca} {editingCar?.modelo} · {editingCar?.patente}
+                </Text>
+              </View>
+              <View style={styles.catBadge}>
+                <Text style={styles.catBadgeText}>{tipoConfig?.labelCorto || tipoConfig?.label}</Text>
+              </View>
+            </View>
 
             <ScrollView
               style={styles.modalScroll}
@@ -248,35 +270,18 @@ export function MyCarsScreen({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              <Text style={styles.fieldLabel}>Tarifa por día (CLP)</Text>
-              <TextInput
-                style={styles.input}
-                value={newTarifa}
-                onChangeText={setNewTarifa}
-                keyboardType="number-pad"
-                placeholder="42000"
-                placeholderTextColor={colors.textPlaceholder}
+              <ControlTarifa
+                tipo={tipoConfig}
+                valor={tarifaSeleccionada}
+                desglose={desgloseTarifa}
+                onAjustar={handleAjustarTarifa}
+                onFijar={handleFijarTarifa}
               />
-
-              {newTarifa && !isNaN(parseInt(newTarifa, 10)) ? (
-                <View style={[oc.seccionSuave, styles.simBox]}>
-                  <View style={styles.simRow}>
-                    <Text style={styles.simLabel}>Se cobra en tramos de $5.000</Text>
-                    <Text style={styles.simValue}>{fmt(aTramo(newTarifa))}</Text>
-                  </View>
-                  <View style={styles.simRow}>
-                    <Text style={styles.simLabel}>Tu ingreso líquido (85%)</Text>
-                    <Text style={[styles.simValue, { color: colors.accentDark }]}>
-                      {fmt(Math.round(aTramo(newTarifa) * 0.85))}
-                    </Text>
-                  </View>
-                </View>
-              ) : null}
             </ScrollView>
 
             <View style={styles.modalActions}>
               <Button variant="secondary" label="Cancelar" onPress={() => setEditingCar(null)} style={{ flex: 1 }} />
-              <Button label="Guardar" onPress={handleSaveRate} loading={saving} style={{ flex: 1 }} />
+              <Button label="Guardar tarifa" onPress={handleSaveRate} loading={saving} style={{ flex: 1 }} />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -361,32 +366,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     gap: theme.spacing.md,
+    maxHeight: "90%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  catBadge: {
+    backgroundColor: colors.primary100,
+    borderWidth: 1,
+    borderColor: colors.primary200,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  catBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
   },
   modalTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
-  modalSub: { fontSize: 13, color: colors.textMuted, marginTop: -6 },
-  modalScroll: { maxHeight: 260 },
-  modalScrollContent: { gap: theme.spacing.md, paddingVertical: 2 },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.field,
-    paddingHorizontal: 14,
-    height: theme.control.height,
-    fontSize: 16,
-    color: colors.text,
-    fontWeight: "700",
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  simBox: { gap: 6 },
-  simRow: { flexDirection: "row", justifyContent: "space-between" },
-  simLabel: { fontSize: 13, color: colors.textMuted },
-  simValue: { fontSize: 13, color: colors.text, fontWeight: "700" },
+  modalSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  modalScroll: { maxHeight: 440 },
+  modalScrollContent: { gap: theme.spacing.md, paddingVertical: 4 },
   modalActions: { flexDirection: "row", gap: theme.spacing.md, marginTop: 4 },
 });
