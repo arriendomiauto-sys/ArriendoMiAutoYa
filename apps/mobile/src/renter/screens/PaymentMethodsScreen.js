@@ -11,6 +11,7 @@ import {
   ApiClient,
   showAlert,
   ContractSignatureModal,
+  ContractModal,
   AgregarTarjetaModal,
   useTarjetas,
   useCuentaRegresiva,
@@ -56,6 +57,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
 
   const [modalAgregar, setModalAgregar] = useState(null); // "debito" | "credito" | null
   const [firmando, setFirmando] = useState(false);
+  const [showContractPreview, setShowContractPreview] = useState(false);
   const [pagando, setPagando] = useState(false);
   const [pendiente, setPendiente] = useState(null); // { expira_en, motivo }
 
@@ -360,6 +362,8 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         visible={firmando}
         reservaId={reserva?.id}
         parte="arrendatario"
+        nombreSugerido={currentUser?.nombre}
+        onVerContrato={() => setShowContractPreview(true)}
         onClose={() => {
           setFirmando(false);
           if (reserva) onPaymentSuccess({ ...reserva, car, estado: "pendiente" });
@@ -368,6 +372,12 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
           setFirmando(false);
           if (reserva) await ejecutarPago(reserva);
         }}
+      />
+
+      <ContractModal
+        visible={showContractPreview}
+        reservation={reserva || { id: "preview", auto: car, monto_hold: garantia }}
+        onClose={() => setShowContractPreview(false)}
       />
 
       <AgregarTarjetaModal
