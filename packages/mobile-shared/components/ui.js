@@ -37,10 +37,12 @@ function palette(tone) {
 // ---------------------------------------------------------------------------
 // Button
 // ---------------------------------------------------------------------------
+const VARIANTES_VALIDAS = ["primary", "secondary", "ghost", "danger", "outline", "dangerOutline"];
+
 export function Button({
   label,
   onPress,
-  variant = "primary", // primary | secondary | ghost | danger
+  variant = "primary", // primary | secondary | ghost | danger | outline | dangerOutline
   size = "md", // md | sm
   tone = "light",
   loading = false,
@@ -54,19 +56,34 @@ export function Button({
   const p = palette(tone);
   const isDisabled = disabled || loading;
 
+  // Una variante fuera de la lista no debe dejar el botón sin fondo ni color
+  // de texto (ver SegundoConductorModal, que usaba "outline"/"dangerOutline"
+  // antes de que existieran de verdad): se avisa en dev y se cae a "primary".
+  if (__DEV__ && !VARIANTES_VALIDAS.includes(variant)) {
+    console.warn(
+      `[Button] variante desconocida "${variant}" (label="${label}") — se usa "primary". ` +
+        `Variantes válidas: ${VARIANTES_VALIDAS.join(", ")}.`
+    );
+  }
+  const varianteSegura = VARIANTES_VALIDAS.includes(variant) ? variant : "primary";
+
   const bg = {
     primary: p.dark ? colors.accent : colors.primary,
     secondary: p.dark ? colors.darkCardSubtle : colors.primary100,
     ghost: "transparent",
     danger: colors.dangerBg,
-  }[variant];
+    outline: "transparent",
+    dangerOutline: "transparent",
+  }[varianteSegura];
 
   const fg = {
     primary: p.dark ? colors.primary900 : "#FFFFFF",
     secondary: p.dark ? colors.textWhite : colors.primary,
     ghost: p.accent,
     danger: colors.dangerText,
-  }[variant];
+    outline: p.dark ? colors.textWhite : colors.primary,
+    dangerOutline: colors.dangerText,
+  }[varianteSegura];
 
   // Un botón que no reacciona al toque se siente roto un instante antes de
   // que pase nada — el `activeOpacity` de TouchableOpacity ayuda, pero un
@@ -96,8 +113,10 @@ export function Button({
         styles.btn,
         size === "sm" && styles.btnSm,
         { backgroundColor: bg },
-        variant === "secondary" && { borderWidth: 1, borderColor: p.dark ? p.border : colors.primary200 },
-        variant === "ghost" && styles.btnGhost,
+        varianteSegura === "secondary" && { borderWidth: 1, borderColor: p.dark ? p.border : colors.primary200 },
+        varianteSegura === "outline" && { borderWidth: 1.5, borderColor: p.dark ? p.border : colors.primary200 },
+        varianteSegura === "dangerOutline" && { borderWidth: 1.5, borderColor: colors.dangerBorder },
+        varianteSegura === "ghost" && styles.btnGhost,
         fullWidth && { alignSelf: "stretch" },
         isDisabled && styles.btnDisabled,
         { transform: [{ scale }] },

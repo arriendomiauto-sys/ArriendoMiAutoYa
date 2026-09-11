@@ -386,6 +386,60 @@ export function Icon({
     case "rayo":
       return renderSvg(<Polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill={fill !== "none" ? fill : color} />);
 
+    case "image":
+    case "gallery":
+      return renderSvg(
+        <>
+          <Rect x="3" y="4" width="18" height="16" rx="2.5" />
+          <Circle cx="8.5" cy="9.5" r="1.6" />
+          <Path d="M21 16l-5.5-5.5a1.8 1.8 0 0 0-2.5 0L4 19" />
+        </>
+      );
+
+    case "logout":
+    case "salir":
+      return renderSvg(
+        <>
+          <Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <Path d="M16 17l5-5-5-5" />
+          <Path d="M21 12H9" />
+        </>
+      );
+
+    case "refresh":
+    case "refresh-cw":
+    case "reload":
+      return renderSvg(
+        <>
+          <Path d="M21 8a8.5 8.5 0 0 0-15.1-4.3M3 4v5h5" />
+          <Path d="M3 16a8.5 8.5 0 0 0 15.1 4.3M21 20v-5h-5" />
+        </>
+      );
+
+    case "alert-triangle":
+      return renderSvg(
+        <>
+          <Path d="M12 3.5l9.5 16.5H2.5z" />
+          <Path d="M12 9.5v4M12 17h.01" strokeWidth={2} />
+        </>
+      );
+
+    case "copy":
+      return renderSvg(
+        <>
+          <Rect x="8.5" y="8.5" width="12" height="12" rx="2" />
+          <Path d="M5.5 15.5H4.5A2 2 0 0 1 2.5 13.5V4.5a2 2 0 0 1 2-2H13.5a2 2 0 0 1 2 2v1" />
+        </>
+      );
+
+    case "file-text":
+      return renderSvg(
+        <>
+          <Path d="M6 3h8l4 4v14H6z" />
+          <Path d="M9 11h6M9 14.5h6M9 17.5h3.5" />
+        </>
+      );
+
     default:
       return renderSvg(<Circle cx="12" cy="12" r="4" fill={color} />);
   }
