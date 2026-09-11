@@ -47,7 +47,7 @@ const FUEL_LEVELS = ["E", "¼", "½", "¾", "F"];
 // stages sueltos sin ninguna señal de cuánto faltaba.
 const PASOS = ["Verificar", "Inspeccionar", "Cerrar"];
 
-export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
+export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisputes }) {
   const insets = useSafeAreaInsets();
   // Reserva "en_curso" => devolución (checklist "despues"); si no, entrega ("antes").
   const tipo = reserva?.estado === "en_curso" ? "despues" : "antes";
@@ -1125,7 +1125,10 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery }) {
           )}
         </ScrollView>
         <Footer>
-          <Button label={enDisputa ? "Ver la disputa" : "Listo"} onPress={onCompleteDelivery} />
+          <Button
+            label={enDisputa ? "Ver la disputa" : "Listo"}
+            onPress={enDisputa && onOpenDisputes ? onOpenDisputes : onCompleteDelivery}
+          />
         </Footer>
       </KeyboardAvoidingView>
     );

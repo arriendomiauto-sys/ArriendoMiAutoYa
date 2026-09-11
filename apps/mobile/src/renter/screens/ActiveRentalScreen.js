@@ -514,7 +514,11 @@ export function ActiveRentalScreen({
       {footer(
         <>
           <Button label="Mostrar mi código de devolución" iconRight="arrow-right" onPress={onStartReturn} />
-          <Button variant="danger" size="sm" label="Cancelar la reserva" onPress={onCancelReservation} />
+          {res.estado === "en_curso" ? (
+            <Button variant="secondary" size="sm" label="Reportar un problema" iconLeft="shield" onPress={onRoadsideClaim} />
+          ) : (
+            <Button variant="danger" size="sm" label="Cancelar la reserva" onPress={onCancelReservation} />
+          )}
         </>
       )}
 

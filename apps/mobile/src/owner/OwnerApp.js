@@ -155,6 +155,11 @@ export function OwnerApp() {
             setShowDeliveryFlow(false);
             setSelectedReservaForDelivery(null);
           }}
+          onOpenDisputes={() => {
+            setShowDeliveryFlow(false);
+            setSelectedReservaForDelivery(null);
+            setShowDisputes(true);
+          }}
         />
       );
     }
