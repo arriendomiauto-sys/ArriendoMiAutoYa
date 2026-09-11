@@ -215,7 +215,6 @@ export function RenterApp() {
     if (showExtendRental && activeReservation) {
       return (
         <ExtendRentalScreen
-          reservation={activeReservation}
           onBack={() => setShowExtendRental(false)}
           onComplete={() => setShowExtendRental(false)}
         />
@@ -276,7 +275,6 @@ export function RenterApp() {
             onSelectCar={(car) => setSelectedCar(car)}
             onOpenMap={() => setShowMap(true)}
             onOpenFavorites={() => setShowFavorites(true)}
-            onOpenFilters={() => setShowMap(true)}
             onVerifyIdentity={() => setShowEnrolment(true)}
           />
         );

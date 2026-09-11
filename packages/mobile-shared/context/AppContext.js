@@ -133,7 +133,6 @@ export function AppProvider({ children }) {
 
   const [notifications, setNotifications] = useState([]);
 
-  const [paymentMethods, setPaymentMethods] = useState([]);
   const bankAccount = currentUser?.cuenta_bancaria || null;
 
   const syncProfile = useCallback(async () => {
@@ -400,17 +399,6 @@ export function AppProvider({ children }) {
     ApiClient.marcarTodasNotificacionesLeidas().catch(() => {});
   };
 
-  const addPaymentMethod = (card) => {
-    setPaymentMethods((prev) => [
-      ...prev,
-      { id: `pm-${Date.now()}`, ...card, es_principal: prev.length === 0 },
-    ]);
-  };
-
-  const removePaymentMethod = (cardId) => {
-    setPaymentMethods((prev) => prev.filter((p) => p.id !== cardId));
-  };
-
   return (
     <AppContext.Provider
       value={{
@@ -440,9 +428,6 @@ export function AppProvider({ children }) {
         addReservation,
         bankAccount,
         updateBankAccount,
-        paymentMethods,
-        addPaymentMethod,
-        removePaymentMethod,
         notifications,
         setNotifications,
         cargarNotificaciones,
