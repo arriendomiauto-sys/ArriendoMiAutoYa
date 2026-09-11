@@ -408,24 +408,14 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
         return;
       }
 
-      // No hay un campo dedicado para la selfie de verificación en el
-      // backend (ChecklistRequest no lo tiene) — se deja registrada en las
-      // notas en vez de inventar un campo que el backend ignoraría en
-      // silencio. Sumar `selfie_entrega_url` al esquema es un buen
-      // seguimiento natural, fuera de este arreglo puntual.
-      const notasConSelfie = [
-        notasExtra,
-        tipo === "antes" && selfieEntregaUrl ? `Selfie de verificación: ${selfieEntregaUrl}` : null,
-      ]
-        .filter(Boolean)
-        .join(" | ");
       const resultado = await ApiClient.registrarChecklist(reservaIdActiva, {
         tipo,
         fotos: urlsListas.length > 0 ? urlsListas : ["sin-foto"],
         kilometraje: parseInt(km.replace(/\D/g, ""), 10) || 0,
         nivel_combustible: FUEL_SYMBOL_TO_VALUE[fuelLevel] || "3/4",
-        notas: notasConSelfie || undefined,
+        notas: notasExtra || undefined,
         firma_svg: tipo === "antes" ? firmaSvg || undefined : undefined,
+        selfie_entrega_url: tipo === "antes" ? selfieEntregaUrl || undefined : undefined,
       });
       setResultadoChecklist(resultado);
       borrarColaFotos(reservaIdActiva, tipo);

@@ -144,7 +144,7 @@ describe("Checklist de entrega · selfie de verificación", () => {
     expect(textOf(tr)).toContain("Selfie capturada");
   });
 
-  it("la selfie viaja en las notas del checklist (el backend no tiene un campo dedicado)", async () => {
+  it("la selfie viaja en su propio campo del checklist (selfie_entrega_url)", async () => {
     mockRegistrarChecklist.mockResolvedValue({ mensaje: "ok", estado_reserva: "en_curso" });
     const tr = await llegarALaFirma();
 
@@ -166,6 +166,7 @@ describe("Checklist de entrega · selfie de verificación", () => {
 
     expect(mockRegistrarChecklist).toHaveBeenCalledTimes(1);
     const payload = mockRegistrarChecklist.mock.calls[0][1];
-    expect(payload.notas).toContain("https://cdn.example/foto1.jpg");
+    expect(payload.selfie_entrega_url).toBe("https://cdn.example/foto1.jpg");
+    expect(payload.notas).toBeUndefined();
   });
 });
