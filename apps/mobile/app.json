@@ -14,7 +14,10 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Arrienda Tu Auto usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa."
+        "NSLocationWhenInUseUsageDescription": "Arrienda Tu Auto usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa.",
+        "NSCameraUsageDescription": "Arrienda Tu Auto necesita acceso a tu cámara para verificar tu identidad y registrar fotos de entrega y devolución del auto.",
+        "NSPhotoLibraryUsageDescription": "Arrienda Tu Auto necesita acceso a tus fotos para adjuntar imágenes del vehículo y documentos.",
+        "NSPhotoLibraryAddUsageDescription": "Arrienda Tu Auto guarda copias de seguridad de las fotos de entrega."
       }
     },
     "android": {
@@ -54,7 +57,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Arrienda Tu Auto necesita acceso a tus fotos para publicar tu vehículo y verificar tus documentos."
+          "photosPermission": "Arrienda Tu Auto necesita acceso a tus fotos para publicar tu vehículo y verificar tus documentos.",
+          "cameraPermission": "Arrienda Tu Auto necesita acceso a la cámara para fotografiar el vehículo durante la entrega."
         }
       ],
       [
