@@ -35,7 +35,7 @@ function getSocketBaseUrl() {
 
 export function conectarChat(
   reservaId,
-  { onMensaje, onEstado, onEscribiendo, onEnvioResuelto } = {}
+  { onMensaje, onEstado, onEscribiendo, onEnvioResuelto, onEntregaConfirmada } = {}
 ) {
   let socket = null;
   let cerradoAProposito = false;
@@ -96,6 +96,10 @@ export function conectarChat(
 
       socket.on("usuario_dejo_de_escribir", (datos) => {
         if (onEscribiendo) onEscribiendo(false, datos);
+      });
+
+      socket.on("entrega_confirmada", (datos) => {
+        if (onEntregaConfirmada) onEntregaConfirmada(datos);
       });
 
       socket.on("connect_error", () => {
