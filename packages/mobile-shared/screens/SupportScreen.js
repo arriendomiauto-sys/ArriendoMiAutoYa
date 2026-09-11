@@ -40,7 +40,7 @@ const FAQ_RENTER = [
   {
     id: "entrega",
     q: "¿Cómo se realiza la entrega y devolución?",
-    a: "Es 100% digital. El dueño escanea el código QR en tu pantalla y se hace el registro fotográfico obligatorio de 9 imágenes del estado del vehículo y el kilometraje.",
+    a: "Es 100% digital. El dueño escanea el código QR en tu pantalla y se hace el registro fotográfico obligatorio de 8 imágenes del estado del vehículo y el kilometraje.",
   },
   {
     id: "hold",

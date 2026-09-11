@@ -472,7 +472,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             <Card style={styles.noteCard} padded elevated={false}>
               <Icon name="shield" size={18} color={colors.primary} />
               <Text style={styles.noteText}>
-                Retiro y devolución 100% digital: código QR y checklist fotográfico de 9 ángulos, sin mostrador.
+                Retiro y devolución 100% digital: código QR y checklist fotográfico de 8 ángulos, sin mostrador.
                 La garantía se retiene, no se cobra.
               </Text>
             </Card>

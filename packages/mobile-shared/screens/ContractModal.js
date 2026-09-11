@@ -11,7 +11,7 @@ import { showAlert } from "../utils/alert";
 const CLAUSULAS = [
   {
     h: "Primera — objeto y entrega",
-    t: "El Arrendador entrega en arriendo el vehículo individualizado. La entrega y restitución se perfecciona mediante la validación del código QR y el registro fotográfico obligatorio de 9 imágenes del checklist inicial y final.",
+    t: "El Arrendador entrega en arriendo el vehículo individualizado. La entrega y restitución se perfecciona mediante la validación del código QR y el registro fotográfico obligatorio de 8 imágenes del checklist inicial y final.",
   },
   {
     h: "Segunda — seguro y deducible",
