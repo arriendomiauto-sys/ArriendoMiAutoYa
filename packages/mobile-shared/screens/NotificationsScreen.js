@@ -13,7 +13,7 @@ const FILTROS = [
   { id: "entrega", label: "Entregas" },
 ];
 
-const ICONO_TIPO = { pago: "wallet", reserva: "key", mensaje: "chat", entrega: "car", kyc: "document", soporte: "shield" };
+const ICONO_TIPO = { pago: "wallet", reserva: "key", mensaje: "chat", entrega: "car", kyc: "document", soporte: "shield", gps: "pin" };
 
 function tiempoRelativo(iso) {
   if (!iso) return "";
