@@ -358,6 +358,10 @@ class ChecklistAuto(Base):
     # instalada (ni hace falta un rebuild nativo para agregarla). nullable
     # porque el checklist "despues" (devolución) no pide firma.
     firma_svg = Column(Text, nullable=True)
+    # Selfie de verificación tomada junto a la firma (checklist "antes"), con
+    # SelfieLivenessModal — antes viajaba embutida en `notas` porque no había
+    # un campo propio para ella.
+    selfie_entrega_url = Column(String, nullable=True)
     timestamp = Column(DateTime, default=utc_now)
 
     # Relaciones

@@ -88,6 +88,37 @@ def test_checklist_antes_guarda_la_firma_svg(client, db_session, auth_as):
     assert checklist.firma_svg == trazo
 
 
+def test_checklist_antes_guarda_la_selfie_en_su_propio_campo(client, db_session, auth_as):
+    """
+    La selfie de verificación tomada junto a la firma tiene su propio campo
+    (antes viajaba embutida en el texto de `notas`).
+    """
+    reserva = db_session.query(Reserva).first()
+    dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+
+    resp = auth_as(dueno).post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={
+            "tipo": "antes",
+            "fotos": ["https://ejemplo.com/foto1.jpg"],
+            "kilometraje": 25000,
+            "nivel_combustible": "lleno",
+            "firma_svg": "M10 10 L20 20",
+            "selfie_entrega_url": "https://ejemplo.com/selfie-entrega.jpg",
+            "notas": "Auto sin rayones.",
+        }
+    )
+    assert resp.status_code == 200, resp.text
+
+    checklist = (
+        db_session.query(ChecklistAuto)
+        .filter(ChecklistAuto.reserva_id == reserva.id, ChecklistAuto.tipo == "antes")
+        .first()
+    )
+    assert checklist.selfie_entrega_url == "https://ejemplo.com/selfie-entrega.jpg"
+    assert checklist.notas == "Auto sin rayones."
+
+
 def test_checklist_antes_sin_firma_es_rechazado(client, db_session, auth_as):
     """La app deshabilita el botón de firmar sin trazo — esto es la misma
     exigencia del lado servidor, para no depender solo del cliente."""

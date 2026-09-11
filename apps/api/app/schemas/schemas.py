@@ -885,13 +885,14 @@ class ConfirmVerificationResponse(BaseModel):
 
 class ChecklistRequest(BaseModel):
     tipo: Literal["antes", "despues"]
-    fotos: List[str] = Field(..., min_length=1, description="URLs de fotos del auto (mínimo 9 para checklist completo)")
+    fotos: List[str] = Field(..., min_length=1, description="URLs de fotos del auto (8 ángulos en el checklist completo)")
     kilometraje: int = Field(..., gt=0)
     nivel_combustible: Literal["lleno", "3/4", "1/2", "1/4", "vacio"]
     estado_limpieza: Literal["limpio", "sucio_estandar", "sucio_profundo"] = "limpio"
     cargo_limpieza_clp: Optional[int] = None
     notas: Optional[str] = None
     firma_svg: Optional[str] = None
+    selfie_entrega_url: Optional[str] = None
 
 class ChecklistResponse(BaseModel):
     mensaje: str

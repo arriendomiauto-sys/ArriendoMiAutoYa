@@ -248,6 +248,7 @@ class DeliveryService:
         estado_limpieza: str = "limpio",
         cargo_limpieza_clp: Optional[int] = None,
         firma_svg: Optional[str] = None,
+        selfie_entrega_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
         if not reserva:
@@ -305,6 +306,7 @@ class DeliveryService:
             cargo_limpieza_clp=cargo_limpieza,
             notas=notas,
             firma_svg=firma_svg,
+            selfie_entrega_url=selfie_entrega_url,
         )
         db.add(checklist)
 
