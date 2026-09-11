@@ -130,6 +130,13 @@ export function AppProvider({ children }) {
 
   const [reservations, setReservations] = useState([]);
   const [activeReservation, setActiveReservation] = useState(null);
+  // Espejo de activeReservation legible desde un callback memorizado sin
+  // que ese callback tenga que recrearse cada vez que cambia (mismo patrón
+  // que modeRef más arriba).
+  const activeReservationRef = useRef(null);
+  useEffect(() => {
+    activeReservationRef.current = activeReservation;
+  }, [activeReservation]);
 
   const [notifications, setNotifications] = useState([]);
 
@@ -263,19 +270,38 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Reservas reales del arrendatario: antes solo se llenaban al pagar o al
+  // tocar una del historial, así que el perfil mostraba "0 arriendos"
+  // siempre y un arriendo en curso desaparecía al reabrir la app. Se cargan
+  // al iniciar sesión y quedan disponibles para refrescar a mano.
+  const cargarReservas = useCallback(async () => {
+    try {
+      const data = await ApiClient.getReservas("cliente");
+      const lista = Array.isArray(data) ? data : [];
+      setReservations(lista);
+      if (!activeReservationRef.current) {
+        const enCurso = lista.find((r) => r.estado === "en_curso" || r.estado === "confirmada");
+        if (enCurso) setActiveReservation(enCurso);
+      }
+    } catch {
+      /* se reintenta en el próximo login o refresh manual */
+    }
+  }, []);
+
   useEffect(() => {
     if (!isLoggedIn) {
       setNotifications([]);
       return;
     }
     cargarNotificaciones();
+    cargarReservas();
     // Push: registra el token del dispositivo (best-effort, cachea el intento).
     import("../utils/push")
       .then((m) => m.registrarPushToken(ApiClient))
       .catch(() => {});
     const t = setInterval(cargarNotificaciones, 30000);
     return () => clearInterval(t);
-  }, [isLoggedIn, cargarNotificaciones]);
+  }, [isLoggedIn, cargarNotificaciones, cargarReservas]);
 
   const register = async (email, password, preferredMode) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
@@ -423,6 +449,7 @@ export function AppProvider({ children }) {
         setCars,
         reservations,
         setReservations,
+        cargarReservas,
         activeReservation,
         setActiveReservation,
         addReservation,

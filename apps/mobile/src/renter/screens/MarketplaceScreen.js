@@ -285,8 +285,8 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar,
   );
 }
 
-export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onVerifyIdentity }) {
-  const { cars, carsError, currentUser, loadData, loading } = useApp();
+export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onVerifyIdentity, onOpenActiveRental }) {
+  const { cars, carsError, currentUser, loadData, loading, activeReservation } = useApp();
   const { esFavorito, toggle: toggleFavorito } = useFavoritos();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
   const [category, setCategory] = useState("Todos");
@@ -471,6 +471,25 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
           <RefreshControl refreshing={!!loading} onRefresh={loadData} tintColor={colors.primary} />
         }
       >
+        {activeReservation && (activeReservation.estado === "en_curso" || activeReservation.estado === "confirmada") && (
+          <TouchableOpacity
+            style={styles.activeRentalBanner}
+            onPress={onOpenActiveRental}
+            activeOpacity={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Ver mi arriendo"
+          >
+            <Icon name="key" size={18} color="#FFFFFF" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.activeRentalBannerTitle}>
+                {activeReservation.estado === "en_curso" ? "Tienes un arriendo en curso" : "Tienes una reserva confirmada"}
+              </Text>
+              <Text style={styles.activeRentalBannerSub}>Toca para ver los detalles</Text>
+            </View>
+            <Icon name="chevron-right" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+
         {!identidadVerificada && (
           <View style={{ marginBottom: theme.spacing.lg }}>
             <VerifyIdentityBanner role="renter" onPress={onVerifyIdentity} />
@@ -561,6 +580,17 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
 }
 
 const styles = StyleSheet.create({
+  activeRentalBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md,
+    backgroundColor: colors.primary900,
+    borderRadius: theme.radius.card,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+  },
+  activeRentalBannerTitle: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
+  activeRentalBannerSub: { fontSize: 12, color: colors.accent200, marginTop: 2 },
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     paddingHorizontal: theme.spacing.screen,

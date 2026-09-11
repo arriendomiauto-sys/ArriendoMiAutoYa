@@ -276,6 +276,7 @@ export function RenterApp() {
             onOpenMap={() => setShowMap(true)}
             onOpenFavorites={() => setShowFavorites(true)}
             onVerifyIdentity={() => setShowEnrolment(true)}
+            onOpenActiveRental={() => setActiveTab("rentals")}
           />
         );
 
