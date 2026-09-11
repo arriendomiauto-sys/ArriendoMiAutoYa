@@ -116,7 +116,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         });
         setReserva(r);
       }
-      const yaFirmo = (r.firmas || []).some((f) => f.rol === "arrendatario");
+      const yaFirmo = Boolean(r.fecha_firma_biometrica) || (r.firmas || []).some((f) => f.rol === "arrendatario");
       setPagando(false);
       if (yaFirmo) {
         await ejecutarPago(r);
@@ -346,16 +346,33 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
-        <Button
-          label={pagoSimulado ? "Firmar y confirmar reserva" : "Firmar y reservar"}
-          iconRight="arrow-right"
-          onPress={handleContinuar}
-          loading={pagando}
-          disabled={!listo}
-        />
-        <Text style={styles.footerHelp}>
-          Al continuar firmas el contrato de arriendo y autorizas la retención de la garantía.
-        </Text>
+        {(() => {
+          const yaFirmo = Boolean(reserva?.fecha_firma_biometrica) || (reserva?.firmas || []).some((f) => f.rol === "arrendatario");
+          return (
+            <>
+              <Button
+                label={
+                  yaFirmo
+                    ? pagoSimulado
+                      ? "Confirmar reserva"
+                      : "Pagar y reservar"
+                    : pagoSimulado
+                    ? "Firmar y confirmar reserva"
+                    : "Firmar y reservar"
+                }
+                iconRight="arrow-right"
+                onPress={handleContinuar}
+                loading={pagando}
+                disabled={!listo}
+              />
+              <Text style={styles.footerHelp}>
+                {yaFirmo
+                  ? "Contrato ya firmado digitalmente. Al continuar autorizas la retención de la garantía."
+                  : "Al continuar firmas el contrato de arriendo y autorizas la retención de la garantía."}
+              </Text>
+            </>
+          );
+        })()}
       </View>
 
       <ContractSignatureModal

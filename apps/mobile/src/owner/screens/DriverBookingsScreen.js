@@ -108,7 +108,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
     const puedeEntregar = item.estado === "confirmada";
     const puedeDevolver = item.estado === "en_curso";
     // El dueño firma su parte del contrato antes de entregar el vehículo.
-    const yaFirmoDueno = (item.firmas || []).some((f) => f.rol === "arrendador");
+    const yaFirmoDueno = Boolean(item.fecha_firma_biometrica) || (item.firmas || []).some((f) => f.rol === "arrendador");
     const debeFirmar = !yaFirmoDueno && ["pendiente", "confirmada"].includes(item.estado);
     // Verificación 24h antes: solo tiene sentido mientras falta menos de un
     // día para el retiro y el dueño todavía no la confirmó.
@@ -272,7 +272,22 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
         reservaId={reservaAFirmar?.id}
         parte="arrendador"
         onClose={() => setReservaAFirmar(null)}
-        onSigned={() => {
+        onSigned={(firma) => {
+          if (reservaAFirmar) {
+            setReservas((prev) =>
+              prev.map((r) =>
+                r.id === reservaAFirmar.id
+                  ? {
+                      ...r,
+                      firmas: [
+                        ...(r.firmas || []).filter((f) => f.rol !== "arrendador"),
+                        firma || { rol: "arrendador" },
+                      ],
+                    }
+                  : r
+              )
+            );
+          }
           setReservaAFirmar(null);
           cargar();
         }}
