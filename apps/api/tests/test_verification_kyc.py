@@ -1,8 +1,7 @@
 """
-Pruebas del subsistema de verificación KYC: orquestador Didit/casero,
-persistencia de assets, antecedentes ChapiAPI y el webhook de Didit.
+Pruebas del subsistema de verificación KYC: persistencia de assets,
+antecedentes ChapiAPI y el webhook de Didit.
 """
-from app.features.auth.verification import VerificationOrchestrator
 from app.features.auth.verification import storage_sync
 from app.features.auth.background_checks import BackgroundCheckService
 
@@ -30,62 +29,6 @@ def test_persist_verification_assets_solo_devuelve_lo_persistido(monkeypatch):
         "u1",
     )
     assert out == {"front_card_url": "https://storage/ok.jpg"}
-
-
-# ===========================================================================
-# VerificationOrchestrator
-# ===========================================================================
-def test_orchestrator_camino_didit_aprobado(monkeypatch):
-    monkeypatch.setattr(
-        "app.features.auth.verification.orchestrator.persist_verification_assets",
-        lambda assets, user_id, bucket="documentos-kyc": {},
-    )
-    result = VerificationOrchestrator.evaluate_user_verification(
-        user_id="u1",
-        external_state="aprobada",
-        external_payload={"datos": {
-            "nombre_completo": "Juan Pérez",
-            "rut": "18.456.789-K",
-            "fecha_nacimiento": "1990-01-01",
-            "licencia_vencimiento": "2030-01-01",
-        }},
-        manual_documents=None,
-        user_rut=None,
-    )
-    assert result.status == "approved"
-    assert result.provider == "didit"
-    assert result.is_identity_verified is True
-    assert result.extracted_full_name == "Juan Pérez"
-    # Didit no certifica licencia de conducir: se verifica aparte, casero.
-    assert result.is_license_verified is False
-
-
-def test_orchestrator_camino_fallback_casero(client):
-    # Documentos caseros completos -> corre el OCR (en mock por conftest).
-    result = VerificationOrchestrator.evaluate_user_verification(
-        user_id="u1",
-        external_state=None,
-        external_payload=None,
-        manual_documents={
-            "carnet_frontal_url": "https://ejemplo.com/front.jpg",
-            "carnet_trasero_url": "https://ejemplo.com/back.jpg",
-            "foto_perfil_verificada_url": "https://ejemplo.com/selfie.jpg",
-        },
-        user_rut="18.456.789-K",
-    )
-    assert result.provider == "inhouse_ocr"
-
-
-def test_orchestrator_sin_datos_queda_pendiente():
-    result = VerificationOrchestrator.evaluate_user_verification(
-        user_id="u1",
-        external_state=None,
-        external_payload=None,
-        manual_documents={"carnet_frontal_url": "https://ejemplo.com/front.jpg"},  # incompleto
-        user_rut=None,
-    )
-    assert result.status == "pending"
-    assert result.is_identity_verified is False
 
 
 # ===========================================================================

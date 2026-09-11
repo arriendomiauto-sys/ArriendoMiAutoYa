@@ -27,7 +27,6 @@ from app.features.communications.notifications.reminders_service import iniciar_
 from app.features.auth.login.router import router as auth_router
 from app.features.auth.users.router import router as users_router
 from app.features.auth.onboarding.router import router as onboarding_router
-from app.features.auth.onboarding.didit_router import router as didit_onboarding_router
 
 # Vehicles
 from app.features.vehicles.catalog.router import router as cars_router
@@ -161,7 +160,6 @@ api_prefix = settings.API_V1_STR
 app.include_router(auth_router, prefix=api_prefix)
 app.include_router(delivery_router, prefix=api_prefix)
 app.include_router(onboarding_router, prefix=api_prefix)
-app.include_router(didit_onboarding_router, prefix=api_prefix)
 app.include_router(cars_router, prefix=api_prefix)
 app.include_router(bookings_router, prefix=api_prefix)
 app.include_router(disputes_router, prefix=api_prefix)
