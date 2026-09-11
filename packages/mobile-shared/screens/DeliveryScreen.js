@@ -21,6 +21,7 @@ import { Button, Card, Badge, Chip, ScreenHeader, SectionLabel } from "../compon
 import { SignaturePad } from "../components/SignaturePad";
 import { SuccessCheck, SuccessFlash } from "../components/SuccessCheck";
 import { QRScannerModal } from "../components/QRScannerModal";
+import { SelfieLivenessModal } from "../components/SelfieLivenessModal";
 import { ApiClient } from "../api/client";
 import { elegirImagen, subirImagenOptimizada } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
@@ -128,6 +129,12 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   // Firma del contrato (solo entrega/"antes"): trazo SVG capturado en el pad.
   const [firmaSvg, setFirmaSvg] = useState(null);
+
+  // Selfie de verificación en la firma: antes era un ícono decorativo que
+  // prometía comparar el rostro con la cédula sin capturar nada de verdad.
+  const [mostrarSelfieEntrega, setMostrarSelfieEntrega] = useState(false);
+  const [selfieEntregaUrl, setSelfieEntregaUrl] = useState(null);
+  const [subiendoSelfieEntrega, setSubiendoSelfieEntrega] = useState(false);
 
   // Calificación al cliente
   const [puntajeCliente, setPuntajeCliente] = useState(0);
@@ -349,12 +356,23 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
         return;
       }
 
+      // No hay un campo dedicado para la selfie de verificación en el
+      // backend (ChecklistRequest no lo tiene) — se deja registrada en las
+      // notas en vez de inventar un campo que el backend ignoraría en
+      // silencio. Sumar `selfie_entrega_url` al esquema es un buen
+      // seguimiento natural, fuera de este arreglo puntual.
+      const notasConSelfie = [
+        notasExtra,
+        tipo === "antes" && selfieEntregaUrl ? `Selfie de verificación: ${selfieEntregaUrl}` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ");
       const resultado = await ApiClient.registrarChecklist(reservaIdActiva, {
         tipo,
         fotos: urlsListas.length > 0 ? urlsListas : ["sin-foto"],
         kilometraje: parseInt(km.replace(/\D/g, ""), 10) || 0,
         nivel_combustible: FUEL_SYMBOL_TO_VALUE[fuelLevel] || "3/4",
-        notas: notasExtra || undefined,
+        notas: notasConSelfie || undefined,
         firma_svg: tipo === "antes" ? firmaSvg || undefined : undefined,
       });
       setResultadoChecklist(resultado);
@@ -824,13 +842,28 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             <SignaturePad onChange={setFirmaSvg} />
           </View>
 
-          <View style={styles.faceCam}>
+          <TouchableOpacity
+            style={styles.faceCam}
+            onPress={() => setMostrarSelfieEntrega(true)}
+            activeOpacity={0.85}
+            disabled={subiendoSelfieEntrega}
+          >
             <View style={styles.faceCircle}>
-              <Icon name="user" size={44} color="rgba(146,227,203,0.7)" />
+              {selfieEntregaUrl ? (
+                <Image source={{ uri: selfieEntregaUrl }} style={styles.faceCircleFoto} />
+              ) : (
+                <Icon name="user" size={44} color="rgba(146,227,203,0.7)" />
+              )}
             </View>
-            <Text style={styles.faceTitle}>Mira a la cámara sin lentes</Text>
-            <Text style={styles.faceDesc}>Tu rostro se compara con la cédula verificada al registrarte.</Text>
-          </View>
+            <Text style={styles.faceTitle}>
+              {subiendoSelfieEntrega
+                ? "Subiendo selfie…"
+                : selfieEntregaUrl
+                ? "Selfie capturada ✓ (toca para repetir)"
+                : "Toca para tomar tu selfie"}
+            </Text>
+            <Text style={styles.faceDesc}>Se compara con la foto de tu cédula verificada al registrarte.</Text>
+          </TouchableOpacity>
         </ScrollView>
         <Footer>
           <Button
@@ -841,6 +874,27 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           />
           <Text style={styles.footNote}>Al firmar aceptas el estado registrado en las fotos.</Text>
         </Footer>
+
+        <SelfieLivenessModal
+          visible={mostrarSelfieEntrega}
+          onClose={() => setMostrarSelfieEntrega(false)}
+          onCaptured={async ({ frontalUri }) => {
+            setMostrarSelfieEntrega(false);
+            if (!frontalUri) return;
+            setSubiendoSelfieEntrega(true);
+            try {
+              const url = await subirImagenOptimizada(frontalUri, {
+                filename: `selfie-entrega-${Date.now()}.jpg`,
+                bucket: "checklists",
+              });
+              setSelfieEntregaUrl(url);
+            } catch (err) {
+              showAlert("No se pudo subir la selfie", err.message || "Intenta de nuevo.");
+            } finally {
+              setSubiendoSelfieEntrega(false);
+            }
+          }}
+        />
       </View>
     );
   }
@@ -1290,7 +1344,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary900,
+    overflow: "hidden",
   },
+  faceCircleFoto: { width: "100%", height: "100%" },
   faceTitle: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
   faceDesc: { fontSize: 13, color: colors.accent300, textAlign: "center", maxWidth: 240, lineHeight: 18 },
   liqMonto: { fontSize: 16, fontWeight: "800", color: colors.text },
