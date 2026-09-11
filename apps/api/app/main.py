@@ -178,11 +178,6 @@ app.include_router(notifications_router, prefix=api_prefix)
 app.include_router(favorites_router, prefix=api_prefix)
 app.include_router(webhooks_router, prefix=api_prefix)
 
-# Montar servidor Socket.IO para chat en tiempo real
-import socketio
-from app.features.communications.messages.socketio_server import sio
-app.mount("/socket.io", socketio.ASGIApp(sio, socketio_path=""))
-
 # GET + HEAD: Render y los uptime pingers hacen `HEAD /` para el health check;
 # sin HEAD explícito respondía 405 y ensuciaba los logs en cada sondeo.
 # Fuera del schema OpenAPI: son sondeos, no API.
@@ -198,3 +193,19 @@ def root():
 @app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"], include_in_schema=False)
 def health_check():
     return {"status": "healthy"}
+
+# Servidor Socket.IO para chat en tiempo real montado a nivel ASGI
+import socketio
+from app.features.communications.messages.socketio_server import sio
+
+class SocketIOFastAPIApp(socketio.ASGIApp):
+    """
+    Permite que Socket.IO intercepte peticiones a /socket.io (tanto HTTP polling como
+    WebSocket puro con o sin barra final) antes de que Starlette Mount o middlewares
+    cierren o redirijan la conexión, delegando todo lo demás a la app FastAPI.
+    """
+    def __getattr__(self, name):
+        return getattr(self.other_asgi_app, name)
+
+fastapi_app = app
+app = SocketIOFastAPIApp(sio, other_asgi_app=fastapi_app, socketio_path="socket.io")

@@ -90,7 +90,7 @@ def listar_mensajes(
     summary="Enviar un mensaje de coordinación en una reserva",
 )
 @limiter.limit("60/minute")
-def enviar_mensaje(
+async def enviar_mensaje(
     request: Request,
     reserva_id: str,
     payload: MessageCreate,
@@ -109,12 +109,7 @@ def enviar_mensaje(
     # abierta. Se hace también desde acá — y no solo desde el socket — para
     # que da igual por dónde se envió: quien está mirando lo ve al toque.
     mensaje_dict = MessageOut.model_validate(mensaje).model_dump(mode="json")
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.create_task(difundir_mensaje_socketio(reserva_id, mensaje_dict))
-    except Exception:
-        pass
+    await difundir_mensaje_socketio(reserva_id, mensaje_dict, payload.client_id)
 
     # Avisar a la otra parte de la reserva (dueño <-> cliente).
     destinatario_id = _contraparte(reserva, current_user, db)

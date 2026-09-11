@@ -182,11 +182,16 @@ async def enviar_mensaje(sid, data):
         mensaje_dict = MessageOut.model_validate(mensaje).model_dump(mode="json")
         room_name = f"reserva_{reserva_id}"
 
+        client_id = data.get("client_id") if isinstance(data, dict) else None
+        payload_evento = {"reserva_id": reserva_id, "mensaje": mensaje_dict}
+        if client_id:
+            payload_evento["client_id"] = client_id
+
         # Emitir a todos los miembros de la sala. El remitente recibe su ACK
         # (ok + mensaje) apenas esto termina — la notificación a la otra
         # parte (campana + push) queda en segundo plano, después del return,
         # para no sumarle ni un milisegundo a la confirmación de "enviado".
-        await sio.emit("nuevo_mensaje", {"reserva_id": reserva_id, "mensaje": mensaje_dict}, room=room_name)
+        await sio.emit("nuevo_mensaje", payload_evento, room=room_name)
 
         destinatario_id = (
             auto.dueno_id if (auto and usuario.id == reserva.cliente_id) else reserva.cliente_id
@@ -241,12 +246,15 @@ async def disconnect(sid):
     logger.info("[SOCKET.IO] Cliente desconectado (sid: %s)", sid)
 
 
-async def difundir_mensaje_socketio(reserva_id: str, mensaje_dict: dict):
+async def difundir_mensaje_socketio(reserva_id: str, mensaje_dict: dict, client_id: str = None):
     """
     Helper para emitir eventos Socket.IO desde controladores REST u otros servicios.
     """
     try:
         room_name = f"reserva_{reserva_id}"
-        await sio.emit("nuevo_mensaje", {"reserva_id": reserva_id, "mensaje": mensaje_dict}, room=room_name)
+        payload = {"reserva_id": reserva_id, "mensaje": mensaje_dict}
+        if client_id:
+            payload["client_id"] = client_id
+        await sio.emit("nuevo_mensaje", payload, room=room_name)
     except Exception as e:
         logger.warning("[SOCKET.IO] No se pudo difundir mensaje externo: %s", e)

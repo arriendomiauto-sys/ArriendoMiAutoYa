@@ -1150,6 +1150,7 @@ class ExtendBookingRequest(BaseModel):
 # ==============================================================================
 class MessageCreate(BaseModel):
     texto: str = Field(..., min_length=1, max_length=2000)
+    client_id: Optional[str] = None
 
     @field_validator("texto")
     @classmethod
