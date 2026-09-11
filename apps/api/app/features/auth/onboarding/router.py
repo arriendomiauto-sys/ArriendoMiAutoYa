@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.config import settings
@@ -10,6 +10,7 @@ from app.models.entities import Usuario, Pago, TicketSoporte
 from app.features.auth.ocr.ocr_engine import OCRService
 from app.features.auth.didit import didit as verificacion_didit
 from app.features.auth.login.service import get_current_user
+from app.features.auth.background_checks import BackgroundCheckService
 from app.core.limiter import limiter
 from datetime import datetime
 import uuid
@@ -164,6 +165,7 @@ def enviar_enrolamiento_a_revision(
 def completar_enrolamiento(
     request: Request,
     payload: UserEnrolamiento,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -467,6 +469,14 @@ def completar_enrolamiento(
         entidad_id=current_user.id,
     )
 
+    # Verificación de antecedentes del conductor (ChapiAPI): recién ahora la
+    # identidad quedó resuelta (verificada o en revisión) y hay un RUT sobre
+    # el cual consultar. Si aparece cualquier antecedente, run_and_flag_user
+    # deja la cuenta en revisión manual con su propio ticket de soporte —
+    # nunca lo decide en silencio el resultado del OCR/Didit de más arriba.
+    if _estado == "verificado":
+        background_tasks.add_task(BackgroundCheckService.run_and_flag_user_in_background, current_user.id)
+
     return current_user
 
 
@@ -475,6 +485,7 @@ def completar_enrolamiento(
 def completar_licencia(
     request: Request,
     payload: CompletarLicencia,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -563,4 +574,12 @@ def completar_licencia(
 
     db.commit()
     db.refresh(current_user)
+
+    # Este es el momento en que un dueño que solo publicaba autos pasa a
+    # poder arrendarlos también: vuelve a correr la verificación de
+    # antecedentes por si hubiera cambiado desde el enrolamiento inicial
+    # (o si nunca corrió, porque en ese momento no había subido licencia).
+    if not a_revision:
+        background_tasks.add_task(BackgroundCheckService.run_and_flag_user_in_background, current_user.id)
+
     return current_user

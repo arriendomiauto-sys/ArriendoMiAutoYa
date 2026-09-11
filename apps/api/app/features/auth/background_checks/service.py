@@ -32,6 +32,26 @@ class BackgroundCheckService:
         return ChapiApiProvider.check_driver_background(rut)
 
     @classmethod
+    def run_and_flag_user_in_background(cls, user_id: str) -> None:
+        """
+        Envoltorio pensado para `BackgroundTasks.add_task`: abre su propia
+        sesión de BD (la del request ya se cerró cuando esto corre) y la
+        cierra al terminar. Best-effort: si algo falla, se loguea y no
+        revienta nada (BackgroundTasks no tiene a quién devolverle el error).
+        Único punto de entrada que deberían usar los routers de enrolamiento
+        para no duplicar el manejo de sesión.
+        """
+        from app.core.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            cls.run_and_flag_user(db, user_id)
+        except Exception:  # noqa: BLE001
+            logger.exception("Verificación de antecedentes falló para usuario %s", user_id)
+        finally:
+            db.close()
+
+    @classmethod
     def run_and_flag_user(cls, db, user_id: str) -> Optional[BackgroundCheckResult]:
         """
         Ejecuta la verificación de antecedentes y, si el conductor está
