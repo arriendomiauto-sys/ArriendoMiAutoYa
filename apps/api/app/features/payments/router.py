@@ -351,7 +351,7 @@ def obtener_mis_ganancias(
     todo sale en cero.
     """
     pagos_liquidacion = (
-        db.query(Pago)
+        db.query(Pago.id, Pago.reserva_id, Pago.monto, Pago.estado, Pago.timestamp)
         .filter(Pago.usuario_id == current_user.id, Pago.tipo == "liquidacion_dueno")
         .order_by(Pago.timestamp.desc())
         .all()
@@ -379,11 +379,15 @@ def obtener_mis_ganancias(
     # Rendimiento por auto: cuánto generó cada vehículo y qué tan seguido
     # estuvo arrendado, para que un dueño con varios autos vea cuál le
     # conviene mantener publicado y cuál no está rindiendo.
-    autos = db.query(Auto).filter(Auto.dueno_id == current_user.id).all()
+    autos = (
+        db.query(Auto.id, Auto.marca, Auto.modelo, Auto.patente, Auto.fecha_publicacion)
+        .filter(Auto.dueno_id == current_user.id)
+        .all()
+    )
 
     reserva_ids = {p.reserva_id for p in pagos_liquidacion if p.reserva_id}
     reservas_de_pagos = (
-        {r.id: r for r in db.query(Reserva).filter(Reserva.id.in_(reserva_ids)).all()}
+        dict(db.query(Reserva.id, Reserva.auto_id).filter(Reserva.id.in_(reserva_ids)).all())
         if reserva_ids
         else {}
     )
@@ -394,21 +398,21 @@ def obtener_mis_ganancias(
     for p in pagos_liquidacion:
         if p.estado not in ESTADOS_POR_COBRAR + ("pagado",):
             continue
-        r = reservas_de_pagos.get(p.reserva_id)
-        if r:
-            ganancia_por_auto[r.auto_id] = ganancia_por_auto.get(r.auto_id, 0) + p.monto
+        auto_id = reservas_de_pagos.get(p.reserva_id)
+        if auto_id:
+            ganancia_por_auto[auto_id] = ganancia_por_auto.get(auto_id, 0) + p.monto
 
     ocupacion_por_auto: Dict[str, Dict[str, int]] = {}
     autos_ids = [a.id for a in autos]
     if autos_ids:
         finalizadas = (
-            db.query(Reserva)
+            db.query(Reserva.auto_id, Reserva.fecha_fin, Reserva.fecha_inicio)
             .filter(Reserva.auto_id.in_(autos_ids), Reserva.estado == "finalizada")
             .all()
         )
-        for r in finalizadas:
-            dias = max(1, (r.fecha_fin - r.fecha_inicio).days)
-            info = ocupacion_por_auto.setdefault(r.auto_id, {"cantidad": 0, "dias": 0})
+        for r_auto_id, r_fin, r_ini in finalizadas:
+            dias = max(1, (r_fin - r_ini).days)
+            info = ocupacion_por_auto.setdefault(r_auto_id, {"cantidad": 0, "dias": 0})
             info["cantidad"] += 1
             info["dias"] += dias
 
@@ -436,7 +440,7 @@ def obtener_mis_ganancias(
     # y así se puede mostrar como línea propia en vez de mezclarla en
     # silencio con la liquidación normal.
     pagos_bono = (
-        db.query(Pago)
+        db.query(Pago.monto, Pago.estado)
         .filter(Pago.usuario_id == current_user.id, Pago.tipo == "bono_referido")
         .all()
     )
