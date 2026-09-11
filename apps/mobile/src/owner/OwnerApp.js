@@ -252,7 +252,6 @@ export function OwnerApp() {
             noLeidos={noLeidos}
             onOpenChat={abrirMensajes}
             onOpenDisputes={() => setShowDisputes(true)}
-            onBack={() => setActiveTab("cars")}
           />
         );
 

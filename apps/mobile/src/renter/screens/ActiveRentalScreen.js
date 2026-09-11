@@ -363,7 +363,7 @@ export function ActiveRentalScreen({
           <View style={styles.noteTeal}>
             <Text style={styles.noteTealTitle}>Lleva tu licencia</Text>
             <Text style={styles.noteTealText}>
-              El dueño registrará el checklist fotográfico de 9 ángulos y firmarás el contrato en tu celular.
+              El dueño registrará el checklist fotográfico de 8 ángulos y firmarás el contrato en tu celular.
             </Text>
           </View>
         </ScrollView>

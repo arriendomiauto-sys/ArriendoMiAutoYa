@@ -53,7 +53,7 @@ export function MyCarsScreen({
   const disponibles = (cars || []).filter((c) => c.estado === "activo").length;
   const potencialDia = (cars || [])
     .filter((c) => c.estado === "activo")
-    .reduce((s, c) => s + Math.round((c.tarifa_dia || 0) * 0.8), 0);
+    .reduce((s, c) => s + Math.round((c.tarifa_dia || 0) * 0.85), 0);
 
   const toggleCarAvailability = async (car) => {
     const nuevoEstado = car.estado === "pausado" ? "activo" : "pausado";
@@ -89,7 +89,7 @@ export function MyCarsScreen({
   const renderCar = ({ item }) => {
     const disponible = item.estado === "activo";
     const tarifa = item.tarifa_dia || 0;
-    const ganancia = Math.round(tarifa * 0.8);
+    const ganancia = Math.round(tarifa * 0.85);
     const docsOk = item.documentos_verificados;
 
     return (
