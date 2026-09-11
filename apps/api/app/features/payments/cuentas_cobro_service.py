@@ -77,12 +77,23 @@ def sincronizar_cuenta_espejo(db: Session, usuario: Usuario) -> None:
 
 
 def agregar(db: Session, usuario: Usuario, banco: str, tipo_cuenta: str,
-           numero: str, titular: str, rut: str) -> CuentaCobro:
+            numero: str, titular: str = None, rut: str = None) -> CuentaCobro:
+    # Protocolo de seguridad: el titular de la cuenta no es modificable.
+    # Proviene directamente del registro y validación con carnet de identidad (KYC).
+    nombre_registrado = (usuario.nombre or "").strip()
+    titular_final = nombre_registrado if nombre_registrado else ((titular or "").strip())
+
+    if not titular_final:
+        raise CuentaCobroError(
+            422, "TITULAR_REQUERIDO",
+            "Debes tener un nombre registrado en tu perfil o validar tu carnet antes de agregar una cuenta de cobro."
+        )
+
     existentes = db.query(CuentaCobro).filter(CuentaCobro.usuario_id == usuario.id).count()
     c = CuentaCobro(
         usuario_id=usuario.id,
         banco=banco.strip(), tipo_cuenta=tipo_cuenta.strip(),
-        numero=numero.strip(), titular=titular.strip(), rut=rut.strip(),
+        numero=numero.strip(), titular=titular_final, rut=(rut or "").strip(),
         predeterminada=(existentes == 0),
     )
     db.add(c)

@@ -207,7 +207,7 @@ class CuentaBancariaUpdate(BaseModel):
     banco: str
     tipo_cuenta: str
     numero: str
-    titular: str
+    titular: Optional[str] = None
     rut: str
 
     @field_validator("rut", mode="before")
@@ -221,7 +221,7 @@ class CuentaCobroCreate(BaseModel):
     banco: str
     tipo_cuenta: str
     numero: str
-    titular: str
+    titular: Optional[str] = None
     rut: str
 
     @field_validator("rut", mode="before")
