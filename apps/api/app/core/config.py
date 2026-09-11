@@ -148,6 +148,33 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
 
+    def advertencias_produccion(self) -> List[str]:
+        """
+        Config que en desarrollo cae a un mock silencioso (antecedentes
+        siempre "limpios", identidad Didit apagada) pero que en producción
+        significaría que esas verificaciones nunca corren de verdad. No
+        rompe el arranque -- solo lo hace ruidoso en los logs, para que no
+        pase inadvertido igual que pasó con la licencia de Didit.
+        """
+        if self.ENVIRONMENT != "production":
+            return []
+        avisos = []
+        if not self.CHAPI_API_KEY:
+            avisos.append(
+                "CHAPI_API_KEY no está configurada: la verificación de antecedentes "
+                "(ChapiAPI) corre en modo simulado y siempre da 'limpio' — nadie está "
+                "consultando antecedentes penales ni licencias suspendidas de verdad."
+            )
+        if self.VERIFICACION_EXTERNA_HABILITADA and not (
+            self.DIDIT_API_KEY and self.DIDIT_WORKFLOW_ID and self.DIDIT_WEBHOOK_SECRET
+        ):
+            avisos.append(
+                "VERIFICACION_EXTERNA_HABILITADA está en True pero falta DIDIT_API_KEY, "
+                "DIDIT_WORKFLOW_ID o DIDIT_WEBHOOK_SECRET: el enrolamiento cae en "
+                "silencio al OCR casero de siempre."
+            )
+        return avisos
+
     @property
     def allowed_cors_origins(self) -> List[str]:
         origins = list(self.CORS_ORIGINS)

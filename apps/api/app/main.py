@@ -59,6 +59,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Config que en desarrollo cae a un mock silencioso pero que en
+    # producción significaría que una verificación nunca corre de verdad
+    # (ver Settings.advertencias_produccion) — se loguea fuerte para que no
+    # pase inadvertido, sin impedir que el servidor arranque.
+    for aviso in settings.advertencias_produccion():
+        logger.warning("[CONFIG] %s", aviso)
+
     # Crear tablas automáticamente si es SQLite local. create_all() no altera
     # tablas ya existentes: si agregas una columna a un modelo, borra
     # rentacar_dev.db (gitignored, se regenera solo) o quedará desincronizada
