@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { colors, useApp, showAlert, TarjetaScreen, EditProfileScreen } from "@rentacar/mobile-shared";
+import { colors, useApp, showAlert, TarjetaScreen, EditProfileScreen, ApiClient } from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
@@ -261,7 +261,24 @@ export function RenterApp() {
       );
     }
     if (showNotifications) {
-      return <NotificationsScreen variant="renter" onBack={() => setShowNotifications(false)} />;
+      return (
+        <NotificationsScreen
+          variant="renter"
+          onBack={() => setShowNotifications(false)}
+          onSelectNotification={(n) => {
+            setShowNotifications(false);
+            if (n.entidad_tipo !== "reserva" || !n.entidad_id) return;
+            ApiClient.getReservas("cliente")
+              .then((lista) => {
+                const r = (lista || []).find((x) => x.id === n.entidad_id);
+                if (!r) return;
+                setActiveReservation(r);
+                setActiveTab(n.tipo === "mensaje" ? "chat" : "rentals");
+              })
+              .catch(() => {});
+          }}
+        />
+      );
     }
     if (showSupport) {
       return <SupportScreen variant="renter" onBack={() => setShowSupport(false)} />;

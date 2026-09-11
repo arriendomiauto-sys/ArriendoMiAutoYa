@@ -189,7 +189,28 @@ export function OwnerApp() {
     }
 
     if (showNotifications) {
-      return <NotificationsScreen variant="owner" onBack={() => setShowNotifications(false)} />;
+      return (
+        <NotificationsScreen
+          variant="owner"
+          onBack={() => setShowNotifications(false)}
+          onSelectNotification={(n) => {
+            setShowNotifications(false);
+            if (n.entidad_tipo !== "reserva" || !n.entidad_id) return;
+            ApiClient.getReservas("dueno")
+              .then((lista) => {
+                const r = (lista || []).find((x) => x.id === n.entidad_id);
+                if (!r) return;
+                if (n.tipo === "mensaje") {
+                  setSelectedReservaForChat(r);
+                  setShowChat(true);
+                } else {
+                  setActiveTab("bookings");
+                }
+              })
+              .catch(() => {});
+          }}
+        />
+      );
     }
 
     if (showSupport) {
