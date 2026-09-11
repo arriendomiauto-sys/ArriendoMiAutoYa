@@ -335,6 +335,7 @@ export function RenterApp() {
               onCancelReservation={() => setShowCancelModal(true)}
               onOpenChat={() => setActiveTab("chat")}
               onOpenContract={() => setShowContract(true)}
+              onResumirPago={(res) => setResumingReservation(res)}
             />
           );
         }

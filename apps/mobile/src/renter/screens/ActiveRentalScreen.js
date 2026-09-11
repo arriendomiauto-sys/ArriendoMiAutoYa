@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, StatusBar, ScrollView, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
 let MapView = null;
@@ -24,13 +23,9 @@ import {
   SectionLabel,
   MenuList,
   MenuRow,
-  ApiClient,
-  showAlert,
   PreCheckinModal,
   SegundoConductorModal,
-  ContractSignatureModal,
   useTelemetriaArriendo,
-  urlWeb,
 } from "@rentacar/mobile-shared";
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
@@ -74,6 +69,7 @@ export function ActiveRentalScreen({
   onCancelReservation,
   onOpenChat,
   onOpenContract,
+  onResumirPago,
 }) {
   const insets = useSafeAreaInsets();
   const [res, setRes] = useState(reservation || {});
@@ -89,8 +85,6 @@ export function ActiveRentalScreen({
   const [view, setView] = useState(
     res.estado === "en_curso" ? "detail" : res.estado === "confirmada" ? "confirmed" : "sent"
   );
-  const [pagando, setPagando] = useState(false);
-  const [modalFirma, setModalFirma] = useState(false);
 
   // Telemetría GPS en tiempo real transmitida por el celular del arrendatario
   const { transmitiendo: gpsTransmitiendo, ultimaUbicacion: gpsUbicacion } = useTelemetriaArriendo(
@@ -98,51 +92,9 @@ export function ActiveRentalScreen({
     res.estado === "en_curso"
   );
 
-  // El arrendatario tiene que firmar el contrato antes de pagar el hold.
-  const arrendatarioFirmo = (res.firmas || []).some((f) => f.rol === "arrendatario");
-
   const footer = (children) => (
     <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>{children}</View>
   );
-
-  // La reserva "pendiente" sigue esperando que se autorice la garantía en Mercado Pago.
-  const reintentarPago = () => {
-    if (!res.id) return;
-    // Antes del pago, el arrendatario firma el contrato si aún no lo hizo.
-    if (!arrendatarioFirmo) {
-      setModalFirma(true);
-      return;
-    }
-    procederConPago();
-  };
-
-  const procederConPago = async () => {
-    if (pagando || !res.id) return;
-    setPagando(true);
-    try {
-      const returnUrl = urlWeb("pago/retorno");
-      const inicio = await ApiClient.iniciarPago(montoHold, "hold_reserva", res.id, returnUrl);
-      if (!inicio?.url) throw new Error("La pasarela de pago no está disponible.");
-      const redirect = Linking.createURL("pago-retorno");
-      const r = await WebBrowser.openAuthSessionAsync(inicio.url, redirect);
-      if (r.type === "success" && r.url) {
-        const { queryParams } = Linking.parse(r.url);
-        const confirm = await ApiClient.confirmarPago(
-          queryParams?.payment_id || queryParams?.collection_id,
-          inicio.pago_id
-        );
-        if (confirm?.autorizada) {
-          setView("confirmed");
-          return;
-        }
-      }
-      showAlert("Pago no completado", "La garantía no quedó autorizada. Tu reserva sigue pendiente.");
-    } catch (e) {
-      showAlert("No se pudo abrir el pago", e.message || "Inténtalo de nuevo.");
-    } finally {
-      setPagando(false);
-    }
-  };
 
   // -------------------------------------------------------------- ENVIADA
   if (view === "sent") {
@@ -156,7 +108,7 @@ export function ActiveRentalScreen({
           <View style={styles.centerText}>
             <Text style={styles.bigTitle}>Reserva pendiente de pago</Text>
             <Text style={styles.bigSub}>
-              Falta autorizar la garantía en Mercado Pago para confirmar tu reserva.
+              Falta elegir tarjetas y confirmar el pago para asegurar tu reserva.
             </Text>
           </View>
           <Card padded style={{ width: "100%", gap: theme.spacing.md }}>
@@ -175,27 +127,13 @@ export function ActiveRentalScreen({
         {footer(
           <>
             <Button
-              label={arrendatarioFirmo ? "Pagar con Mercado Pago" : "Firmar contrato y pagar"}
+              label="Elegir tarjetas y pagar"
               iconRight="arrow-right"
-              onPress={reintentarPago}
-              loading={pagando}
+              onPress={() => onResumirPago?.(res)}
             />
             <Button variant="ghost" size="sm" label="Seguir mirando autos" onPress={onBack} />
           </>
         )}
-
-        <ContractSignatureModal
-          visible={modalFirma}
-          reservaId={res.id}
-          parte="arrendatario"
-          onClose={() => setModalFirma(false)}
-          onSigned={(firma) => {
-            setModalFirma(false);
-            setRes((prev) => ({ ...prev, firmas: [...(prev.firmas || []), firma] }));
-            // Con el contrato firmado, se abre el pago del hold.
-            procederConPago();
-          }}
-        />
       </View>
     );
   }
