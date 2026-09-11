@@ -40,6 +40,11 @@ class Usuario(Base):
     # Cuenta suspendida por un admin desde el panel: no puede iniciar sesión de
     # negocio (reservar, publicar). Se levanta desde el mismo panel.
     suspendido = Column(Boolean, default=False)
+    # Solicitud de baja de cuenta: se completa cuando no hay arriendos ni
+    # pagos en curso (ver POST /usuarios/me/solicitar-eliminacion). No borra
+    # nada por sí sola — es la marca que el equipo de soporte revisa para
+    # tramitar la baja real.
+    eliminacion_solicitada_en = Column(DateTime, nullable=True)
     sucursal_id = Column(String, ForeignKey("sucursales.id"), nullable=True)
     fecha_registro = Column(DateTime, default=utc_now)
     cuenta_bancaria = Column(JSON, nullable=True) # {"banco","tipo_cuenta","numero","titular","rut"} — solo dueños

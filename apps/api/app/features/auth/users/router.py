@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Body, HTTPException, Response, status
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.entities import Usuario
+from app.models.entities import Usuario, Reserva
 from app.schemas.schemas import (
     UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate, TarjetaUpdate, TarjetaOut,
     CodigoReferidoUpdate, TarjetaVaultCreate, CuentaCobroCreate, CuentaCobroOut,
@@ -266,3 +268,42 @@ def predeterminar_cuenta_cobro(cuenta_id: str, db: Session = Depends(get_db),
     except cuentas_cobro_service.CuentaCobroError as e:
         raise HTTPException(status_code=e.http_status, detail=e.as_detail())
     return {"cuenta_cobro": CuentaCobroOut(**cuentas_cobro_service.serializar(c))}
+
+
+@router.post(
+    "/me/solicitar-eliminacion",
+    summary="Solicita la baja de la cuenta, validando que no queden arriendos ni pagos en curso",
+)
+def solicitar_eliminacion(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    # No borra nada por sí sola: registra la marca que soporte revisa para
+    # tramitar la baja real. Bloquea mientras haya arriendos o pagos en
+    # curso, sea como arrendatario o como dueño de flota.
+    ESTADOS_ACTIVOS = ("pendiente_pago", "confirmada", "en_curso", "disputada")
+    reservas_cliente = (
+        db.query(Reserva)
+        .filter(Reserva.cliente_id == current_user.id, Reserva.estado.in_(ESTADOS_ACTIVOS))
+        .count()
+    )
+    autos_ids = [a.id for a in current_user.autos]
+    reservas_dueno = (
+        db.query(Reserva)
+        .filter(Reserva.auto_id.in_(autos_ids), Reserva.estado.in_(ESTADOS_ACTIVOS))
+        .count()
+        if autos_ids else 0
+    )
+    if reservas_cliente or reservas_dueno:
+        bloqueos = []
+        if reservas_cliente:
+            bloqueos.append(f"{reservas_cliente} arriendo(s) tuyo(s) en curso o pendiente(s)")
+        if reservas_dueno:
+            bloqueos.append(f"{reservas_dueno} reserva(s) de tu flota en curso o pendiente(s)")
+        raise HTTPException(
+            status_code=409,
+            detail=f"No puedes eliminar tu cuenta todavía: tienes {' y '.join(bloqueos)}. Espera a que terminen y vuelve a intentarlo.",
+        )
+    current_user.eliminacion_solicitada_en = datetime.now(timezone.utc)
+    db.commit()
+    return {"solicitado": True, "mensaje": "Tu solicitud quedó registrada. Soporte confirma la baja por correo dentro de 48 horas hábiles."}
