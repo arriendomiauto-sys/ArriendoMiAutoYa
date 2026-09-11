@@ -87,17 +87,26 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   // Rangos ya reservados de este auto: el calendario los deshabilita para no
   // elegir fechas que el backend va a rechazar con un 400.
   const [rangosOcupados, setRangosOcupados] = useState([]);
+  // Si ni siquiera se pudo consultar qué días están ocupados, dejar el
+  // calendario abierto "confiando" en que ningún día choca sería peor que no
+  // decir nada: se bloquea entero hasta poder verificar de verdad.
+  const [disponibilidadError, setDisponibilidadError] = useState(false);
   useEffect(() => {
     if (!car?.id || typeof ApiClient.getDisponibilidadAuto !== "function") return;
     let vivo = true;
     ApiClient.getDisponibilidadAuto(car.id)
-      .then((r) => vivo && setRangosOcupados(r?.rangos_ocupados || []))
+      .then((r) => {
+        if (!vivo) return;
+        setRangosOcupados(r?.rangos_ocupados || []);
+        setDisponibilidadError(false);
+      })
       .catch((e) => {
         // Que falle no debe romper la ficha; el backend igual valida al reservar.
         // Pero en dev sí conviene verlo: si el endpoint no responde (404 de un
         // backend viejo, red caída) el calendario queda sin días bloqueados y
         // "deja elegir" fechas ocupadas sin ninguna señal visible.
         if (__DEV__) console.warn("[disponibilidad] no se pudo cargar; el calendario no marcará días ocupados:", e?.message || e);
+        if (vivo) setDisponibilidadError(true);
       });
     return () => {
       vivo = false;
@@ -179,6 +188,10 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
   const irAResumen = () => {
     setDateError(null);
+    if (disponibilidadError) {
+      setDateError("No pudimos verificar qué días están disponibles. Reintenta antes de continuar.");
+      return;
+    }
     if (fechaInicio < new Date()) {
       setDateError("El retiro no puede quedar en el pasado. Elige una fecha y hora futura.");
       return;
@@ -411,6 +424,14 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 ya no hay un paso aparte de calendario. */}
             <View style={{ gap: theme.spacing.sm }}>
               <SectionLabel>Fechas del arriendo</SectionLabel>
+              {disponibilidadError && (
+                <View style={styles.warnBox}>
+                  <Text style={styles.warnTitle}>No pudimos verificar disponibilidad</Text>
+                  <Text style={styles.warnText}>
+                    Reintenta antes de elegir fechas — así evitamos que reserves un día ya tomado.
+                  </Text>
+                </View>
+              )}
               <View style={styles.datesRow}>
                 <DateTimeField
                   label="Retiro"
@@ -418,6 +439,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                   onChange={cambiarInicio}
                   minimumDate={ahora}
                   rangosBloqueados={rangosOcupados}
+                  disabled={disponibilidadError}
                 />
                 <DateTimeField
                   label="Devolución"
@@ -425,6 +447,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                   onChange={cambiarFin}
                   minimumDate={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
                   rangosBloqueados={rangosOcupados}
+                  disabled={disponibilidadError}
                 />
               </View>
 
