@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
@@ -88,6 +89,10 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [currentAngleIdx, setCurrentAngleIdx] = useState(0);
 
+  // Cámara en vivo y permisos
+  const cameraRef = useRef(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
   // Métricas
   const [km, setKm] = useState("");
   const [fuelLevel, setFuelLevel] = useState("¾");
@@ -135,6 +140,14 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   const [mostrarSelfieEntrega, setMostrarSelfieEntrega] = useState(false);
   const [selfieEntregaUrl, setSelfieEntregaUrl] = useState(null);
   const [subiendoSelfieEntrega, setSubiendoSelfieEntrega] = useState(false);
+
+  // Si el cliente ya firmó el contrato antes (digitalmente, por biometría o al reservar),
+  // no se le vuelve a pedir la firma en la entrega:
+  const clienteYaFirmo = Boolean(
+    datosValidados?.arrendatario_ya_firmo ||
+    reserva?.fecha_firma_biometrica ||
+    (reserva?.firmas || []).some((f) => f.rol === "arrendatario")
+  );
 
   // Calificación al cliente
   const [puntajeCliente, setPuntajeCliente] = useState(0);
@@ -262,12 +275,22 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   const handleTomarFoto = async () => {
     if (subiendoFoto) return;
     setSubiendoFoto(true);
-    let uri;
+    let uri = null;
     try {
-      uri = await elegirImagen({
-        origen: "camera",
-        motivoPermiso: "Necesitamos la cámara para registrar el estado del vehículo.",
-      });
+      if (cameraPermission?.granted && cameraRef.current?.takePictureAsync) {
+        try {
+          const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
+          uri = photo?.uri || null;
+        } catch (camErr) {
+          console.warn("takePictureAsync no disponible o falló:", camErr);
+        }
+      }
+      if (!uri) {
+        uri = await elegirImagen({
+          origen: "camera",
+          motivoPermiso: "Necesitamos la cámara para registrar el estado del vehículo.",
+        });
+      }
     } finally {
       setSubiendoFoto(false);
     }
@@ -279,9 +302,29 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
     setCurrentAngleIdx((prev) => Math.min(ANGLES.length - 1, prev + 1));
     guardarColaFotos(reservaIdActiva, tipo, nuevaCola);
 
-    // La subida corre en paralelo: no bloquea seguir sacando la siguiente
-    // foto. Si falla, la foto sigue en pantalla marcada "error" y se
-    // reintenta sola — no hace falta que el usuario la vuelva a tomar.
+    subirUnaFoto(idx, uri);
+  };
+
+  const handleElegirGaleria = async () => {
+    if (subiendoFoto) return;
+    setSubiendoFoto(true);
+    let uri = null;
+    try {
+      uri = await elegirImagen({
+        origen: "library",
+        motivoPermiso: "Necesitamos acceso a tus fotos para adjuntar el estado del vehículo.",
+      });
+    } finally {
+      setSubiendoFoto(false);
+    }
+    if (!uri) return;
+
+    const idx = colaFotos.length;
+    const nuevaCola = [...colaFotos, { uriLocal: uri, url: null, estado: "subiendo" }];
+    setColaFotos(nuevaCola);
+    setCurrentAngleIdx((prev) => Math.min(ANGLES.length - 1, prev + 1));
+    guardarColaFotos(reservaIdActiva, tipo, nuevaCola);
+
     subirUnaFoto(idx, uri);
   };
 
@@ -328,7 +371,16 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
       showAlert("Kilometraje requerido", "Ingresa el kilometraje actual del vehículo.");
       return;
     }
-    setStage(tipo === "antes" ? "23_signature" : "26_review");
+    if (tipo === "despues") {
+      setStage("26_review");
+      return;
+    }
+    // Si el cliente ya firmó el contrato digitalmente, no se vuelve a pedir la firma:
+    if (clienteYaFirmo) {
+      enviarChecklist();
+      return;
+    }
+    setStage("23_signature");
   };
 
   const enviarChecklist = async (notasExtra) => {
@@ -508,8 +560,22 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
       <View style={styles.viewfinder}>
         {fotos[currentAngleIdx] ? (
           <Image source={{ uri: fotos[currentAngleIdx] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : cameraPermission?.granted ? (
+          <>
+            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+            <View style={styles.guideBox} pointerEvents="none" />
+          </>
         ) : (
-          <View style={styles.guideBox} />
+          <View style={styles.camPermBox}>
+            <Icon name="camera" size={34} color={colors.primary} />
+            <Text style={styles.camPermTitle}>Cámara inactiva</Text>
+            <Text style={styles.camPermDesc}>
+              Habilita la cámara para ver y encuadrar el vehículo en vivo.
+            </Text>
+            <TouchableOpacity style={styles.camPermBtn} onPress={requestCameraPermission}>
+              <Text style={styles.camPermBtnText}>Habilitar cámara</Text>
+            </TouchableOpacity>
+          </View>
         )}
         <View style={styles.vfBadge}>
           <Text style={styles.vfBadgeText}>{angle.desc}</Text>
@@ -518,8 +584,14 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
       <View style={[styles.camShutter, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
         <View style={styles.shutterRow}>
-          <TouchableOpacity onPress={() => setCurrentAngleIdx(Math.min(ANGLES.length - 1, currentAngleIdx + 1))}>
-            <Text style={styles.skipText}>Saltar</Text>
+          <TouchableOpacity
+            style={styles.galleryBtn}
+            onPress={handleElegirGaleria}
+            disabled={subiendoFoto}
+            accessibilityRole="button"
+            accessibilityLabel="Elegir foto de la galería"
+          >
+            <Icon name="image" size={22} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.shutterBtn}
@@ -540,7 +612,15 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             <Text style={styles.thumbCounterText}>{fotos.length}</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.camNote}>{nota}</Text>
+        <View style={{ alignItems: "center", gap: 4 }}>
+          <Text style={styles.camNote}>{nota}</Text>
+          <TouchableOpacity
+            onPress={() => setCurrentAngleIdx(Math.min(ANGLES.length - 1, currentAngleIdx + 1))}
+            hitSlop={theme.control.hitSlop}
+          >
+            <Text style={styles.skipText}>Saltar este ángulo →</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {flashExito ? (
@@ -812,7 +892,17 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           </View>
         </ScrollView>
         <Footer>
-          <Button label={tipo === "antes" ? "Ir a la firma" : "Ver la revisión"} onPress={handleContinuarMetricas} />
+          <Button
+            label={
+              tipo === "despues"
+                ? "Ver la revisión"
+                : clienteYaFirmo
+                ? "Confirmar y entregar llaves"
+                : "Ir a la firma"
+            }
+            onPress={handleContinuarMetricas}
+            loading={enviandoChecklist}
+          />
         </Footer>
       </KeyboardAvoidingView>
     );
@@ -1453,7 +1543,17 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   shutterRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  skipText: { fontSize: 15, fontWeight: "700", color: colors.accentDark },
+  skipText: { fontSize: 13, fontWeight: "700", color: colors.accentDark },
+  galleryBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: theme.radius.field,
+    backgroundColor: colors.primary100,
+    borderWidth: 1.5,
+    borderColor: colors.primary200,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   shutterBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   shutterInner: { width: 60, height: 60, borderRadius: 30, borderWidth: 3, borderColor: "#FFFFFF" },
   thumbCounter: {
@@ -1466,6 +1566,40 @@ const styles = StyleSheet.create({
   },
   thumbCounterText: { fontSize: 14, fontWeight: "800", color: colors.accentDark },
   camNote: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
+  camPermBox: {
+    padding: theme.spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    borderRadius: theme.radius.card,
+    marginHorizontal: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  camPermTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  camPermDesc: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  camPermBtn: {
+    marginTop: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: theme.radius.field,
+  },
+  camPermBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
 
   // ---- Tarjeta de Peritaje Asistido por IA ----
   aiCard: {
