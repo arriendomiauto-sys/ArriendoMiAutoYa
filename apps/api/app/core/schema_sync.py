@@ -218,18 +218,33 @@ _CHECKS_ESPERADAS = {
         ("pendiente", "procesando", "capturado", "retenido",
          "liberado", "fallido", "reembolsado", "pagado"),
     ),
+    "pagos_tipo": (
+        "pagos_tipo_check",
+        "tipo",
+        (
+            "hold_reserva", "hold_enrolamiento", "cobro_arriendo", "cobro_final",
+            "liquidacion_dueno", "deducible_seguro", "cargo_limpieza", "cargo_combustible",
+        ),
+    ),
 }
+
+# (tabla, nombre_constraint, columna, valores_permitidos)
+_CHECKS_LISTA = [
+    ("reservas", "reservas_estado_check", "estado", _CHECKS_ESPERADAS["reservas"][2]),
+    ("pagos", "pagos_estado_check", "estado", _CHECKS_ESPERADAS["pagos"][2]),
+    ("pagos", "pagos_tipo_check", "tipo", _CHECKS_ESPERADAS["pagos_tipo"][2]),
+]
 
 
 def reconcile_check_constraints() -> None:
-    """Recrea las CHECK de `_CHECKS_ESPERADAS` si les faltan valores. Idempotente."""
+    """Recrea las CHECK de `_CHECKS_LISTA` si les faltan valores. Idempotente."""
     if engine.dialect.name != "postgresql":
         return
 
     inspector = inspect(engine)
     tablas_existentes = set(inspector.get_table_names())
 
-    for tabla, (nombre, columna, valores) in _CHECKS_ESPERADAS.items():
+    for tabla, nombre, columna, valores in _CHECKS_LISTA:
         if tabla not in tablas_existentes:
             continue
 
@@ -239,7 +254,7 @@ def reconcile_check_constraints() -> None:
                 actual = conn.execute(
                     text(
                         "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-                        "WHERE conname = :n AND conrelid = :t::regclass"
+                        "WHERE conname = :n AND conrelid = CAST(:t AS regclass)"
                     ),
                     {"n": nombre, "t": tabla},
                 ).scalar()
