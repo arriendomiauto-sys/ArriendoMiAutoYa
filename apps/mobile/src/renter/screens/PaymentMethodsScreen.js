@@ -20,13 +20,21 @@ import { SelectorTarjeta } from "../components/SelectorTarjeta";
 
 const clp = (n) => `$${(n || 0).toLocaleString("es-CL")}`;
 
-export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess }) {
+export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentSuccess, existingReservation }) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useApp();
   const { tarjetasDebito, tarjetasCredito, agregar, recargar } = useTarjetas();
 
-  const dias = booking?.dias ?? 0;
-  const esReservaReal = !!(car?.id && booking);
+  // Reanudar una reserva `pendiente_pago` ya existente (desde "Mis reservas"
+  // o el reintento en el arriendo activo) no trae `car`/`booking` por
+  // separado — vienen adentro de la reserva misma.
+  const car = carProp || existingReservation?.auto;
+  const dias =
+    booking?.dias ??
+    (existingReservation?.fecha_inicio && existingReservation?.fecha_fin
+      ? Math.max(1, Math.ceil((new Date(existingReservation.fecha_fin) - new Date(existingReservation.fecha_inicio)) / 86400000))
+      : 0);
+  const esReservaReal = !!(car?.id && (booking || existingReservation));
   const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
 
   // Estimación mientras no exista la reserva (mismas fórmulas que el backend):
@@ -35,7 +43,7 @@ export function PaymentMethodsScreen({ car, booking, onBack, onPaymentSuccess })
   const cobroEstimado = tarifaDia * dias;
   const garantiaEstimada = car?.monto_garantia ?? booking?.montoHold ?? 0;
 
-  const [reserva, setReserva] = useState(null);
+  const [reserva, setReserva] = useState(existingReservation || null);
   const cobro = reserva?.cobro?.monto ?? cobroEstimado;
   const neto = reserva?.cobro?.neto ?? Math.round(cobro / 1.19);
   const iva = reserva?.cobro?.iva ?? cobro - Math.round(cobro / 1.19);

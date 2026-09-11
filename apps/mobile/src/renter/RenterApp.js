@@ -48,6 +48,10 @@ export function RenterApp() {
   // Modales y Flujos Secundarios
   const [selectedCar, setSelectedCar] = useState(null);
   const [bookingDraft, setBookingDraft] = useState(null);
+  // Reanudar el pago de una reserva pendiente_pago ya existente (desde
+  // "Mis reservas" o el reintento en el arriendo activo) — no pasa por la
+  // ficha del auto, va directo a elegir tarjetas.
+  const [resumingReservation, setResumingReservation] = useState(null);
   const [showMap, setShowMap] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -127,6 +131,23 @@ export function RenterApp() {
           onSelectCar={(car) => {
             setSelectedCar(car);
             setShowMap(false);
+          }}
+        />
+      );
+    }
+
+    // 2c. Reanudar el pago de una reserva pendiente_pago ya existente.
+    if (resumingReservation) {
+      return (
+        <PaymentMethodsScreen
+          existingReservation={resumingReservation}
+          onBack={() => setResumingReservation(null)}
+          onPaymentSuccess={(res) => {
+            setResumingReservation(null);
+            if (res) {
+              setActiveReservation(res);
+              setActiveTab("rentals");
+            }
           }}
         />
       );
@@ -320,6 +341,7 @@ export function RenterApp() {
         return (
           <RentalHistoryScreen
             onSelectReservation={(res) => setActiveReservation(res)}
+            onContinuarPago={(res) => setResumingReservation(res)}
             onBack={() => setActiveTab("explore")}
           />
         );
@@ -368,6 +390,7 @@ export function RenterApp() {
     showMap ||
     showFavorites ||
     !!selectedCar ||
+    !!resumingReservation ||
     showExtendRental ||
     showRoadsideClaim ||
     showWallet ||

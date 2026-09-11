@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient, Button, RatingModal } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient, Button, RatingModal, useCuentaRegresiva } from "@rentacar/mobile-shared";
 
 function formatearRango(inicio, fin) {
   if (!inicio || !fin) return "—";
@@ -26,12 +26,13 @@ const BADGE = {
 };
 
 const TABS = [
+  { id: "pendientes", label: "Pendientes", estados: ["pendiente_pago"] },
   { id: "activas", label: "Activas", estados: ["en_curso"] },
   { id: "proximas", label: "Próximas", estados: ["confirmada"] },
   { id: "pasadas", label: "Pasadas", estados: ["finalizada", "cancelada"] },
 ];
 
-export function RentalHistoryScreen({ onSelectReservation, onBack }) {
+export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPago }) {
   const [tab, setTab] = useState("activas");
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,6 +142,9 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
                       Garantía retenida · ${(r.monto_hold || 0).toLocaleString("es-CL")}
                     </Text>
                   )}
+                  {r.estado === "pendiente_pago" && (
+                    <PendienteRow reserva={r} onContinuar={() => onContinuarPago?.(r)} />
+                  )}
                   {r.estado === "finalizada" && calificadas[r.id] === false && (
                     <TouchableOpacity
                       style={styles.rateBtn}
@@ -161,7 +165,9 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
               icon="calendar"
               title="Nada por aquí"
               message={
-                tab === "activas"
+                tab === "pendientes"
+                  ? "No tienes reservas esperando pago."
+                  : tab === "activas"
                   ? "No tienes arriendos en curso ahora mismo."
                   : tab === "proximas"
                   ? "No tienes reservas confirmadas próximas."
@@ -184,6 +190,26 @@ export function RentalHistoryScreen({ onSelectReservation, onBack }) {
           setReservaACalificar(null);
         }}
       />
+    </View>
+  );
+}
+
+// Cuenta regresiva + "Continuar pago" para una reserva que quedó
+// pendiente_pago — antes esta pestaña no existía y la reserva no aparecía
+// en ningún lado hasta que expiraba sola.
+function PendienteRow({ reserva, onContinuar }) {
+  const cuenta = useCuentaRegresiva(reserva.expira_en);
+  return (
+    <View style={{ gap: 6, marginTop: 4 }}>
+      <Text style={[styles.guarantee, cuenta.vencido && { color: colors.dangerText }]}>
+        {cuenta.vencido ? "Expiró" : cuenta.etiqueta ? `Expira en ${cuenta.etiqueta}` : "Pendiente de pago"}
+      </Text>
+      {!cuenta.vencido && (
+        <TouchableOpacity style={styles.rateBtn} onPress={onContinuar} hitSlop={theme.control.hitSlop}>
+          <Icon name="arrow-right" size={14} color={colors.accent700} />
+          <Text style={styles.rateBtnText}>Continuar pago</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
