@@ -178,7 +178,10 @@ export function SegundoConductorModal({
         selfie_url: selfieUrl,
       };
 
-      const respuesta = await ApiClient.asignarSegundoConductor(reservaId, payload);
+      // Editar uno ya cargado va por PUT; el alta inicial sigue en POST.
+      const respuesta = initialData
+        ? await ApiClient.actualizarSegundoConductor(reservaId, payload)
+        : await ApiClient.asignarSegundoConductor(reservaId, payload);
       setEstadoKyc(respuesta.estado_kyc);
       setNotasAuditoria(respuesta.notas_auditoria || "");
       if (respuesta.nombre) setConductorNombre(respuesta.nombre);
