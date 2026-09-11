@@ -14,6 +14,8 @@ import {
   ContractSignatureModal,
   GpsTrackingModal,
   PreCheckinModal,
+  ReportFineModal,
+  CobroPosteriorModal,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc } from "../comun";
 
@@ -54,6 +56,8 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
   const [reservaAFirmar, setReservaAFirmar] = useState(null);
   const [autoRastreo, setAutoRastreo] = useState(null);
   const [reservaParaPrecheck, setReservaParaPrecheck] = useState(null);
+  const [reservaParaMulta, setReservaParaMulta] = useState(null);
+  const [reservaParaCobroPosterior, setReservaParaCobroPosterior] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -181,6 +185,23 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
             onPress={() => setReservaACalificar(item)}
           />
         )}
+        {item.estado === "finalizada" && (
+          <Button
+            variant="secondary"
+            size="sm"
+            label="Reportar falta o penalización"
+            iconLeft="alert"
+            onPress={() => setReservaParaMulta(item)}
+          />
+        )}
+        {item.estado === "finalizada" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            label="Reportar peaje o fotomulta"
+            onPress={() => setReservaParaCobroPosterior(item)}
+          />
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -273,6 +294,26 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
         onClose={() => setReservaParaPrecheck(null)}
         onConfirmed={() => {
           setReservaParaPrecheck(null);
+          cargar();
+        }}
+      />
+
+      <ReportFineModal
+        visible={!!reservaParaMulta}
+        reserva={reservaParaMulta}
+        onClose={() => setReservaParaMulta(null)}
+        onApplied={() => {
+          setReservaParaMulta(null);
+          cargar();
+        }}
+      />
+
+      <CobroPosteriorModal
+        visible={!!reservaParaCobroPosterior}
+        reserva={reservaParaCobroPosterior}
+        onClose={() => setReservaParaCobroPosterior(null)}
+        onCobrado={() => {
+          setReservaParaCobroPosterior(null);
           cargar();
         }}
       />

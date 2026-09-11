@@ -106,6 +106,8 @@ export { SwitchingScreen } from "./screens/SwitchingScreen";
 export { DeliveryScreen } from "./screens/DeliveryScreen";
 export { PreCheckinModal } from "./screens/PreCheckinModal";
 export { ReportFineModal } from "./screens/ReportFineModal";
+export { CobroPosteriorModal } from "./screens/CobroPosteriorModal";
+export { AdjuntarFoto } from "./components/AdjuntarFoto";
 export { KycScreen } from "./auth/screens/KycScreen";
 export { CompletarLicenciaScreen } from "./auth/screens/CompletarLicenciaScreen";
 export { BotonesOAuth } from "./components/BotonesOAuth";

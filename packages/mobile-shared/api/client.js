@@ -409,6 +409,16 @@ export class ApiClient {
     });
   }
 
+  // Cobra un TAG/peaje o multa de tránsito detectado hasta 30 días después
+  // del arriendo, directo contra la tarjeta de crédito de garantía en la
+  // bóveda (no contra la tarjeta de débito con la que se pagó el arriendo).
+  static async cobrarPosterior(reservaId, { tipo, monto, descripcion, comprobante_url }) {
+    return this.request(`/reservas/${reservaId}/cobro-posterior`, {
+      method: "POST",
+      body: JSON.stringify({ tipo, monto, descripcion, comprobante_url }),
+    });
+  }
+
   // Segundo Conductor / Conductor Adicional
   static async asignarSegundoConductor(reservaId, data) {
     return this.request(`/reservas/${reservaId}/segundo-conductor`, {

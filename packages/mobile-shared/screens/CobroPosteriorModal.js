@@ -18,63 +18,63 @@ import { AdjuntarFoto } from "../components/AdjuntarFoto";
 import { ApiClient } from "../api/client";
 import { showAlert } from "../utils/alert";
 
-const TIPOS_FALTAS = [
-  { id: "fumar", label: "Fumar en el auto", sugerido: 50000, desc: "Olor a tabaco o cenizas en el interior" },
-  { id: "lugar_no_acordado", label: "Lugar no acordado", sugerido: 60000, desc: "Devolución en sector no pactado" },
-  { id: "mascotas", label: "Mascotas sin canil", sugerido: 25000, desc: "Pelos o suciedad en tapicería" },
-  { id: "limpieza_estandar", label: "Suciedad excesiva", sugerido: 15000, desc: "Barro, arena o basura acumulada" },
-  { id: "limpieza_profunda", label: "Limpieza profunda", sugerido: 35000, desc: "Manchas en tapiz o líquidos" },
-  { id: "otro", label: "Otra falta", sugerido: 0, desc: "Infracción declarada con justificación" },
+/**
+ * Peajes, TAG y fotomultas no se ven en la devolución: las autopistas
+ * urbanas son de flujo libre y la boleta llega semanas después, siempre a
+ * nombre del titular de la patente. Por eso se cobran aparte, dentro de los
+ * 30 días que permite el backend (`POST /reservas/{id}/cobro-posterior`),
+ * directo contra la tarjeta de crédito de garantía — nunca contra la
+ * tarjeta de débito con la que ya se pagó el arriendo.
+ *
+ * `tipo` usa los mismos valores que espera el backend
+ * (CobroPosteriorRequest: "tag" | "peaje" | "multa" | "otro").
+ */
+const TIPOS_COBRO = [
+  { id: "tag", label: "TAG" },
+  { id: "peaje", label: "Peaje" },
+  { id: "multa", label: "Multa / Fotomulta" },
 ];
 
-export function ReportFineModal({
-  visible,
-  reserva,
-  onClose,
-  onApplied,
-}) {
-  const [tipo, setTipo] = useState("fumar");
-  const [monto, setMonto] = useState("50000");
-  const [motivo, setMotivo] = useState("");
-  const [fotoUrl, setFotoUrl] = useState("");
+export function CobroPosteriorModal({ visible, reserva, onClose, onCobrado }) {
+  const [tipo, setTipo] = useState("tag");
+  const [monto, setMonto] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [comprobanteUrl, setComprobanteUrl] = useState("");
   const [loading, setLoading] = useState(false);
 
   if (!reserva) return null;
 
-  const handleSelectTipo = (item) => {
-    setTipo(item.id);
-    if (item.sugerido > 0) {
-      setMonto(item.sugerido.toString());
-    }
-  };
-
-  const handleAplicar = async () => {
+  const handleCobrar = async () => {
     if (loading) return;
     const montoNum = parseInt(monto, 10);
     if (isNaN(montoNum) || montoNum <= 0) {
-      showAlert("Monto inválido", "Ingresa un monto válido para el cargo en pesos chilenos.");
+      showAlert("Monto inválido", "Ingresa el monto exacto de la boleta en pesos chilenos.");
       return;
     }
-    if (!motivo.trim() || motivo.trim().length < 4) {
-      showAlert("Motivo requerido", "Por favor ingresa una explicación detallada de la falta.");
+    if (!descripcion.trim() || descripcion.trim().length < 3) {
+      showAlert("Falta la descripción", "Describe brevemente el cobro (pórtico, fecha, patente, etc.).");
+      return;
+    }
+    if (!comprobanteUrl.trim()) {
+      showAlert("Falta el comprobante", "Adjunta la boleta de la concesionaria o el parte cursado que respalda el cobro.");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await ApiClient.aplicarMultaReserva(reserva.id, {
+      const res = await ApiClient.cobrarPosterior(reserva.id, {
         tipo,
-        monto_clp: montoNum,
-        motivo: motivo.trim(),
-        fotos: fotoUrl.trim() ? [fotoUrl.trim()] : [],
+        monto: montoNum,
+        descripcion: descripcion.trim(),
+        comprobante_url: comprobanteUrl.trim(),
       });
       showAlert(
-        "Multa aplicada",
-        `Se registró el cargo de $${montoNum.toLocaleString("es-CL")} CLP correctamente y se notificó al arrendatario.`,
-        [{ text: "OK", onPress: () => { onClose(); onApplied && onApplied(res); } }]
+        "Cobro realizado",
+        `Se cobró $${montoNum.toLocaleString("es-CL")} CLP a la tarjeta de garantía del arrendatario.`,
+        [{ text: "OK", onPress: () => { onClose(); onCobrado && onCobrado(res); } }]
       );
     } catch (err) {
-      showAlert("No se pudo aplicar la multa", err.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo realizar el cobro", err.message || "Inténtalo de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -85,18 +85,15 @@ export function ReportFineModal({
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        // Android ya no redimensiona la ventana con el teclado (ver app.json,
-        // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
-        // Detalle completo en LoginScreen.js.
       >
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={styles.iconCircle}>
-              <Icon name="alert" size={24} color={colors.warning} />
+              <Icon name="alert-triangle" size={24} color={colors.warning} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Reportar falta o penalización</Text>
-              <Text style={styles.subtitle}>Se descontará del hold de garantía y liquidará a tu favor</Text>
+              <Text style={styles.title}>Reportar peaje o fotomulta</Text>
+              <Text style={styles.subtitle}>Se cobra a la tarjeta de garantía del arrendatario</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={theme.control.hitSlop} style={styles.closeBtn}>
               <Icon name="close" size={20} color={colors.textMuted} />
@@ -108,66 +105,68 @@ export function ReportFineModal({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.sectionTitle}>Tipo de falta</Text>
+            <Text style={styles.sectionHelp}>
+              Peajes, TAG y fotomultas se notifican a tu nombre semanas después del arriendo. Se
+              cobran a la tarjeta de crédito registrada del arrendatario, dentro de los 30 días
+              siguientes al fin del arriendo.
+            </Text>
+
+            <Text style={styles.sectionTitle}>Tipo de cobro</Text>
             <View style={styles.typesGrid}>
-              {TIPOS_FALTAS.map((item) => {
+              {TIPOS_COBRO.map((item) => {
                 const selected = tipo === item.id;
                 return (
                   <TouchableOpacity
                     key={item.id}
                     style={[styles.typeButton, selected && styles.typeButtonSelected]}
-                    onPress={() => handleSelectTipo(item)}
+                    onPress={() => setTipo(item.id)}
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.typeButtonText, selected && styles.typeButtonTextSelected]}>
                       {item.label}
                     </Text>
-                    {item.sugerido > 0 && (
-                      <Text style={[styles.typeButtonPrice, selected && styles.typeButtonPriceSelected]}>
-                        ${item.sugerido.toLocaleString("es-CL")}
-                      </Text>
-                    )}
                   </TouchableOpacity>
                 );
               })}
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Monto de la multa (CLP)</Text>
+              <Text style={styles.inputLabel}>Monto exacto de la boleta (CLP)</Text>
               <TextInput
                 style={styles.input}
                 value={monto}
                 onChangeText={setMonto}
                 keyboardType="numeric"
-                placeholder="ej. 50000"
+                placeholder="ej. 3200"
                 placeholderTextColor={colors.textPlaceholder}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Explicación / Justificación</Text>
+              <Text style={styles.inputLabel}>Descripción</Text>
               <TextInput
                 style={[styles.input, { minHeight: 64 }]}
-                value={motivo}
-                onChangeText={setMotivo}
+                value={descripcion}
+                onChangeText={setDescripcion}
                 multiline
                 numberOfLines={3}
-                placeholder="Describe la falta observada en la entrega/devolución..."
+                placeholder="Pórtico, fecha y hora del pase o de la infracción..."
                 placeholderTextColor={colors.textPlaceholder}
               />
             </View>
 
             <AdjuntarFoto
-              etiqueta="Foto de evidencia"
-              ayuda="Sirve como prueba si el arrendatario disputa el cargo."
-              url={fotoUrl}
-              onUrl={setFotoUrl}
+              etiqueta="Boleta de la concesionaria o parte cursado"
+              ayuda="Es el respaldo del cobro: el arrendatario lo puede revisar en su historial."
+              url={comprobanteUrl}
+              onUrl={setComprobanteUrl}
               bucket="evidencias"
+              obligatorio
             />
 
             <Button
-              label="Aplicar cargo y notificar"
-              onPress={handleAplicar}
+              label="Cobrar y notificar al arrendatario"
+              onPress={handleCobrar}
               loading={loading}
               variant="primary"
               style={{ marginTop: 8 }}
@@ -217,6 +216,11 @@ const styles = StyleSheet.create({
     padding: theme.spacing.screen,
     gap: theme.spacing.md,
   },
+  sectionHelp: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
+  },
   sectionTitle: {
     fontSize: 13,
     fontWeight: "700",
@@ -249,15 +253,6 @@ const styles = StyleSheet.create({
   },
   typeButtonTextSelected: {
     color: colors.accentDark,
-  },
-  typeButtonPrice: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  typeButtonPriceSelected: {
-    color: colors.accent800,
-    fontWeight: "700",
   },
   inputGroup: { gap: 6 },
   inputLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
