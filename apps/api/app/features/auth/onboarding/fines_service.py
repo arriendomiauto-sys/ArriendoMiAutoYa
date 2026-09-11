@@ -51,6 +51,15 @@ TARIFAS_MULTAS_OFICIALES: Dict[str, Dict[str, Any]] = {
         "descripcion": "Infracción declarada con justificación y evidencia.",
         "requiere_fotos": True,
     },
+    # La única multa que aplica el sistema solo (gps_monitor_service), no un
+    # humano con fotos: por eso `requiere_fotos: False`. El motivo real (cuántos
+    # minutos sin señal) lo arma ese servicio, este texto es el genérico.
+    "gps_sin_senal": {
+        "nombre": "Pérdida de señal GPS durante el arriendo",
+        "monto_sugerido_clp": 20000,
+        "descripcion": "El celular no reportó ubicación por más de 1 hora durante el arriendo, incumpliendo la cláusula de monitoreo del contrato.",
+        "requiere_fotos": False,
+    },
 }
 
 

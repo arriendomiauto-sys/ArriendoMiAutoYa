@@ -280,6 +280,13 @@ class Reserva(Base):
     recordatorio_devolucion_24h_enviado = Column(Boolean, default=False)
     recordatorio_devolucion_2h_enviado = Column(Boolean, default=False)
 
+    # Vigilancia de la señal GPS del celular del arrendatario mientras el
+    # arriendo está "en_curso" (ver app/features/bookings/reservations/
+    # gps_monitor_service.py). Se resetean apenas vuelve a llegar una
+    # telemetría, para que la próxima ventana de silencio pueda re-avisar.
+    gps_alerta_30m_enviada = Column(Boolean, default=False)
+    gps_alerta_60m_enviada = Column(Boolean, default=False)
+
     # Desglose y detalle de multas y penalizaciones
     motivo_multas = Column(Text, nullable=True)
     multas_detalle = Column(JSON, default=list) # [{tipo, monto, motivo, fecha, fotos}]

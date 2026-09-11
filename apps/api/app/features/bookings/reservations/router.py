@@ -1014,6 +1014,10 @@ def reportar_telemetria_celular(
     }
 
     auto.gps_ultima_posicion = posicion_dict
+    # Señal recuperada: se limpian los flags de alerta para que la próxima
+    # ventana de silencio (30m/60m, ver gps_monitor_service) pueda re-avisar.
+    reserva.gps_alerta_30m_enviada = False
+    reserva.gps_alerta_60m_enviada = False
     db.commit()
 
     return {"ok": True, "timestamp": ahora_iso}

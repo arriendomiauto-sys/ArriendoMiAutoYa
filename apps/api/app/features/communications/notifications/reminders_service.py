@@ -19,6 +19,10 @@ algún día se escala a múltiples workers/instancias, cada uno correría su
 propio bucle y un recordatorio podría mandarse más de una vez — para eso
 haría falta coordinación externa (lock distribuido, o sí, un scheduler real
 como Celery beat). No es el caso hoy.
+
+El mismo bucle también vigila la señal GPS del celular del arrendatario
+durante el arriendo (`gps_monitor_service.revisar_reservas_en_curso`) —no
+justifica un segundo `asyncio.create_task` para una revisión igual de liviana.
 """
 import asyncio
 import logging
@@ -29,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.models.entities import Auto, Reserva
 from app.features.communications.notifications.service import crear_notificacion
+from app.features.bookings.reservations.gps_monitor_service import revisar_reservas_en_curso
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +152,13 @@ async def _bucle(session_factory) -> None:
                 cantidad = enviar_recordatorios_pendientes(db)
                 if cantidad:
                     logger.info("[recordatorios] %s recordatorio(s) enviado(s)", cantidad)
+
+                gps = revisar_reservas_en_curso(db)
+                if gps["alertas_30m"] or gps["alertas_60m"]:
+                    logger.info(
+                        "[gps] %s alerta(s) preventiva(s), %s cargo(s) por 1h sin señal",
+                        gps["alertas_30m"], gps["alertas_60m"],
+                    )
             finally:
                 db.close()
         except asyncio.CancelledError:
