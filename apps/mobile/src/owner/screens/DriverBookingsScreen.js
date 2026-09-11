@@ -13,6 +13,7 @@ import {
   RatingModal,
   ContractSignatureModal,
   GpsTrackingModal,
+  PreCheckinModal,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc } from "../comun";
 
@@ -52,6 +53,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
   const [reservaACalificar, setReservaACalificar] = useState(null);
   const [reservaAFirmar, setReservaAFirmar] = useState(null);
   const [autoRastreo, setAutoRastreo] = useState(null);
+  const [reservaParaPrecheck, setReservaParaPrecheck] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -104,6 +106,11 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
     // El dueño firma su parte del contrato antes de entregar el vehículo.
     const yaFirmoDueno = (item.firmas || []).some((f) => f.rol === "arrendador");
     const debeFirmar = !yaFirmoDueno && ["pendiente", "confirmada"].includes(item.estado);
+    // Verificación 24h antes: solo tiene sentido mientras falta menos de un
+    // día para el retiro y el dueño todavía no la confirmó.
+    const msHastaRetiro = item.fecha_inicio ? new Date(item.fecha_inicio).getTime() - Date.now() : null;
+    const dentroDe24h = item.estado === "confirmada" && msHastaRetiro !== null && msHastaRetiro > 0 && msHastaRetiro < 86400000;
+    const debePrecheck = dentroDe24h && !item.precheck_dueno_confirmado;
 
     return (
       <View style={[oc.card, styles.card]}>
@@ -137,6 +144,15 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
             label="Firmar el contrato"
             iconLeft="document"
             onPress={() => setReservaAFirmar(item)}
+          />
+        )}
+        {debePrecheck && (
+          <Button
+            variant="secondary"
+            size="sm"
+            label="Confirmar entrega de mañana"
+            iconLeft="check"
+            onPress={() => setReservaParaPrecheck(item)}
           />
         )}
         {(puedeEntregar || puedeDevolver) && (
@@ -248,6 +264,17 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
         patente={autoRastreo?.patente}
         nombreAuto={[autoRastreo?.marca, autoRastreo?.modelo].filter(Boolean).join(" ")}
         onClose={() => setAutoRastreo(null)}
+      />
+
+      <PreCheckinModal
+        visible={!!reservaParaPrecheck}
+        reserva={reservaParaPrecheck}
+        role="dueno"
+        onClose={() => setReservaParaPrecheck(null)}
+        onConfirmed={() => {
+          setReservaParaPrecheck(null);
+          cargar();
+        }}
       />
     </View>
   );
