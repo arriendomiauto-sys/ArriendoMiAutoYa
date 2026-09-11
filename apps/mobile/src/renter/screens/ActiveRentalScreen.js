@@ -441,7 +441,7 @@ export function ActiveRentalScreen({
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Icon name="pin" size={18} color={colors.primary} />
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                  Rastreo GPS de seguridad activo
+                  Ubicación en vivo del arriendo
                 </Text>
               </View>
               <Badge

@@ -40,7 +40,7 @@ export function GpsTrackingModal({ visible, autoId, patente, nombreAuto, onClose
       const res = await ApiClient.getPosicionGpsAuto(autoId);
       setData(res);
     } catch (err) {
-      setError(err?.mensaje || err?.message || "No se pudo obtener la posición GPS.");
+      setError(err?.mensaje || err?.message || "No se pudo obtener la ubicación en vivo.");
     } finally {
       setCargando(false);
     }
@@ -83,7 +83,7 @@ export function GpsTrackingModal({ visible, autoId, patente, nombreAuto, onClose
           {/* Cabecera */}
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Rastreo GPS en vivo</Text>
+              <Text style={styles.title}>Ubicación en vivo</Text>
               <Text style={styles.sub}>
                 {nombreAuto || "Vehículo"} {patente ? `· ${patente}` : ""}
               </Text>
@@ -131,7 +131,7 @@ export function GpsTrackingModal({ visible, autoId, patente, nombreAuto, onClose
               }
               label={
                 estadoSenal === "en_linea"
-                  ? "GPS En línea"
+                  ? "En línea"
                   : estadoSenal === "alerta_sin_senal"
                   ? `Sin señal (${minutosSinSenal} min)`
                   : `Alerta Crítica (${minutosSinSenal} min)`

@@ -151,7 +151,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
           <Button
             variant="secondary"
             size="sm"
-            label="Ver ubicación GPS en vivo"
+            label="Ver ubicación en vivo"
             iconLeft="pin"
             onPress={() => setAutoRastreo({ ...auto, reservaId: item.id })}
           />
