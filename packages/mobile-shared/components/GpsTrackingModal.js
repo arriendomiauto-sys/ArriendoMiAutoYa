@@ -157,7 +157,7 @@ export function GpsTrackingModal({ visible, autoId, patente, nombreAuto, onClose
               </View>
             ) : lat && lng && MapView ? (
               <MapView
-                style={StyleSheet.absoluteFillObject}
+                style={styles.mapaVista}
                 initialRegion={{
                   latitude: lat,
                   longitude: lng,
@@ -304,6 +304,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  // width/height explícitos en vez de StyleSheet.absoluteFillObject: en
+  // Android con New Architecture, un MapView (SurfaceView nativo) posicionado
+  // solo con position:absolute a veces mide 0 y queda en blanco — el patrón
+  // que sí funciona en este código es el selector de ubicación al publicar
+  // auto (PasoVehiculo.js), con porcentaje explícito sobre un padre de alto fijo.
+  mapaVista: { width: "100%", height: "100%" },
   centerContainer: {
     flex: 1,
     alignItems: "center",
