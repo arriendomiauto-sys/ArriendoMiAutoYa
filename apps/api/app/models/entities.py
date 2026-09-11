@@ -233,11 +233,11 @@ class Reserva(Base):
     __tablename__ = "reservas"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    auto_id = Column(String, ForeignKey("autos.id"), nullable=False)
-    cliente_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
+    auto_id = Column(String, ForeignKey("autos.id"), nullable=False, index=True)
+    cliente_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
     fecha_inicio = Column(DateTime, nullable=False)
     fecha_fin = Column(DateTime, nullable=False)
-    estado = Column(String, default="pendiente") # pendiente, pendiente_pago, confirmada, en_curso, finalizada, cancelada, disputada
+    estado = Column(String, default="pendiente", index=True) # pendiente, pendiente_pago, confirmada, en_curso, finalizada, cancelada, disputada
     # `monto_cobro` = días × tarifa_dia (IVA incl.), se COBRA a la tarjeta de
     # débito. `monto_hold` = garantía fija por categoría, se RETIENE (hold) en
     # la tarjeta de crédito. Son dos movimientos distintos (ver el pago dual).
@@ -393,11 +393,11 @@ class Pago(Base):
     __tablename__ = "pagos"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=True)
-    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
-    tipo = Column(String, nullable=False) # hold_reserva, hold_enrolamiento, cobro_final, liquidacion_dueno, deducible_seguro, cargo_limpieza, cargo_combustible
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=True, index=True)
+    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
+    tipo = Column(String, nullable=False, index=True) # hold_reserva, hold_enrolamiento, cobro_final, liquidacion_dueno, deducible_seguro, cargo_limpieza, cargo_combustible
     monto = Column(Integer, nullable=False)
-    estado = Column(String, default="pendiente") # pendiente, procesando, capturado, retenido, liberado, fallido, reembolsado, pagado
+    estado = Column(String, default="pendiente", index=True) # pendiente, procesando, capturado, retenido, liberado, fallido, reembolsado, pagado
     # Id del pago en la pasarela (Mercado Pago). Antes se llamaba
     # `referencia_transbank`; al cambiar de pasarela el nombre quedó mintiendo.
     referencia_pago = Column(String, nullable=True)
