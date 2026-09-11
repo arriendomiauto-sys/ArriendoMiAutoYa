@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -15,7 +17,10 @@ from app.schemas.schemas import (
 from app.features.bookings.delivery.service import DeliveryService
 from app.features.bookings.delivery.ai_damage_service import AIDamageService
 from app.features.auth.login.service import get_current_user
+from app.features.communications.messages.socketio_server import sio
 from app.models.entities import Usuario, Reserva, Auto
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Flujo de Entrega y Devolución"])
 
@@ -83,7 +88,7 @@ def validar_codigo_entrega(
     response_model=ConfirmVerificationResponse,
     summary="Confirma o rechaza la identidad del cliente (Dueño)"
 )
-def confirmar_verificacion_identidad(
+async def confirmar_verificacion_identidad(
     reserva_id: str,
     payload: ConfirmVerificationRequest,
     db: Session = Depends(get_db),
@@ -95,7 +100,7 @@ def confirmar_verificacion_identidad(
     """
     reserva = _obtener_reserva_o_404(reserva_id, db)
     _requerir_dueno_del_auto(reserva, current_user, db)
-    return DeliveryService.confirmar_verificacion(
+    resultado = DeliveryService.confirmar_verificacion(
         reserva_id=reserva_id,
         resultado=payload.resultado,
         tipo=payload.tipo,
@@ -104,6 +109,19 @@ def confirmar_verificacion_identidad(
         foto_evidencia_url=payload.foto_evidencia_url,
         motivo_rechazo=payload.motivo_rechazo
     )
+    if payload.resultado == "confirmada":
+        # El cliente puede seguir mirando su pantalla de código QR: se le
+        # avisa por el socket de la reserva en vez de obligarlo a volver a
+        # entrar a la app para enterarse de que ya lo verificaron.
+        try:
+            await sio.emit(
+                "entrega_confirmada",
+                {"reserva_id": reserva_id, "tipo": payload.tipo, "resultado": resultado.get("siguiente_paso")},
+                room=f"reserva_{reserva_id}",
+            )
+        except Exception as e:
+            logger.warning("[SOCKET.IO] No se pudo emitir entrega_confirmada: %s", e)
+    return resultado
 
 @router.post(
     "/entrega/{reserva_id}/checklist",
