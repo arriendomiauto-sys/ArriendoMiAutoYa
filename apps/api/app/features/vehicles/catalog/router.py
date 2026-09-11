@@ -16,6 +16,7 @@ from app.models.entities import Auto, Usuario, TicketSoporte, Calificacion
 from app.features.auth.login.service import get_current_user, get_optional_current_user
 from app.services import tarjetas
 from app.features.payments import checkout_service
+from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.vehicles.verification.car_doc_validator import CarDocValidator
 from app.core.validators import rangos_ocupados_auto
 from app.core.limiter import limiter
@@ -427,6 +428,38 @@ def actualizar_auto(
         raise HTTPException(status_code=403, detail="No tienes permiso para editar este auto.")
 
     if payload.tarifa_dia is not None:
+        if payload.tarifa_dia <= 0 or payload.tarifa_dia % 5000 != 0:
+            raise HTTPException(
+                status_code=400,
+                detail="La tarifa diaria debe ser un múltiplo de $5.000 CLP."
+            )
+        categoria = payload.categoria or auto.categoria
+        if categoria:
+            config = PricingService.obtener_configuracion(db)
+            tarifas_cfg = getattr(config, "tarifas_categoria", None) or {}
+            cat_cfg = tarifas_cfg.get(categoria) or {
+                "economico": {"base": 40000, "min": 25000},
+                "sedan": {"base": 55000, "min": 35000},
+                "suv": {"base": 80000, "min": 45000},
+                "camioneta": {"base": 95000, "min": 55000},
+                "premium": {"base": 180000, "min": 80000},
+            }.get(categoria)
+
+            if cat_cfg:
+                base = cat_cfg.get("base", 350000)
+                min_piso = cat_cfg.get("min", 15000)
+                if payload.tarifa_dia > base or payload.tarifa_dia < min_piso:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"La tarifa diaria para la categoría '{categoria}' debe estar entre ${min_piso:,} y ${base:,} CLP (precio fijado por la plataforma)."
+                    )
+        else:
+            if payload.tarifa_dia < 15000:
+                raise HTTPException(
+                    status_code=400,
+                    detail="La tarifa diaria mínima es de $15.000 CLP."
+                )
+
         auto.tarifa_dia = payload.tarifa_dia
     if payload.estado is not None:
         auto.estado = payload.estado

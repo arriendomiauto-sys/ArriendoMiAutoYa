@@ -172,3 +172,29 @@ def test_reserva_sin_auth_da_401(client, db_session):
         },
     )
     assert resp.status_code == 401
+
+
+def test_patch_auto_tarifa_valida_limites_categoria(usuario_factory, auth_as):
+    owner = usuario_factory(roles_activos=["dueno"])
+    c = auth_as(owner)
+    auto = _crear_auto(c, "TSTA-99", categoria="sedan", tarifa_dia=50000)
+
+    # 1. No permite montos fuera de tramos de 5.000
+    r_no_tramo = c.patch(f"/api/v1/autos/{auto['id']}", json={"tarifa_dia": 42123})
+    assert r_no_tramo.status_code == 400
+    assert "múltiplo de $5.000" in r_no_tramo.text
+
+    # 2. No permite superar el precio base fijado por la plataforma (para sedan es 55.000)
+    r_techo = c.patch(f"/api/v1/autos/{auto['id']}", json={"tarifa_dia": 60000})
+    assert r_techo.status_code == 400
+    assert "precio fijado por la plataforma" in r_techo.text
+
+    # 3. No permite bajar más allá del piso de la categoría (para sedan es 35.000)
+    r_piso = c.patch(f"/api/v1/autos/{auto['id']}", json={"tarifa_dia": 30000})
+    assert r_piso.status_code == 400
+
+    # 4. Una tarifa válida dentro del rango y múltiplo de 5.000 sí pasa
+    r_ok = c.patch(f"/api/v1/autos/{auto['id']}", json={"tarifa_dia": 45000})
+    assert r_ok.status_code == 200
+    assert r_ok.json()["tarifa_dia"] == 45000
+
