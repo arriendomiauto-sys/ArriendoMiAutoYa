@@ -62,13 +62,17 @@ export function conectarChat(
     try {
       socket = io(getSocketBaseUrl(), {
         path: "/socket.io",
-        auth: { token },
+        auth: (cb) => {
+          getAccessToken()
+            .then((freshToken) => cb({ token: freshToken || token }))
+            .catch(() => cb({ token }));
+        },
         query: { token },
         transports: ["websocket", "polling"],
         reconnection: true,
-        reconnectionAttempts: 15,
-        reconnectionDelay: 1500,
-        reconnectionDelayMax: 10000,
+        reconnectionAttempts: 30,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
         timeout: 10000,
       });
 

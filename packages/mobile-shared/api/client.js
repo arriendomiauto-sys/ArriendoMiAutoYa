@@ -574,10 +574,12 @@ export class ApiClient {
     return this.request(`/reservas/${reservaId}/mensajes`);
   }
 
-  static async enviarMensaje(reservaId, texto) {
+  static async enviarMensaje(reservaId, texto, clientId = null) {
+    const body = { texto };
+    if (clientId) body.client_id = clientId;
     return this.request(`/reservas/${reservaId}/mensajes`, {
       method: "POST",
-      body: JSON.stringify({ texto }),
+      body: JSON.stringify(body),
     });
   }
 
