@@ -412,8 +412,12 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
       <ScreenHeader
         title={interlocutor}
         subtitle={
-          [auto.marca, auto.modelo, auto.patente].filter(Boolean).join(" · ") ||
-          (enVivo ? "En línea" : "Reconectando…")
+          [
+            [auto.marca, auto.modelo, auto.patente].filter(Boolean).join(" · ") || null,
+            enVivo ? null : "Reconectando…",
+          ]
+            .filter(Boolean)
+            .join(" · ") || "En línea"
         }
         onBack={onBack}
       />
