@@ -101,7 +101,11 @@ export function PreCheckinModal({
             {/* Tarjeta de Información de Entrega */}
             <View style={styles.infoCard}>
               <Text style={styles.carName}>
-                {auto.marca} {auto.modelo} {auto.patente ? `(${auto.patente})` : ""}
+                {auto.marca} {auto.modelo}
+                {/* Al cliente la patente recién se le muestra al retirar el
+                    auto (QR de entrega) — 24h antes no aporta nada y expone
+                    de más. El dueño sí ve la de su propio vehículo. */}
+                {isDriver && auto.patente ? ` (${auto.patente})` : ""}
               </Text>
               <View style={styles.infoRow}>
                 <Icon name="location" size={15} color={colors.primary} />

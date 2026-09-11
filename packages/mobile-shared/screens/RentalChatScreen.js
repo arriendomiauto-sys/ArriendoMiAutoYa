@@ -413,7 +413,16 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         title={interlocutor}
         subtitle={
           [
-            [auto.marca, auto.modelo, auto.patente].filter(Boolean).join(" · ") || null,
+            // La patente del auto recién se muestra al arrendatario cuando ya
+            // lo retiró (o el viaje terminó) — antes de eso no hay nada que
+            // hacer con ese dato y solo expone información de más.
+            [
+              auto.marca,
+              auto.modelo,
+              (esOwner || ["en_curso", "finalizada"].includes(reservation?.estado)) ? auto.patente : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || null,
             enVivo ? null : "Reconectando…",
           ]
             .filter(Boolean)
