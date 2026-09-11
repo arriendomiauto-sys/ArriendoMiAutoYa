@@ -703,6 +703,7 @@ class ConductorAdicionalOut(BaseModel):
     confianza_ocr: Optional[float] = 1.0
     notas_auditoria: Optional[str] = None
     verificacion_externa_estado: Optional[str] = None
+    antecedentes_estado: Optional[str] = None
     creado_en: datetime
     actualizado_en: Optional[datetime] = None
 

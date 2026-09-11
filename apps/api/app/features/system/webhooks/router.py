@@ -68,7 +68,8 @@ def _parse_fecha(valor) -> "datetime | None":
 
 
 def _procesar_webhook_conductor(
-    db: Session, conductor_id: str, session_id: "str | None", resultado: dict
+    db: Session, conductor_id: str, session_id: "str | None", resultado: dict,
+    background_tasks: "BackgroundTasks | None" = None,
 ) -> dict:
     """
     Veredicto de Didit para un segundo conductor (ver
@@ -138,6 +139,11 @@ def _procesar_webhook_conductor(
         reserva = db.query(_Reserva).filter(_Reserva.id == conductor.reserva_id).first()
         if reserva:
             ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
+            if background_tasks is not None and conductor.estado_kyc == "verificado":
+                from app.features.auth.background_checks import BackgroundCheckService
+                background_tasks.add_task(
+                    BackgroundCheckService.run_and_flag_conductor_in_background, conductor.id
+                )
 
     logger.info(
         "Webhook Didit: conductor=%s estado %s -> %s", conductor.id, anterior, estado,
@@ -180,7 +186,9 @@ async def webhook_didit(
     # Sesión de un segundo conductor (crear_sesion_verificacion_segundo_conductor
     # la crea con vendor_data="conductor:{id}") en vez de la del titular.
     if vendor_data and vendor_data.startswith("conductor:"):
-        return _procesar_webhook_conductor(db, vendor_data.split(":", 1)[1], session_id, resultado)
+        return _procesar_webhook_conductor(
+            db, vendor_data.split(":", 1)[1], session_id, resultado, background_tasks
+        )
 
     usuario = None
     if vendor_data:

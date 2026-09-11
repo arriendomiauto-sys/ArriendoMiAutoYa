@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
@@ -25,6 +25,7 @@ from app.features.auth.onboarding.fines_service import FinesService
 from app.features.communications.notifications.service import crear_notificacion
 from app.features.auth.login.service import get_current_user
 from app.features.auth.didit import didit as verificacion_didit
+from app.features.auth.background_checks import BackgroundCheckService
 from app.features.auth.onboarding.driver_kyc_service import ConductorKycService
 from app.core.limiter import limiter
 import uuid
@@ -52,6 +53,7 @@ def _con_desglose_pago(reserva: Reserva):
 def crear_reserva(
     request: Request,
     payload: BookingCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -191,6 +193,7 @@ def crear_reserva(
         db.add(conductor)
         db.flush()
         ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
+        _programar_antecedentes_conductor(background_tasks, conductor)
 
     db.commit()
     db.refresh(reserva)
@@ -229,6 +232,16 @@ def _verificar_acceso_reserva(reserva: Reserva, current_user: Usuario, db: Sessi
     if auto and auto.dueno_id == current_user.id:
         return
     raise HTTPException(status_code=403, detail="No tienes permiso para acceder a esta reserva.")
+
+
+def _programar_antecedentes_conductor(background_tasks: BackgroundTasks, conductor: ConductorAdicional) -> None:
+    """
+    Dispara la verificación de antecedentes (ChapiAPI) del segundo conductor
+    en background, solo cuando su KYC quedó "verificado" -- si ya está en
+    revisión manual por otro motivo, soporte lo revisa todo junto.
+    """
+    if conductor.estado_kyc == "verificado":
+        background_tasks.add_task(BackgroundCheckService.run_and_flag_conductor_in_background, conductor.id)
 
 @router.get("/{reserva_id}", response_model=BookingOut, summary="Detalle de una reserva")
 def obtener_reserva(
@@ -741,6 +754,7 @@ def asignar_segundo_conductor(
     request: Request,
     reserva_id: str,
     payload: ConductorAdicionalCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -772,6 +786,7 @@ def asignar_segundo_conductor(
     # Ejecutar validación KYC de documentos, licencia y biometría
     ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
     db.refresh(conductor)
+    _programar_antecedentes_conductor(background_tasks, conductor)
     return conductor
 
 @router.get(
@@ -806,6 +821,7 @@ def actualizar_segundo_conductor(
     request: Request,
     reserva_id: str,
     payload: ConductorAdicionalUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -830,6 +846,7 @@ def actualizar_segundo_conductor(
     # Re-evaluar KYC tras actualización
     ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
     db.refresh(conductor)
+    _programar_antecedentes_conductor(background_tasks, conductor)
     return conductor
 
 @router.delete(
@@ -865,6 +882,7 @@ def eliminar_segundo_conductor(
 def verificar_kyc_segundo_conductor(
     request: Request,
     reserva_id: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -879,6 +897,7 @@ def verificar_kyc_segundo_conductor(
 
     ConductorKycService.procesar_kyc_conductor(conductor, reserva, db)
     db.refresh(conductor)
+    _programar_antecedentes_conductor(background_tasks, conductor)
     return conductor
 
 @router.post(

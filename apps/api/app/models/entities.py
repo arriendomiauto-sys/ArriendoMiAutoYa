@@ -621,6 +621,9 @@ class ConductorAdicional(Base):
     estado_kyc = Column(String, default="pendiente") # pendiente | verificado | requiere_revision_manual | rechazado
     confianza_ocr = Column(Float, default=1.0)
     notas_auditoria = Column(Text, nullable=True)
+    # Antecedentes penales / hoja de vida del conductor (ChapiAPI) — mismo
+    # significado que Usuario.antecedentes_estado, ver BackgroundCheckService.
+    antecedentes_estado = Column(String, nullable=True)  # limpio | revision | bloqueado
 
     # Verificación de identidad con Didit (igual mecanismo que Usuario, ver
     # crear_sesion_verificacion_externa) — NUNCA cubre la licencia, que
