@@ -187,7 +187,7 @@ export function ActiveRentalScreen({
             <View style={styles.miniMap}>
               {MapView ? (
                 <MapView
-                  style={StyleSheet.absoluteFillObject}
+                  style={styles.miniMapVista}
                   initialRegion={{
                     latitude: Number(res.lugar_entrega_lat || car.latitud || -37.4697),
                     longitude: Number(res.lugar_entrega_lng || car.longitud || -72.3536),
@@ -357,7 +357,11 @@ export function ActiveRentalScreen({
           )}
           <View style={{ flex: 1 }}>
             <Text style={styles.carTitle}>{nombre}</Text>
-            <Text style={styles.carSub}>Patente {car.patente || "—"}</Text>
+            {/* La patente recién se muestra una vez retirado el auto: antes
+                de eso no hay nada que hacer con ese dato. */}
+            {res.estado === "en_curso" && (
+              <Text style={styles.carSub}>Patente {car.patente || "—"}</Text>
+            )}
           </View>
         </Card>
 
@@ -393,6 +397,8 @@ export function ActiveRentalScreen({
           </Card>
         )}
 
+        {/* Resumen: fechas, garantía y cualquier cargo aplicado, todo en una
+            sola tarjeta — antes eran dos (o tres) apiladas por separado. */}
         <Card padded style={{ gap: theme.spacing.md }}>
           <Row label="Retiro" value={fechaHora(res.fecha_inicio)} />
           <Row label="Devolución" value={fechaHora(res.fecha_fin)} />
@@ -401,36 +407,36 @@ export function ActiveRentalScreen({
           {res.monto_cobro_final > 0 && (
             <Row label="Cobro final" value={`$${res.monto_cobro_final.toLocaleString("es-CL")}`} strong />
           )}
-        </Card>
 
-        {/* Desglose de penalizaciones y multas */}
-        {tieneCargosExtra && (
-          <Card padded style={{ gap: theme.spacing.sm, borderColor: colors.warning, borderWidth: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Icon name="alert" size={18} color={colors.warning} />
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Cargos y penalizaciones aplicadas
-              </Text>
-            </View>
-            {res.cargo_limpieza_clp > 0 && (
-              <Row label="Limpieza" value={`$${res.cargo_limpieza_clp.toLocaleString("es-CL")}`} />
-            )}
-            {res.cargo_combustible_clp > 0 && (
-              <Row label="Combustible faltante" value={`$${res.cargo_combustible_clp.toLocaleString("es-CL")}`} />
-            )}
-            {res.cargo_atraso_clp > 0 && (
-              <Row label="Atraso en devolución" value={`$${res.cargo_atraso_clp.toLocaleString("es-CL")}`} />
-            )}
-            {res.cargo_falta_grave_clp > 0 && (
-              <Row label="Faltas / Infracciones" value={`$${res.cargo_falta_grave_clp.toLocaleString("es-CL")}`} />
-            )}
-            {res.motivo_multas && (
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 4 }}>
-                Detalle: {res.motivo_multas}
-              </Text>
-            )}
-          </Card>
-        )}
+          {tieneCargosExtra && (
+            <>
+              <View style={styles.divider} />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="alert" size={16} color={colors.warning} />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+                  Cargos y penalizaciones aplicadas
+                </Text>
+              </View>
+              {res.cargo_limpieza_clp > 0 && (
+                <Row label="Limpieza" value={`$${res.cargo_limpieza_clp.toLocaleString("es-CL")}`} />
+              )}
+              {res.cargo_combustible_clp > 0 && (
+                <Row label="Combustible faltante" value={`$${res.cargo_combustible_clp.toLocaleString("es-CL")}`} />
+              )}
+              {res.cargo_atraso_clp > 0 && (
+                <Row label="Atraso en devolución" value={`$${res.cargo_atraso_clp.toLocaleString("es-CL")}`} />
+              )}
+              {res.cargo_falta_grave_clp > 0 && (
+                <Row label="Faltas / Infracciones" value={`$${res.cargo_falta_grave_clp.toLocaleString("es-CL")}`} />
+              )}
+              {res.motivo_multas && (
+                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: -4 }}>
+                  Detalle: {res.motivo_multas}
+                </Text>
+              )}
+            </>
+          )}
+        </Card>
 
         <MenuList>
           <MenuRow icon="document" label="Ver el contrato firmado" onPress={onOpenContract} />
@@ -443,7 +449,11 @@ export function ActiveRentalScreen({
             }
             onPress={() => setModalSegundoConductor(true)}
           />
-          <MenuRow icon="pin" label="Mi código de entrega" onPress={onStartDelivery} />
+          {/* Una vez retirado el auto, el código de entrega ya no sirve para
+              nada — solo queda el de devolución, en el botón principal. */}
+          {res.estado !== "en_curso" && (
+            <MenuRow icon="pin" label="Mi código de entrega" onPress={onStartDelivery} />
+          )}
           <MenuRow icon="calendar" label="Extender arriendo" onPress={onExtendRental} />
           <MenuRow icon="shield" label="Asistencia en ruta / siniestro" onPress={onRoadsideClaim} />
           <MenuRow icon="chat" label="Escribirle al dueño" onPress={onOpenChat} />
@@ -539,6 +549,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // width/height explícitos: con StyleSheet.absoluteFillObject el MapView
+  // (SurfaceView nativo en Android) a veces mide 0 bajo New Architecture y
+  // deja un espacio en blanco en vez del mapa.
+  miniMapVista: { width: "100%", height: "100%" },
   meetAddr: { fontSize: 15, fontWeight: "700", color: colors.text },
   meetTime: { fontSize: 13, color: colors.textMuted, textTransform: "capitalize" },
   ownerRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
