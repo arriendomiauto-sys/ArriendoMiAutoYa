@@ -454,6 +454,15 @@ export class ApiClient {
     });
   }
 
+  // Sesión hosted de Didit para verificar la identidad del segundo
+  // conductor (cédula + selfie) -- la licencia nunca pasa por acá, sigue
+  // yendo por PUT .../segundo-conductor con licencia_url.
+  static async crearSesionVerificacionSegundoConductor(reservaId) {
+    return this.request(`/reservas/${reservaId}/segundo-conductor/verificacion-externa/sesion`, {
+      method: "POST",
+    });
+  }
+
   // Mantenciones y documentación legal del auto
   static async getMantenciones(autoId) {
     return this.request(`/autos/${autoId}/mantenciones`);

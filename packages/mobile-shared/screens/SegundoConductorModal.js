@@ -10,8 +10,10 @@ import {
   Platform,
   Linking,
   Image,
+  TextInput,
 } from "react-native";
 import { colors } from "../theme/colors";
+import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Button, Card, Badge, ScreenHeader } from "../components/ui";
 import { DocumentCameraModal } from "../components/DocumentCameraModal";
@@ -35,6 +37,18 @@ function cargarEscanerDocumento() {
   }
 }
 
+// Misma carga perezosa que usa el KYC del titular (auth/kyc/utils/kycScanners) —
+// se inlinea acá para no acoplar este modal a las carpetas internas de ese módulo.
+function abrirEnNavegador(url) {
+  try {
+    const WebBrowser = require("expo-web-browser");
+    if (WebBrowser?.openBrowserAsync) return WebBrowser.openBrowserAsync(url);
+  } catch (err) {
+    // expo-web-browser no disponible: cae a Linking más abajo.
+  }
+  return Linking.openURL(url);
+}
+
 export function SegundoConductorModal({
   visible,
   onClose,
@@ -46,37 +60,127 @@ export function SegundoConductorModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [subiendoSlot, setSubiendoSlot] = useState(null);
+  const [verificandoDidit, setVerificandoDidit] = useState(false);
 
-  // Fotos / URLs de los documentos del segundo conductor
-  const [carnetFrontalUrl, setCarnetFrontalUrl] = useState(null);
-  const [carnetTraseroUrl, setCarnetTraseroUrl] = useState(null);
-  const [licenciaUrl, setLicenciaUrl] = useState(null);
-  const [selfieUrl, setSelfieUrl] = useState(null);
+  // El conductor puede no existir todavía en el backend (primera vez que se
+  // abre este modal): hasta guardarlo con nombre no hay a quién pedirle a
+  // Didit una sesión ni a quién subirle la licencia.
+  const [conductorId, setConductorId] = useState(initialData?.id || null);
+  const [conductorNombre, setConductorNombre] = useState(initialData?.nombre || "");
+
+  // Identidad (cédula + selfie): primero Didit, con captura manual como
+  // respaldo si Didit no está disponible — mismo criterio que el KYC del
+  // titular. La licencia NUNCA pasa por Didit (no la reconoce de forma
+  // confiable): siempre se sube y valida aparte, con OCR casero.
+  const [verificacionExternaEstado, setVerificacionExternaEstado] = useState(
+    initialData?.verificacion_externa_estado || null
+  );
+  const [usarCapturaManual, setUsarCapturaManual] = useState(false);
+  const [carnetFrontalUrl, setCarnetFrontalUrl] = useState(initialData?.carnet_frontal_url || null);
+  const [carnetTraseroUrl, setCarnetTraseroUrl] = useState(initialData?.carnet_trasero_url || null);
+  const [selfieUrl, setSelfieUrl] = useState(initialData?.selfie_url || null);
+
+  const [licenciaUrl, setLicenciaUrl] = useState(initialData?.licencia_url || null);
 
   // Estado KYC devuelto por el backend / OCR
   const [estadoKyc, setEstadoKyc] = useState("pendiente"); // 'pendiente' | 'verificado' | 'requiere_revision_manual' | 'rechazado'
   const [notasAuditoria, setNotasAuditoria] = useState("");
-  const [conductorNombre, setConductorNombre] = useState("");
   const [conductorRut, setConductorRut] = useState("");
 
-  // Control de cámara guiada y selfie
-  const [cameraFor, setCameraFor] = useState(null); // 'carnet_frente' | 'carnet_reverso' | 'licencia'
+  // Control de cámara guiada y selfie (solo respaldo manual)
+  const [cameraFor, setCameraFor] = useState(null); // 'carnet_frente' | 'carnet_reverso'
   const [mostrarSelfieModal, setMostrarSelfieModal] = useState(false);
 
   useEffect(() => {
     if (initialData) {
+      setConductorId(initialData.id || null);
+      setConductorNombre(initialData.nombre || "");
       setCarnetFrontalUrl(initialData.carnet_frontal_url || null);
       setCarnetTraseroUrl(initialData.carnet_trasero_url || null);
       setLicenciaUrl(initialData.licencia_url || null);
       setSelfieUrl(initialData.selfie_url || null);
+      setVerificacionExternaEstado(initialData.verificacion_externa_estado || null);
       setEstadoKyc(initialData.estado_kyc || "pendiente");
       setNotasAuditoria(initialData.notas_auditoria || "");
-      setConductorNombre(initialData.nombre || "");
       setConductorRut(initialData.rut || initialData.numero_documento || "");
     }
   }, [initialData, visible]);
 
-  // Escaneo o captura con fallback
+  const identidadVerificadaPorDidit = verificacionExternaEstado === "aprobada";
+
+  // Crea el registro del conductor (solo con el nombre) la primera vez que
+  // hace falta -- para pedir una sesión de Didit o subir la licencia tiene
+  // que existir la fila en el backend.
+  const asegurarConductorCreado = async () => {
+    if (conductorId) return conductorId;
+    if (!conductorNombre.trim()) {
+      showAlert("Falta el nombre", "Ingresa el nombre completo del segundo conductor.");
+      return null;
+    }
+    const respuesta = await ApiClient.asignarSegundoConductor(reservaId, {
+      nombre: conductorNombre.trim(),
+    });
+    setConductorId(respuesta.id);
+    setEstadoKyc(respuesta.estado_kyc);
+    if (onSaved) onSaved(respuesta);
+    return respuesta.id;
+  };
+
+  const refrescarConductor = async () => {
+    try {
+      const actual = await ApiClient.obtenerSegundoConductor(reservaId);
+      setEstadoKyc(actual.estado_kyc);
+      setNotasAuditoria(actual.notas_auditoria || "");
+      setVerificacionExternaEstado(actual.verificacion_externa_estado || null);
+      if (actual.nombre) setConductorNombre(actual.nombre);
+      if (actual.rut || actual.numero_documento) setConductorRut(actual.rut || actual.numero_documento);
+      if (actual.carnet_frontal_url) setCarnetFrontalUrl(actual.carnet_frontal_url);
+      if (actual.carnet_trasero_url) setCarnetTraseroUrl(actual.carnet_trasero_url);
+      if (onSaved) onSaved(actual);
+      return actual;
+    } catch (err) {
+      return null;
+    }
+  };
+
+  const handleVerificarDidit = async () => {
+    if (verificandoDidit) return;
+    setVerificandoDidit(true);
+    try {
+      const id = await asegurarConductorCreado();
+      if (!id) return;
+
+      const sesion = await ApiClient.crearSesionVerificacionSegundoConductor(reservaId);
+      if (!sesion?.url) throw new Error("El proveedor no devolvió una URL válida.");
+
+      await abrirEnNavegador(sesion.url);
+
+      // Al volver del navegador, el webhook ya debería haber actualizado el
+      // veredicto (o estar por hacerlo) -- se refresca para mostrarlo.
+      const actual = await refrescarConductor();
+      if (actual?.verificacion_externa_estado === "aprobada") {
+        showAlert("Identidad verificada", "Didit confirmó la identidad del segundo conductor.");
+      } else if (actual?.verificacion_externa_estado === "pendiente" || !actual?.verificacion_externa_estado) {
+        showAlert(
+          "Verificación pendiente",
+          "Aún no recibimos la confirmación de Didit. Puedes volver a intentarlo en unos segundos."
+        );
+      }
+    } catch (err) {
+      showAlert(
+        "No se pudo verificar con Didit",
+        err.message || "Hubo un problema al conectar con el proveedor.",
+        [
+          { text: "Usar fotos manuales", onPress: () => setUsarCapturaManual(true) },
+          { text: "Reintentar", style: "cancel" },
+        ]
+      );
+    } finally {
+      setVerificandoDidit(false);
+    }
+  };
+
+  // Escaneo o captura con fallback (solo cédula/selfie manual, o licencia)
   const iniciarCaptura = async (slot) => {
     if (slot === "selfie") {
       setMostrarSelfieModal(true);
@@ -159,29 +263,28 @@ export function SegundoConductorModal({
 
   const handleProcesarKyc = async () => {
     if (saving) return;
-    if (!carnetFrontalUrl) {
-      showAlert("Falta Cédula", "Debes escanear el frente de la cédula de identidad.");
-      return;
-    }
     if (!licenciaUrl) {
       showAlert("Falta Licencia", "Debes escanear la licencia de conducir.");
+      return;
+    }
+    if (usarCapturaManual && !carnetFrontalUrl) {
+      showAlert("Falta Cédula", "Debes escanear el frente de la cédula de identidad.");
       return;
     }
 
     setSaving(true);
     try {
-      const payload = {
-        nombre: conductorNombre || "Segundo Conductor",
-        carnet_frontal_url: carnetFrontalUrl,
-        carnet_trasero_url: carnetTraseroUrl,
-        licencia_url: licenciaUrl,
-        selfie_url: selfieUrl,
-      };
+      const id = await asegurarConductorCreado();
+      if (!id) return;
 
-      // Editar uno ya cargado va por PUT; el alta inicial sigue en POST.
-      const respuesta = initialData
-        ? await ApiClient.actualizarSegundoConductor(reservaId, payload)
-        : await ApiClient.asignarSegundoConductor(reservaId, payload);
+      const payload = { licencia_url: licenciaUrl };
+      if (usarCapturaManual) {
+        payload.carnet_frontal_url = carnetFrontalUrl;
+        payload.carnet_trasero_url = carnetTraseroUrl;
+        payload.selfie_url = selfieUrl;
+      }
+
+      const respuesta = await ApiClient.actualizarSegundoConductor(reservaId, payload);
       setEstadoKyc(respuesta.estado_kyc);
       setNotasAuditoria(respuesta.notas_auditoria || "");
       if (respuesta.nombre) setConductorNombre(respuesta.nombre);
@@ -233,7 +336,7 @@ export function SegundoConductorModal({
     }
   };
 
-  const docsCompletos = !!carnetFrontalUrl && !!licenciaUrl;
+  const docsCompletos = !!licenciaUrl && (identidadVerificadaPorDidit || !usarCapturaManual || !!carnetFrontalUrl);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -241,22 +344,27 @@ export function SegundoConductorModal({
         <View style={styles.modalContent}>
           <ScreenHeader
             title="Segundo Conductor"
-            subtitle="Verificación 100% Automática vía KYC"
+            subtitle="Identidad con Didit · Licencia con validación casera"
             onBack={onClose}
             tone={tone}
           />
 
           <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-            {/* Banner Informativo KYC */}
-            <View style={styles.kycInfoBanner}>
-              <Icon name="shield" size={24} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.kycInfoTitle}>Validación Segura y Automática</Text>
-                <Text style={styles.kycInfoSub}>
-                  No necesitas ingresar datos manualmente. El sistema escanea y valida cédula, licencia y rostro directamente.
-                </Text>
-              </View>
-            </View>
+            {/* Nombre del conductor */}
+            <Card padded style={styles.slotCard}>
+              <Text style={styles.slotTitle}>Nombre completo</Text>
+              <TextInput
+                style={styles.nombreInput}
+                value={conductorNombre}
+                onChangeText={setConductorNombre}
+                placeholder="Nombre y apellido del segundo conductor"
+                placeholderTextColor={colors.textPlaceholder}
+                editable={!conductorId}
+              />
+              {conductorId ? (
+                <Text style={styles.slotDesc}>Para cambiar el nombre, contacta a soporte.</Text>
+              ) : null}
+            </Card>
 
             {/* Estado Actual */}
             {estadoKyc !== "pendiente" && (
@@ -299,44 +407,70 @@ export function SegundoConductorModal({
               </Card>
             )}
 
-            {/* Slot 1: Cédula de Identidad (Frente y Reverso) */}
+            {/* Identidad: Didit primero, captura manual como respaldo */}
             <Card padded style={styles.slotCard}>
               <View style={styles.slotHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Icon name="file-text" size={20} color={colors.primary} />
-                  <Text style={styles.slotTitle}>1. Cédula de Identidad</Text>
+                  <Icon name="shield" size={20} color={colors.primary} />
+                  <Text style={styles.slotTitle}>1. Identidad (cédula + rostro)</Text>
                 </View>
-                {carnetFrontalUrl && (
-                  <Badge variant="success" label="Frente listo" />
-                )}
+                {identidadVerificadaPorDidit && <Badge variant="success" label="Verificada" />}
               </View>
-              <Text style={styles.slotDesc}>Escaneo automático de bordes y datos (Módulo 11 y vigencia).</Text>
+              <Text style={styles.slotDesc}>
+                {identidadVerificadaPorDidit
+                  ? "Identidad confirmada por Didit."
+                  : "El segundo conductor completa una verificación guiada (cédula + selfie con detección de vida)."}
+              </Text>
 
-              <View style={styles.buttonsRow}>
-                <View style={{ flex: 1 }}>
+              {!identidadVerificadaPorDidit && !usarCapturaManual && (
+                <Button
+                  label="Verificar identidad con Didit"
+                  iconRight="arrow-right"
+                  loading={verificandoDidit}
+                  onPress={handleVerificarDidit}
+                />
+              )}
+
+              {!identidadVerificadaPorDidit && usarCapturaManual && (
+                <>
+                  <View style={styles.buttonsRow}>
+                    <View style={{ flex: 1 }}>
+                      <Button
+                        variant={carnetFrontalUrl ? "secondary" : "primary"}
+                        size="sm"
+                        label={carnetFrontalUrl ? "✓ Frente escaneado" : "Escanear Frente"}
+                        iconLeft="camera"
+                        loading={subiendoSlot === "carnet_frente"}
+                        onPress={() => iniciarCaptura("carnet_frente")}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Button
+                        variant={carnetTraseroUrl ? "secondary" : "outline"}
+                        size="sm"
+                        label={carnetTraseroUrl ? "✓ Reverso listo" : "Escanear Reverso"}
+                        iconLeft="camera"
+                        loading={subiendoSlot === "carnet_reverso"}
+                        onPress={() => iniciarCaptura("carnet_reverso")}
+                      />
+                    </View>
+                  </View>
                   <Button
-                    variant={carnetFrontalUrl ? "secondary" : "primary"}
+                    variant={selfieUrl ? "secondary" : "outline"}
                     size="sm"
-                    label={carnetFrontalUrl ? "✓ Frente escaneado" : "Escanear Frente"}
-                    iconLeft="camera"
-                    loading={subiendoSlot === "carnet_frente"}
-                    onPress={() => iniciarCaptura("carnet_frente")}
+                    label={selfieUrl ? "✓ Selfie capturada (repetir)" : "Tomar Selfie Biométrica"}
+                    iconLeft="user"
+                    loading={subiendoSlot === "selfie"}
+                    onPress={() => iniciarCaptura("selfie")}
                   />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Button
-                    variant={carnetTraseroUrl ? "secondary" : "outline"}
-                    size="sm"
-                    label={carnetTraseroUrl ? "✓ Reverso listo" : "Escanear Reverso"}
-                    iconLeft="camera"
-                    loading={subiendoSlot === "carnet_reverso"}
-                    onPress={() => iniciarCaptura("carnet_reverso")}
-                  />
-                </View>
-              </View>
+                  <TouchableOpacity onPress={() => setUsarCapturaManual(false)} hitSlop={theme.control.hitSlop}>
+                    <Text style={styles.volverDiditTexto}>Volver a intentar con Didit</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </Card>
 
-            {/* Slot 2: Licencia de Conducir */}
+            {/* Licencia de Conducir — siempre casera, nunca por Didit */}
             <Card padded style={styles.slotCard}>
               <View style={styles.slotHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -357,31 +491,10 @@ export function SegundoConductorModal({
               />
             </Card>
 
-            {/* Slot 3: Selfie Biométrica */}
-            <Card padded style={styles.slotCard}>
-              <View style={styles.slotHeader}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Icon name="user" size={20} color={colors.primary} />
-                  <Text style={styles.slotTitle}>3. Validación Facial Biométrica</Text>
-                </View>
-                {selfieUrl && <Badge variant="success" label="Listo" />}
-              </View>
-              <Text style={styles.slotDesc}>Verifica que el rostro coincida con la foto de la cédula del segundo conductor.</Text>
-
-              <Button
-                variant={selfieUrl ? "secondary" : "outline"}
-                size="sm"
-                label={selfieUrl ? "✓ Selfie capturada (repetir)" : "Tomar Selfie Biométrica"}
-                iconLeft="user"
-                loading={subiendoSlot === "selfie"}
-                onPress={() => iniciarCaptura("selfie")}
-              />
-            </Card>
-
             {/* Acciones Finales */}
             <View style={{ marginTop: 12, gap: 10 }}>
               <Button
-                label="Validar con KYC Automático"
+                label="Guardar verificación"
                 iconRight="arrow-right"
                 loading={saving}
                 disabled={!docsCompletos || saving}
@@ -408,12 +521,12 @@ export function SegundoConductorModal({
             />
           )}
 
-          {/* Modal de Selfie Biométrica */}
+          {/* Modal de Selfie Biométrica (solo respaldo manual) */}
           {mostrarSelfieModal && (
             <SelfieLivenessModal
               visible={mostrarSelfieModal}
               onClose={() => setMostrarSelfieModal(false)}
-              onCaptured={handleSelfieCapturada}
+              onCaptured={({ frontalUri }) => handleSelfieCapturada(frontalUri)}
             />
           )}
         </View>
@@ -441,27 +554,22 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 12,
   },
-  kycInfoBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.primary100,
-    padding: 14,
-    borderRadius: 14,
-    gap: 12,
-    marginBottom: 14,
+  nombreInput: {
+    height: 44,
     borderWidth: 1,
-    borderColor: colors.primary200,
-  },
-  kycInfoTitle: {
+    borderColor: colors.border,
+    borderRadius: theme.radius.field,
+    paddingHorizontal: 12,
     fontSize: 14,
-    fontWeight: "700",
-    color: colors.primary,
+    color: colors.text,
+    backgroundColor: colors.surface,
   },
-  kycInfoSub: {
-    fontSize: 12,
-    color: colors.primary700,
+  volverDiditTexto: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: colors.primary,
+    textAlign: "center",
     marginTop: 2,
-    lineHeight: 17,
   },
   statusCard: {
     marginBottom: 14,
