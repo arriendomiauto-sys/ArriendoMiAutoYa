@@ -10,6 +10,19 @@ jest.mock("react-native-maps", () => {
 
 jest.mock("react-native-qrcode-svg", () => "QRCode");
 
+// expo-clipboard es nativo (usa el portapapeles del sistema); en tests se
+// simula guardando el último valor en memoria, sin tocar el portapapeles real.
+jest.mock("expo-clipboard", () => {
+  let ultimoValor = "";
+  return {
+    setStringAsync: jest.fn(async (texto) => {
+      ultimoValor = texto;
+      return true;
+    }),
+    getStringAsync: jest.fn(async () => ultimoValor),
+  };
+});
+
 // expo-location es nativo. Sin mock, cada pantalla que fija un punto quedaba a
 // merced de si el require fallaba o no, y el reverse geocoding resolvía fuera
 // de act() dejando la suite intermitente.
