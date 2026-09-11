@@ -642,40 +642,11 @@ def aplicar_multa_reserva(
     if reserva.estado not in ("confirmada", "en_curso", "finalizada", "disputada"):
         raise HTTPException(status_code=400, detail="Solo se pueden aplicar multas en reservas activas o finalizadas.")
 
-    # Peajes y fotomultas llegan a nombre del dueño de la patente semanas
-    # después de la devolución: se imputan al arrendatario solo si el evento
-    # ocurrió durante su arriendo y todavía corre el plazo configurado.
-    es_cargo_posterior = FinesService.es_cargo_posterior(payload.tipo)
-    if es_cargo_posterior:
-        config = PricingService.obtener_configuracion(db)
-        error_ventana = FinesService.validar_ventana_cargo_posterior(
-            fecha_inicio=reserva.fecha_inicio,
-            fecha_fin=reserva.fecha_fin,
-            fecha_evento=payload.fecha_evento,
-            dias_limite=getattr(config, "dias_cobro_posterior_peajes", None) or 30,
-        )
-        if error_ventana:
-            raise HTTPException(status_code=400, detail=error_ventana)
-
-        if not payload.documento_url:
-            raise HTTPException(
-                status_code=400,
-                detail="Debes adjuntar la boleta de la concesionaria o el parte que respalda el cobro.",
-            )
-
-        if not payload.monto_clp or payload.monto_clp <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Indica el monto exacto que figura en la boleta o el parte.",
-            )
-
     item_multa = FinesService.validar_y_calcular_multa(
         tipo=payload.tipo,
         monto_clp=payload.monto_clp,
         motivo=payload.motivo,
         fotos=payload.fotos,
-        fecha_evento=payload.fecha_evento,
-        documento_url=payload.documento_url,
     )
 
     monto = item_multa["monto_clp"]
@@ -708,26 +679,15 @@ def aplicar_multa_reserva(
     db.add(pago_multa)
 
     # Notificar al cliente con el detalle transparente
-    if es_cargo_posterior:
-        titulo_notificacion = "Cargo posterior por peaje o multa"
-        mensaje_notificacion = (
-            f"Se cargó ${monto:,} CLP a tu tarjeta por '{item_multa['nombre']}' "
-            f"del {payload.fecha_evento:%d-%m-%Y}, ocurrido durante tu arriendo. "
-            f"Motivo: {payload.motivo}. Puedes revisar el respaldo en tu historial."
-        )
-    else:
-        titulo_notificacion = "Cargo por falta / penalización"
-        mensaje_notificacion = (
-            f"Se ha aplicado un cargo de ${monto:,} CLP por '{item_multa['nombre']}'. "
-            f"Motivo: {payload.motivo}."
-        )
-
     crear_notificacion(
         db,
         usuario_id=reserva.cliente_id,
         tipo="reserva",
-        titulo=titulo_notificacion,
-        mensaje=mensaje_notificacion,
+        titulo="Cargo por falta / penalización",
+        mensaje=(
+            f"Se ha aplicado un cargo de ${monto:,} CLP por '{item_multa['nombre']}'. "
+            f"Motivo: {payload.motivo}."
+        ),
         entidad_tipo="reserva",
         entidad_id=reserva.id,
     )

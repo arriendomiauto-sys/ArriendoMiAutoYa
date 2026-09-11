@@ -822,27 +822,23 @@ class PreCheckinResponse(BaseModel):
     mensaje: str
 
 class AplicarMultaRequest(BaseModel):
+    """
+    Solo faltas simples constatables en la devolución (fumar, mascotas,
+    limpieza, lugar no acordado). Peajes/TAG y fotomultas van por
+    CobroPosteriorRequest (POST /reservas/{id}/cobro-posterior), que sí
+    mueve dinero real contra la tarjeta de crédito de garantía.
+    """
     tipo: Literal[
         "fumar",
         "lugar_no_acordado",
         "mascotas",
         "limpieza_estandar",
         "limpieza_profunda",
-        "peajes_tag",
-        "fotomulta",
         "otro",
     ]
     monto_clp: Optional[int] = None
     motivo: str = Field(..., min_length=4, description="Justificación detallada de la falta/penalización")
     fotos: List[str] = Field(default=[], description="Fotografías de evidencia de la falta")
-    fecha_evento: Optional[datetime] = Field(
-        default=None,
-        description="Fecha del pórtico o de la infracción. Obligatoria en peajes y fotomultas.",
-    )
-    documento_url: Optional[str] = Field(
-        default=None,
-        description="Boleta de la concesionaria o parte cursado que respalda el cargo posterior.",
-    )
 
 # ==============================================================================
 # CONTRATOS API DE ENTREGA (FLUJO CRÍTICO)

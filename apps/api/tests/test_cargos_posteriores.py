@@ -1,15 +1,16 @@
 """
-Cobro posterior de peajes/TAG y fotomultas.
-
-Las autopistas urbanas son de flujo libre y no existe una API nacional de TAG:
-la boleta llega semanas después del arriendo y siempre a nombre del titular de
-la patente. Por eso el cargo se imputa al arrendatario después de cerrada la
-reserva, pero solo si el evento ocurrió durante su arriendo, viene respaldado
-por la boleta y todavía corre el plazo configurado.
+POST /reservas/{id}/aplicar-multa ya NO maneja peajes/TAG ni fotomultas
+("cargo posterior") — esa rama solo simulaba el cobro (un Pago con
+referencia inventada `MP-FINE-{uuid}`, sin mover dinero real). El cobro
+real de peajes/TAG y multas de tránsito vive en
+POST /reservas/{id}/cobro-posterior (test_pagos_duales.py), que sí carga
+la tarjeta de crédito de garantía. Este archivo cubre lo que le queda a
+aplicar-multa: faltas simples, y que "peajes_tag"/"fotomulta" ya no sean
+valores aceptados.
 """
 from datetime import datetime, timedelta, timezone
 
-from app.models.entities import Auto, ConfiguracionPlataforma, Pago, Reserva
+from app.models.entities import Auto, Reserva
 
 
 def _crear_reserva_finalizada(db_session, cliente, dueno, dias_atras=10, patente="PEAJ-01"):
@@ -48,155 +49,23 @@ def _crear_reserva_finalizada(db_session, cliente, dueno, dias_atras=10, patente
     return auto, reserva
 
 
-def test_peaje_dentro_de_la_ventana_se_cobra_y_se_abona_al_dueno(usuario_factory, auth_as, db_session):
+def test_aplicar_multa_ya_no_acepta_peajes_tag_ni_fotomulta(usuario_factory, auth_as, db_session):
+    """
+    Antes esto pasaba con 200 y dejaba un Pago "capturado" con referencia
+    MP-FINE-{uuid} sin haber cobrado nada de verdad. Ahora el schema
+    rechaza el tipo directamente (422): el cobro real de peajes/TAG y
+    fotomultas es POST /reservas/{id}/cobro-posterior.
+    """
     cliente = usuario_factory(roles_activos=["cliente"])
     dueno = usuario_factory(roles_activos=["dueno"])
     auto, reserva = _crear_reserva_finalizada(db_session, cliente, dueno)
 
-    fecha_portico = reserva.fecha_inicio + timedelta(days=1)
-    resp = auth_as(dueno).post(
-        f"/api/v1/reservas/{reserva.id}/aplicar-multa",
-        json={
-            "tipo": "peajes_tag",
-            "monto_clp": 8450,
-            "motivo": "Boleta Autopista Central, 3 pórticos durante el arriendo",
-            "fecha_evento": fecha_portico.isoformat(),
-            "documento_url": "https://ejemplo.com/boleta-autopista.pdf",
-        },
-    )
-
-    assert resp.status_code == 200, resp.text
-    data = resp.json()
-    assert data["cargo_falta_grave_clp"] == 8450
-    # Es el dueño quien le paga a la concesionaria: el 100% se le abona a él.
-    assert data["liquidacion_dueno_clp"] == 8450
-
-    detalle = data["multas_detalle"][0]
-    assert detalle["tipo"] == "peajes_tag"
-    assert detalle["es_cargo_posterior"] is True
-    assert detalle["documento_url"] == "https://ejemplo.com/boleta-autopista.pdf"
-
-    pago = db_session.query(Pago).filter(Pago.reserva_id == reserva.id).first()
-    assert pago is not None and pago.monto == 8450
-
-
-def test_fotomulta_fuera_del_periodo_de_arriendo_se_rechaza(usuario_factory, auth_as, db_session):
-    cliente = usuario_factory(roles_activos=["cliente"])
-    dueno = usuario_factory(roles_activos=["dueno"])
-    auto, reserva = _crear_reserva_finalizada(db_session, cliente, dueno, patente="PEAJ-02")
-
-    # El parte es de dos días después de la devolución: el auto ya no lo tenía.
-    fecha_infraccion = reserva.fecha_fin + timedelta(days=2)
-    resp = auth_as(dueno).post(
-        f"/api/v1/reservas/{reserva.id}/aplicar-multa",
-        json={
-            "tipo": "fotomulta",
-            "monto_clp": 65000,
-            "motivo": "Parte por exceso de velocidad notificado a la patente",
-            "fecha_evento": fecha_infraccion.isoformat(),
-            "documento_url": "https://ejemplo.com/parte.pdf",
-        },
-    )
-
-    assert resp.status_code == 400
-    assert "fuera del período de arriendo" in resp.json()["detail"]
-
-
-def test_peaje_pasado_el_plazo_de_imputacion_se_rechaza(usuario_factory, auth_as, db_session):
-    cliente = usuario_factory(roles_activos=["cliente"])
-    dueno = usuario_factory(roles_activos=["dueno"])
-    # Devuelto hace 90 días, con un plazo configurado de 60.
-    auto, reserva = _crear_reserva_finalizada(db_session, cliente, dueno, dias_atras=90, patente="PEAJ-03")
-
-    fecha_portico = reserva.fecha_inicio + timedelta(days=1)
-    resp = auth_as(dueno).post(
-        f"/api/v1/reservas/{reserva.id}/aplicar-multa",
-        json={
-            "tipo": "peajes_tag",
-            "monto_clp": 5000,
-            "motivo": "Boleta de peajes que llegó muy tarde",
-            "fecha_evento": fecha_portico.isoformat(),
-            "documento_url": "https://ejemplo.com/boleta-tardia.pdf",
-        },
-    )
-
-    assert resp.status_code == 400
-    assert "plazo" in resp.json()["detail"].lower()
-
-
-def test_peaje_sin_boleta_ni_monto_se_rechaza(usuario_factory, auth_as, db_session):
-    cliente = usuario_factory(roles_activos=["cliente"])
-    dueno = usuario_factory(roles_activos=["dueno"])
-    auto, reserva = _crear_reserva_finalizada(db_session, cliente, dueno, patente="PEAJ-04")
-    fecha_portico = (reserva.fecha_inicio + timedelta(days=1)).isoformat()
-
-    client = auth_as(dueno)
-
-    sin_boleta = client.post(
-        f"/api/v1/reservas/{reserva.id}/aplicar-multa",
-        json={
-            "tipo": "peajes_tag",
-            "monto_clp": 4000,
-            "motivo": "Peajes del arriendo",
-            "fecha_evento": fecha_portico,
-        },
-    )
-    assert sin_boleta.status_code == 400
-    assert "boleta" in sin_boleta.json()["detail"].lower()
-
-    sin_monto = client.post(
-        f"/api/v1/reservas/{reserva.id}/aplicar-multa",
-        json={
-            "tipo": "peajes_tag",
-            "motivo": "Peajes del arriendo",
-            "fecha_evento": fecha_portico,
-            "documento_url": "https://ejemplo.com/boleta.pdf",
-        },
-    )
-    assert sin_monto.status_code == 400
-    assert "monto" in sin_monto.json()["detail"].lower()
-
-
-def test_peaje_sin_fecha_de_evento_se_rechaza(usuario_factory, auth_as, db_session):
-    cliente = usuario_factory(roles_activos=["cliente"])
-    dueno = usuario_factory(roles_activos=["dueno"])
-    auto, reserva = _crear_reserva_finalizada(db_session, cliente, dueno, patente="PEAJ-05")
-
-    resp = auth_as(dueno).post(
-        f"/api/v1/reservas/{reserva.id}/aplicar-multa",
-        json={
-            "tipo": "peajes_tag",
-            "monto_clp": 4000,
-            "motivo": "Peajes del arriendo",
-            "documento_url": "https://ejemplo.com/boleta.pdf",
-        },
-    )
-    assert resp.status_code == 400
-    assert "fecha" in resp.json()["detail"].lower()
-
-
-def test_plazo_de_imputacion_es_configurable(usuario_factory, auth_as, db_session):
-    """El plazo vive en la configuración de plataforma (RF-33), no hardcodeado."""
-    config = db_session.query(ConfiguracionPlataforma).first()
-    config.dias_cobro_posterior_peajes = 5
-    db_session.commit()
-
-    cliente = usuario_factory(roles_activos=["cliente"])
-    dueno = usuario_factory(roles_activos=["dueno"])
-    auto, reserva = _crear_reserva_finalizada(db_session, cliente, dueno, dias_atras=10, patente="PEAJ-06")
-
-    resp = auth_as(dueno).post(
-        f"/api/v1/reservas/{reserva.id}/aplicar-multa",
-        json={
-            "tipo": "peajes_tag",
-            "monto_clp": 3000,
-            "motivo": "Peajes del arriendo",
-            "fecha_evento": (reserva.fecha_inicio + timedelta(days=1)).isoformat(),
-            "documento_url": "https://ejemplo.com/boleta.pdf",
-        },
-    )
-    assert resp.status_code == 400
-    assert "5 días" in resp.json()["detail"]
+    for tipo in ("peajes_tag", "fotomulta"):
+        resp = auth_as(dueno).post(
+            f"/api/v1/reservas/{reserva.id}/aplicar-multa",
+            json={"tipo": tipo, "monto_clp": 8450, "motivo": "Boleta de peajes durante el arriendo"},
+        )
+        assert resp.status_code == 422, resp.text
 
 
 def test_multa_comun_no_exige_fecha_ni_boleta(usuario_factory, auth_as, db_session):
@@ -221,7 +90,8 @@ def test_contrato_incluye_la_clausula_que_autoriza_el_cobro_posterior():
     """
     Sin esta cláusula el cobro posterior no tiene respaldo: el arrendatario
     nunca autorizó que se le cargue algo a la tarjeta una vez cerrado el
-    arriendo.
+    arriendo. (Esta cláusula respalda POST /cobro-posterior, no
+    aplicar-multa.)
     """
     from app.services.contract import clausula_peajes_tag
 
