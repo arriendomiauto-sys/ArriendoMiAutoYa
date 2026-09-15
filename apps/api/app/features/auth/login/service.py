@@ -186,11 +186,21 @@ def _sincronizar_usuario_local(db: Session, supa_id: str, supa_email: Optional[s
     user = db.query(Usuario).filter(Usuario.id == supa_id).first()
     if not user and supa_email:
         user = db.query(Usuario).filter(Usuario.email == supa_email).first()
-        if user:
-            # Si el registro local tenía un id provisional, sincronizar con supa_id
-            user.id = supa_id
-            db.commit()
-            db.refresh(user)
+        # NUNCA se reasigna `user.id` a `supa_id`: es la primary key y media
+        # docena de tablas (notificaciones, pagos, reservas, tarjetas...) le
+        # apuntan por FK sin ON UPDATE CASCADE. Un usuario con cualquier fila
+        # relacionada ya creada hacía que este UPDATE reventara con
+        # ForeignKeyViolation en cada login -- 500 en /usuarios/me para
+        # cualquier request autenticado. El id local (encontrado por email)
+        # sigue siendo el id canónico; nada más en el código exige que
+        # coincida con el `sub` de Supabase Auth (no se usa RLS: el backend
+        # habla con Supabase Storage por service role).
+        if user and user.id != supa_id:
+            logger.warning(
+                "Usuario %s (email=%s) autenticado con supa_id=%s distinto de su id local: "
+                "se mantiene el id local, no se migra la primary key.",
+                user.id, supa_email, supa_id,
+            )
 
     def _inferir_roles_staff(email: Optional[str]) -> List[str]:
         e = (email or "").lower()

@@ -419,9 +419,13 @@ class DeliveryService:
             # Gestión de la garantía retenida (hold en tarjeta de crédito):
             # Si se reporta daño o existe una disputa abierta, la garantía NO se libera
             # y se mantiene retenida para respaldar la reparación tras revisión de soporte/admin.
+            #
+            # El hold se registra con tipo="hold_reserva" (ver checkout_service.py),
+            # nunca "garantia" -- ese tipo no existe en ningún INSERT real, así que
+            # este query nunca encontraba nada y la garantía jamás se liberaba solo.
             pago_garantia = (
                 db.query(Pago)
-                .filter(Pago.reserva_id == reserva.id, Pago.tipo == "garantia", Pago.estado == "retenido")
+                .filter(Pago.reserva_id == reserva.id, Pago.tipo == "hold_reserva", Pago.estado == "retenido")
                 .first()
             )
             garantia_liberada = False

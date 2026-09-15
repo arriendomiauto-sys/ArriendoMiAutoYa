@@ -7,7 +7,7 @@ vez de la red real, para que las pruebas sean rápidas y no dependan de
 Internet ni de credenciales reales de Supabase.
 """
 import pytest
-from app.models.entities import Usuario
+from app.models.entities import Notificacion, Usuario
 
 
 class _FakeResponse:
@@ -113,3 +113,34 @@ def test_token_valido_de_usuario_existente_no_pisa_su_perfil(client, mock_supaba
     assert data["nombre"] == "Ya Enrolado"
     assert data["rut"] == "12.345.678-5"
     assert data["roles_activos"] == ["dueno", "cliente"]
+
+
+def test_supa_id_distinto_del_id_local_no_migra_la_primary_key(
+    client, mock_supabase, usuario_factory, db_session
+):
+    """
+    Regresión: un usuario encontrado por email cuyo id local no coincide con
+    el `sub` que manda Supabase Auth (típico de una cuenta creada localmente
+    antes de que la persona iniciara sesión de verdad) NO debe hacer
+    `user.id = supa_id` -- eso es reescribir la primary key, y en Postgres
+    revienta con ForeignKeyViolation apenas el usuario tiene una sola fila
+    relacionada (notificaciones, pagos, reservas...), porque esas FK no
+    tienen ON UPDATE CASCADE. Se mantiene el id local tal cual.
+    """
+    usuario = usuario_factory(email="id.distinto@test.cl", nombre="Con Notificación Previa")
+    db_session.add(Notificacion(
+        usuario_id=usuario.id, tipo="sistema", titulo="Bienvenido", mensaje="Hola",
+    ))
+    db_session.commit()
+
+    supa_id_distinto = "99999999-9999-9999-9999-999999999999"
+    resp = client.get(
+        "/api/v1/usuarios/me",
+        headers={"Authorization": f"Bearer valid:{supa_id_distinto}:id.distinto@test.cl"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["id"] == usuario.id
+
+    db_session.refresh(usuario)
+    assert usuario.id != supa_id_distinto
+    assert db_session.query(Notificacion).filter(Notificacion.usuario_id == usuario.id).count() == 1
