@@ -226,12 +226,25 @@ _CHECKS_ESPERADAS = {
         ("pendiente", "procesando", "capturado", "retenido",
          "liberado", "fallido", "reembolsado", "pagado"),
     ),
+    # El código sumó tipos nuevos de Pago con el tiempo (bono de referidos,
+    # multas por falta, cargos de GPS, cobros posteriores por TAG/peaje) sin
+    # que nadie actualizara esta lista, y cada uno de esos INSERT revienta
+    # con 500 en producción hasta que se reconcilie. Ver
+    # bookings/delivery/service.py, bookings/reservations/router.py
+    # (aplicar_multa_reserva), bookings/reservations/gps_monitor_service.py
+    # y payments/checkout_router.py (cobro-posterior) para el origen de
+    # cada uno.
     "pagos_tipo": (
         "pagos_tipo_check",
         "tipo",
         (
             "hold_reserva", "hold_enrolamiento", "cobro_arriendo", "cobro_final",
             "liquidacion_dueno", "deducible_seguro", "cargo_limpieza", "cargo_combustible",
+            "bono_referido", "cargo_gps_sin_senal",
+            "cargo_fumar", "cargo_lugar_no_acordado", "cargo_mascotas",
+            "cargo_limpieza_estandar", "cargo_limpieza_profunda", "cargo_otro",
+            "cobro_posterior_tag", "cobro_posterior_peaje", "cobro_posterior_multa",
+            "cobro_posterior_otro",
         ),
     ),
 }
