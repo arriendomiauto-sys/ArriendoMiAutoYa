@@ -37,6 +37,7 @@ export function PreCheckinModal({
 
   const auto = reserva.auto || {};
   const isDriver = role === "dueno";
+  const yaConfirmado = isDriver ? Boolean(reserva.precheck_dueno_confirmado) : Boolean(reserva.precheck_cliente_confirmado);
 
   const handleConfirmar = async () => {
     if (loading) return;
@@ -55,12 +56,18 @@ export function PreCheckinModal({
         confirma_auto_limpio_combustible: isDriver ? licenciaOAuto : undefined,
         notas: notas.trim() || undefined,
       });
+
+      // Actualizar inmediatamente el estado en la app
+      if (onConfirmed) {
+        onConfirmed(res);
+      }
+      onClose();
+
       showAlert(
         "¡Pre-Checkin confirmado!",
         res.ambos_confirmados
           ? "Ambas partes han confirmado la entrega de mañana. ¡Todo listo para tu viaje!"
-          : "Tu confirmación quedó registrada con éxito. Notificamos a la otra parte.",
-        [{ text: "Entendido", onPress: () => { onClose(); onConfirmed && onConfirmed(res); } }]
+          : "Tu confirmación quedó registrada con éxito. Notificamos a la otra parte."
       );
     } catch (err) {
       showAlert("No se pudo completar el pre-checkin", msjError(err, "Inténtalo de nuevo."));

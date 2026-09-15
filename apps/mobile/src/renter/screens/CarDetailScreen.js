@@ -302,56 +302,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               </View>
             )}
 
-            {/* Tarjeta del anfitrión — bloque premium pino oscuro con hairline
-                menta, por encima de la descripción (dirección 1d). */}
-            {tieneDueno ? (
-              <View style={styles.hostCardDark}>
-                <View style={styles.hostHairline} />
-                <View style={styles.hostAvatarDark}>
-                  {duenoFoto && !hostFotoError ? (
-                    <Image
-                      source={{ uri: duenoFoto }}
-                      style={styles.hostAvatarImg}
-                      onError={() => setHostFotoError(true)}
-                    />
-                  ) : (
-                    <Icon name="user" size={20} color={colors.accent500} />
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.hostNameDark}>{duenoNombre}</Text>
-                  <Text style={styles.hostSubDark}>Anfitrión verificado</Text>
-                  {promedioResenas || dueno?.rating || car?.rating_promedio ? (
-                    <Rating
-                      tone="dark"
-                      size="sm"
-                      value={promedioResenas || dueno?.rating || car?.rating_promedio}
-                      count={calificaciones.length || dueno?.viajes || car?.rating_cantidad}
-                      style={{ marginTop: 4 }}
-                    />
-                  ) : null}
-                </View>
-                <View style={styles.hostShield}>
-                  <Icon name="shield" size={14} color={colors.accent500} />
-                </View>
-              </View>
-            ) : null}
-
-            {car?.descripcion ? <Text style={styles.descripcion}>{car.descripcion}</Text> : null}
-
-            <View style={styles.priceRow}>
-              {[
-                { l: "Día", v: tarifaDia },
-                { l: "Semana", v: tarifaDia * 7 },
-                { l: "Mes", v: tarifaDia * 30 },
-              ].map((p, i) => (
-                <View key={p.l} style={[styles.priceCell, i === 0 && styles.priceCellFirst]}>
-                  <Text style={styles.priceCellLabel}>{p.l}</Text>
-                  <Text style={styles.priceCellValue}>{precioCLP(p.v)}</Text>
-                </View>
-              ))}
-            </View>
-
+            {/* 1. Equipamiento del vehículo */}
             {equipamientoActivo.length > 0 && (
               <View style={{ gap: theme.spacing.sm }}>
                 <SectionLabel>Equipamiento</SectionLabel>
@@ -366,7 +317,62 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               </View>
             )}
 
-            {/* Calificaciones y reseñas del dueño */}
+            {/* 2. Descripción del vehículo */}
+            {car?.descripcion ? <Text style={styles.descripcion}>{car.descripcion}</Text> : null}
+
+            {/* 3. Fechas para arrendarlo — colocado antes que las calificaciones */}
+            <View style={{ gap: theme.spacing.sm }}>
+              <SectionLabel>Fechas para arrendarlo</SectionLabel>
+              {disponibilidadError && (
+                <View style={styles.warnBox}>
+                  <Text style={styles.warnTitle}>No pudimos verificar disponibilidad</Text>
+                  <Text style={styles.warnText}>
+                    Reintenta antes de elegir fechas — así evitamos que reserves un día ya tomado.
+                  </Text>
+                </View>
+              )}
+              <View style={styles.datesRow}>
+                <DateTimeField
+                  label="Retiro"
+                  value={fechaInicio}
+                  onChange={cambiarInicio}
+                  minimumDate={ahora}
+                  rangosBloqueados={rangosOcupados}
+                  disabled={disponibilidadError}
+                />
+                <DateTimeField
+                  label="Devolución"
+                  value={fechaFin}
+                  onChange={cambiarFin}
+                  minimumDate={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
+                  rangosBloqueados={rangosOcupados}
+                  disabled={disponibilidadError}
+                />
+              </View>
+
+              {dateError && (
+                <View style={styles.warnBox}>
+                  <Text style={styles.warnTitle}>Fechas inválidas</Text>
+                  <Text style={styles.warnText}>{dateError}</Text>
+                </View>
+              )}
+
+              <Card style={styles.subtotalCard} padded>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.subtotalTitle}>
+                    {dias > 0 ? `${dias} ${dias === 1 ? "día" : "días"} de arriendo` : "Elige fechas válidas"}
+                  </Text>
+                  {dias > 0 && (
+                    <Text style={styles.subtotalRange}>
+                      {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.subtotalValue}>{precioCLP(montoCobro)}</Text>
+              </Card>
+            </View>
+
+            {/* 4. Calificaciones y reseñas — inmediatamente después de las fechas de arriendo */}
             {cargandoResenas ? null : calificaciones.length > 0 ? (
               <View style={{ gap: theme.spacing.sm }}>
                 <SectionLabel>Calificaciones</SectionLabel>
@@ -425,60 +431,21 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               </View>
             ) : null}
 
-            {/* Fechas del arriendo — en línea en la ficha (dirección 1c):
-                ya no hay un paso aparte de calendario. */}
-            <View style={{ gap: theme.spacing.sm }}>
-              <SectionLabel>Fechas del arriendo</SectionLabel>
-              {disponibilidadError && (
-                <View style={styles.warnBox}>
-                  <Text style={styles.warnTitle}>No pudimos verificar disponibilidad</Text>
-                  <Text style={styles.warnText}>
-                    Reintenta antes de elegir fechas — así evitamos que reserves un día ya tomado.
-                  </Text>
+            {/* 5. Planes y tarifas de referencia */}
+            <View style={styles.priceRow}>
+              {[
+                { l: "Día", v: tarifaDia },
+                { l: "Semana", v: tarifaDia * 7 },
+                { l: "Mes", v: tarifaDia * 30 },
+              ].map((p, i) => (
+                <View key={p.l} style={[styles.priceCell, i === 0 && styles.priceCellFirst]}>
+                  <Text style={styles.priceCellLabel}>{p.l}</Text>
+                  <Text style={styles.priceCellValue}>{precioCLP(p.v)}</Text>
                 </View>
-              )}
-              <View style={styles.datesRow}>
-                <DateTimeField
-                  label="Retiro"
-                  value={fechaInicio}
-                  onChange={cambiarInicio}
-                  minimumDate={ahora}
-                  rangosBloqueados={rangosOcupados}
-                  disabled={disponibilidadError}
-                />
-                <DateTimeField
-                  label="Devolución"
-                  value={fechaFin}
-                  onChange={cambiarFin}
-                  minimumDate={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
-                  rangosBloqueados={rangosOcupados}
-                  disabled={disponibilidadError}
-                />
-              </View>
-
-              {dateError && (
-                <View style={styles.warnBox}>
-                  <Text style={styles.warnTitle}>Fechas inválidas</Text>
-                  <Text style={styles.warnText}>{dateError}</Text>
-                </View>
-              )}
-
-              <Card style={styles.subtotalCard} padded>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.subtotalTitle}>
-                    {dias > 0 ? `${dias} ${dias === 1 ? "día" : "días"} de arriendo` : "Elige fechas válidas"}
-                  </Text>
-                  {dias > 0 && (
-                    <Text style={styles.subtotalRange}>
-                      {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
-                    </Text>
-                  )}
-                </View>
-                <Text style={styles.subtotalValue}>{precioCLP(montoCobro)}</Text>
-              </Card>
+              ))}
             </View>
 
-            {/* Punto de Encuentro / Entrega */}
+            {/* 6. Punto de Encuentro / Entrega */}
             <Card style={styles.locationCard} padded>
               <View style={styles.locationCardHeader}>
                 <View style={styles.locationIconBox}>
@@ -497,6 +464,41 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               </View>
             </Card>
 
+            {/* 7. Tarjeta del anfitrión */}
+            {tieneDueno ? (
+              <View style={styles.hostCardDark}>
+                <View style={styles.hostHairline} />
+                <View style={styles.hostAvatarDark}>
+                  {duenoFoto && !hostFotoError ? (
+                    <Image
+                      source={{ uri: duenoFoto }}
+                      style={styles.hostAvatarImg}
+                      onError={() => setHostFotoError(true)}
+                    />
+                  ) : (
+                    <Icon name="user" size={20} color={colors.accent500} />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.hostNameDark}>{duenoNombre}</Text>
+                  <Text style={styles.hostSubDark}>Anfitrión verificado</Text>
+                  {promedioResenas || dueno?.rating || car?.rating_promedio ? (
+                    <Rating
+                      tone="dark"
+                      size="sm"
+                      value={promedioResenas || dueno?.rating || car?.rating_promedio}
+                      count={calificaciones.length || dueno?.viajes || car?.rating_cantidad}
+                      style={{ marginTop: 4 }}
+                    />
+                  ) : null}
+                </View>
+                <View style={styles.hostShield}>
+                  <Icon name="shield" size={14} color={colors.accent500} />
+                </View>
+              </View>
+            ) : null}
+
+            {/* 8. Garantía y entrega 100% digital */}
             <Card style={styles.noteCard} padded elevated={false}>
               <Icon name="shield" size={18} color={colors.primary} />
               <Text style={styles.noteText}>
@@ -509,8 +511,8 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
         <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
           <View>
-            <Text style={styles.barPrice}>{precioCLP(tarifaDia)}</Text>
-            <Text style={styles.barPer}>por día</Text>
+            <Text style={styles.barPrice}>{dias > 0 ? precioCLP(montoCobro) : precioCLP(tarifaDia)}</Text>
+            <Text style={styles.barPer}>{dias > 0 ? `Total · ${dias} ${dias === 1 ? "día" : "días"}` : "por día"}</Text>
           </View>
           <Button
             label={dias > 0 ? "Ver resumen" : "Elige fechas válidas"}

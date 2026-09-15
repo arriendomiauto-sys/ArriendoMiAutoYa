@@ -388,6 +388,7 @@ export function RenterApp() {
               onOpenChat={() => setActiveTab("chat")}
               onOpenContract={() => setShowContract(true)}
               onResumirPago={(res) => setResumingReservation(res)}
+              onUpdateReservation={(updated) => setActiveReservation((prev) => ({ ...prev, ...updated }))}
             />
           );
         }

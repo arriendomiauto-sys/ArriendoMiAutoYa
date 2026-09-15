@@ -315,6 +315,10 @@ export function AppProvider({ children }) {
       if (!activeReservationRef.current) {
         const enCurso = lista.find((r) => r.estado === "en_curso" || r.estado === "confirmada");
         if (enCurso) setActiveReservation(enCurso);
+      } else {
+        const idActual = activeReservationRef.current.id;
+        const actualizada = lista.find((r) => r.id === idActual);
+        if (actualizada) setActiveReservation(actualizada);
       }
     } catch {
       /* se reintenta en el próximo login o refresh manual */

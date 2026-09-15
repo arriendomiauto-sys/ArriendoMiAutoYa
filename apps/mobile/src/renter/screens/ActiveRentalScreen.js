@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, StatusBar, ScrollView, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
@@ -70,9 +70,24 @@ export function ActiveRentalScreen({
   onOpenChat,
   onOpenContract,
   onResumirPago,
+  onUpdateReservation,
 }) {
   const insets = useSafeAreaInsets();
   const [res, setRes] = useState(reservation || {});
+
+  useEffect(() => {
+    if (reservation) {
+      setRes(reservation);
+    }
+  }, [reservation]);
+
+  const handlePrecheckConfirmed = (updated) => {
+    setRes((prev) => {
+      const nuevo = { ...prev, ...updated };
+      onUpdateReservation?.(nuevo);
+      return nuevo;
+    });
+  };
   const [modalPrecheck, setModalPrecheck] = useState(false);
   const [modalSegundoConductor, setModalSegundoConductor] = useState(false);
   const car = res.car || res.auto || {};
@@ -317,9 +332,7 @@ export function ActiveRentalScreen({
           reserva={res}
           role="cliente"
           onClose={() => setModalPrecheck(false)}
-          onConfirmed={(updated) => {
-            setRes((prev) => ({ ...prev, ...updated }));
-          }}
+          onConfirmed={handlePrecheckConfirmed}
         />
 
         <SegundoConductorModal
@@ -475,9 +488,7 @@ export function ActiveRentalScreen({
         reserva={res}
         role="cliente"
         onClose={() => setModalPrecheck(false)}
-        onConfirmed={(updated) => {
-          setRes((prev) => ({ ...prev, ...updated }));
-        }}
+        onConfirmed={handlePrecheckConfirmed}
       />
 
       <SegundoConductorModal
