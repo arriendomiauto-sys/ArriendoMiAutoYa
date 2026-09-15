@@ -4,6 +4,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -54,6 +55,7 @@ from app.features.operations.support.router import router as support_router
 # System
 from app.features.system.storage.router import router as storage_router
 from app.features.system.webhooks.router import router as webhooks_router
+from app.features.system.version.router import router as version_router
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +151,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Compresión Gzip automática para respuestas superiores a 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 
 # Servir archivos estáticos locales de respaldo (Uploads).
 os.makedirs(settings.STORAGE_LOCAL_DIR, exist_ok=True)
@@ -182,6 +187,7 @@ app.include_router(messages_router, prefix=api_prefix)
 app.include_router(notifications_router, prefix=api_prefix)
 app.include_router(favorites_router, prefix=api_prefix)
 app.include_router(webhooks_router, prefix=api_prefix)
+app.include_router(version_router, prefix=api_prefix)
 
 # GET + HEAD: Render y los uptime pingers hacen `HEAD /` para el health check;
 # sin HEAD explícito respondía 405 y ensuciaba los logs en cada sondeo.

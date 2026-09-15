@@ -1,5 +1,6 @@
 from typing import List, Optional
 import hashlib
+import logging
 import time
 import httpx
 from jose import jwt, JWTError
@@ -8,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import Usuario, Sucursal
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Cache en proceso de validación de sesión
@@ -262,5 +265,15 @@ async def get_optional_current_user(
         return None
     try:
         return await autenticar_token(authorization.split(" ", 1)[1], db)
+    except HTTPException as e:
+        # 401 (token inválido/expirado) es rutina en endpoints opcionales y no
+        # se loguea; 503 (proveedor de identidad caído) sí es señal de incidente.
+        if e.status_code >= 500:
+            logger.warning(
+                "Proveedor de identidad no disponible al validar token opcional: %s",
+                e, exc_info=True,
+            )
+        return None
     except Exception:
+        logger.warning("Falló la validación opcional del token de sesión", exc_info=True)
         return None

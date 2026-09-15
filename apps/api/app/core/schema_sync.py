@@ -74,7 +74,11 @@ def _default_estatico(col):
             # SQLAlchemy envuelve el callable para que reciba el contexto.
             primero = d.arg(None)
             segundo = d.arg(None)
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — el default cae a "sin DEFAULT" y la columna puede quedar NULL
+            logger.warning(
+                "schema_sync: falló el default callable de %s.%s: %s",
+                col.table.name, col.name, e,
+            )
             return (False, None)
 
         # Dos compuertas, porque ninguna alcanza sola:
@@ -133,7 +137,11 @@ def _valor_post_alter(col):
         return (False, None)
     try:
         return (True, col.default.arg(None))
-    except Exception:
+    except Exception as e:  # noqa: BLE001 — se deja el NULL y el llamador sigue con el ALTER
+        logger.warning(
+            "schema_sync: falló el valor post-ALTER de %s.%s: %s",
+            col.table.name, col.name, e,
+        )
         return (False, None)
 
 

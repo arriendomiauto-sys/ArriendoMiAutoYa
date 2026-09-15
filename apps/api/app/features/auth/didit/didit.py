@@ -165,7 +165,9 @@ def obtener_decision(session_id: str) -> Optional[Dict[str, Any]]:
             return resp.json()
         logger.warning("Didit obtener_decision %s: %s", resp.status_code, resp.text[:300])
     except Exception as e:  # noqa: BLE001
-        logger.error("Didit obtener_decision error: %s", e)
+        logger.error(
+            "Didit obtener_decision (%s) error: %s", session_id, e, exc_info=True
+        )
     return None
 
 
@@ -235,8 +237,11 @@ def verificar_firma_webhook(raw_body: bytes, headers: Mapping[str, str]) -> bool
         firmas_candidatas.append(
             hmac.new(secret.encode(), _canonico(raw_body).encode(), hashlib.sha256).hexdigest()
         )
-    except Exception:  # noqa: BLE001 — body no-JSON: solo queda la firma cruda
-        pass
+    except Exception as e:  # noqa: BLE001 — body no-JSON: solo queda la firma cruda
+        logger.warning(
+            "Webhook Didit: el body no es JSON válido, se valida con la firma cruda V1: %s",
+            e, exc_info=True,
+        )
     firmas_candidatas.append(
         hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
     )

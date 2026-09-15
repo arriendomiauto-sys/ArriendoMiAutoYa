@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+import logging
 from typing import List
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
@@ -17,6 +18,8 @@ from app.core.security_audit import SecurityAudit
 from app.features.vehicles.gps_tracking.manager import GPSManager
 
 router = APIRouter(tags=["Gestión de Flota (Mantenciones y Calendario)"])
+
+logger = logging.getLogger(__name__)
 
 
 def _obtener_auto_o_404(auto_id: str, db: Session) -> Auto:
@@ -180,7 +183,11 @@ def obtener_posicion_gps(
                 posicion = pos_obj.to_dict()
                 auto.gps_ultima_posicion = posicion
                 db.commit()
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — se responde con la última posición conocida
+            logger.error(
+                "GPS: no se pudo leer la posición actual del auto %s (dispositivo %s): %s",
+                auto_id, auto.gps_device_id, e,
+            )
             posicion = None
 
     if not posicion and auto.gps_ultima_posicion:
@@ -202,7 +209,8 @@ def obtener_posicion_gps(
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=timezone.utc)
             minutos_sin_senal = max(0, int((ahora - ts).total_seconds() / 60))
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — timestamp ilegible: se asume señal reciente
+            logger.warning("GPS: timestamp de posición ilegible para auto %s: %r", auto_id, ts_str)
             minutos_sin_senal = 0
 
     if minutos_sin_senal < 30:

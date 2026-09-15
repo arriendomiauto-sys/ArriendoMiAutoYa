@@ -83,6 +83,8 @@ def listar_autos(
     estado: str = Query("activo", description="Estado de publicación"),
     tarifa_max: Optional[int] = Query(None, description="Tarifa máxima por día"),
     dueno_id: Optional[str] = Query(None, description="Filtrar por ID del dueño"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Límite de autos por página (opcional)"),
+    offset: Optional[int] = Query(None, ge=0, description="Desplazamiento para paginación (opcional)"),
     db: Session = Depends(get_db),
     current_user: Optional[Usuario] = Depends(get_optional_current_user)
 ):
@@ -93,10 +95,15 @@ def listar_autos(
         query = query.filter(Auto.tarifa_dia <= tarifa_max)
     if dueno_id:
         query = query.filter(Auto.dueno_id == dueno_id)
-    # El resto de los filtros (transmisión, combustible, rango de precio) y
-    # el orden se resuelven en la app, igual que la categoría: ya trae todo
-    # el catálogo a memoria y filtrar ahí evita un round-trip por cada toque
-    # de filtro.
+
+    # Orden determinista: más recientes primero (o por id si no tiene fecha)
+    query = query.order_by(Auto.fecha_publicacion.desc().nullslast(), Auto.id.asc())
+
+    if offset is not None:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+
     autos = _adjuntar_calificaciones(db, query.all())
     return [_sanear_auto_out(a, current_user) for a in autos]
 

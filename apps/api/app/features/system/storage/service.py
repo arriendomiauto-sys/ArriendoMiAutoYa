@@ -334,7 +334,12 @@ class StorageService:
             payload_b64 = token.split(".")[1]
             payload_b64 += "=" * (-len(payload_b64) % 4)  # padding base64
             return json.loads(base64.urlsafe_b64decode(payload_b64)).get("exp")
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — URL firmada no reconocible: se devuelve tal cual
+            # Sin el `?token=...` de la firma, para no volcar credenciales a logs.
+            logger.warning(
+                "No se pudo leer el exp de la URL firmada (%s): %s",
+                url.split("?", 1)[0], e,
+            )
             return None
 
     @classmethod

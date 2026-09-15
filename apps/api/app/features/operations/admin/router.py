@@ -17,7 +17,14 @@ from app.features.operations.admin.users_router import router as users_router
 router = APIRouter(prefix="/admin", tags=["Panel Admin & Financiero"])
 
 @router.get("/configuracion", response_model=PlatformConfigOut, summary="Obtener configuración dinámica de la plataforma (RF-33)")
-def obtener_configuracion_plataforma(db: Session = Depends(get_db)):
+def obtener_configuracion_plataforma(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    # Decisión de seguridad (auditoría): antes era lectura pública sin ningún
+    # guard. La app móvil la consume (tarifas_categoria del asistente de
+    # publicación) y el panel admin; por eso la lectura exige sesión válida
+    # (get_current_user) pero no rol admin — solo la escritura (PUT) es admin.
     config = db.query(ConfiguracionPlataforma).first()
     if not config:
         config = ConfiguracionPlataforma(
@@ -63,10 +70,17 @@ def actualizar_configuracion_plataforma(
     return config
 
 @router.get("/tarifa-seguro", summary="Obtener el cálculo del deducible de seguro")
-def obtener_tarifa_seguro(db: Session = Depends(get_db)):
+def obtener_tarifa_seguro(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     """
     Deducible 15 UF dividido 50% empresa y 50% dueño.
     """
+    # Decisión de seguridad (auditoría): antes era lectura pública sin ningún
+    # guard. Ninguna app lo consulta (solo el panel admin); se exige rol admin.
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso restringido a Admin.")
     return PricingService.calcular_deducible_seguro(db)
 
 @router.get("/panel-financiero", summary="Resumen financiero global (holds, liquidaciones, cobros)")

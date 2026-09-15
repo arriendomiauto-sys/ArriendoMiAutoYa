@@ -17,7 +17,10 @@ class LoginRequest(BaseModel):
     password: str
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # Opcional para compat con el panel admin: ese cliente ya no persiste el
+    # refresh token y lo manda en la cookie httpOnly; la app móvil lo sigue
+    # enviando aquí en el body y el endpoint lo usa igual.
+    refresh_token: Optional[str] = None
 
 class TokenOut(BaseModel):
     access_token: str

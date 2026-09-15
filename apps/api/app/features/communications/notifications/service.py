@@ -84,7 +84,8 @@ def crear_notificacion(
         # Push best-effort (solo si el usuario tiene token de dispositivo).
         try:
             token = db.query(Usuario.expo_push_token).filter(Usuario.id == usuario_id).scalar()
-        except Exception:
+        except Exception as e:  # noqa: BLE001 — push es best-effort
+            logger.warning("No se pudo leer expo_push_token del usuario %s: %s", usuario_id, e)
             token = None
         if token:
             _enviar_push(token, titulo, mensaje, {"tipo": tipo, "entidad_id": entidad_id})
@@ -96,6 +97,9 @@ def crear_notificacion(
         if commit:
             try:
                 db.rollback()
-            except Exception:
-                pass
+            except Exception as e:  # noqa: BLE001 — no queda más: la sesión la descarta el caller
+                logger.warning(
+                    "Rollback falló tras error creando notificación (usuario %s, tipo %s): %s",
+                    usuario_id, tipo, e,
+                )
         return None

@@ -13,10 +13,171 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.main import app
-from app.core.seed import seed_demo_data
-from app.models.entities import Usuario
+from app.models.entities import (
+    Usuario,
+    Auto,
+    Reserva,
+    Sucursal,
+    Pago,
+    TicketSoporte,
+    ConfiguracionPlataforma,
+)
 from app.services.auth import get_current_user, get_optional_current_user
 from app.core.limiter import limiter
+from datetime import datetime, timedelta, timezone
+
+def seed_demo_data(db):
+    if db.query(Usuario).count() > 0:
+        return
+    if not db.query(ConfiguracionPlataforma).filter(ConfiguracionPlataforma.id == "default").first():
+        config = ConfiguracionPlataforma(
+            id="default",
+            valor_uf_clp=38000.0,
+            comision_plataforma_pct=20.0,
+            hold_enrolamiento_clp=800000,
+            cargo_limpieza_estandar_clp=15000,
+            cargo_limpieza_profunda_clp=35000,
+            cargo_combustible_cuarto_clp=15000,
+            cargo_km_extra_clp=120,
+            km_diarios_incluidos=250,
+            periodo_gracia_minutos=30,
+            dias_cobro_posterior_peajes=60,
+            edad_minima_arriendo=21,
+        )
+        db.add(config)
+    sucursal_la = Sucursal(
+        nombre="Sucursal Los Ángeles Centro",
+        ubicacion="Los Ángeles, Región del Biobío, Chile",
+        latitud=-37.4697,
+        longitud=-72.3537,
+        radio_cobertura_km=30.0,
+        managers_asignados=[],
+    )
+    db.add(sucursal_la)
+    db.flush()
+    dueno = Usuario(
+        nombre="Carlos Mendoza",
+        rut="15.892.341-6",
+        email="dueno@arriendatuauto.cl",
+        telefono="+56911223344",
+        foto_perfil_verificada_url="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+        estado_documentos="verificado",
+        confianza_ocr=0.98,
+        roles_activos=["dueno", "cliente"],
+        sucursal_id=sucursal_la.id,
+    )
+    cliente = Usuario(
+        nombre="María José Silva",
+        rut="19.234.567-7",
+        email="cliente@arriendatuauto.cl",
+        telefono="+56999887766",
+        foto_perfil_verificada_url="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400",
+        estado_documentos="verificado",
+        confianza_ocr=0.96,
+        roles_activos=["cliente"],
+        sucursal_id=sucursal_la.id,
+    )
+    cliente_pendiente = Usuario(
+        nombre="Pedro Alarcón Gómez",
+        rut="18.456.789-K",
+        email="pedro.alarcon@gmail.com",
+        telefono="+56977665544",
+        foto_perfil_verificada_url="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
+        estado_documentos="requiere_revision_manual",
+        confianza_ocr=0.74,
+        notas_auditoria="Foto de carnet con leve reflejo de luz. Requiere confirmación visual de Admin.",
+        roles_activos=["cliente"],
+        sucursal_id=sucursal_la.id,
+    )
+    manager = Usuario(
+        nombre="Rodrigo Manager",
+        rut="14.333.222-5",
+        email="manager.la@arriendatuauto.cl",
+        telefono="+56955443322",
+        estado_documentos="verificado",
+        confianza_ocr=1.0,
+        roles_activos=["manager"],
+        sucursal_id=sucursal_la.id,
+    )
+    admin = Usuario(
+        nombre="Administrador General",
+        rut="11.222.333-9",
+        email="admin@arriendatuauto.cl",
+        telefono="+56912345678",
+        estado_documentos="verificado",
+        confianza_ocr=1.0,
+        roles_activos=["admin"],
+    )
+    db.add_all([dueno, cliente, cliente_pendiente, manager, admin])
+    db.flush()
+    auto1 = Auto(
+        dueno_id=dueno.id,
+        marca="Toyota",
+        modelo="RAV4 Limited 4x4",
+        anio=2023,
+        patente="BBCL-10",
+        tarifa_dia=42000,
+        estado="activo",
+        ubicacion_base="Plaza de Armas, Los Ángeles",
+        latitud=-37.4695,
+        longitud=-72.3540,
+        fotos=["https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=800"],
+        gps_consentimiento=True,
+        gps_consentimiento_fecha=datetime.now(timezone.utc),
+        gps_proveedor="mock",
+        gps_device_id="GPS-BBCL10",
+        gps_instalado=True,
+    )
+    auto2 = Auto(
+        dueno_id=dueno.id,
+        marca="Hyundai",
+        modelo="Tucson GL",
+        anio=2022,
+        patente="CRTX-45",
+        tarifa_dia=35000,
+        estado="activo",
+        ubicacion_base="Av. Alemania, Los Ángeles",
+        latitud=-37.4620,
+        longitud=-72.3600,
+        fotos=["https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800"],
+        gps_consentimiento=True,
+        gps_consentimiento_fecha=datetime.now(timezone.utc),
+        gps_proveedor="mock",
+        gps_device_id="GPS-CRTX45",
+        gps_instalado=True,
+    )
+    db.add_all([auto1, auto2])
+    db.flush()
+    ahora = datetime.now(timezone.utc)
+    reserva_demo = Reserva(
+        auto_id=auto1.id,
+        cliente_id=cliente.id,
+        fecha_inicio=ahora,
+        fecha_fin=ahora + timedelta(days=3),
+        estado="confirmada",
+        monto_hold=126000,
+        codigo_qr_hash="qr_demo_hash_12345",
+        lugar_entrega_acordado="Plaza de Armas Los Ángeles",
+    )
+    db.add(reserva_demo)
+    db.flush()
+    pago_enrolamiento = Pago(
+        usuario_id=cliente.id,
+        tipo="hold_enrolamiento",
+        monto=800000,
+        estado="capturado",
+        referencia_pago="MP-DEMO-ENROL-800K",
+    )
+    pago_reserva = Pago(
+        reserva_id=reserva_demo.id,
+        usuario_id=cliente.id,
+        tipo="hold_reserva",
+        monto=126000,
+        estado="capturado",
+        referencia_pago="MP-DEMO-RES-126K",
+    )
+    db.add_all([pago_enrolamiento, pago_reserva])
+    db.commit()
 
 # En memoria: create_all()/drop_all() corren ~80 veces en la suite y un
 # archivo real en disco no aporta nada (no se inspecciona entre corridas) —

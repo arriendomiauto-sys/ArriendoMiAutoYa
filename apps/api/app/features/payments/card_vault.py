@@ -229,8 +229,11 @@ def registrar_tarjeta(
                     mensaje_error = "El código de seguridad (CVV) es inválido."
                 elif err_json.get("message") and "not found" in str(err_json.get("message")).lower():
                     mensaje_error = "El token de la tarjeta expiró o es inválido. Intenta registrarla nuevamente."
-            except Exception:
-                pass
+            except Exception as e:  # noqa: BLE001 — el error de MP no era JSON legible; se conserva el mensaje genérico
+                logger.warning(
+                    "[VAULT] No se pudo interpretar el error de alta para customer %s: %s",
+                    customer_id, e,
+                )
         raise VaultError("TARJETA_INVALIDA", mensaje_error)
 
     datos = _normalizar_tarjeta_mp(alta["data"])

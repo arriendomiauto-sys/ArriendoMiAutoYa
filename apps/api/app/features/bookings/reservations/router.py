@@ -86,7 +86,8 @@ def crear_reserva(
     if not evaluacion_licencia["permitido"]:
         raise HTTPException(status_code=400, detail=evaluacion_licencia["motivo"])
 
-    auto = db.query(Auto).filter(Auto.id == payload.auto_id).first()
+    # Bloqueo transaccional pesimista para evitar reservas solapadas concurrentes
+    auto = db.query(Auto).filter(Auto.id == payload.auto_id).with_for_update().first()
     if not auto:
         raise HTTPException(status_code=404, detail="Auto no encontrado")
     if auto.estado != "activo":

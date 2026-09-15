@@ -19,6 +19,10 @@ uploads_privados/
 # Docs
 docs/
 *.md
+# Excepción: el README del plan de adopción de Alembic SÍ se versiona
+# (apps/api/README-migraciones.md explica cómo se pasa del runtime sync a
+# migraciones versionadas; sin controlarlo el plan no se puede commitear).
+!apps/api/README-migraciones.md
 docs/Credenciales.txt
 *Credenciales*.txt
 
@@ -69,3 +73,7 @@ pnpm-debug.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Seed y Schemas de base de datos (destructivos / locales / producción)
+apps/api/scripts/seed.py
+apps/api/supabase/*.sql

@@ -106,11 +106,21 @@ def test_documentos_pendientes_requiere_admin_o_manager(usuario_factory, auth_as
     assert auth_as(admin).get("/api/v1/admin/documentos/pendientes").status_code == 200
 
 
-def test_configuracion_plataforma_sigue_de_lectura_publica(client):
-    # Decisión deliberada: son parámetros de negocio (comisión, UF, etc.),
-    # no datos personales, así que se dejan de lectura pública.
-    resp = client.get("/api/v1/admin/configuracion")
-    assert resp.status_code == 200
+def test_configuracion_plataforma_requiere_autenticacion(client, usuario_factory, auth_as):
+    # Auditoría de seguridad: antes era lectura pública sin ningún guard.
+    # La app móvil la lee (tarifas_categoria del asistente de publicación), así
+    # que basta una sesión válida de cualquier rol; el acceso anónimo se bloquea.
+    assert client.get("/api/v1/admin/configuracion").status_code == 401
+    cliente = usuario_factory(roles_activos=["cliente"])
+    assert auth_as(cliente).get("/api/v1/admin/configuracion").status_code == 200
+
+
+def test_tarifa_seguro_requiere_admin(client, usuario_factory, auth_as):
+    assert client.get("/api/v1/admin/tarifa-seguro").status_code == 401
+    cliente = usuario_factory(roles_activos=["cliente"])
+    assert auth_as(cliente).get("/api/v1/admin/tarifa-seguro").status_code == 403
+    admin = usuario_factory(roles_activos=["admin"])
+    assert auth_as(admin).get("/api/v1/admin/tarifa-seguro").status_code == 200
 
 
 def test_actualizar_configuracion_requiere_admin(usuario_factory, auth_as):
@@ -121,8 +131,9 @@ def test_actualizar_configuracion_requiere_admin(usuario_factory, auth_as):
 
 def test_tarifas_por_categoria_default_y_edicion(client, usuario_factory, auth_as):
     # De fábrica trae las 5 categorías con base y mínimo. La app móvil las lee
-    # en el asistente de publicación.
-    data = client.get("/api/v1/admin/configuracion").json()
+    # en el asistente de publicación con una sesión válida (cualquier rol).
+    lector = usuario_factory(roles_activos=["cliente"])
+    data = auth_as(lector).get("/api/v1/admin/configuracion").json()
     tarifas = data["tarifas_categoria"]
     assert set(tarifas) == {"economico", "sedan", "suv", "camioneta", "premium"}
     assert tarifas["sedan"] == {"base": 55000, "min": 35000}
@@ -133,7 +144,7 @@ def test_tarifas_por_categoria_default_y_edicion(client, usuario_factory, auth_a
     resp = auth_as(admin).put("/api/v1/admin/configuracion", json={"tarifas_categoria": nuevas})
     assert resp.status_code == 200
     assert resp.json()["tarifas_categoria"]["sedan"] == {"base": 60000, "min": 40000}
-    assert client.get("/api/v1/admin/configuracion").json()["tarifas_categoria"]["sedan"] == {
+    assert auth_as(lector).get("/api/v1/admin/configuracion").json()["tarifas_categoria"]["sedan"] == {
         "base": 60000,
         "min": 40000,
     }

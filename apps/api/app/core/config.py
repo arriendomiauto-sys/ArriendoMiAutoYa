@@ -71,6 +71,15 @@ class Settings(BaseSettings):
     # Google Maps
     GOOGLE_MAPS_API_KEY: str = "placeholder-maps-key"
 
+    # Versión mínima de app móvil soportada (force update). Cambiarla es un
+    # redeploy con la env var actualizada — se elige a propósito en vez de una
+    # tabla en DB porque cambia poco y no necesita auditoría ni UI de edición.
+    MIN_APP_VERSION: str = "1.0.0"
+    # PENDIENTE: reemplazar por la URL real una vez que la app tenga ficha en
+    # App Store Connect (todavía no está publicada).
+    APP_STORE_URL_IOS: str = "https://apps.apple.com/app/idXXXXXXXXX"
+    APP_STORE_URL_ANDROID: str = "https://play.google.com/store/apps/details?id=cl.arriendatuauto.app"
+
     # Mercado Pago.
     #
     # El entorno no se configura aparte: lo dice el propio token. Los de prueba
@@ -124,6 +133,26 @@ class Settings(BaseSettings):
     API_PUBLIC_URL: str = "https://arriendomiautoya.onrender.com"
     ADMIN_PANEL_ORIGIN: Optional[str] = "https://admin.arriendomiautoya.cl"
     PAGO_DEFAULT_RETURN_URL: str = "https://arriendomiautoya.cl/pago/retorno"
+
+    # ===== Sesión del panel admin (cookie httpOnly del refresh token) ======
+    # El refresh token vive en una cookie httpOnly que el navegador manda sola;
+    # el panel NO lo persiste en localStorage (XSS no equivale a robo de
+    # sesión). El access token sigue yendose por header en el body de login.
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
+    # 60 días = lifetime por defecto del refresh token de Supabase Auth. La
+    # cookie se regenera en cada /auth/refresh, así que la expiración real la
+    # gobierna Supabase, no este max_age.
+    REFRESH_TOKEN_COOKIE_MAX_AGE: int = 60 * 24 * 60 * 60
+    # Forzar Secure en la cookie. None => auto: Secure en producción, off en
+    # desarrollo local (donde el admin corre sobre http y la Secure rompería
+    # la cookie en el navegador).
+    AUTH_COOKIE_SECURE: Optional[bool] = None
+
+    @property
+    def auth_cookie_secure(self) -> bool:
+        if self.AUTH_COOKIE_SECURE is not None:
+            return self.AUTH_COOKIE_SECURE
+        return self.ENVIRONMENT != "development"
 
     # CORS: orígenes explícitos y seguros permitidos en producción (solo dominios de plataforma)
     CORS_ORIGINS: List[str] = [
