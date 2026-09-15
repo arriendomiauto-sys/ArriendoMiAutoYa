@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import RequireAuth from "./RequireAuth";
 import { useAuth } from "../context/AuthContext";
+import { initials } from "../lib/format";
 
 const NAV = [
   {
@@ -34,10 +35,6 @@ const NAV = [
     ],
   },
 ];
-
-function initials(s) {
-  return (s || "?").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
-}
 
 /**
  * Marco de todas las pantallas del panel: sidebar blanco con navegación
@@ -125,9 +122,9 @@ export default function Shell({ title, crumb = "Consola", counts = {}, actions, 
             <span className="crumb">{crumb}</span>
             <ChevronRight size={12} style={{ color: "var(--muted)" }} />
             <h1>{title}</h1>
-            <div className="search" style={{ width: 260 }}>
+            <div className="search" style={{ width: 260 }} title="Próximamente">
               <Search size={14} />
-              <input placeholder="Buscar en toda la consola…" />
+              <input placeholder="Buscar en toda la consola…" disabled />
             </div>
             {actions}
           </div>

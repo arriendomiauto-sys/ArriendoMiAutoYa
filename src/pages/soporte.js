@@ -1,15 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, LifeBuoy, Gavel, Check } from "lucide-react";
 import Shell from "../components/Shell";
 import { PageIntro, Chip, Segmented, StateMsg, EmptyState, Drawer, useAsync } from "../components/ui";
 import { ApiClient } from "../lib/api";
+import { fecha } from "../lib/format";
 
 const FILTROS = [
   { value: "abierto", label: "Abiertos" },
   { value: "cerrado", label: "Cerrados" },
   { value: "todos", label: "Todos" },
 ];
-const fecha = (d) => (d ? new Date(d).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
 
 export default function Soporte() {
   const { data, error, cargando, recargar } = useAsync(() => ApiClient.getTickets());
@@ -19,8 +19,11 @@ export default function Soporte() {
   const [escalar, setEscalar] = useState(null);
   const [reservaId, setReservaId] = useState("");
   const [accionMsg, setAccionMsg] = useState(null);
+  const [respuesta, setRespuesta] = useState("");
 
-  const tickets = Array.isArray(data) ? data : [];
+  useEffect(() => { setRespuesta(""); }, [sel]);
+
+  const tickets = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const filtrados = useMemo(() => {
     const t = q.toLowerCase().trim();
     return tickets.filter((k) => {
@@ -107,7 +110,10 @@ export default function Soporte() {
               {sel.descripcion}
             </div>
             <h4>Responder</h4>
-            <textarea className="input" rows={4} style={{ width: "100%" }} placeholder="Escribe tu respuesta al usuario…" />
+            <textarea className="input" rows={4} style={{ width: "100%" }} placeholder="Escribe tu respuesta al usuario…" value={respuesta} onChange={(e) => setRespuesta(e.target.value)} />
+            <div className="hint" style={{ marginTop: 6 }}>
+              El envío de la respuesta todavía no está disponible: la API no expone un endpoint para responder tickets. Por ahora el botón “Responder y cerrar” solo cierra el ticket.
+            </div>
             {!sel.escalado_a_disputa ? (
               <div className="state-msg warn" style={{ marginTop: 14, marginBottom: 0 }}>
                 ¿Hay dinero en juego entre dos partes? Escala a disputa formal e ingresa la reserva asociada.

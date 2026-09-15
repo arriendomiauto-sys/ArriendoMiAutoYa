@@ -23,7 +23,7 @@ export default function Dashboard() {
       .catch((e) => setError(e.message));
   }, []);
 
-  const num = (v) => (v ?? v === 0 ? String(v) : "—");
+  const num = (v) => (v ?? null) === null ? "—" : String(v);
   const disputasAbiertas = m?.total_disputas_abiertas ?? 0;
   const liqPend = f?.total_liquidaciones_pendientes_clp ?? 0;
 

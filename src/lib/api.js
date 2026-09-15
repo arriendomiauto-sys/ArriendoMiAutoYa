@@ -2,27 +2,17 @@ const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL || "https://arriendomiautoya.onrender.com/api/v1"
 ).replace(/\/+$/, "");
 
-const STORAGE_KEY = "rentacar_admin_session";
+// El access token vive SOLO en memoria (variable de módulo): se pierde al
+// recargar la página a propósito, de forma que un XSS no puede leer el
+// refresh token ni robar una sesión de larga vida. La cookie httpOnly del
+// refresh token (seteada por la API en login/refresh) es la que permite
+// restaurar la sesión tras una recarga.
+let accessToken = null;
 
-function leerSesion() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function guardarSesion(sesion) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sesion));
-}
-
-function borrarSesion() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEY);
-}
+// Promesa compartida del refresh en curso (single-flight): mientras hay una
+// renovación de sesión activa, todos los requests que reciban 401 esperan
+// esta MISMA promesa en vez de disparar N llamadas paralelas a /auth/refresh.
+let refreshPromise = null;
 
 /**
  * Cliente HTTP del panel. Habla SOLO con la API pública (apps/api) — nunca
@@ -36,16 +26,33 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    guardarSesion({ access_token: data.access_token, refresh_token: data.refresh_token });
+    // El refresh_token del body se ignora a propósito: para el panel la
+    // sesión se restaura desde la cookie httpOnly que la API setea en el
+    // login, no desde un token persistido en localStorage.
+    accessToken = data.access_token || null;
     return data;
   }
 
   static logout() {
-    borrarSesion();
+    if (accessToken) {
+      // Best-effort: revoca la sesión en Supabase y borra la cookie. No se
+      // espera la respuesta — el logout local no debe colgarse por una red
+      // lenta ni fallar si el access token ya venció.
+      const bearer = accessToken;
+      this._requestSinAuth("/auth/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${bearer}` },
+      }).catch(() => {});
+    }
+    accessToken = null;
+    refreshPromise = null;
   }
 
+  /** ¿Hay un access token en memoria? No detecta la cookie httpOnly (no es
+   * legible por JS): la restauración real de sesión ocurre en validarSesion
+   * al llamar a /usuarios/me y que la API valide la cookie. */
   static tieneSesion() {
-    return !!leerSesion()?.access_token;
+    return accessToken !== null;
   }
 
   static async _requestSinAuth(endpoint, options = {}) {
@@ -55,58 +62,148 @@ export class ApiClient {
       response = await fetch(url, {
         ...options,
         headers: { "Content-Type": "application/json", ...options.headers },
+        // Obligatorio para que el navegador 1) GUARDE la cookie httpOnly que
+        // manda la API en login/refresh/logout y 2) la reenvíe en cada
+        // request. Los fetch cross-origin no envían cookies por defecto.
+        credentials: "include",
       });
     } catch {
       throw new Error(`No se pudo conectar con la API (${API_BASE_URL}).`);
     }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(body.detail || `Error en la solicitud: ${response.status}`);
+      const err = new Error(body.detail || `Error en la solicitud: ${response.status}`);
+      err.status = response.status;
+      throw err;
     }
     return body;
   }
 
+  /**
+   * Renueva el access token usando la cookie httpOnly (el navegador la manda
+   * sola en esta llamada). Single-flight: si ya hay un refresh en curso, los
+   * requests concurrentes se cuelgan de la misma promesa; se limpia cuando
+   * termina (éxito o fallo) para no cachear errores en sesiones largas.
+   */
   static async _refrescarSesion() {
-    const sesion = leerSesion();
-    if (!sesion?.refresh_token) return false;
-    try {
-      const data = await this._requestSinAuth("/auth/refresh", {
+    if (!refreshPromise) {
+      refreshPromise = this._requestSinAuth("/auth/refresh", {
         method: "POST",
-        body: JSON.stringify({ refresh_token: sesion.refresh_token }),
-      });
-      guardarSesion({ access_token: data.access_token, refresh_token: data.refresh_token });
-      return true;
-    } catch {
-      borrarSesion();
-      return false;
+        // Sin refresh_token en el body: el panel no lo conoce; la API lo lee
+        // de la cookie. La app móvil sí lo sigue mandando (retrocompatible).
+        body: JSON.stringify({}),
+      })
+        .then((data) => {
+          accessToken = data.access_token || null;
+          return accessToken !== null;
+        })
+        .finally(() => {
+          refreshPromise = null;
+        });
     }
+    return refreshPromise;
+  }
+
+  /**
+   * Igual que `request` pero sin parsear JSON: devuelve el Blob de la
+   * respuesta. Sirve para respuestas binarias (PDF del contrato) que el
+   * endpoint pide con el mismo Bearer del panel.
+   */
+  /** Serializa query params omitiendo vacíos (undefined/null/"") para no mandar
+   * `q=` o `cursor=` en blanco al backend. */
+  static _qs(params = {}) {
+    const url = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== "") url.set(k, v);
+    }
+    return url.toString();
+  }
+
+  static async _requestBlob(endpoint, options = {}, _retried = false) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const headers = { ...options.headers };
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+    let response;
+    try {
+      response = await fetch(url, { ...options, headers, credentials: "include" });
+    } catch {
+      throw new Error(`No se pudo conectar con la API (${API_BASE_URL}).`);
+    }
+
+    if (response.status === 401 && !_retried) {
+      let renovado;
+      try {
+        renovado = await this._refrescarSesion();
+      } catch (refreshError) {
+        accessToken = null;
+        throw refreshError;
+      }
+      if (renovado) return this._requestBlob(endpoint, options, true);
+      accessToken = null;
+      const err = new Error("Sesión expirada. Vuelve a iniciar sesión.");
+      err.status = 401;
+      err.code = "UNAUTHORIZED";
+      throw err;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const err = new Error(errorData.detail || `Error en la solicitud: ${response.status}`);
+      err.status = response.status;
+      if (response.status === 401) {
+        err.code = "UNAUTHORIZED";
+        accessToken = null;
+      }
+      throw err;
+    }
+
+    return response.blob();
   }
 
   static async request(endpoint, options = {}, _retriedAfterRefresh = false) {
     const url = `${API_BASE_URL}${endpoint}`;
-    const sesion = leerSesion();
 
     const headers = { ...options.headers };
     const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
     if (!isFormData) headers["Content-Type"] = "application/json";
-    if (sesion?.access_token) headers["Authorization"] = `Bearer ${sesion.access_token}`;
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
     let response;
     try {
-      response = await fetch(url, { ...options, headers });
+      response = await fetch(url, { ...options, headers, credentials: "include" });
     } catch {
       throw new Error(`No se pudo conectar con la API (${API_BASE_URL}).`);
     }
 
     if (response.status === 401 && !_retriedAfterRefresh) {
-      const renovado = await this._refrescarSesion();
+      let renovado;
+      try {
+        renovado = await this._refrescarSesion();
+      } catch (refreshError) {
+        // El refresh no pudo contactar la API: no es problema de sesión sino
+        // de conectividad; se propaga el error claro en vez de fingir logout.
+        accessToken = null;
+        throw refreshError;
+      }
       if (renovado) return this.request(endpoint, options, true);
+      // La API respondió 401 al refresh: la cookie no existe o expiró.
+      accessToken = null;
+      const err = new Error("Sesión expirada. Vuelve a iniciar sesión.");
+      err.status = 401;
+      err.code = "UNAUTHORIZED";
+      throw err;
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      if (response.status === 401) borrarSesion();
-      throw new Error(errorData.detail || `Error en la solicitud: ${response.status}`);
+      const err = new Error(errorData.detail || `Error en la solicitud: ${response.status}`);
+      err.status = response.status;
+      if (response.status === 401) {
+        err.code = "UNAUTHORIZED";
+        accessToken = null;
+      }
+      throw err;
     }
 
     if (response.status === 204) return null;
@@ -213,22 +310,33 @@ export class ApiClient {
   }
 
   // ── Reservas (panel) ────────────────────────────────────────────────────
-  // NOTA: los siguientes endpoints todavía no existen en apps/api. El panel
-  // los llama igual; mientras no estén, las pantallas muestran su estado de
-  // error/vacío. Contrato esperado documentado en docs/panel-endpoints.md.
+  // Parámetros soportados por GET /admin/reservas: `estado`, `q`, `limit`,
+  // `cursor`. Devuelve `{ items, next_cursor }` (offset opaco).
   static getReservas(params = {}) {
-    const qs = new URLSearchParams(params).toString();
-    return this.request(`/admin/reservas${qs ? `?${qs}` : ""}`);
+    return this.request(`/admin/reservas${this._qs(params) ? `?${this._qs(params)}` : ""}`);
   }
 
   static getReserva(reservaId) {
     return this.request(`/admin/reservas/${reservaId}`);
   }
 
+  /** Descarga el contrato de arriendo en PDF (GET /reservas/{id}/contrato-pdf)
+   * y devuelve una URL de objeto para abrirla en otra pestaña. */
+  static async getContratoPdfUrl(reservaId) {
+    const blob = await this._requestBlob(`/reservas/${encodeURIComponent(reservaId)}/contrato-pdf`);
+    return URL.createObjectURL(blob);
+  }
+
+  /** Chat de la reserva (GET /reservas/{id}/mensajes) — el admin tiene acceso. */
+  static getReservaMensajes(reservaId) {
+    return this.request(`/reservas/${encodeURIComponent(reservaId)}/mensajes`);
+  }
+
   // ── Usuarios (panel) ────────────────────────────────────────────────────
+  // Parámetros soportados por GET /admin/usuarios: `rol`, `estado_documentos`,
+  // `q`, `limit`, `cursor`. Devuelve `{ items, next_cursor }` (offset opaco).
   static getUsuarios(params = {}) {
-    const qs = new URLSearchParams(params).toString();
-    return this.request(`/admin/usuarios${qs ? `?${qs}` : ""}`);
+    return this.request(`/admin/usuarios${this._qs(params) ? `?${this._qs(params)}` : ""}`);
   }
 
   static getUsuario(usuarioId) {
@@ -259,7 +367,6 @@ export class ApiClient {
   }
 
   static getPagos(params = {}) {
-    const qs = new URLSearchParams(params).toString();
-    return this.request(`/admin/pagos${qs ? `?${qs}` : ""}`);
+    return this.request(`/admin/pagos${this._qs(params) ? `?${this._qs(params)}` : ""}`);
   }
 }

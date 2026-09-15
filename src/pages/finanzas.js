@@ -3,13 +3,13 @@ import { Wallet, CheckCircle2, Clock, Gavel, Download, CreditCard } from "lucide
 import Shell from "../components/Shell";
 import { PageIntro, Kpi, Chip, StateMsg, EmptyState, formatoCLP } from "../components/ui";
 import { ApiClient } from "../lib/api";
+import { fecha } from "../lib/format";
 
 const TIPO_PAGO = {
   cobro_final: "Cobro arriendo", hold_reserva: "Hold garantía", hold_enrolamiento: "Hold enrolamiento",
   cargo_limpieza: "Cargo limpieza", cargo_combustible: "Cargo combustible",
   liquidacion_dueno: "Liquidación dueño", deducible_seguro: "Deducible seguro",
 };
-const fecha = (d) => (d ? new Date(d).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
 
 export default function Finanzas() {
   const [fin, setFin] = useState(null);
@@ -27,7 +27,7 @@ export default function Finanzas() {
       ApiClient.getPagos().catch(() => null),
     ]).then(([f, l, p]) => {
       setFin(f); setLiq(l); setPagos(p);
-      if (!f) setError("El resumen financiero no está disponible.");
+      setError(f ? null : "El resumen financiero no está disponible.");
     });
   }
 
@@ -66,7 +66,7 @@ export default function Finanzas() {
         <div className="card-head">
           <Clock />
           <h3>Liquidaciones a dueños</h3>
-          <button className="btn btn-mint btn-sm" style={{ marginLeft: "auto" }}><Download size={13} />Exportar nómina</button>
+          <button className="btn btn-mint btn-sm" title="Próximamente: la exportación de nómina aún no tiene endpoint en el backend" style={{ marginLeft: "auto" }} disabled><Download size={13} />Exportar nómina</button>
         </div>
         {liquidaciones.length === 0 ? (
           <div style={{ padding: 24 }}>

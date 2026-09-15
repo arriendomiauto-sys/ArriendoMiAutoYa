@@ -16,20 +16,20 @@ export default function Flota() {
   const [filtro, setFiltro] = useState("todos");
   const [q, setQ] = useState("");
 
-  const autos = Array.isArray(data) ? data : [];
+  const autos = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const filtrados = useMemo(() => {
     const t = q.toLowerCase().trim();
     return autos.filter((a) => {
       if (filtro === "activo" && a.estado !== "activo") return false;
       if (filtro === "pausado" && a.estado !== "pausado") return false;
-      if (filtro === "pendiente_docs" && a.documentos_verificados !== false) return false;
+      if (filtro === "pendiente_docs" && a.documentos_verificados) return false;
       if (!t) return true;
       return [a.patente, a.marca, a.modelo, a.dueno_nombre].some((v) => (v || "").toLowerCase().includes(t));
     });
   }, [autos, filtro, q]);
 
   const activos = autos.filter((a) => a.estado === "activo").length;
-  const pendientes = autos.filter((a) => a.documentos_verificados === false).length;
+  const pendientes = autos.filter((a) => !a.documentos_verificados).length;
 
   return (
     <Shell title="Flota">
@@ -53,7 +53,7 @@ export default function Flota() {
         <div className="grid g-3">
           {filtrados.map((a) => {
             const estado = a.estado === "activo" || a.estado === "pausado"
-              ? (a.documentos_verificados === false ? "pendiente_docs" : a.estado)
+              ? (!a.documentos_verificados ? "pendiente_docs" : a.estado)
               : a.estado;
             return (
               <div className="card card-pad" key={a.id} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -68,7 +68,7 @@ export default function Flota() {
                   <Chip estado={estado} />
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  <Chip estado={a.documentos_verificados === false ? "pendiente" : "aprobado"}>{a.documentos_verificados === false ? "Docs pendientes" : "Docs OK"}</Chip>
+                  <Chip estado={a.documentos_verificados ? "aprobado" : "pendiente"}>{a.documentos_verificados ? "Docs OK" : "Docs pendientes"}</Chip>
                   {a.ubicacion_base ? <span className="chip neutral"><MapPin size={11} />{a.ubicacion_base}</span> : null}
                 </div>
                 <div style={{ display: "flex", gap: 16, paddingTop: 10, borderTop: "1px solid var(--line)" }}>

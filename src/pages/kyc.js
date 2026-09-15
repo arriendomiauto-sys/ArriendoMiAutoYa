@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ShieldCheck, CreditCard, Car, ShieldAlert, RefreshCw, Search, Eye, User, Check, X,
 } from "lucide-react";
@@ -25,6 +25,9 @@ export default function KycPage() {
   const [inspTipo, setInspTipo] = useState("usuario");
   const [modal, setModal] = useState(false);
   const [procesando, setProcesando] = useState(false);
+  const exitoTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(exitoTimer.current), []);
 
   async function cargar() {
     setCargando(true);
@@ -76,7 +79,8 @@ export default function KycPage() {
       setError(e.message || "No se pudo procesar la revisión.");
     } finally {
       setProcesando(false);
-      setTimeout(() => setExito(null), 4000);
+      clearTimeout(exitoTimer.current);
+      exitoTimer.current = setTimeout(() => setExito(null), 4000);
     }
   }
 

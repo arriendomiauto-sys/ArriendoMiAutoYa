@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { KeyRound } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -11,10 +11,11 @@ export default function Login() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
 
-  if (usuario) {
-    router.replace("/");
-    return null;
-  }
+  useEffect(() => {
+    if (usuario) router.replace("/");
+  }, [usuario, router]);
+
+  if (usuario) return null;
 
   async function handleSubmit(e) {
     e.preventDefault();

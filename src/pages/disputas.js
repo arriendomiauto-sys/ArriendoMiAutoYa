@@ -4,6 +4,7 @@ import Shell from "../components/Shell";
 import { PageIntro, Chip, Segmented, StateMsg, EmptyState, Drawer, useAsync, formatoCLP } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { ApiClient } from "../lib/api";
+import { fecha } from "../lib/format";
 
 const TIPO = {
   dano: "Daño", limpieza: "Limpieza", combustible: "Combustible",
@@ -16,7 +17,6 @@ const ACCIONES_PAGO = [
   { value: "cargo_limpieza_dueno", label: "Cargo de limpieza al dueño" },
   { value: "sin_cobro", label: "Sin cobro" },
 ];
-const fecha = (d) => (d ? new Date(d).toLocaleString("es-CL", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
 
 export default function Disputas() {
   const [estado, setEstado] = useState("abierta");
@@ -119,17 +119,20 @@ function Resolver({ d, onDone }) {
   const [analisisIA, setAnalisisIA] = useState(null);
   const [cargandoIA, setCargandoIA] = useState(false);
 
-  const fotos = [...(d.foto_evidencia_url ? [d.foto_evidencia_url] : []), ...(Array.isArray(d.evidencia_fotos) ? d.evidencia_fotos : [])];
+  const fotos = useMemo(
+    () => [...(d?.foto_evidencia_url ? [d.foto_evidencia_url] : []), ...(Array.isArray(d?.evidencia_fotos) ? d.evidencia_fotos : [])],
+    [d?.foto_evidencia_url, d?.evidencia_fotos]
+  );
 
   useEffect(() => {
     if (d?.reserva_id && fotos.length) {
       setCargandoIA(true);
-      ApiClient.analizarDanosIA(d.reserva_id, { fotos_despues: fotos, notas: d.motivo })
+      ApiClient.analizarDanosIA(d.reserva_id, { fotos_despues: fotos, notas: d?.motivo })
         .then(setAnalisisIA)
         .catch(() => {})
         .finally(() => setCargandoIA(false));
     }
-  }, [d?.id]);
+  }, [d?.id, d?.reserva_id, d?.motivo, fotos]);
 
   async function resolver() {
     if (!texto.trim()) { setErr("Escribe el fundamento de la resolución."); return; }

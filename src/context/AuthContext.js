@@ -11,29 +11,16 @@ export function AuthProvider({ children }) {
   const [errorAcceso, setErrorAcceso] = useState(null);
 
   const validarSesion = useCallback(async () => {
-    if (!ApiClient.tieneSesion()) {
-      setUsuario(null);
-      setCargando(false);
-      return;
-    }
+    // No hay localStorage que avisar "tengo sesión": el refresh token vive en
+    // una cookie httpOnly (ilegible por JS), así que la única forma correcta
+    // de saber si hay sesión al recargar es preguntarle a la API. getMe()
+    // dispara el flujo: si el access token en memoria está vacío y la cookie
+    // existe, la API responde 401 sin Authorization y request() renueva vía
+    // cookie y reintenta automáticamente. Si la cookie no está o expiró,
+    // el error sale marcado como UNAUTHORIZED y acá se cae a logout silencioso.
     try {
       const me = await ApiClient.getMe();
-      let roles = Array.isArray(me?.roles_activos) ? [...me.roles_activos] : [];
-      const emailLower = (me?.email || "").toLowerCase();
-
-      // Inferencia de respaldo por email para cuentas de administración
-      if (emailLower.includes("admin") && !roles.includes("admin")) {
-        roles.push("admin");
-      }
-      if (emailLower.includes("manager") && !roles.includes("manager")) {
-        roles.push("manager");
-      }
-      if (emailLower.includes("soporte") && !roles.includes("soporte")) {
-        roles.push("soporte");
-      }
-      if (me) {
-        me.roles_activos = roles;
-      }
+      const roles = Array.isArray(me?.roles_activos) ? [...me.roles_activos] : [];
 
       if (!roles.some((r) => ROLES_PERMITIDOS.includes(r))) {
         setErrorAcceso("Tu cuenta no tiene permisos de administrador, manager o soporte.");
@@ -44,8 +31,14 @@ export function AuthProvider({ children }) {
         setUsuario(me);
       }
     } catch (err) {
-      setErrorAcceso(err.message || "No se pudo validar tu sesión.");
       setUsuario(null);
+      if (err?.code !== "UNAUTHORIZED") {
+        setErrorAcceso(err.message || "No se pudo validar tu sesión.");
+      } else {
+        // Sin sesión válida (cookie ausente/expirada): pantalla de login
+        // tranquila, sin un error que asuste al empezar.
+        setErrorAcceso(null);
+      }
     } finally {
       setCargando(false);
     }
