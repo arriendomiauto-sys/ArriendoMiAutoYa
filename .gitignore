@@ -31,6 +31,8 @@ out/
 .expo/
 dist/
 web-build/
+android/
+ios/
 
 # Python Virtual Environments
 venv/
