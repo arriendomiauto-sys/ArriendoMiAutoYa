@@ -62,18 +62,21 @@ export function conectarChat(
     try {
       socket = io(getSocketBaseUrl(), {
         path: "/socket.io",
+        // El token va por `auth` (el servidor lo lee del handshake sin
+        // exponerlo en la URL ni en logs). Reconexiones agresivas pero
+        // acotadas: en datos móviles el WebSocket muere al pasar a segundo
+        // plano y hay que volver arriba sin el "muro" de 5 s de espera.
         auth: (cb) => {
           getAccessToken()
             .then((freshToken) => cb({ token: freshToken || token }))
             .catch(() => cb({ token }));
         },
-        query: { token },
         transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionAttempts: 30,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 10000,
+        reconnectionDelay: 400,
+        reconnectionDelayMax: 2500,
+        timeout: 6000,
       });
 
       socket.on("connect", () => {
@@ -170,6 +173,27 @@ export function conectarChat(
     },
     conectado() {
       return !!socket && socket.connected;
+    },
+    /**
+     * Desperezar el canal sin esperar al backoff de Socket.IO. Útil al volver
+     * al primer plano: si el WebSocket murió, `socket.connect()` fuerza un
+     * intento inmediato en vez de esperar los 400–2500 ms del algoritmo de
+     * reintento; si nunca se creó, se inicia.
+     */
+    reconectar() {
+      if (cerradoAProposito) return;
+      if (socket) {
+        if (!socket.connected) {
+          try {
+            socket.connect();
+            avisar("conectando");
+          } catch {
+            /* ignora: el propio reintento de Socket.IO lo retomará */
+          }
+        }
+      } else {
+        iniciar();
+      }
     },
     cerrar() {
       cerradoAProposito = true;

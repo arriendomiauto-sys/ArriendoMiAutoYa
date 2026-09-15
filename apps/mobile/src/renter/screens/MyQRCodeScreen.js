@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import QRCode from "react-native-qrcode-svg";
-import { colors, theme, Button, Card, ScreenHeader, ApiClient, Icon, showAlert } from "@rentacar/mobile-shared";
+import { colors, theme, Button, Card, ScreenHeader, ApiClient, Icon, showAlert, msjError } from "@rentacar/mobile-shared";
 import { conectarChat } from "@rentacar/mobile-shared/api/chatSocket";
 
 // 2 minutos de validez estricta (120 segundos)
@@ -38,7 +38,7 @@ export function MyQRCodeScreen({ reservation, onBack }) {
       const validez = r.validez_segundos || VIGENCIA_SEGUNDOS;
       setTimeLeft(validez);
     } catch (err) {
-      setError(err.message || "No se pudo generar el código QR.");
+      setError(msjError(err, "No se pudo generar el código QR."));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -197,7 +197,7 @@ export function MyQRCodeScreen({ reservation, onBack }) {
                   accessibilityRole="button"
                   accessibilityLabel="Copiar código escrito"
                 >
-                  <Text style={styles.codeText}>{codigoLegible}</Text>
+                  <Text testID="text-codigo-qr" style={styles.codeText}>{codigoLegible}</Text>
                   <View style={styles.copyRow}>
                     <Icon name={copiado ? "check" : "copy"} size={13} color={copiado ? colors.accentDark : colors.primary} />
                     <Text style={[styles.copyText, copiado && { color: colors.accentDark, fontWeight: "700" }]}>

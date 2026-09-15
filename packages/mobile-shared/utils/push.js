@@ -88,3 +88,34 @@ export async function registrarPushToken(apiClient) {
     return null;
   }
 }
+
+/**
+ * Deep linking al tocar una notificación push. Cubre los tres casos:
+ * - Cold start: la app estaba cerrada y se abrió al tocar la notificación
+ *   (`getLastNotificationResponseAsync`).
+ * - Warm/background: la app seguía viva y el sistema la trae al frente
+ *   (`addNotificationResponseReceivedListener`).
+ *
+ * `onRespuesta` recibe el `response` crudo de expo-notifications; quien
+ * llama decide qué hacer con `response.notification.request.content.data`.
+ * Devuelve una función para desuscribirse (no-op si Expo Go o si falla).
+ */
+export function registrarListenerNotificaciones(onRespuesta) {
+  if (corriendoEnExpoGo()) return () => {};
+
+  try {
+    const Notifications = require("expo-notifications");
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) onRespuesta(response);
+      })
+      .catch(() => {});
+
+    const sub = Notifications.addNotificationResponseReceivedListener(onRespuesta);
+    return () => sub.remove();
+  } catch (e) {
+    console.warn("[push] no se pudo registrar el listener de notificaciones:", e?.message);
+    return () => {};
+  }
+}

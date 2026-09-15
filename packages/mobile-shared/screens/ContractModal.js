@@ -146,7 +146,7 @@ export function ContractModal({ visible, onClose, reservation }) {
                     <Text style={styles.b}>Vehículo:</Text> {auto.marca || "—"} {auto.modelo || ""}, patente{" "}
                     {auto.patente || "—"}, año {auto.anio || "—"}.
                     {"\n"}
-                    <Text style={styles.b}>Plataforma:</Text> Arrienda Tu Auto SpA, RUT 77.892.120-K.
+                    <Text style={styles.b}>Plataforma:</Text> ArriendoMiAutoYa Chile SpA, RUT 77.892.120-K.
                   </Text>
 
                   {CLAUSULAS.map((c) => (

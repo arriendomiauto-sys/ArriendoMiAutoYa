@@ -1,7 +1,7 @@
 import "react-native-url-polyfill/auto";
 import { AppState } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
+import * as secureStorage from "./secureStorage";
 
 // La app provee estas variables vía su .env
 // (EXPO_PUBLIC_* se expone al bundle de cliente por convención de Expo SDK 49+).
@@ -17,14 +17,18 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 export const supabase = createClient(SUPABASE_URL || "https://placeholder.supabase.co", SUPABASE_ANON_KEY || "placeholder", {
   auth: {
-    storage: AsyncStorage,
+    // Sesión (access/refresh JWT y code_verifier de PKCE) en almacén seguro
+    // nativo (Keychain / Keystore). En web y en Jest se resuelve en un backend
+    // en memoria o localStorage; las claves son las mismas que usaba
+    // AsyncStorage, así la sesión ya guardada se sigue leyendo.
+    storage: secureStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
     // PKCE: el login social abre el navegador y vuelve con `?code=`, que se
     // canjea por sesión con exchangeCodeForSession() usando el code_verifier
-    // que este flujo guarda en AsyncStorage. Sin esto el default es
-    // "implicit" y el canje falla en React Native.
+    // que este flujo guarda en el mismo almacén de sesión (SecureStore). Sin
+    // esto el default es "implicit" y el canje falla en React Native.
     flowType: "pkce",
   },
 });

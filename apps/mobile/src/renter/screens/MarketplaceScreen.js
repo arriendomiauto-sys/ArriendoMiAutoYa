@@ -1,10 +1,12 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
   StyleSheet,
-  TextInput,
+TextInput,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   StatusBar,
   RefreshControl,
@@ -60,6 +62,11 @@ const ORDENES = [
 ];
 
 const FILTROS_VACIOS = { tarifaMax: "", transmision: null, combustible: null };
+
+// Clave de persistencia de filtros, por usuario: al cambiar de pestaña el
+// marketplace se desmonta y sin esto se perdía categoría, orden, búsqueda
+// y filtros elegidos.
+const FILTROS_STORAGE_PREFIX = "marketplace_filtros_state";
 
 // Tope discreto del slider de precio.
 const PASO_PRECIO = 5000;
@@ -287,13 +294,63 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar,
 
 export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onVerifyIdentity, onOpenActiveRental }) {
   const { cars, carsError, currentUser, loadData, loading, activeReservation } = useApp();
-  const { esFavorito, toggle: toggleFavorito } = useFavoritos();
+  const { esFavorito, favoritoIds, toggle: toggleFavorito } = useFavoritos();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
   const [category, setCategory] = useState("Todos");
   const [query, setQuery] = useState("");
   const [filtros, setFiltros] = useState(FILTROS_VACIOS);
   const [orden, setOrden] = useState("recientes");
   const [modalAbierto, setModalAbierto] = useState(false);
+
+  // Filtros persistentes: se restauran al volver a la pestaña y se guardan
+  // ante cada cambio. La clave lleva el id del usuario para que cada cuenta
+  // recuerde sus propios filtros en el mismo dispositivo.
+  const filtrosStorageKey = `${FILTROS_STORAGE_PREFIX}:${currentUser?.id || "anon"}`;
+  const [filtrosRestaurados, setFiltrosRestaurados] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    AsyncStorage.getItem(filtrosStorageKey)
+      .then((crudo) => {
+        if (!vivo || !crudo) return;
+        try {
+          const estado = JSON.parse(crudo);
+          if (CATEGORIES.some((c) => c.id === estado?.category)) setCategory(estado.category);
+          if (typeof estado?.query === "string") setQuery(estado.query);
+          if (ORDENES.some((o) => o.v === estado?.orden)) setOrden(estado.orden);
+          if (estado?.filtros) {
+            setFiltros({
+              ...FILTROS_VACIOS,
+              tarifaMax: String(estado.filtros.tarifaMax || ""),
+              transmision:
+                TRANSMISIONES.some((t) => t.v === estado.filtros.transmision)
+                  ? estado.filtros.transmision
+                  : null,
+              combustible:
+                COMBUSTIBLES.some((c) => c.v === estado.filtros.combustible)
+                  ? estado.filtros.combustible
+                  : null,
+            });
+          }
+        } catch {
+          /* crudo corrupto: sigue con los valores por defecto */
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (vivo) setFiltrosRestaurados(true);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [filtrosStorageKey]);
+
+  useEffect(() => {
+    if (!filtrosRestaurados) return;
+    AsyncStorage.setItem(
+      filtrosStorageKey,
+      JSON.stringify({ category, query, filtros, orden })
+    ).catch(() => {});
+  }, [category, query, filtros, orden, filtrosRestaurados, filtrosStorageKey]);
 
   const q = query.trim().toLowerCase();
   const catActiva = CATEGORIES.find((c) => c.id === category)?.cat || null;
@@ -326,6 +383,24 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
     setOrden("recientes");
   };
 
+  // Lista virtualizada: con muchos autos, ScrollView + map renderizaba todos
+  // los CarCard de una vez (costo cuadrático con el buscador) y FlatList solo
+  // pinta los visibles. El callback es estable para que React.memo de CarCard
+  // evite redibujar toda la lista cuando cambia el contexto.
+  const renderCar = useCallback(
+    ({ item }) => (
+      <View style={{ marginBottom: theme.spacing.md }}>
+        <CarCard
+          car={item}
+          onPress={() => onSelectCar(item)}
+          esFavorito={esFavorito(item.id || item._id)}
+          onToggleFavorito={(c) => toggleFavorito(c.id || c._id)}
+        />
+      </View>
+    ),
+    [onSelectCar, esFavorito, toggleFavorito]
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -345,11 +420,19 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Ver mis favoritos"
+              hitSlop={theme.control.hitSlop}
             >
               <Icon name="heart" size={18} color={colors.primary} />
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity style={styles.mapBtn} onPress={onOpenMap} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.mapBtn}
+            onPress={onOpenMap}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir el mapa"
+            hitSlop={theme.control.hitSlop}
+          >
             <Icon name="pin" size={16} color={colors.primary} />
             <Text style={styles.mapBtnText}>Mapa</Text>
           </TouchableOpacity>
@@ -414,6 +497,9 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
                 style={styles.activeChip}
                 onPress={() => setOrden("recientes")}
                 activeOpacity={0.8}
+                hitSlop={theme.control.hitSlop}
+                accessibilityRole="button"
+                accessibilityLabel={`Quitar el orden: ${ORDENES.find((o) => o.v === orden)?.label}`}
               >
                 <Text style={styles.activeChipText}>{ORDENES.find((o) => o.v === orden)?.label}</Text>
                 <Icon name="close" size={12} color={colors.primary} />
@@ -424,6 +510,9 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
                 style={styles.activeChip}
                 onPress={() => setFiltros((p) => ({ ...p, tarifaMax: "" }))}
                 activeOpacity={0.8}
+                hitSlop={theme.control.hitSlop}
+                accessibilityRole="button"
+                accessibilityLabel={`Quitar el filtro: hasta $${parseInt(filtros.tarifaMax, 10).toLocaleString("es-CL")}`}
               >
                 <Text style={styles.activeChipText}>
                   Hasta ${parseInt(filtros.tarifaMax, 10).toLocaleString("es-CL")}
@@ -436,6 +525,9 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
                 style={styles.activeChip}
                 onPress={() => setFiltros((p) => ({ ...p, transmision: null }))}
                 activeOpacity={0.8}
+                hitSlop={theme.control.hitSlop}
+                accessibilityRole="button"
+                accessibilityLabel="Quitar el filtro de transmisión"
               >
                 <Text style={styles.activeChipText}>
                   {TRANSMISIONES.find((t) => t.v === filtros.transmision)?.label}
@@ -448,6 +540,9 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
                 style={styles.activeChip}
                 onPress={() => setFiltros((p) => ({ ...p, combustible: null }))}
                 activeOpacity={0.8}
+                hitSlop={theme.control.hitSlop}
+                accessibilityRole="button"
+                accessibilityLabel="Quitar el filtro de combustible"
               >
                 <Text style={styles.activeChipText}>
                   {COMBUSTIBLES.find((c) => c.v === filtros.combustible)?.label}
@@ -455,14 +550,102 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
                 <Icon name="close" size={12} color={colors.primary} />
               </TouchableOpacity>
             ) : null}
-            <TouchableOpacity onPress={limpiarTodo} style={styles.limpiarTodoBtn}>
+            <TouchableOpacity
+              onPress={limpiarTodo}
+              style={styles.limpiarTodoBtn}
+              hitSlop={theme.control.hitSlop}
+              accessibilityRole="button"
+              accessibilityLabel="Limpiar todos los filtros"
+            >
               <Text style={styles.limpiarTodoText}>Limpiar todo</Text>
             </TouchableOpacity>
           </ScrollView>
         )}
       </View>
 
-      <ScrollView
+      <FlatList
+        data={filteredCars}
+        keyExtractor={(car) => String(car.id || car._id)}
+        renderItem={renderCar}
+        ListHeaderComponent={() => (
+          <>
+            {activeReservation && (activeReservation.estado === "en_curso" || activeReservation.estado === "confirmada") && (
+              <TouchableOpacity
+                style={styles.activeRentalBanner}
+                onPress={onOpenActiveRental}
+                activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityLabel="Ver mi arriendo"
+              >
+                <Icon name="key" size={18} color="#FFFFFF" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activeRentalBannerTitle}>
+                    {activeReservation.estado === "en_curso" ? "Tienes un arriendo en curso" : "Tienes una reserva confirmada"}
+                  </Text>
+                  <Text style={styles.activeRentalBannerSub}>Toca para ver los detalles</Text>
+                </View>
+                <Icon name="chevron-right" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+
+            {!identidadVerificada && (
+              <View style={{ marginBottom: theme.spacing.lg }}>
+                <VerifyIdentityBanner role="renter" onPress={onVerifyIdentity} />
+              </View>
+            )}
+
+            {filteredCars.length > 0 && (
+              <Text style={styles.count}>
+                {filteredCars.length} {filteredCars.length === 1 ? "auto disponible" : "autos disponibles"}
+              </Text>
+            )}
+          </>
+        )}
+        ListEmptyComponent={
+          cargandoInicial ? (
+            // Primera carga sin datos aún: silueta de la lista.
+            <>
+              {[0, 1, 2, 3].map((i) => (
+                <View key={i} style={{ marginBottom: theme.spacing.lg }}>
+                  <CarCardSkeleton />
+                </View>
+              ))}
+            </>
+          ) : carsError && !(cars || []).length ? (
+            // El backend respondió con error: los filtros quedan guardados.
+            <View style={styles.errorCard}>
+              <Text style={styles.errorTitle}>No pudimos cargar los autos</Text>
+              <Text style={styles.errorBody}>
+                {carsError} Revisa tu conexión; tus filtros quedan guardados.
+              </Text>
+              <TouchableOpacity style={styles.errorBtn} onPress={loadData} activeOpacity={0.85}>
+                <Text style={styles.errorBtnText}>Reintentar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : hayResultadosSinFiltros ? (
+            // Hay autos, pero ninguno calza con la búsqueda/filtros del usuario.
+            <EmptyState
+              icon="search"
+              title="Ningún auto calza con tus filtros"
+              message="Prueba subir la tarifa máxima, cambiar el tipo de combustible o limpiar la búsqueda."
+              action="Limpiar filtros"
+              onAction={() => {
+                setQuery("");
+                setCategory("Todos");
+                limpiarTodo();
+              }}
+            />
+          ) : (
+            // No hay autos publicados en absoluto (o la zona no tiene).
+            <EmptyState
+              icon="car"
+              title="Todavía no hay autos en tu zona"
+              message="Aún no hay vehículos publicados cerca. Revisa el mapa o vuelve a intentarlo en unos días."
+              action="Ver el mapa"
+              onAction={onOpenMap}
+            />
+          )
+        }
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -470,92 +653,11 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
         refreshControl={
           <RefreshControl refreshing={!!loading} onRefresh={loadData} tintColor={colors.primary} />
         }
-      >
-        {activeReservation && (activeReservation.estado === "en_curso" || activeReservation.estado === "confirmada") && (
-          <TouchableOpacity
-            style={styles.activeRentalBanner}
-            onPress={onOpenActiveRental}
-            activeOpacity={0.9}
-            accessibilityRole="button"
-            accessibilityLabel="Ver mi arriendo"
-          >
-            <Icon name="key" size={18} color="#FFFFFF" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activeRentalBannerTitle}>
-                {activeReservation.estado === "en_curso" ? "Tienes un arriendo en curso" : "Tienes una reserva confirmada"}
-              </Text>
-              <Text style={styles.activeRentalBannerSub}>Toca para ver los detalles</Text>
-            </View>
-            <Icon name="chevron-right" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
-
-        {!identidadVerificada && (
-          <View style={{ marginBottom: theme.spacing.lg }}>
-            <VerifyIdentityBanner role="renter" onPress={onVerifyIdentity} />
-          </View>
-        )}
-
-        {cargandoInicial ? (
-          // Primera carga sin datos aún: silueta de la lista.
-          <>
-            {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={{ marginBottom: theme.spacing.lg }}>
-                <CarCardSkeleton />
-              </View>
-            ))}
-          </>
-        ) : carsError && !(cars || []).length ? (
-          // El backend respondió con error: los filtros quedan guardados.
-          <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>No pudimos cargar los autos</Text>
-            <Text style={styles.errorBody}>
-              {carsError} Revisa tu conexión; tus filtros quedan guardados.
-            </Text>
-            <TouchableOpacity style={styles.errorBtn} onPress={loadData} activeOpacity={0.85}>
-              <Text style={styles.errorBtnText}>Reintentar</Text>
-            </TouchableOpacity>
-          </View>
-        ) : filteredCars.length > 0 ? (
-          <>
-            <Text style={styles.count}>
-              {filteredCars.length} {filteredCars.length === 1 ? "auto disponible" : "autos disponibles"}
-            </Text>
-            {filteredCars.map((car) => (
-              <View key={car.id || car._id} style={{ marginBottom: theme.spacing.md }}>
-                <CarCard
-                  car={car}
-                  onPress={() => onSelectCar(car)}
-                  esFavorito={esFavorito(car.id || car._id)}
-                  onToggleFavorito={(c) => toggleFavorito(c.id || c._id)}
-                />
-              </View>
-            ))}
-          </>
-        ) : hayResultadosSinFiltros ? (
-          // Hay autos, pero ninguno calza con la búsqueda/filtros del usuario.
-          <EmptyState
-            icon="search"
-            title="Ningún auto calza con tus filtros"
-            message="Prueba subir la tarifa máxima, cambiar el tipo de combustible o limpiar la búsqueda."
-            action="Limpiar filtros"
-            onAction={() => {
-              setQuery("");
-              setCategory("Todos");
-              limpiarTodo();
-            }}
-          />
-        ) : (
-          // No hay autos publicados en absoluto (o la zona no tiene).
-          <EmptyState
-            icon="car"
-            title="Todavía no hay autos en tu zona"
-            message="Aún no hay vehículos publicados cerca. Revisa el mapa o vuelve a intentarlo en unos días."
-            action="Ver el mapa"
-            onAction={onOpenMap}
-          />
-        )}
-      </ScrollView>
+        initialNumToRender={6}
+        windowSize={10}
+        extraData={favoritoIds}
+        removeClippedSubviews={false}
+      />
 
       <ModalFiltros
         visible={modalAbierto}
@@ -614,9 +716,9 @@ const styles = StyleSheet.create({
   },
   mapBtnText: { fontSize: 14, fontWeight: "600", color: colors.primary },
   favIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: theme.spacing.sm,
     alignItems: "center",
     justifyContent: "center",

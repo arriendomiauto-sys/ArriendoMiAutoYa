@@ -17,6 +17,7 @@ import { Icon } from "../components/Icon";
 import { Button } from "../components/ui";
 import { ApiClient } from "../api/client";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 
 export function PreCheckinModal({
   visible,
@@ -62,7 +63,7 @@ export function PreCheckinModal({
         [{ text: "Entendido", onPress: () => { onClose(); onConfirmed && onConfirmed(res); } }]
       );
     } catch (err) {
-      showAlert("No se pudo completar el pre-checkin", err.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo completar el pre-checkin", msjError(err, "Inténtalo de nuevo."));
     } finally {
       setLoading(false);
     }

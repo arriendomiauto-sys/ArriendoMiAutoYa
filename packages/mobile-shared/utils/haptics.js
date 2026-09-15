@@ -12,7 +12,6 @@ import { Platform, Vibration } from "react-native";
  */
 let Haptics = null;
 try {
-  // eslint-disable-next-line global-require
   Haptics = require("expo-haptics");
 } catch (e) {
   Haptics = null;

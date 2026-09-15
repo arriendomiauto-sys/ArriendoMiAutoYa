@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors, theme, useApp, Icon, Button, Card, ScreenHeader, SectionLabel, Chip,
-  ApiClient, showAlert, elegirImagen, subirImagenOptimizada,
+  ApiClient, showAlert, msjError, elegirImagen, subirImagenOptimizada,
 } from "@rentacar/mobile-shared";
 
 const TIPOS = [
@@ -54,7 +54,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
       });
       setFotos((p) => [...p, url]);
     } catch (err) {
-      showAlert("No se pudo subir la foto", err.message);
+      showAlert("No se pudo subir la foto", msjError(err, "Revisa tu conexión e inténtalo de nuevo."));
     } finally {
       setSubiendo(false);
     }
@@ -68,7 +68,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
       );
       showAlert("Solicitud enviada", "Se notificó a soporte para coordinar la grúa. Te contactarán a la brevedad.");
     } catch (err) {
-      showAlert("No se pudo enviar", err.message);
+      showAlert("No se pudo enviar", msjError(err, "Intenta de nuevo en unos segundos."));
     }
   };
 
@@ -96,7 +96,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
         [{ text: "Entendido", onPress: onComplete || onBack }]
       );
     } catch (err) {
-      showAlert("No se pudo enviar el reporte", err.message);
+      showAlert("No se pudo enviar el reporte", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setEnviando(false);
     }

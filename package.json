@@ -13,7 +13,8 @@
     "web": "npm --prefix apps/mobile run web",
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "test:maestro": "powershell -File .maestro/correr_todos_los_flujos.ps1"
   },
   "dependencies": {
     "react": "19.2.3",

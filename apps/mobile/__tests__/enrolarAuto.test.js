@@ -12,6 +12,10 @@ import { act } from "react-test-renderer";
 import { AddEditCarScreen } from "../src/owner/screens/AddEditCarScreen";
 import { renderTree, textOf, pressText } from "../test-utils";
 
+// El default del wizard es el año vigente (dinámico, no hardcodeado).
+const ANIO_ACTUAL = new Date().getFullYear();
+const anioComoTexto = String(ANIO_ACTUAL);
+
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -115,9 +119,28 @@ describe("Publicar un auto · paso 1 (el auto)", () => {
   it("no acepta autos anteriores al 2000", () => {
     const tr = montar();
     datosBasicos(tr);
-    escribir(tr, "2023", "1998");
+    escribir(tr, anioComoTexto, "1998");
     pressText(tr, "Siguiente: tarifa");
     expect(textOf(tr)).toContain("del año 2000 en adelante");
+  });
+
+  it("rechaza o limpia años con letras", () => {
+    const tr = montar();
+    datosBasicos(tr);
+    escribir(tr, anioComoTexto, `${anioComoTexto}DXAS`);
+    // Al escribir, la sanitización remueve las letras dejando solo el año.
+    const inputAnio = tr.root.findAll(
+      (n) => n.props?.placeholder === anioComoTexto && typeof n.props?.onChangeText === "function"
+    )[0];
+    expect(inputAnio.props.value).toBe(anioComoTexto);
+  });
+
+  it("abre el selector modal de años al presionar Elegir de lista", () => {
+    const tr = montar();
+    expect(textOf(tr)).toContain("Elegir de lista");
+    pressText(tr, "Elegir de lista");
+    expect(textOf(tr)).toContain("Año de fabricación");
+    expect(textOf(tr)).toContain("Más recientes");
   });
 
   it("no deja avanzar sin fijar el punto en el mapa", () => {

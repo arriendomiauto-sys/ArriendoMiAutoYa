@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, useApp, Button, Card, ScreenHeader, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, theme, useApp, Button, Card, ScreenHeader, SectionLabel, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
 
 const DIA_MS = 86400000;
 
@@ -76,7 +76,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
         [{ text: "Entendido", onPress: onComplete || onBack }]
       );
     } catch (err) {
-      showAlert("No se pudo extender", err.message);
+      showAlert("No se pudo extender", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setLoading(false);
     }

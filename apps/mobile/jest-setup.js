@@ -29,6 +29,7 @@ jest.mock("expo-clipboard", () => {
 jest.mock("expo-location", () => ({
   Accuracy: { Lowest: 1, Low: 2, Balanced: 3, High: 4, Highest: 5, BestForNavigation: 6 },
   requestForegroundPermissionsAsync: jest.fn(async () => ({ status: "granted" })),
+  requestBackgroundPermissionsAsync: jest.fn(async () => ({ status: "denied" })),
   getCurrentPositionAsync: jest.fn(async () => ({
     coords: { latitude: -37.4697, longitude: -72.3536 },
   })),
@@ -38,6 +39,9 @@ jest.mock("expo-location", () => ({
   geocodeAsync: jest.fn(async () => [
     { latitude: -37.4697, longitude: -72.3536 },
   ]),
+  hasStartedLocationUpdatesAsync: jest.fn(async () => false),
+  startLocationUpdatesAsync: jest.fn(async () => {}),
+  stopLocationUpdatesAsync: jest.fn(async () => {}),
 }));
 
 // expo-camera es un módulo nativo. Además, useCameraPermissions() consulta el
@@ -77,10 +81,47 @@ jest.mock("expo-image-picker", () => ({
   launchImageLibraryAsync: jest.fn(async () => ({ canceled: true })),
 }));
 
+// @react-native-community/netinfo es nativo (usa NSURLSession/ConnectivityManager
+// reales para resolver isInternetReachable): sin mock revienta en jsdom.
+jest.mock("@react-native-community/netinfo", () => ({
+  __esModule: true,
+  default: {
+    fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+    addEventListener: jest.fn(() => () => {}),
+  },
+}));
+
+// expo-task-manager es un TurboModule nativo: defineTask no hace nada real en tests.
+jest.mock("expo-task-manager", () => ({
+  defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn(async () => false),
+  unregisterTaskAsync: jest.fn(async () => {}),
+}));
+
 // AsyncStorage: implementación en memoria para los tests.
 jest.mock("@react-native-async-storage/async-storage", () =>
   require("@react-native-async-storage/async-storage/jest/async-storage-mock")
 );
+
+// expo-secure-store es un módulo nativo (Keychain / Keystore): en tests se
+// simula con un Map en memoria. SecureStorage lo usa para la sesión, así que
+// el mock debe exponer la misma API (setItemAsync/getItemAsync/deleteItemAsync).
+jest.mock("expo-secure-store", () => {
+  let datos = new Map();
+  return {
+    __esModule: true,
+    setItemAsync: jest.fn(async (key, value) => {
+      datos.set(key, value);
+    }),
+    getItemAsync: jest.fn(async (key) => (datos.has(key) ? datos.get(key) : null)),
+    deleteItemAsync: jest.fn(async (key) => {
+      datos.delete(key);
+    }),
+    __reset: () => {
+      datos = new Map();
+    },
+  };
+});
 
 // react-native-document-scanner-plugin es un módulo nativo TurboModule: se mockea para Jest.
 jest.mock("react-native-document-scanner-plugin", () => ({
@@ -93,6 +134,20 @@ jest.mock("react-native-document-scanner-plugin", () => ({
 }));
 
 // Silencia el warning de act() de las animaciones de RN y logs tardíos en tests.
-jest.spyOn(console, "warn").mockImplementation((msg) => {
-  if (typeof msg === "string" && /useNativeDriver|act\(\)|ExpoModulesCoreJSLogger/.test(msg)) return;
+const originalWarn = console.warn.bind(console);
+const originalError = console.error.bind(console);
+const filtrarAct = (msg) => typeof msg === "string" && /useNativeDriver|act\(|ExpoModulesCoreJSLogger/.test(msg);
+
+jest.spyOn(console, "warn").mockImplementation((msg, ...args) => {
+  if (filtrarAct(msg)) return;
+  originalWarn(msg, ...args);
+});
+
+jest.spyOn(console, "error").mockImplementation((msg, ...args) => {
+  if (filtrarAct(msg)) return;
+  originalError(msg, ...args);
+});
+
+afterEach(() => {
+  jest.clearAllTimers();
 });

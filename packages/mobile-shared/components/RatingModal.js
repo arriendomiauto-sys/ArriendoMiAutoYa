@@ -15,6 +15,7 @@ import { Icon } from "./Icon";
 import { Button } from "./ui";
 import { ApiClient } from "../api/client";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 
 /**
  * Calificar a la contraparte de una reserva ya finalizada, desde el
@@ -58,7 +59,7 @@ export function RatingModal({
       setComentario("");
       onClose();
     } catch (err) {
-      showAlert("No se pudo enviar la calificación", err.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo enviar la calificación", msjError(err, "Inténtalo de nuevo."));
     } finally {
       setEnviando(false);
     }

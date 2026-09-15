@@ -40,11 +40,12 @@ export function SelectorTarjeta({
         </TouchableOpacity>
       ) : (
         <View style={[styles.lista, error && styles.listaError]}>
-          {tarjetas.map((t) => {
+          {tarjetas.map((t, idx) => {
             const activa = t.id === seleccionadaId;
             return (
               <TouchableOpacity
                 key={t.id}
+                testID={`tarjeta-${tipoVacio === "crédito" ? "credito" : "debito"}-${idx}`}
                 style={styles.fila}
                 onPress={() => onSeleccionar(t.id)}
                 activeOpacity={0.8}

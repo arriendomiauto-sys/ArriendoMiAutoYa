@@ -5,6 +5,7 @@ import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 import { elegirYSubirImagen } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 
 /**
  * Adjuntar una foto desde la cámara o la galería.
@@ -28,7 +29,7 @@ export function AdjuntarFoto({ etiqueta, ayuda, url, onUrl, bucket, ajustes, obl
       });
       if (!cancelado && subida) onUrl(subida);
     } catch (err) {
-      showAlert("No se pudo adjuntar", err.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo adjuntar", msjError(err, "Inténtalo de nuevo."));
     } finally {
       setSubiendo(false);
     }

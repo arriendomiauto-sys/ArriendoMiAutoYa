@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon, Button, Badge, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, Button, Badge, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc } from "../comun";
 
 function fmtFecha(iso) {
@@ -67,7 +67,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
     try {
       setItems((await ApiClient.getMantenciones(car.id)) || []);
     } catch (err) {
-      setError(err.message);
+      setError(msjError(err, "No se pudieron cargar los mantenimientos."));
     } finally {
       setLoading(false);
     }
@@ -107,7 +107,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
       if (nuevo?.id) setItems((p) => [nuevo, ...p]);
       else cargar();
     } catch (err) {
-      showAlert("No se pudo guardar", err.message);
+      showAlert("No se pudo guardar", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setSaving(false);
     }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import {
   colors,
@@ -14,13 +14,17 @@ import {
   esMarcaConocida,
   normalizarMarca,
 } from "@rentacar/mobile-shared/vehiculo/catalogo";
+import { validarPatenteChilena } from "@rentacar/shared-schemas";
 import { MAPA, PUNTO_INICIAL } from "./useCarWizard";
 import { Tarjeta, TituloPaso, MensajeError, comun, TRANSMISIONES, COMBUSTIBLES, EQUIPAMIENTO } from "./comun";
+import { SelectorAnioModal } from "./SelectorAnioModal";
 
 const { MapView, Marker } = MAPA;
 
 export function PasoVehiculo({ wizard }) {
   const { form, setForm, setField, errorDe, tienePunto } = wizard;
+  const [modalAnioAbierto, setModalAnioAbierto] = useState(false);
+  const anioActual = new Date().getFullYear();
 
   const setEquip = (key) =>
     setForm((prev) => ({
@@ -82,21 +86,59 @@ export function PasoVehiculo({ wizard }) {
 
         <View style={comun.row}>
           <View style={[comun.field, { flex: 1 }]}>
-            <Text style={comun.fieldLabel}>Año</Text>
-            <TextInput
-              style={[comun.input, errorDe("anio") && comun.inputError]}
-              placeholder="2023"
-              placeholderTextColor={colors.textPlaceholder}
-              value={form.anio}
-              onChangeText={(t) => setField("anio", t)}
-              keyboardType="number-pad"
-            />
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+              <Text style={comun.fieldLabel}>Año</Text>
+              <TouchableOpacity
+                onPress={() => setModalAnioAbierto(true)}
+                hitSlop={theme.control.hitSlop}
+                accessibilityLabel="Elegir año de la lista"
+              >
+                <Text style={{ fontSize: 11, fontWeight: "700", color: colors.primary }}>
+                  Elegir de lista
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[
+                comun.input,
+                { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 0 },
+                errorDe("anio") && comun.inputError,
+              ]}
+              onPress={() => setModalAnioAbierto(true)}
+              activeOpacity={0.8}
+              accessibilityRole="combobox"
+              accessibilityLabel="Año de fabricación"
+            >
+              <TextInput
+                style={{ flex: 1, height: 48, fontSize: 15, fontWeight: "700", color: colors.text }}
+                placeholder={String(anioActual)}
+                placeholderTextColor={colors.textPlaceholder}
+                value={form.anio}
+                onChangeText={(t) => setField("anio", t)}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+              <Icon name="chevronDown" size={16} color={colors.textMuted} />
+            </TouchableOpacity>
             <MensajeError texto={errorDe("anio")} />
           </View>
+
           <View style={[comun.field, { flex: 1 }]}>
-            <Text style={comun.fieldLabel}>Patente</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+              <Text style={comun.fieldLabel}>Patente</Text>
+              {validarPatenteChilena(form.patente) ? (
+                <Text style={{ fontSize: 10.5, fontWeight: "700", color: colors.accentDark }}>
+                  ✓ Válida
+                </Text>
+              ) : null}
+            </View>
             <TextInput
-              style={[comun.input, { letterSpacing: 3, fontWeight: "700" }, errorDe("patente") && comun.inputError]}
+              style={[
+                comun.input,
+                { letterSpacing: 2.5, fontWeight: "800" },
+                errorDe("patente") && comun.inputError,
+                validarPatenteChilena(form.patente) && { borderColor: colors.accentDark },
+              ]}
               placeholder="ABCD-12"
               placeholderTextColor={colors.textPlaceholder}
               value={form.patente}
@@ -141,22 +183,41 @@ export function PasoVehiculo({ wizard }) {
           </View>
         </View>
 
-        <View style={comun.row}>
-          {["asientos", "puertas"].map((campo) => (
-            <View key={campo} style={[comun.field, { flex: 1 }]}>
-              <Text style={comun.fieldLabel}>{campo === "asientos" ? "Asientos" : "Puertas"}</Text>
-              <TextInput
-                style={comun.input}
-                value={form[campo]}
-                onChangeText={(t) => setField(campo, t)}
-                keyboardType="number-pad"
-                placeholder={campo === "asientos" ? "5" : "4"}
-                placeholderTextColor={colors.textPlaceholder}
+        <View style={comun.field}>
+          <Text style={comun.fieldLabel}>Asientos</Text>
+          <View style={comun.chipsRow}>
+            {["2", "4", "5", "7", "8"].map((num) => (
+              <Chip
+                key={num}
+                label={`${num} asientos`}
+                selected={String(form.asientos) === num}
+                onPress={() => setField("asientos", num)}
               />
-            </View>
-          ))}
+            ))}
+          </View>
+        </View>
+
+        <View style={comun.field}>
+          <Text style={comun.fieldLabel}>Puertas</Text>
+          <View style={comun.chipsRow}>
+            {["2", "3", "4", "5"].map((num) => (
+              <Chip
+                key={num}
+                label={`${num} puertas`}
+                selected={String(form.puertas) === num}
+                onPress={() => setField("puertas", num)}
+              />
+            ))}
+          </View>
         </View>
       </Tarjeta>
+
+      <SelectorAnioModal
+        visible={modalAnioAbierto}
+        anioSeleccionado={form.anio}
+        onSelect={(anio) => setField("anio", anio)}
+        onClose={() => setModalAnioAbierto(false)}
+      />
 
       <Tarjeta>
         <Text style={comun.cardTitle}>Equipamiento</Text>

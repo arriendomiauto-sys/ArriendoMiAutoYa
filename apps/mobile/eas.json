@@ -1,7 +1,11 @@
 {
   "cli": { "appVersionSource": "remote" },
   "build": {
-    "development": { "developmentClient": true, "distribution": "internal" },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
     "development-arm64": {
       "extends": "development",
       "android": {
@@ -17,7 +21,8 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://rgxiyidijtoazcrmijly.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_yatHGTQbfFjv9RadBTBO8Q_4iF9Q6b5",
         "EXPO_PUBLIC_WEB_URL": "https://arriendomiautoya.cl",
-        "EXPO_PUBLIC_USE_RN_FETCH": "1"
+        "EXPO_PUBLIC_USE_RN_FETCH": "1",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {

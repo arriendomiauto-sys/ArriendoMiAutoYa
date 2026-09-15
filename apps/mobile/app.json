@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Arrienda Tu Auto",
+    "name": "ArriendoMiAutoYa",
     "slug": "arrienda-tu-auto",
     "scheme": "arriendatuauto",
     "version": "1.0.0",
@@ -14,10 +14,14 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Arrienda Tu Auto usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa.",
-        "NSCameraUsageDescription": "Arrienda Tu Auto necesita acceso a tu cámara para verificar tu identidad y registrar fotos de entrega y devolución del auto.",
-        "NSPhotoLibraryUsageDescription": "Arrienda Tu Auto necesita acceso a tus fotos para adjuntar imágenes del vehículo y documentos.",
-        "NSPhotoLibraryAddUsageDescription": "Arrienda Tu Auto guarda copias de seguridad de las fotos de entrega."
+        "NSLocationWhenInUseUsageDescription": "ArriendoMiAutoYa usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "ArriendoMiAutoYa rastrea la ubicación del vehículo arrendado durante el período de arriendo activo, con tu consentimiento, por seguridad y prevención de fraude/robo. Se detiene automáticamente al finalizar el arriendo.",
+        "NSCameraUsageDescription": "ArriendoMiAutoYa necesita acceso a tu cámara para verificar tu identidad y registrar fotos de entrega y devolución del auto.",
+        "NSPhotoLibraryUsageDescription": "ArriendoMiAutoYa necesita acceso a tus fotos para adjuntar imágenes del vehículo y documentos.",
+        "NSPhotoLibraryAddUsageDescription": "ArriendoMiAutoYa guarda copias de seguridad de las fotos de entrega.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -34,6 +38,9 @@
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.USE_BIOMETRIC",
@@ -57,20 +64,23 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Arrienda Tu Auto necesita acceso a tus fotos para publicar tu vehículo y verificar tus documentos.",
-          "cameraPermission": "Arrienda Tu Auto necesita acceso a la cámara para fotografiar el vehículo durante la entrega."
+          "photosPermission": "ArriendoMiAutoYa necesita acceso a tus fotos para publicar tu vehículo y verificar tus documentos.",
+          "cameraPermission": "ArriendoMiAutoYa necesita acceso a la cámara para fotografiar el vehículo durante la entrega."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Arrienda Tu Auto necesita tu cámara para fotografiar tu cédula, tu licencia y tomar la selfie de verificación de identidad."
+          "cameraPermission": "ArriendoMiAutoYa necesita tu cámara para fotografiar tu cédula, tu licencia y tomar la selfie de verificación de identidad."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Arrienda Tu Auto usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa."
+          "locationWhenInUsePermission": "ArriendoMiAutoYa usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa.",
+          "locationAlwaysAndWhenInUsePermission": "ArriendoMiAutoYa rastrea la ubicación del vehículo arrendado durante el período de arriendo activo, con tu consentimiento, por seguridad y prevención de fraude/robo. Se detiene automáticamente al finalizar el arriendo.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-web-browser",
@@ -78,15 +88,17 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Arrienda Tu Auto usa Face ID para proteger el acceso a tu cuenta si activas el bloqueo biométrico."
+          "faceIDPermission": "ArriendoMiAutoYa usa Face ID para proteger el acceso a tu cuenta si activas el bloqueo biométrico."
         }
       ],
       [
         "react-native-document-scanner-plugin",
         {
-          "cameraPermission": "Arrienda Tu Auto necesita tu cámara para escanear tu cédula automáticamente."
+          "cameraPermission": "ArriendoMiAutoYa necesita tu cámara para escanear tu cédula automáticamente."
         }
-      ]
+      ],
+      "@sentry/react-native",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

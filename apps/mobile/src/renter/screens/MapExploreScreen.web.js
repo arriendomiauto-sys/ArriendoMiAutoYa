@@ -17,7 +17,7 @@ export function MapExploreScreen({ onBack }) {
         <Text style={styles.title}>El mapa está en la app</Text>
         <Text style={styles.text}>
           La vista de mapa usa mapas nativos y no está disponible en la versión web.
-          Abre Arrienda Tu Auto en tu teléfono para explorar los autos en el mapa.
+          Abre ArriendoMiAutoYa en tu teléfono para explorar los autos en el mapa.
         </Text>
         <Button
           label="Volver al listado"

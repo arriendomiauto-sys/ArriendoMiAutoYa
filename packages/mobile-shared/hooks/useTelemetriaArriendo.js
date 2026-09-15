@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
 import { ApiClient } from "../api/client";
+import { iniciarTelemetriaBackground, detenerTelemetriaBackground } from "../utils/telemetriaBackgroundTask";
 
 /**
  * Hook para transmitir la ubicación GPS desde el celular del arrendatario
@@ -55,17 +56,25 @@ export function useTelemetriaArriendo(reservaId, activo = false, intervaloMs = 1
   useEffect(() => {
     if (!reservaId || !activo) {
       if (timerRef.current) clearInterval(timerRef.current);
+      detenerTelemetriaBackground();
       return;
     }
 
     // Envío inicial
     enviarPosicion();
 
-    // Intervalo recurrente
+    // Intervalo recurrente (cubre foreground con el envío más simple posible;
+    // se detiene solo cuando la app pasa a background, momento en que toma
+    // la posta la tarea de background de abajo).
     timerRef.current = setInterval(enviarPosicion, intervaloMs);
+
+    // Sigue reportando aunque la app pase a segundo plano o se cierre
+    // (Android) mientras el arriendo esté en curso.
+    iniciarTelemetriaBackground(reservaId, intervaloMs);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      detenerTelemetriaBackground();
     };
   }, [reservaId, activo, intervaloMs]);
 

@@ -52,6 +52,7 @@ function Item({ tab, activa, apagado, onPress }) {
 
   return (
     <TouchableOpacity
+      testID={`tab-${tab.id}`}
       style={styles.item}
       onPress={onPress}
       activeOpacity={0.7}

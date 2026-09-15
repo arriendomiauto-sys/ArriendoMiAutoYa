@@ -1,4 +1,4 @@
-import { ApiClient, MOCK_CARS } from "@rentacar/mobile-shared";
+import { ApiClient } from "@rentacar/mobile-shared";
 
 // El token sale de la sesión de Supabase: en tests no hay sesión y no se
 // necesita para GET /autos (endpoint público).
@@ -12,9 +12,11 @@ describe("ApiClient.getAutos", () => {
     jest.restoreAllMocks();
   });
 
-  it("cae a los autos de demo solo cuando no se pudo contactar al servidor", async () => {
+  it("un fallo de conexión se propaga y NO enmascara el catálogo", async () => {
     jest.spyOn(global, "fetch").mockRejectedValue(new TypeError("Network request failed"));
-    await expect(ApiClient.getAutos()).resolves.toBe(MOCK_CARS);
+    // La pantalla necesita ese error para mostrar reintento en vez de autos
+    // de ejemplo que no existen.
+    await expect(ApiClient.getAutos()).rejects.toMatchObject({ esFalloDeConexion: true });
   });
 
   it("propaga el error cuando el servidor responde 500, en vez de fingir un catálogo vacío", async () => {

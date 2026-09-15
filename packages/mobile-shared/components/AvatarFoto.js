@@ -3,6 +3,7 @@ import { View, Image, StyleSheet } from "react-native";
 import { colors } from "../theme/colors";
 import { useApp } from "../context/AppContext";
 import { Icon } from "./Icon";
+import { Skeleton } from "./Skeleton";
 
 /**
  * Foto de perfil del usuario con recuperación automática.
@@ -26,6 +27,7 @@ export function AvatarFoto({ size = 56, uri, iconSize, iconColor, style }) {
     uri || currentUser?.foto_perfil_verificada_url || currentUser?.foto_perfil_url || null;
 
   const [error, setError] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const reintentoHecho = useRef(false);
 
   // Si cambia la URL (p. ej. tras el re-sync trae una firmada nueva), se
@@ -33,6 +35,7 @@ export function AvatarFoto({ size = 56, uri, iconSize, iconColor, style }) {
   // se resetea: solo se pide el perfil de nuevo una vez por montaje.
   useEffect(() => {
     setError(false);
+    setCargando(true);
   }, [fuente]);
 
   const dim = { width: size, height: size, borderRadius: size / 2 };
@@ -57,7 +60,17 @@ export function AvatarFoto({ size = 56, uri, iconSize, iconColor, style }) {
     );
   }
 
-  return <Image source={{ uri: fuente }} style={[dim, style]} onError={onError} />;
+  return (
+    <View style={[dim, style]}>
+      {cargando && <Skeleton style={dim} />}
+      <Image
+        source={{ uri: fuente }}
+        style={dim}
+        onLoadEnd={() => setCargando(false)}
+        onError={onError}
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

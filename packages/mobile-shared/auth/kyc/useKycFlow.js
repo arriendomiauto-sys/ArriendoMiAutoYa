@@ -5,6 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../../utils/imagenes";
 import { loadWebBrowser, loadDocumentScanner } from "./utils/kycScanners";
 import { showAlert } from "../../utils/alert";
+import { msjError } from "../../utils/msjError";
 
 // ============================================================================
 // Hook useKycFlow
@@ -346,7 +347,7 @@ export function useKycFlow({ role = "renter", prefill = null, onComplete, onBack
       if (error?.categoria === "fotos_ilegibles") {
         showAlert(
           "No pudimos leer tus documentos",
-          (error.message || "La foto salió ilegible.") +
+          (msjError(error, "La foto salió ilegible.")) +
             "\n\nVuelve a tomarla enfocada, sin reflejos y con buena luz."
         );
         return;

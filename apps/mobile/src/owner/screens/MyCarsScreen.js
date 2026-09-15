@@ -11,6 +11,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -19,8 +20,10 @@ import {
   Icon,
   Button,
   EmptyState,
+  Skeleton,
   ApiClient,
   showAlert,
+  msjError,
   VerifyIdentityBanner,
   useCatalogoPrecios,
   obtenerConfiguracionTipo,
@@ -32,12 +35,37 @@ import { ControlTarifa } from "./addcar/ControlTarifa";
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
 
+// Miniatura del auto con skeleton tipo YouTube mientras carga la foto desde
+// la red. En modo demo sin fotos deja el placeholder con icono.
+function CarroThumb({ uri }) {
+  const [cargando, setCargando] = useState(!!uri);
+  if (!uri) {
+    return (
+      <View style={[styles.image, styles.imageEmpty]}>
+        <Icon name="car" size={44} color={colors.primary200} />
+      </View>
+    );
+  }
+  return (
+    <>
+      {cargando && <Skeleton style={styles.image} />}
+      <Image
+        source={{ uri }}
+        style={styles.image}
+        onLoadEnd={() => setCargando(false)}
+        onError={() => setCargando(false)}
+      />
+    </>
+  );
+}
+
 // `cars`/`setCars` vienen como props (la flota real del dueño, desde
 // OwnerApp) — no del contexto global, que es el marketplace público completo.
 export function MyCarsScreen({
   cars,
   setCars,
   error,
+  loading = false,
   onRetry,
   onAddNewCar,
   onOpenCalendar,
@@ -69,7 +97,7 @@ export function MyCarsScreen({
       await ApiClient.actualizarAuto(car.id, { estado: nuevoEstado });
     } catch (err) {
       setCars((prev) => prev.map((c) => (c.id === car.id ? { ...c, estado: car.estado } : c)));
-      showAlert("No se pudo actualizar", err.message);
+      showAlert("No se pudo actualizar", msjError(err, "Intenta de nuevo en unos segundos."));
     }
   };
 
@@ -98,7 +126,7 @@ export function MyCarsScreen({
       setEditingCar(null);
       showAlert("Tarifa actualizada", `Nueva tarifa: ${fmt(tarifaNum)} por día.`);
     } catch (err) {
-      showAlert("No se pudo guardar la tarifa", err.message);
+      showAlert("No se pudo guardar la tarifa", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setSaving(false);
     }
@@ -113,13 +141,7 @@ export function MyCarsScreen({
     return (
       <View style={[oc.card, styles.card]}>
         <View style={styles.imageWrap}>
-          {item.fotos?.[0] ? (
-            <Image source={{ uri: item.fotos[0] }} style={styles.image} />
-          ) : (
-            <View style={[styles.image, styles.imageEmpty]}>
-              <Icon name="car" size={44} color={colors.primary200} />
-            </View>
-          )}
+          <CarroThumb uri={item.fotos?.[0]} />
           <View style={[oc.pill, styles.statusPill]}>
             <View style={[oc.pillDot, { backgroundColor: disponible ? colors.accent : colors.textMuted }]} />
             <Text style={[oc.pillText, { color: disponible ? colors.accentDark : colors.textMuted }]}>
@@ -157,6 +179,9 @@ export function MyCarsScreen({
             <TouchableOpacity
               style={styles.editBtn}
               onPress={() => handleOpenEdit(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Editar tarifa de ${item.marca} ${item.modelo}`}
+              hitSlop={theme.control.hitSlop}
             >
               <Icon name="settings" size={14} color="#FFFFFF" />
               <Text style={styles.editBtnText}>Editar</Text>
@@ -174,11 +199,25 @@ export function MyCarsScreen({
           </View>
 
           <View style={styles.tools}>
-            <TouchableOpacity style={styles.tool} onPress={() => onOpenCalendar?.(item)} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.tool}
+              onPress={() => onOpenCalendar?.(item)}
+              activeOpacity={0.8}
+              hitSlop={theme.control.hitSlop}
+              accessibilityRole="button"
+              accessibilityLabel={`Calendario de ${item.marca} ${item.modelo}`}
+            >
               <Icon name="calendar" size={15} color={colors.primary} />
               <Text style={styles.toolText}>Calendario</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.tool} onPress={() => onOpenMaintenance?.(item)} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.tool}
+              onPress={() => onOpenMaintenance?.(item)}
+              activeOpacity={0.8}
+              hitSlop={theme.control.hitSlop}
+              accessibilityRole="button"
+              accessibilityLabel={`Mantenciones de ${item.marca} ${item.modelo}`}
+            >
               <Icon name="settings" size={15} color={colors.primary} />
               <Text style={styles.toolText}>Mantenciones</Text>
             </TouchableOpacity>
@@ -197,7 +236,9 @@ export function MyCarsScreen({
             ? `${cars.length} ${cars.length === 1 ? "vehículo" : "vehículos"} · ${disponibles} disponible${disponibles === 1 ? "" : "s"}`
             : error
               ? "No pudimos cargar tu flota"
-              : "Publica tu primer auto"
+              : loading
+                ? "Cargando tu flota..."
+                : "Publica tu primer auto"
         }
         noLeidos={noLeidos}
         onMensajes={onOpenChat}
@@ -229,7 +270,12 @@ export function MyCarsScreen({
         }
         renderItem={renderCar}
         ListEmptyComponent={
-          error ? (
+          loading ? (
+            <View style={styles.carga}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.cargaText}>Cargando tu flota...</Text>
+            </View>
+          ) : error ? (
             <EmptyState
               icon="alert"
               title="No pudimos cargar tu flota"
@@ -292,6 +338,13 @@ export function MyCarsScreen({
 
 const styles = StyleSheet.create({
   card: { overflow: "hidden", padding: 0 },
+  carga: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing.xxl,
+  },
+  cargaText: { fontSize: 14, color: colors.textMuted },
   banner: { paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.md },
   imageWrap: { height: 150, backgroundColor: colors.surfaceSecondary },
   image: { width: "100%", height: "100%" },

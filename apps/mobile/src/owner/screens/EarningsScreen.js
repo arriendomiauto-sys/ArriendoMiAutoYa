@@ -15,6 +15,7 @@ import {
   Icon,
   ApiClient,
   showAlert,
+  msjError,
   useApp,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
@@ -47,7 +48,7 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
         await ApiClient.marcarCuentaCobroPredeterminada(cuentaId);
         await cargarCuentas();
       } catch (err) {
-        showAlert("No se pudo actualizar", err?.message || "Intentá de nuevo.");
+        showAlert("No se pudo actualizar", msjError(err, "Intenta de nuevo."));
       }
     },
     [cargarCuentas]
@@ -65,7 +66,7 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
               await ApiClient.eliminarCuentaCobro(cuentaId);
               await cargarCuentas();
             } catch (err) {
-              showAlert("No se pudo actualizar", err?.message || "Intentá de nuevo.");
+              showAlert("No se pudo actualizar", msjError(err, "Intenta de nuevo."));
             }
           },
         },
@@ -78,6 +79,7 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
   const [ganancias, setGanancias] = useState(cachedGanancias);
   const [loading, setLoading] = useState(!cachedGanancias);
   const [refrescando, setRefrescando] = useState(false);
+  const [error, setError] = useState(null);
 
   const cargar = useCallback(async (forzar = false) => {
     if (!forzar && !ApiClient.getCachedGanancias?.()) {
@@ -86,8 +88,10 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
     try {
       const data = await ApiClient.getMisGanancias(forzar ? { force: true } : {});
       if (data) setGanancias(data);
+      setError(null);
     } catch (err) {
       console.warn("[EarningsScreen]", err.message);
+      setError(msjError(err, "No pudimos cargar tus ganancias."));
     } finally {
       setLoading(false);
       setRefrescando(false);
@@ -167,7 +171,13 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
             <Text style={styles.balanceAmount}>{fmt(totalGanado)}</Text>
           )}
           <Text style={styles.balanceSub}>
-            {ganancias ? `${ganancias.cantidad_liquidaciones} arriendo(s) liquidado(s) · Depósito directo a tu cuenta` : "Cargando…"}
+            {ganancias
+              ? `${ganancias.cantidad_liquidaciones} arriendo(s) liquidado(s) · Depósito directo a tu cuenta`
+              : loading
+                ? "Cargando…"
+                : error
+                  ? "Sin datos por el momento"
+                  : "Aún no hay movimiento"}
           </Text>
           {bonoReferidoPendiente > 0 ? (
             <View style={styles.bonoReferidoRow}>
@@ -200,6 +210,26 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
             </TouchableOpacity>
           )}
         </View>
+
+        {error ? (
+          <View style={styles.errorCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.errorTitle}>No pudimos cargar tus ganancias</Text>
+              <Text style={styles.errorMsg}>{error}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.errorRetryBtn}
+              onPress={() => {
+                setLoading(true);
+                cargar(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Icon name="refresh" size={14} color="#FFFFFF" />
+              <Text style={styles.errorRetryText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={[oc.card, oc.cardPadded, styles.cardBody]}>
           <View style={styles.rowBetween}>
@@ -413,6 +443,29 @@ const styles = StyleSheet.create({
   missingBankSub: { fontSize: 11.5, color: "rgba(255,255,255,0.85)", marginTop: 1 },
   missingBankLink: { fontSize: 13, fontWeight: "700", color: "#FDE047" },
   bankExplain: { fontSize: 12, color: colors.textMuted, lineHeight: 17, marginBottom: 2 },
+
+  errorCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md,
+    backgroundColor: colors.warningBg,
+    borderWidth: 1,
+    borderColor: colors.warningBorder,
+    borderRadius: theme.radius.card,
+    padding: theme.spacing.lg,
+  },
+  errorTitle: { fontSize: 13, fontWeight: "700", color: colors.warningText },
+  errorMsg: { fontSize: 12, color: colors.textMuted, marginTop: 2, lineHeight: 17 },
+  errorRetryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.primary,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: theme.radius.sm,
+  },
+  errorRetryText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
 
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   link: { fontSize: 13, fontWeight: "700", color: colors.accentDark },

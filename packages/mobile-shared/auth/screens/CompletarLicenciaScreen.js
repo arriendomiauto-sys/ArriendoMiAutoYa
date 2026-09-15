@@ -18,6 +18,7 @@ import { DocumentCameraModal } from "../../components/DocumentCameraModal";
 import { ApiClient } from "../../api/client";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../../utils/imagenes";
 import { showAlert } from "../../utils/alert";
+import { msjError } from "../../utils/msjError";
 
 function cargarEscanerDocumento() {
   try {
@@ -86,7 +87,7 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
       if (slot === "pic") setPicUrl(url);
       else setLicenciaUrl(url);
     } catch (err) {
-      showAlert("No se pudo escanear", err.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo escanear", msjError(err, "Inténtalo de nuevo."));
     } finally {
       setSubiendo(false);
     }
@@ -106,7 +107,7 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
       if (slot === "pic") setPicUrl(url);
       else setLicenciaUrl(url);
     } catch (err) {
-      showAlert("No se pudo subir la foto", err.message || "Revisa tu conexión e inténtalo de nuevo.");
+      showAlert("No se pudo subir la foto", msjError(err, "Revisa tu conexión e inténtalo de nuevo."));
     } finally {
       setSubiendo(false);
     }
@@ -147,7 +148,7 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
     } catch (err) {
       showAlert(
         "No se pudo validar tu licencia",
-        err.message || "Revisa tu conexión e inténtalo de nuevo."
+        msjError(err, "Revisa tu conexión e inténtalo de nuevo.")
       );
     } finally {
       setEnviando(false);

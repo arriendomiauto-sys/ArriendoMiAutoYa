@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, useApp, Chip, Icon, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, theme, useApp, Chip, Icon, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc } from "../comun";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -63,7 +63,7 @@ export function CarCalendarScreen({ car, onBack }) {
       const bloq = await ApiClient.getBloqueosCalendario(selectedCarId);
       setBloqueos(Array.isArray(bloq) ? bloq : []);
     } catch (err) {
-      showAlert("No se pudo cargar el calendario", err.message);
+      showAlert("No se pudo cargar el calendario", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,7 @@ export function CarCalendarScreen({ car, onBack }) {
       setBloqueos((p) => p.filter((b) => b.id !== bloqueo.id));
       ApiClient.eliminarBloqueoCalendario(bloqueo.id).catch((err) => {
         setBloqueos((p) => [...p, bloqueo]);
-        showAlert("No se pudo desbloquear", err.message);
+        showAlert("No se pudo desbloquear", msjError(err, "Intenta de nuevo en unos segundos."));
       });
       return;
     }
@@ -143,7 +143,7 @@ export function CarCalendarScreen({ car, onBack }) {
       })
       .catch((err) => {
         setBloqueos((p) => p.filter((b) => b.id !== tempId));
-        showAlert("No se pudo bloquear el día", err.message);
+        showAlert("No se pudo bloquear el día", msjError(err, "Intenta de nuevo en unos segundos."));
       });
   };
 

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, StatusBar, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Button, Card, ScreenHeader, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, theme, Button, Card, ScreenHeader, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
 
 export function CancelReservationModal({ reservation, onClose, onConfirmCancel }) {
   const insets = useSafeAreaInsets();
@@ -24,7 +24,7 @@ export function CancelReservationModal({ reservation, onClose, onConfirmCancel }
       const actualizada = await ApiClient.actualizarEstadoReserva(reservation.id, "cancelada");
       onConfirmCancel(actualizada);
     } catch (err) {
-      showAlert("No se pudo cancelar", err.message);
+      showAlert("No se pudo cancelar", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setCancelling(false);
     }

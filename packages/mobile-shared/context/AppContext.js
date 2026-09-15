@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ApiClient, MOCK_CARS } from "../api/client";
+import { ApiClient } from "../api/client";
 import { supabase, vigilarSesionEnPrimerPlano } from "../api/supabase";
 import { iniciarSesionConProveedor } from "../utils/oauth";
 import { urlWeb } from "../utils/webUrl";
@@ -57,6 +57,13 @@ export function AppProvider({ children }) {
   // Transición activa: { mode, title, subtitle } o null. La consume la app
   // para tapar el cambio de rol o de cuenta con <SwitchingScreen>.
   const [transition, setTransition] = useState(null);
+
+  // Deep link pendiente por consumir: { tipo, entidadId } o null. Lo produce
+  // el listener global de notificaciones push (no hay router/navigate acá,
+  // la navegación es manual por estado) y lo consume RenterApp/OwnerApp,
+  // el que esté montado según `mode`.
+  const [pendingDeepLink, setPendingDeepLink] = useState(null);
+  const clearPendingDeepLink = useCallback(() => setPendingDeepLink(null), []);
   const transitionTimer = useRef(null);
   // El modo actual también en un ref: setMode necesita compararlo sin
   // recrearse en cada cambio (lo consumen callbacks memorizados).
@@ -68,6 +75,23 @@ export function AppProvider({ children }) {
   }, []);
 
   useEffect(() => () => clearTimeout(transitionTimer.current), []);
+
+  // Listener global de respuesta a notificaciones push: se registra una sola
+  // vez por toda la vida del proceso (deps [] a propósito). Cubre cold start
+  // (getLastNotificationResponseAsync, dentro de la función) y warm/background.
+  useEffect(() => {
+    let dejarDeEscuchar = () => {};
+    import("../utils/push")
+      .then((m) => {
+        dejarDeEscuchar = m.registrarListenerNotificaciones?.((response) => {
+          const data = response?.notification?.request?.content?.data;
+          if (!data?.tipo) return;
+          setPendingDeepLink({ tipo: data.tipo, entidadId: data.entidad_id || null });
+        }) || (() => {});
+      })
+      .catch(() => {});
+    return () => dejarDeEscuchar();
+  }, []);
 
   // Rehidrata el modo elegido en la sesión anterior y si ya se vio el
   // onboarding, antes de pintar la app.
@@ -121,7 +145,10 @@ export function AppProvider({ children }) {
     [endTransition]
   );
 
-  const [cars, setCars] = useState(MOCK_CARS);
+  // La primera carga del catálogo parte vacía: el marketplace muestra el
+  // skeleton (lista vacía + loading) y un fallo de red deja `carsError` para
+  // la tarjeta de reintento — nunca autos de ejemplo.
+  const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(false);
   // Motivo por el que el catálogo no se pudo cargar (o null si todo bien).
   // Lo consume Marketplace para mostrar un error con reintento en vez de
@@ -146,6 +173,12 @@ export function AppProvider({ children }) {
     try {
       const profile = await ApiClient.getMe();
       setCurrentUser(profile);
+      // Quienes llaman a syncProfile con `await` (KYC tras volver de Didit,
+      // editores de perfil) necesitan el perfil recién sincronizado: el
+      // setCurrentUser no actualiza las variables que ya capturaron del hook.
+      // Retornarlo hace que `updatedProfile` en useKycFlow deje de ser
+      // siempre undefined y el veredicto del webhook se lea de verdad.
+      return profile;
     } catch (err) {
       // Un 401 acá es distinto de cualquier otro fallo: `isLoggedIn` se pone
       // en true apenas hay un token guardado y sin vencer localmente, pero
@@ -176,10 +209,10 @@ export function AppProvider({ children }) {
       setCars(Array.isArray(fetchedCars) ? fetchedCars : []);
       setCarsError(null);
     } catch (err) {
-      // getAutos solo tira cuando el servidor respondió con error (sin
-      // conexión ya devuelve los autos de demo). Mostrar MOCK_CARS acá haría
-      // creer que el catálogo está sano y llevaría a fichas de autos que no
-      // existen, así que se vacía la lista y se guarda el motivo.
+      // getAutos propaga cualquier fallo (de red o del servidor): acá se
+      // vacía la lista y se guarda el motivo para que el marketplace muestre
+      // la tarjeta de error con reintento, en vez de creer que no hay autos
+      // publicados o mostrar un catálogo falso.
       setCars([]);
       setCarsError(err?.message || "No pudimos cargar los autos disponibles.");
     } finally {
@@ -435,6 +468,8 @@ export function AppProvider({ children }) {
         mode,
         setMode,
         transition,
+        pendingDeepLink,
+        clearPendingDeepLink,
         login,
         loginConProveedor,
         logout,

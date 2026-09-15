@@ -3,6 +3,7 @@ import { StyleSheet, View } from "react-native";
 import {
   colors,
   useApp,
+  useBackAndroid,
   ApiClient,
   showAlert,
   RentalChatScreen,
@@ -16,6 +17,7 @@ import {
   TarjetaScreen,
   EditProfileScreen,
   MandatoDuenoModal,
+  msjError,
   verificarMandatoAceptado,
   ChatListScreen,
 } from "@rentacar/mobile-shared";
@@ -31,7 +33,7 @@ import { DisputesScreen } from "./screens/DisputesScreen";
 import { OwnerProfileScreen } from "./screens/OwnerProfileScreen";
 
 export function OwnerApp() {
-  const { currentUser } = useApp();
+  const { currentUser, pendingDeepLink, clearPendingDeepLink } = useApp();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
   // Pestañas de Navegación del Dueño. "Mensajes" ya no es pestaña: se abre
@@ -45,14 +47,18 @@ export function OwnerApp() {
   // Flota real del dueño autenticado (cualquier estado, no solo activos).
   const [misAutos, setMisAutos] = useState([]);
   const [errorFlota, setErrorFlota] = useState(null);
+  const [cargandoFlota, setCargandoFlota] = useState(false);
   const cargarMisAutos = useCallback(async () => {
+    setCargandoFlota(true);
     try {
       const data = await ApiClient.getMisAutos();
       setMisAutos(Array.isArray(data) ? data : []);
       setErrorFlota(null);
     } catch (err) {
       console.warn("[OwnerApp] No se pudo cargar la flota:", err.message);
-      setErrorFlota(err?.message || "No pudimos cargar tu flota.");
+      setErrorFlota(msjError(err, "No pudimos cargar tu flota."));
+    } finally {
+      setCargandoFlota(false);
     }
   }, []);
   useEffect(() => {
@@ -84,6 +90,38 @@ export function OwnerApp() {
       if (!aceptado) setShowMandato(true);
     });
   }, [currentUser?.id]);
+
+  // Deep link desde una notificación push tocada (ver AppContext). Solo
+  // actúa mientras OwnerApp esté montado (mode === "owner"); si la reserva
+  // no aparece en las reservas del dueño, se descarta en silencio.
+  useEffect(() => {
+    if (!pendingDeepLink) return;
+    const { tipo, entidadId } = pendingDeepLink;
+    if (tipo === "kyc") {
+      setActiveTab("profile");
+      clearPendingDeepLink();
+      return;
+    }
+    if ((tipo === "reserva" || tipo === "mensaje" || tipo === "disputa") && entidadId) {
+      ApiClient.getReservas("dueno")
+        .then((lista) => {
+          const r = (lista || []).find((x) => x.id === entidadId);
+          if (!r) return;
+          if (tipo === "mensaje") {
+            setSelectedReservaForChat(r);
+            setShowChat(true);
+          } else if (tipo === "disputa") {
+            setShowDisputes(true);
+          } else {
+            setActiveTab("bookings");
+          }
+        })
+        .catch(() => {})
+        .finally(clearPendingDeepLink);
+      return;
+    }
+    clearPendingDeepLink();
+  }, [pendingDeepLink]);
 
   const abrirMensajes = () => setShowChat(true);
   const cerrarMensajes = () => {
@@ -240,6 +278,7 @@ export function OwnerApp() {
             cars={misAutos}
             setCars={setMisAutos}
             error={errorFlota}
+            loading={cargandoFlota}
             onRetry={cargarMisAutos}
             onAddNewCar={handleAddNewCar}
             identidadVerificada={identidadVerificada}
@@ -316,6 +355,33 @@ export function OwnerApp() {
     showSupport ||
     showContract ||
     showChat;
+
+  // Back físico de Android: capas abiertas en orden de apilado (la primera es
+  // la más visible y la que cierra primero). `showContract` y `showMandato`
+  // NO están acá: son <Modal> nativos que ya se cierran solos vía su
+  // `onRequestClose`.
+  const capasAbiertas = [];
+  if (showEnrolment) capasAbiertas.push({ nivel: "kyc", onCerrar: () => setShowEnrolment(false) });
+  if (showTarjeta) capasAbiertas.push({ nivel: "tarjetas", onCerrar: () => setShowTarjeta(false) });
+  if (showEditProfile) capasAbiertas.push({ nivel: "editar-perfil", onCerrar: () => setShowEditProfile(false) });
+  if (showDeliveryFlow) capasAbiertas.push({ nivel: "entrega", onCerrar: () => setShowDeliveryFlow(false) });
+  if (showCalendar) capasAbiertas.push({ nivel: "calendario", onCerrar: () => setShowCalendar(false) });
+  if (showMaintenance) capasAbiertas.push({ nivel: "mantencion", onCerrar: () => setShowMaintenance(false) });
+  if (showDisputes) capasAbiertas.push({ nivel: "disputas", onCerrar: () => setShowDisputes(false) });
+  if (showAddCar) capasAbiertas.push({ nivel: "alta-auto", onCerrar: () => setShowAddCar(false) });
+  if (showNotifications) capasAbiertas.push({ nivel: "notificaciones", onCerrar: () => setShowNotifications(false) });
+  if (showSupport) capasAbiertas.push({ nivel: "soporte", onCerrar: () => setShowSupport(false) });
+  if (showChat) {
+    if (selectedReservaForChat) {
+      capasAbiertas.push({ nivel: "chat-reserva", onCerrar: () => setSelectedReservaForChat(null) });
+    } else {
+      capasAbiertas.push({ nivel: "mensajes", onCerrar: cerrarMensajes });
+    }
+  }
+  if (activeTab === "bookings") capasAbiertas.push({ nivel: "solicitudes", onCerrar: () => setActiveTab("cars") });
+  if (activeTab === "earnings") capasAbiertas.push({ nivel: "ganancias", onCerrar: () => setActiveTab("cars") });
+  if (activeTab === "profile") capasAbiertas.push({ nivel: "perfil", onCerrar: () => setActiveTab("cars") });
+  useBackAndroid(capasAbiertas);
 
   return (
     <View style={styles.appContainer}>

@@ -26,6 +26,7 @@ import {
   ApiClient,
   useFavoritos,
   urlWeb,
+  Skeleton,
 } from "@rentacar/mobile-shared";
 
 // Misma regla que app/services/pricing.py:PricingService.calcular_dias_reserva
@@ -67,6 +68,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const [step, setStep] = useState("detail");
   const [fotoActiva, setFotoActiva] = useState(0);
   const [heroW, setHeroW] = useState(0);
+  const [heroCargando, setHeroCargando] = useState(true);
   const [hostFotoError, setHostFotoError] = useState(false);
   const { esFavorito, toggle: toggleFavorito } = useFavoritos();
 
@@ -75,7 +77,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
     Share.share({
       message:
         `${car?.marca || ""} ${car?.modelo || ""} ${car?.anio || ""} en ${car?.ubicacion_base || "Chile"} ` +
-        `· $${precio}/día\n¡Arriéndalo en Arrienda Tu Auto! ${urlWeb()}`,
+        `· $${precio}/día\n¡Arriéndalo en ArriendoMiAutoYa! ${urlWeb()}`,
     }).catch(() => {});
   };
 
@@ -214,6 +216,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
         <StatusBar barStyle="light-content" />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}>
           <View style={styles.hero} onLayout={(e) => setHeroW(e.nativeEvent.layout.width)}>
+            {heroCargando && <Skeleton style={styles.heroImg} />}
             <ScrollView
               horizontal
               pagingEnabled
@@ -229,6 +232,8 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                   source={{ uri }}
                   style={[styles.heroImg, heroW ? { width: heroW } : null]}
                   resizeMode="cover"
+                  onLoadEnd={() => setHeroCargando(false)}
+                  onError={() => setHeroCargando(false)}
                 />
               ))}
             </ScrollView>
@@ -579,6 +584,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
         <Button
+          testID="btn-ir-a-pagar"
           label="Ir a pagar"
           iconRight="arrow-right"
           onPress={() =>

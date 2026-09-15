@@ -16,6 +16,7 @@ import {
   PreCheckinModal,
   ReportFineModal,
   CobroPosteriorModal,
+  msjError,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc } from "../comun";
 
@@ -65,7 +66,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
     try {
       setReservas((await ApiClient.getReservas("dueno")) || []);
     } catch (err) {
-      setError(err.message);
+      setError(msjError(err, "No se pudieron cargar tus reservas."));
     } finally {
       setLoading(false);
     }
@@ -161,6 +162,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
         )}
         {(puedeEntregar || puedeDevolver) && (
           <Button
+            testID={`btn-iniciar-entrega-${auto.patente || item.id}`}
             label={puedeEntregar ? "Iniciar entrega con QR" : "Iniciar devolución con QR"}
             iconRight="arrow-right"
             variant={debeFirmar ? "secondary" : "primary"}

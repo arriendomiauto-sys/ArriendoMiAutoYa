@@ -52,6 +52,7 @@ export function Button({
   style,
   fullWidth = true,
   accessibilityLabel,
+  testID,
 }) {
   const p = palette(tone);
   const isDisabled = disabled || loading;
@@ -98,6 +99,7 @@ export function Button({
 
   return (
     <TouchableAnimado
+      testID={testID}
       onPress={onPress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
@@ -604,10 +606,11 @@ export const Field = React.forwardRef(function Field(
 // ---------------------------------------------------------------------------
 // Checkbox — casilla cuadrada con etiqueta a la derecha
 // ---------------------------------------------------------------------------
-export function Checkbox({ checked, onToggle, label, tone = "light" }) {
+export function Checkbox({ checked, onToggle, label, tone = "light", testID }) {
   const p = palette(tone);
   return (
     <TouchableOpacity
+      testID={testID}
       style={styles.checkboxRow}
       onPress={onToggle}
       activeOpacity={0.8}

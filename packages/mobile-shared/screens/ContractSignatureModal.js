@@ -190,6 +190,7 @@ export function ContractSignatureModal({
 
             <View style={{ marginTop: theme.spacing.md }}>
               <Checkbox
+                testID="check-acepta-contrato"
                 checked={acepta}
                 onToggle={() => setAcepta((v) => !v)}
                 label="He leído y acepto los términos del contrato de arriendo."
@@ -201,6 +202,7 @@ export function ContractSignatureModal({
                 <Text style={styles.sectionLabel}>Firma manuscrita</Text>
                 <SignaturePad onChange={setFirmaSvg} />
                 <Field
+                  testID="input-nombre-firma"
                   label="Nombre completo"
                   value={nombre}
                   onChangeText={setNombre}
@@ -219,7 +221,7 @@ export function ContractSignatureModal({
               <Button label="Preparando…" loading disabled />
             ) : modoManual ? (
               <>
-                <Button label="Firmar y continuar" onPress={firmarAMano} loading={enviando} />
+                <Button testID="btn-firmar-continuar" label="Firmar y continuar" onPress={firmarAMano} loading={enviando} />
                 {biometria ? (
                   <Button
                     variant="secondary"

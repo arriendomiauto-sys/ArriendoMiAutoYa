@@ -72,6 +72,7 @@ export function LoginScreen({ onNavigate }) {
         {/* Bloque credenciales: el "Siguiente" del teclado salta al campo que sigue */}
         <View style={styles.form}>
           <Field
+            testID="input-email"
             label="Correo"
             value={email}
             onChangeText={setEmail}
@@ -85,6 +86,7 @@ export function LoginScreen({ onNavigate }) {
           />
 
           <Field
+            testID="input-password"
             ref={passwordRef}
             label="Contraseña"
             value={password}
@@ -110,7 +112,7 @@ export function LoginScreen({ onNavigate }) {
         <View style={styles.spacer} />
 
         {/* Bloque acciones */}
-        <Button label="Entrar" onPress={handleLogin} loading={loading} />
+        <Button testID="btn-login" label="Entrar" onPress={handleLogin} loading={loading} />
 
         <BotonesOAuth />
 

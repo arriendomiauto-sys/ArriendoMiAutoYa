@@ -57,7 +57,7 @@ export function SignaturePad({ onChange, height = 180 }) {
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.canvas, { height }]} {...panResponder.panHandlers}>
+      <View testID="pad-firma" style={[styles.canvas, { height }]} {...panResponder.panHandlers}>
         {vacio && <Text style={styles.placeholder}>Firma aquí con el dedo</Text>}
         <Svg style={StyleSheet.absoluteFill}>
           {trazos.map(

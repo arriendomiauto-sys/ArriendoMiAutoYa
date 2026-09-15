@@ -17,6 +17,7 @@ import { Button } from "../components/ui";
 import { AdjuntarFoto } from "../components/AdjuntarFoto";
 import { ApiClient } from "../api/client";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 
 /**
  * Peajes, TAG y fotomultas no se ven en la devolución: las autopistas
@@ -74,7 +75,7 @@ export function CobroPosteriorModal({ visible, reserva, onClose, onCobrado }) {
         [{ text: "OK", onPress: () => { onClose(); onCobrado && onCobrado(res); } }]
       );
     } catch (err) {
-      showAlert("No se pudo realizar el cobro", err.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo realizar el cobro", msjError(err, "Inténtalo de nuevo."));
     } finally {
       setLoading(false);
     }

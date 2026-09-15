@@ -7,6 +7,7 @@ import { ApiClient } from "../api/client";
 import { useApp } from "../context/AppContext";
 import { urlWeb } from "../utils/webUrl";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 
 /**
  * Código propio para invitar amigos (compartir) + campo para ingresar el
@@ -54,7 +55,7 @@ export function ReferralCodeCard() {
     if (!codigo) return;
     Share.share({
       message:
-        `Arrienda o publica tu auto en Arrienda Tu Auto y ambos ganamos un descuento/bono. ` +
+        `Arrienda o publica tu auto en ArriendoMiAutoYa y ambos ganamos un descuento/bono. ` +
         `Usa mi código ${codigo} al registrarte: ${urlWeb()}`,
     }).catch(() => {});
   };
@@ -69,7 +70,7 @@ export function ReferralCodeCard() {
       setYaTieneReferente(true);
       showAlert("¡Listo!", "Código de invitación registrado.");
     } catch (err) {
-      showAlert("No se pudo registrar el código", err.message || "Revisa el código e inténtalo de nuevo.");
+      showAlert("No se pudo registrar el código", msjError(err, "Revisa el código e inténtalo de nuevo."));
     } finally {
       setAplicando(false);
     }

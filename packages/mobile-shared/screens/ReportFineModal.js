@@ -17,6 +17,7 @@ import { Button } from "../components/ui";
 import { AdjuntarFoto } from "../components/AdjuntarFoto";
 import { ApiClient } from "../api/client";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 
 const TIPOS_FALTAS = [
   { id: "fumar", label: "Fumar en el auto", sugerido: 50000, desc: "Olor a tabaco o cenizas en el interior" },
@@ -74,7 +75,7 @@ export function ReportFineModal({
         [{ text: "OK", onPress: () => { onClose(); onApplied && onApplied(res); } }]
       );
     } catch (err) {
-      showAlert("No se pudo aplicar la multa", err.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo aplicar la multa", msjError(err, "Inténtalo de nuevo."));
     } finally {
       setLoading(false);
     }

@@ -18,14 +18,25 @@ import { Icon } from "../components/Icon";
 import { ScreenHeader, Chip, Button, Card, Badge, EmptyState } from "../components/ui";
 import { ApiClient } from "../api/client";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 
-// Canales reales de atención. Se configuran por entorno para no tener que
-// tocar el código al cambiar de número; los valores por defecto son los que
-// ya mostraba la pantalla.
-const WHATSAPP = process.env.EXPO_PUBLIC_SUPPORT_WHATSAPP || "56987654321";
-const TELEFONO = process.env.EXPO_PUBLIC_SUPPORT_PHONE || "6008009000";
-const WHATSAPP_VISIBLE = "+56 9 8765 4321";
-const TELEFONO_VISIBLE = "600 800 9000";
+// Canales reales de atención. Se configuran por entorno; si un canal no está
+// configurado, NO se muestra: antes se mostraban números inventados (dialogar
+// con un número que no es el real es peor que no mostrar el canal). La cifra
+// visible se puede fijar aparte (formato "600 800 9000") o se deriva del número.
+const WHATSAPP = process.env.EXPO_PUBLIC_SUPPORT_WHATSAPP || "";
+const TELEFONO = process.env.EXPO_PUBLIC_SUPPORT_PHONE || "";
+const WHATSAPP_VISIBLE =
+  process.env.EXPO_PUBLIC_SUPPORT_WHATSAPP_VISIBLE || formatearCanal(WHATSAPP);
+const TELEFONO_VISIBLE = process.env.EXPO_PUBLIC_SUPPORT_PHONE_VISIBLE || formatearCanal(TELEFONO);
+
+function formatearCanal(n) {
+  if (!n) return "";
+  const d = String(n).replace(/\D/g, "");
+  if (d.length === 11) return `+${d.slice(0, 2)} ${d[2]} ${d.slice(3, 7)} ${d.slice(7)}`;
+  if (d.length === 9) return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+  return n;
+}
 
 // El centro de ayuda no tiene asistente automático: no hay backend de
 // conversación al que conectarlo. En vez de simular respuestas, la pantalla
@@ -153,7 +164,7 @@ export function SupportScreen({ onBack, variant = "renter" }) {
       const data = await ApiClient.getMisTicketsSoporte();
       setTickets(Array.isArray(data) ? data : []);
     } catch (err) {
-      setErrorTickets(err.message || "No se pudieron cargar tus tickets.");
+      setErrorTickets(msjError(err, "No se pudieron cargar tus tickets."));
     } finally {
       setCargandoTickets(false);
     }
@@ -182,38 +193,51 @@ export function SupportScreen({ onBack, variant = "renter" }) {
       setTab("mis");
       showAlert("Ticket enviado", "Tu requerimiento quedó registrado. Te responderemos por email y notificación.");
     } catch (err) {
-      showAlert("No se pudo enviar", err.message || "Intenta de nuevo en unos segundos.");
+      showAlert("No se pudo enviar", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setEnviando(false);
     }
   };
 
-  const contacto = (
+  const filasContacto = [
+    WHATSAPP && {
+      key: "whatsapp",
+      icon: "chat",
+      color: colors.success,
+      onPress: () => abrirCanal(`https://wa.me/${WHATSAPP}`, "WhatsApp de soporte", WHATSAPP_VISIBLE),
+      texto: `WhatsApp · ${WHATSAPP_VISIBLE}`,
+    },
+    TELEFONO && {
+      key: "telefono",
+      icon: "shield",
+      color: colors.danger,
+      onPress: () => abrirCanal(`tel:${TELEFONO}`, "Central de emergencias", TELEFONO_VISIBLE),
+      texto: `Emergencia 24/7 · ${TELEFONO_VISIBLE}`,
+    },
+  ].filter(Boolean);
+
+  const contacto =
+    filasContacto.length === 0
+      ? null
+      : (
     <Card tone={tone} padded style={{ gap: theme.spacing.md }}>
       <Text style={[styles.cardTitle, { color: c.text }]}>Hablar con una persona</Text>
       <Text style={[styles.cardHint, { color: c.muted }]}>
         No hay asistente automático: te responde el equipo de soporte.
       </Text>
-      <TouchableOpacity
-        style={styles.contactRow}
-        accessibilityRole="button"
-        onPress={() => abrirCanal(`https://wa.me/${WHATSAPP}`, "WhatsApp de soporte", WHATSAPP_VISIBLE)}
-      >
-        <Icon name="chat" size={16} color={colors.success} />
-        <Text style={[styles.contactText, { color: colors.success }]}>WhatsApp · {WHATSAPP_VISIBLE}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.contactRow}
-        accessibilityRole="button"
-        onPress={() => abrirCanal(`tel:${TELEFONO}`, "Central de emergencias", TELEFONO_VISIBLE)}
-      >
-        <Icon name="shield" size={16} color={colors.danger} />
-        <Text style={[styles.contactText, { color: colors.danger }]}>
-          Emergencia 24/7 · {TELEFONO_VISIBLE}
-        </Text>
-      </TouchableOpacity>
+      {filasContacto.map((fila) => (
+        <TouchableOpacity
+          key={fila.key}
+          style={styles.contactRow}
+          accessibilityRole="button"
+          onPress={fila.onPress}
+        >
+          <Icon name={fila.icon} size={16} color={fila.color} />
+          <Text style={[styles.contactText, { color: fila.color }]}>{fila.texto}</Text>
+        </TouchableOpacity>
+      ))}
     </Card>
-  );
+      );
 
   return (
     <KeyboardAvoidingView

@@ -76,6 +76,7 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
         <BotonesOAuth preferredMode={role} />
 
         <TouchableOpacity
+          testID="link-login"
           style={styles.loginLink}
           onPress={() => onNavigate("login")}
           activeOpacity={0.7}

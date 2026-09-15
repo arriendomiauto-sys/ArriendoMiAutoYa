@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import {
   ApiClient,
   showAlert,
+  msjError,
   FOTOS_AUTO,
   TOTAL_FOTOS_AUTO,
   subirImagenOptimizada,
@@ -101,7 +102,7 @@ export function useCarWizard({ onComplete }) {
   const [form, setForm] = useState(() => ({
     marca: "",
     modelo: "",
-    anio: "2023",
+    anio: String(new Date().getFullYear()),
     patente: "",
     categoria: "sedan",
     tarifa_dia: obtenerConfiguracionTipo("sedan", tipos).base,
@@ -120,7 +121,26 @@ export function useCarWizard({ onComplete }) {
     gps_consentimiento: true,
   }));
 
-  const setField = (key, valor) => setForm((prev) => ({ ...prev, [key]: valor }));
+  const setField = (key, valor) => {
+    let valorLimpio = valor;
+    if (key === "anio") {
+      valorLimpio = String(valor ?? "").replace(/[^0-9]/g, "").slice(0, 4);
+    } else if (key === "patente") {
+      valorLimpio = String(valor ?? "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9-]/g, "")
+        .slice(0, 9);
+      const sinGuion = valorLimpio.replace(/-/g, "");
+      if (sinGuion.length === 6 && !valorLimpio.includes("-")) {
+        if (/^[A-Z]{4}\d{2}$/.test(sinGuion)) {
+          valorLimpio = `${sinGuion.slice(0, 4)}-${sinGuion.slice(4)}`;
+        } else if (/^[A-Z]{2}\d{4}$/.test(sinGuion)) {
+          valorLimpio = `${sinGuion.slice(0, 2)}-${sinGuion.slice(2)}`;
+        }
+      }
+    }
+    setForm((prev) => ({ ...prev, [key]: valorLimpio }));
+  };
 
   // Fotos: una por casilla, se suben apenas se toman.
   const [fotosPorSlot, setFotosPorSlot] = useState({});
@@ -137,6 +157,14 @@ export function useCarWizard({ onComplete }) {
   const [locatingGps, setLocatingGps] = useState(false);
   const mapaRef = useRef(null);
   const referenciaEditadaAMano = useRef(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const anioActual = new Date().getFullYear();
 
@@ -163,10 +191,14 @@ export function useCarWizard({ onComplete }) {
     if (!form.modelo.trim()) e.modelo = "Escribe el modelo, como aparece en el padrón.";
     if (!form.categoria) e.categoria = "Selecciona el tipo de vehículo.";
 
-    const anio = parseInt(form.anio, 10);
-    if (!String(form.anio).trim()) e.anio = "Falta el año.";
-    else if (Number.isNaN(anio) || anio < 2000) e.anio = "Aceptamos autos del año 2000 en adelante.";
-    else if (anio > anioActual + 1) e.anio = `El año no puede ser mayor a ${anioActual + 1}.`;
+    const anioRaw = String(form.anio ?? "").trim();
+    const anio = parseInt(anioRaw, 10);
+    if (!anioRaw) e.anio = "Falta el año.";
+    else if (!/^\d{4}$/.test(anioRaw) || Number.isNaN(anio) || anio < 2000) {
+      e.anio = "Aceptamos autos del año 2000 en adelante.";
+    } else if (anio > anioActual + 1) {
+      e.anio = `El año no puede ser mayor a ${anioActual + 1}.`;
+    }
 
     if (!form.patente.trim()) e.patente = "Falta la patente.";
     else if (!validarPatenteChilena(form.patente)) {
@@ -235,21 +267,27 @@ export function useCarWizard({ onComplete }) {
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       const sector = await describirPunto(lat, lon);
+      if (!isMounted.current) return;
       referenciaEditadaAMano.current = false;
       setForm((prev) => ({ ...prev, latitud: lat, longitud: lon, ubicacion_base: sector }));
       centrarMapa(lat, lon);
     } catch (err) {
-      showAlert("No se pudo obtener la ubicación", err.message || "Toca el mapa para elegir el punto.");
+      if (isMounted.current) {
+        showAlert("No se pudo obtener la ubicación", msjError(err, "Toca el mapa para elegir el punto."));
+      }
     } finally {
-      setLocatingGps(false);
+      if (isMounted.current) {
+        setLocatingGps(false);
+      }
     }
   };
 
   const fijarPunto = async (lat, lon) => {
+    if (!isMounted.current) return;
     setForm((prev) => ({ ...prev, latitud: lat, longitud: lon }));
     if (referenciaEditadaAMano.current) return;
     const descripcion = await describirPunto(lat, lon);
-    if (referenciaEditadaAMano.current) return;
+    if (!isMounted.current || referenciaEditadaAMano.current) return;
     setForm((prev) => ({ ...prev, ubicacion_base: descripcion }));
   };
 
@@ -287,7 +325,7 @@ export function useCarWizard({ onComplete }) {
       if (result.canceled || !result.assets?.length) return;
       onUri(result.assets[0].uri);
     } catch (error) {
-      showAlert("No se pudo abrir la cámara o galería", error.message || "Inténtalo de nuevo.");
+      showAlert("No se pudo abrir la cámara o galería", msjError(error, "Inténtalo de nuevo."));
     }
   };
 
@@ -303,7 +341,7 @@ export function useCarWizard({ onComplete }) {
       });
       if (url) setFotosPorSlot((prev) => ({ ...prev, [slot.key]: url }));
     } catch (error) {
-      showAlert("No se pudo subir la foto", error.message || "Revisa tu conexión e inténtalo de nuevo.");
+      showAlert("No se pudo subir la foto", msjError(error, "Revisa tu conexión e inténtalo de nuevo."));
     } finally {
       setSlotEnSubida(null);
     }
@@ -350,7 +388,7 @@ export function useCarWizard({ onComplete }) {
         );
       }
     } catch (error) {
-      showAlert("Error al subir las fotos", error.message || "Revisa tu conexión e inténtalo de nuevo.");
+      showAlert("Error al subir las fotos", msjError(error, "Revisa tu conexión e inténtalo de nuevo."));
     } finally {
       setUploadingPhoto(false);
       setProgresoGaleria(null);
@@ -395,7 +433,7 @@ export function useCarWizard({ onComplete }) {
           validarDocumento(docKey, url);
         }
       } catch (error) {
-        showAlert("No se pudo subir el documento", error.message || "Revisa tu conexión e inténtalo de nuevo.");
+        showAlert("No se pudo subir el documento", msjError(error, "Revisa tu conexión e inténtalo de nuevo."));
       } finally {
         setUploadingDoc(null);
       }
@@ -469,7 +507,7 @@ export function useCarWizard({ onComplete }) {
       const res = await ApiClient.crearAuto({
         marca: form.marca,
         modelo: form.modelo,
-        anio: parseInt(form.anio, 10) || 2023,
+        anio: parseInt(form.anio, 10) || new Date().getFullYear(),
         patente: form.patente.toUpperCase(),
         tarifa_dia: tarifaActual,
         ubicacion_base: form.ubicacion_base,
@@ -501,7 +539,7 @@ export function useCarWizard({ onComplete }) {
         );
       }
     } catch (error) {
-      showAlert("No se pudo publicar", error.message);
+      showAlert("No se pudo publicar", msjError(error, "Intenta de nuevo en unos segundos."));
     } finally {
       setLoading(false);
     }

@@ -18,6 +18,7 @@ import { Icon } from "../components/Icon";
 import { ApiClient } from "../api/client";
 import { useApp } from "../context/AppContext";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 import { elegirYSubirImagen } from "../utils/imagenes";
 import {
   formatearTelefonoInput,
@@ -71,7 +72,7 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
       setImgError(false);
       showAlert("Foto actualizada", "Tu foto de perfil quedó guardada.");
     } catch (err) {
-      showAlert("No se pudo subir la foto", err.message || "Inténtalo de nuevo en unos segundos.");
+      showAlert("No se pudo subir la foto", msjError(err, "Inténtalo de nuevo en unos segundos."));
     } finally {
       setSubiendoFoto(false);
     }
@@ -114,7 +115,7 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
         { text: "Listo", onPress: () => (onDone || onBack)?.() },
       ]);
     } catch (err) {
-      showAlert("No se pudo guardar", err.message || "Inténtalo de nuevo en unos segundos.");
+      showAlert("No se pudo guardar", msjError(err, "Inténtalo de nuevo en unos segundos."));
     } finally {
       setGuardando(false);
     }

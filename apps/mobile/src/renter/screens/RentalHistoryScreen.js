@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient, Button, RatingModal, useCuentaRegresiva } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient, Button, RatingModal, msjError, useCuentaRegresiva } from "@rentacar/mobile-shared";
 
 function formatearRango(inicio, fin) {
   if (!inicio || !fin) return "—";
@@ -36,22 +36,31 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
   const [tab, setTab] = useState("activas");
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refrescando, setRefrescando] = useState(false);
   const [error, setError] = useState(null);
   // reservaId -> true si el cliente ya calificó esa reserva.
   const [calificadas, setCalificadas] = useState({});
   const [reservaACalificar, setReservaACalificar] = useState(null);
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setReservas((await ApiClient.getReservas("cliente")) || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // `refresco` separa las dos formas de recargar: la carga inicial muestra el
+  // spinner de pantalla completa y el pull-to-refresh el del RefreshControl.
+  // Antes refreshing quedaba fijo en false y el refresco nunca se veía.
+  const cargar = useCallback(
+    async ({ refresco = false } = {}) => {
+      if (refresco) setRefrescando(true);
+      else setLoading(true);
+      setError(null);
+      try {
+        setReservas((await ApiClient.getReservas("cliente")) || []);
+      } catch (err) {
+        setError(msjError(err, "No se pudieron cargar tus reservas."));
+      } finally {
+        setLoading(false);
+        setRefrescando(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     cargar();
@@ -93,7 +102,15 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
 
       <View style={styles.tabs}>
         {TABS.map((t) => (
-          <TouchableOpacity key={t.id} style={styles.tab} onPress={() => setTab(t.id)} activeOpacity={0.7}>
+          <TouchableOpacity
+            key={t.id}
+            style={styles.tab}
+            onPress={() => setTab(t.id)}
+            activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === t.id }}
+            accessibilityLabel={t.label}
+          >
             <Text style={[styles.tabText, tab === t.id && styles.tabTextOn]}>{t.label}</Text>
             <View style={[styles.tabUnderline, tab === t.id && styles.tabUnderlineOn]} />
           </TouchableOpacity>
@@ -108,7 +125,9 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
         <ScrollView
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={false} onRefresh={cargar} tintColor={colors.primary} />}
+          refreshControl={
+            <RefreshControl refreshing={refrescando} onRefresh={() => cargar({ refresco: true })} tintColor={colors.primary} />
+          }
         >
           {filtradas.map((r) => {
             const auto = r.auto || {};

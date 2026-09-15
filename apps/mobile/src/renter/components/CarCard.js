@@ -1,39 +1,30 @@
-import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, Animated } from "react-native";
-import { colors, theme, Icon, Rating } from "@rentacar/mobile-shared";
+import React from "react";
+import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
+import { colors, theme, Icon, Rating, Skeleton } from "@rentacar/mobile-shared";
 
 // Esqueleto de carga con la misma silueta que <CarCard> (fila de 104 px).
 export function CarCardSkeleton() {
-  const shimmer = useRef(new Animated.Value(0.55)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmer, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(shimmer, { toValue: 0.55, duration: 700, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [shimmer]);
-
   return (
-    <Animated.View style={[styles.card, styles.skelCard, { opacity: shimmer }]}>
-      <View style={[styles.photo, styles.skelBlock]} />
+    <View style={[styles.card, styles.skelCard]}>
+      <Skeleton testID="skeleton-foto" style={[styles.photo, styles.skelBlock]} />
       <View style={styles.body}>
-        <View style={[styles.skelBar, { width: "62%", height: 14 }]} />
-        <View style={[styles.skelBar, { width: "40%", height: 12 }]} />
-        <View style={[styles.skelBar, { width: "30%", height: 14, marginTop: "auto" }]} />
+        <Skeleton style={{ width: "62%", height: 14 }} />
+        <Skeleton style={{ width: "40%", height: 12 }} />
+        <Skeleton style={{ width: "30%", height: 14, marginTop: "auto" }} />
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
 // Tarjeta de auto del marketplace — dirección "lista densa" (Lote 3, 1a):
 // fila horizontal de ~104 px, foto 4:3 a la izquierda, y a la derecha el
 // nombre, el <Rating> con la comuna y el precio. El corazón flota sobre la
-// info. Sin botón "Ver": toda la tarjeta es táctil.
-export function CarCard({ car, onPress, esFavorito, onToggleFavorito }) {
-  const [fotoError, setFotoError] = useState(false);
+// info. Sin botón "Ver": toda la tarjeta es táctil. React.memo: dentro de la
+// FlatList del marketplace, solo se redibujan las tarjetas que cambian
+// (favorito, auto, callbacks estables), no toda la lista en cada tecla.
+export const CarCard = React.memo(function CarCard({ car, onPress, esFavorito, onToggleFavorito }) {
+  const [fotoError, setFotoError] = React.useState(false);
+  const [fotoCargando, setFotoCargando] = React.useState(true);
   const foto = car.fotos?.[0];
   const precio = (car.tarifa_dia || 0).toLocaleString("es-CL");
   const comuna = car.ubicacion_base || car.comuna || "";
@@ -41,20 +32,26 @@ export function CarCard({ car, onPress, esFavorito, onToggleFavorito }) {
 
   return (
     <TouchableOpacity
+      testID={`car-card-${car.patente || car.id}`}
       style={styles.card}
       onPress={() => onPress(car)}
       activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={`${nombre}, $${precio} por día`}
     >
-      {/* Bloque foto: imagen real o marcador con icono */}
+      {/* Bloque foto: skeleton mientras carga, imagen real o icono en error */}
       <View style={styles.photo}>
+        {fotoCargando && <Skeleton testID="skeleton-foto" style={styles.photoImg} />}
         {foto && !fotoError ? (
           <Image
             source={{ uri: foto }}
             style={styles.photoImg}
             resizeMode="cover"
-            onError={() => setFotoError(true)}
+            onLoadEnd={() => setFotoCargando(false)}
+            onError={() => {
+              setFotoError(true);
+              setFotoCargando(false);
+            }}
           />
         ) : (
           <View style={styles.photoPlaceholder}>
@@ -100,7 +97,7 @@ export function CarCard({ car, onPress, esFavorito, onToggleFavorito }) {
       ) : null}
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -156,5 +153,4 @@ const styles = StyleSheet.create({
   // Skeleton
   skelCard: { backgroundColor: colors.skeleton, borderColor: colors.skeleton },
   skelBlock: { backgroundColor: colors.surfaceSecondary, borderRightWidth: 0 },
-  skelBar: { borderRadius: 999, backgroundColor: colors.surfaceSecondary },
 });

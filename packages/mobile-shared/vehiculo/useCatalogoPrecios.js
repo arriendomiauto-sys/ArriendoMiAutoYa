@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { TIPOS_VEHICULO, aplicarTarifasConfig } from "./catalogoPrecios";
+import { getAccessToken } from "../api/supabase";
 
 /**
  * Trae las tarifas por categoría que fijó RentACar desde el panel
@@ -8,8 +9,9 @@ import { TIPOS_VEHICULO, aplicarTarifasConfig } from "./catalogoPrecios";
  * existe, devuelve las tarifas por defecto de `catalogoPrecios` — el
  * asistente de publicación nunca se queda sin catálogo.
  *
- * El endpoint de configuración es de lectura pública (no lleva token), así
- * que este hook hace su propio `fetch` y no depende del ApiClient.
+ * El endpoint exige una sesión válida (auditoría de seguridad), así que se
+ * adjunta el Bearer token de la sesión Supabase cuando existe. Sin sesión el
+ * 401 cae en el mismo fallback a defaults.
  */
 
 const API_BASE_URL =
@@ -28,7 +30,10 @@ export function useCatalogoPrecios() {
     let vivo = true;
     (async () => {
       try {
-        const resp = await fetch(`${API_BASE_URL}/admin/configuracion`);
+        const token = await getAccessToken();
+        const resp = await fetch(`${API_BASE_URL}/admin/configuracion`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (!resp.ok) return;
         const config = await resp.json();
         const fusion = aplicarTarifasConfig(config?.tarifas_categoria);

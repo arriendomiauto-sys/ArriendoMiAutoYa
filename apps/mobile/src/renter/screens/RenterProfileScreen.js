@@ -13,6 +13,7 @@ import {
   MenuRow,
   ApiClient,
   showAlert,
+  msjError,
   ReferralCodeCard,
   LegalModal,
   ReadinessBand,
@@ -108,9 +109,9 @@ export function RenterProfileScreen({
       showAlert("Solicitud enviada", res?.mensaje || "Recibimos tu solicitud.");
     } catch (err) {
       if (err?.status === 409) {
-        showAlert("Todavía no puedes eliminar tu cuenta", err.message);
+        showAlert("Todavía no puedes eliminar tu cuenta", msjError(err, "Intenta de nuevo en unos segundos."));
       } else {
-        showAlert("No se pudo enviar", err.message || "Inténtalo de nuevo en unos segundos.");
+        showAlert("No se pudo enviar", msjError(err, "Inténtalo de nuevo en unos segundos."));
       }
     } finally {
       setEliminando(false);

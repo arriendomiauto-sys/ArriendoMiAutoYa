@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { ApiClient } from "../api/client";
 import { useApp } from "../context/AppContext";
+import { alCambiarChat } from "../utils/chatEvents";
 
 /**
  * Resumen de las conversaciones del usuario: última línea y no leídos.
@@ -12,7 +13,8 @@ import { useApp } from "../context/AppContext";
  * encendido siempre.
  *
  * Frescura sin socket propio ni intervalo extra: se refresca al volver del
- * segundo plano y cuando cambia el nº de notificaciones de mensaje sin leer —
+ * segundo plano, cuando cambia el nº de notificaciones de mensaje sin leer y
+ * cuando hay actividad dentro de una conversación (`utils/chatEvents`) —
  * `AppContext` ya consulta las notificaciones cada 30 s, así que el globo y la
  * lista quedan al día a ese ritmo sin nada más corriendo contra la batería.
  */
@@ -52,6 +54,13 @@ export function useConversaciones({ activo = true } = {}) {
       if (estado === "active") refrescar();
     });
     return () => sub.remove();
+  }, [activo, refrescar]);
+
+  // Actividad dentro de una conversación (se envía o llega un mensaje) refresca
+  // el globo y las vistas previas al instante, sin esperar el poll de 30 s.
+  useEffect(() => {
+    if (!activo) return undefined;
+    return alCambiarChat(() => refrescar());
   }, [activo, refrescar]);
 
   const noLeidos = conversaciones.reduce((total, c) => total + (c.no_leidos || 0), 0);

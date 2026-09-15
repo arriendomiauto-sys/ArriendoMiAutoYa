@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Chip, Badge, Button, EmptyState, SectionLabel, ApiClient, showAlert } from "@rentacar/mobile-shared";
+import { colors, theme, Chip, Badge, Button, EmptyState, SectionLabel, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc } from "../comun";
 
 const MOTIVOS = [
@@ -50,7 +50,7 @@ export function DisputesScreen({ onBack }) {
       setTickets(Array.isArray(datos) ? datos : []);
       setError(null);
     } catch (err) {
-      setError(err.message || "No pudimos cargar tus reclamos.");
+      setError(msjError(err, "No pudimos cargar tus reclamos."));
     } finally {
       setCargando(false);
     }
@@ -88,7 +88,7 @@ export function DisputesScreen({ onBack }) {
         [{ text: "Entendido", onPress: () => setTab("activas") }]
       );
     } catch (err) {
-      showAlert("No se pudo enviar el reclamo", err.message);
+      showAlert("No se pudo enviar el reclamo", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setEnviando(false);
     }

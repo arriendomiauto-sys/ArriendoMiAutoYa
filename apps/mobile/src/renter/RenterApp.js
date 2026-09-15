@@ -1,6 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { StyleSheet, View } from "react-native";
-import { colors, useApp, showAlert, TarjetaScreen, EditProfileScreen, ApiClient } from "@rentacar/mobile-shared";
+import {
+  colors,
+  useApp,
+  useBackAndroid,
+  showAlert,
+  TarjetaScreen,
+  EditProfileScreen,
+  ApiClient,
+} from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
@@ -30,7 +38,13 @@ import {
 } from "@rentacar/mobile-shared";
 
 export function RenterApp() {
-  const { activeReservation, setActiveReservation, currentUser } = useApp();
+  const {
+    activeReservation,
+    setActiveReservation,
+    currentUser,
+    pendingDeepLink,
+    clearPendingDeepLink,
+  } = useApp();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
   // Licencia lista para arrendar: "verificada", o una cuenta antigua que ya
   // tenía la clase cargada antes de que existiera `licencia_estado`.
@@ -69,6 +83,44 @@ export function RenterApp() {
   // Conversación elegida a mano desde la lista de Mensajes (cuando no hay un
   // arriendo activo obvio al que entrar directo).
   const [chatReservaSeleccionada, setChatReservaSeleccionada] = useState(null);
+
+  // Callbacks estables del marketplace: con CarCard memoizado, una nueva
+  // referencia por render haría renderizar los cards de la lista cada vez
+  // que cambia el contexto (autos, facturación, etc.). Viven acá, arriba de
+  // los early-returns de `renderContent`, para respetar las reglas de hooks.
+  const abrirAuto = useCallback((car) => setSelectedCar(car), []);
+  const abrirMapa = useCallback(() => setShowMap(true), []);
+  const abrirFavoritos = useCallback(() => setShowFavorites(true), []);
+  const abrirEnrolamiento = useCallback(() => setShowEnrolment(true), []);
+  const abrirArriendos = useCallback(() => setActiveTab("rentals"), []);
+
+  // Deep link desde una notificación push tocada (ver AppContext). Solo
+  // actúa mientras RenterApp esté montado (mode === "renter"); si la
+  // reserva no aparece en las reservas del cliente (p. ej. llegó estando en
+  // modo dueño), se descarta en silencio.
+  useEffect(() => {
+    if (!pendingDeepLink) return;
+    const { tipo, entidadId } = pendingDeepLink;
+    if (tipo === "kyc") {
+      setActiveTab("profile");
+      clearPendingDeepLink();
+      return;
+    }
+    if ((tipo === "reserva" || tipo === "mensaje" || tipo === "disputa") && entidadId) {
+      ApiClient.getReservas("cliente")
+        .then((lista) => {
+          const r = (lista || []).find((x) => x.id === entidadId);
+          if (r) {
+            setActiveReservation(r);
+            setActiveTab(tipo === "mensaje" ? "chat" : "rentals");
+          }
+        })
+        .catch(() => {})
+        .finally(clearPendingDeepLink);
+      return;
+    }
+    clearPendingDeepLink();
+  }, [pendingDeepLink]);
 
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
@@ -314,11 +366,11 @@ export function RenterApp() {
       case "explore":
         return (
           <MarketplaceScreen
-            onSelectCar={(car) => setSelectedCar(car)}
-            onOpenMap={() => setShowMap(true)}
-            onOpenFavorites={() => setShowFavorites(true)}
-            onVerifyIdentity={() => setShowEnrolment(true)}
-            onOpenActiveRental={() => setActiveTab("rentals")}
+            onSelectCar={abrirAuto}
+            onOpenMap={abrirMapa}
+            onOpenFavorites={abrirFavoritos}
+            onVerifyIdentity={abrirEnrolamiento}
+            onOpenActiveRental={abrirArriendos}
           />
         );
 
@@ -400,6 +452,45 @@ export function RenterApp() {
     showNotifications ||
     showSupport ||
     showContract;
+
+  // Back físico de Android: capas abiertas en orden de apilado (la primera es
+  // la más visible y la que cierra primero). `showContract` NO está acá: es un
+  // <Modal> nativo que ya se cierra solo vía su `onRequestClose`.
+  const capasAbiertas = [];
+  if (showEnrolment) capasAbiertas.push({ nivel: "kyc", onCerrar: () => setShowEnrolment(false) });
+  if (showLicencia) capasAbiertas.push({ nivel: "licencia", onCerrar: () => setShowLicencia(false) });
+  if (showEditProfile) capasAbiertas.push({ nivel: "editar-perfil", onCerrar: () => setShowEditProfile(false) });
+  if (showFavorites) capasAbiertas.push({ nivel: "favoritos", onCerrar: () => setShowFavorites(false) });
+  if (showMap) capasAbiertas.push({ nivel: "mapa", onCerrar: () => setShowMap(false) });
+  if (resumingReservation) capasAbiertas.push({ nivel: "pago-reanudado", onCerrar: () => setResumingReservation(null) });
+  if (selectedCar && showPayment) capasAbiertas.push({ nivel: "pago", onCerrar: () => setShowPayment(false) });
+  if (selectedCar && !showPayment) capasAbiertas.push({ nivel: "detalle-auto", onCerrar: () => setSelectedCar(null) });
+  if (showExtendRental && activeReservation) capasAbiertas.push({ nivel: "extender-arriendo", onCerrar: () => setShowExtendRental(false) });
+  if (showRoadsideClaim) capasAbiertas.push({ nivel: "asistencia-ruta", onCerrar: () => setShowRoadsideClaim(false) });
+  if (showWallet) capasAbiertas.push({ nivel: "tarjetas", onCerrar: () => setShowWallet(false) });
+  if (showMyQRCode) capasAbiertas.push({ nivel: "qr", onCerrar: () => setShowMyQRCode(false) });
+  if (showCancelModal) capasAbiertas.push({ nivel: "cancelar-reserva", onCerrar: () => setShowCancelModal(false) });
+  if (showNotifications) capasAbiertas.push({ nivel: "notificaciones", onCerrar: () => setShowNotifications(false) });
+  if (showSupport) capasAbiertas.push({ nivel: "soporte", onCerrar: () => setShowSupport(false) });
+  if (activeTab === "rentals") {
+    if (activeReservation) {
+      capasAbiertas.push({ nivel: "arriendo-activo", onCerrar: () => setActiveReservation(null) });
+    } else {
+      capasAbiertas.push({ nivel: "historial", onCerrar: () => setActiveTab("explore") });
+    }
+  }
+  if (activeTab === "chat") {
+    if (chatReservaSeleccionada || activeReservation) {
+      capasAbiertas.push({
+        nivel: "chat-reserva",
+        onCerrar: () => (chatReservaSeleccionada ? setChatReservaSeleccionada(null) : setActiveTab("explore")),
+      });
+    } else {
+      capasAbiertas.push({ nivel: "mensajes", onCerrar: () => setActiveTab("explore") });
+    }
+  }
+  if (activeTab === "profile") capasAbiertas.push({ nivel: "perfil", onCerrar: () => setActiveTab("explore") });
+  useBackAndroid(capasAbiertas);
 
   return (
     <View style={styles.appContainer}>

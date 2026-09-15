@@ -21,6 +21,7 @@ import { SelfieLivenessModal } from "../components/SelfieLivenessModal";
 import { ApiClient } from "../api/client";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 
 function cargarEscanerDocumento() {
   try {
@@ -169,7 +170,7 @@ export function SegundoConductorModal({
     } catch (err) {
       showAlert(
         "No se pudo verificar con Didit",
-        err.message || "Hubo un problema al conectar con el proveedor.",
+        msjError(err, "Hubo un problema al conectar con el proveedor."),
         [
           { text: "Usar fotos manuales", onPress: () => setUsarCapturaManual(true) },
           { text: "Reintentar", style: "cancel" },
@@ -237,7 +238,7 @@ export function SegundoConductorModal({
       });
       asignarUrlSlot(slot, url);
     } catch (err) {
-      showAlert("Error al subir", err.message || "No se pudo subir la foto del documento.");
+      showAlert("Error al subir", msjError(err, "No se pudo subir la foto del documento."));
     } finally {
       setSubiendoSlot(null);
     }
@@ -255,7 +256,7 @@ export function SegundoConductorModal({
       });
       setSelfieUrl(url);
     } catch (err) {
-      showAlert("Error al subir selfie", err.message || "No se pudo subir la foto selfie.");
+      showAlert("Error al subir selfie", msjError(err, "No se pudo subir la foto selfie."));
     } finally {
       setSubiendoSlot(null);
     }
@@ -311,7 +312,7 @@ export function SegundoConductorModal({
 
       if (onSaved) onSaved(respuesta);
     } catch (err) {
-      showAlert("Error en KYC", err.message || "No se pudo procesar la verificación automática.");
+      showAlert("Error en KYC", msjError(err, "No se pudo procesar la verificación automática."));
     } finally {
       setSaving(false);
     }
@@ -332,7 +333,7 @@ export function SegundoConductorModal({
       if (onSaved) onSaved(null);
       onClose();
     } catch (err) {
-      showAlert("Error al eliminar", err.message || "No se pudo eliminar el segundo conductor.");
+      showAlert("Error al eliminar", msjError(err, "No se pudo eliminar el segundo conductor."));
     }
   };
 

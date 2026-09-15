@@ -19,6 +19,8 @@ coverage/
 __pycache__/
 *.py[cod]
 *$py.class
+.maestro/
+.agent/
 
 # Next.js & Turborepo
 .next/
@@ -59,3 +61,4 @@ pnpm-debug.log*
 # OS Files
 .DS_Store
 Thumbs.db
+*.apk

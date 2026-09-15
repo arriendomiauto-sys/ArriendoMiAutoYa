@@ -26,28 +26,22 @@ import { SelfieLivenessModal } from "../components/SelfieLivenessModal";
 import { ApiClient } from "../api/client";
 import { elegirImagen, subirImagenOptimizada } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
+import { msjError } from "../utils/msjError";
 import { hapticoExito, hapticoError } from "../utils/haptics";
 import { guardarColaFotos, leerColaFotos, borrarColaFotos } from "../utils/colaFotosOffline";
-
-const ANGLES = [
-  { id: 1, name: "Frontal", desc: "Parte delantera completa" },
-  { id: 2, name: "Lateral izq.", desc: "Costado del conductor" },
-  { id: 3, name: "Trasera", desc: "Parte trasera completa" },
-  { id: 4, name: "Lateral der.", desc: "Costado del copiloto" },
-  { id: 5, name: "Asientos", desc: "Asientos delanteros y traseros" },
-  { id: 6, name: "Tablero int.", desc: "Consola central y volante" },
-  { id: 7, name: "Maletero", desc: "Maletero abierto" },
-  { id: 8, name: "Tablero km", desc: "Odómetro y combustible nítido" },
-];
-
-// Símbolo del selector -> valor que espera el backend
-// (Literal["lleno","3/4","1/2","1/4","vacio"] en ChecklistRequest).
-const FUEL_SYMBOL_TO_VALUE = { E: "vacio", "¼": "1/4", "½": "1/2", "¾": "3/4", F: "lleno" };
-const FUEL_LEVELS = ["E", "¼", "½", "¾", "F"];
-
-// La devolución es un recorrido de 3 pasos con avance visible; antes eran 7
-// stages sueltos sin ninguna señal de cuánto faltaba.
-const PASOS = ["Verificar", "Inspeccionar", "Cerrar"];
+import NetInfo from "@react-native-community/netinfo";
+import { E2E_TEST_MODE, fotoFixtureE2E } from "../utils/e2e";
+import {
+  ANGLES,
+  FUEL_SYMBOL_TO_VALUE,
+  FUEL_LEVELS,
+  PASOS,
+  TIPOS_DANO,
+  PUNTAJES_CALIFICACION,
+  CATEGORIAS_IA,
+  formatCLP,
+} from "./DeliveryScreen.constantes";
+import { styles } from "./DeliveryScreen.styles";
 
 export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisputes }) {
   const insets = useSafeAreaInsets();
@@ -177,7 +171,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
       setStage("06_confirm");
     } catch (error) {
       hapticoError();
-      showAlert("Código inválido", error.message);
+      showAlert("Código inválido", msjError(error, "Intenta de nuevo."));
     } finally {
       setValidando(false);
     }
@@ -201,7 +195,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
       setStage(tipo === "antes" ? "20_camera" : "25_return_cam");
     } catch (error) {
       hapticoError();
-      showAlert("Error", error.message);
+      showAlert("Error", msjError(error, "Intenta de nuevo en unos segundos."));
     } finally {
       setConfirmando(false);
     }
@@ -227,7 +221,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
         [{ text: "Entendido", onPress: onCompleteDelivery }]
       );
     } catch (error) {
-      showAlert("Error", error.message);
+      showAlert("Error", msjError(error, "Intenta de nuevo en unos segundos."));
     } finally {
       setConfirmando(false);
     }
@@ -277,7 +271,11 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
     setSubiendoFoto(true);
     let uri = null;
     try {
-      if (cameraPermission?.granted && cameraRef.current?.takePictureAsync) {
+      if (E2E_TEST_MODE) {
+        // Test automatizado (Maestro): no hay nadie apuntando la cámara a un
+        // auto real. Se usa una foto fija en vez de abrir la cámara nativa.
+        uri = await fotoFixtureE2E();
+      } else if (cameraPermission?.granted && cameraRef.current?.takePictureAsync) {
         try {
           const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
           uri = photo?.uri || null;
@@ -352,15 +350,25 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   // Reintenta lo que quedó en "error" al volver del segundo plano — el
   // momento típico en que alguien recupera señal es justo al destrabar el
-  // teléfono de nuevo, no mientras sigue con la pantalla apagada.
+  // teléfono de nuevo, no mientras sigue con la pantalla apagada. También se
+  // reintenta si la señal vuelve sin que la app haya pasado a background (ej.
+  // WiFi que se recupera mientras se sigue mirando la pantalla).
   useEffect(() => {
-    const sub = AppState.addEventListener("change", (estado) => {
-      if (estado !== "active") return;
+    const reintentarPendientes = () => {
       colaFotos.forEach((item, idx) => {
         if (item.estado === "error") subirUnaFoto(idx, item.uriLocal);
       });
+    };
+    const subAppState = AppState.addEventListener("change", (estado) => {
+      if (estado === "active") reintentarPendientes();
     });
-    return () => sub.remove();
+    const unsubNetInfo = NetInfo.addEventListener((state) => {
+      if (state.isConnected) reintentarPendientes();
+    });
+    return () => {
+      subAppState.remove();
+      unsubNetInfo();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colaFotos]);
 
@@ -423,7 +431,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
       setStage(tipo === "antes" ? "24_signed" : "28_done");
     } catch (error) {
       hapticoError();
-      showAlert("No se pudo registrar el checklist", error.message);
+      showAlert("No se pudo registrar el checklist", msjError(error, "Intenta de nuevo en unos segundos."));
     } finally {
       setEnviandoChecklist(false);
     }
@@ -442,7 +450,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
       });
       setCalificacionEnviada(true);
     } catch (error) {
-      showAlert("No se pudo enviar la calificación", error.message);
+      showAlert("No se pudo enviar la calificación", msjError(error, "Intenta de nuevo en unos segundos."));
     } finally {
       setEnviandoCalificacion(false);
     }
@@ -584,6 +592,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             <Icon name="image" size={22} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
+            testID="btn-tomar-foto"
             style={styles.shutterBtn}
             onPress={handleTomarFoto}
             disabled={subiendoFoto}
@@ -645,6 +654,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           ) : null}
 
           <Button
+            testID="btn-escanear-qr"
             label="Escanear QR del cliente"
             iconLeft="camera"
             onPress={() => setScanQR(true)}
@@ -654,6 +664,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           <View style={{ gap: 6 }}>
             <SectionLabel>¿Sin cámara? Escribe el código</SectionLabel>
             <TextInput
+              testID="input-codigo-entrega"
               style={styles.input}
               value={codigoInput}
               onChangeText={setCodigoInput}
@@ -667,6 +678,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
         </ScrollView>
         <Footer>
           <Button
+            testID="btn-validar-codigo"
             label="Validar código escrito"
             variant="secondary"
             onPress={() => handleValidarCodigo()}
@@ -830,7 +842,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           </View>
         </ScrollView>
         <Footer>
-          <Button label="Continuar" onPress={irAMetricas} disabled={fotos.length === 0} />
+          <Button testID="btn-continuar-fotos" label="Continuar" onPress={irAMetricas} disabled={fotos.length === 0} />
         </Footer>
       </View>
     );
@@ -850,6 +862,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             <SectionLabel>Kilometraje actual</SectionLabel>
             <View style={styles.kmRow}>
               <TextInput
+                testID="input-km"
                 style={styles.kmInput}
                 value={km}
                 onChangeText={setKm}
@@ -883,6 +896,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
         </ScrollView>
         <Footer>
           <Button
+            testID="btn-continuar-metrics"
             label={
               tipo === "despues"
                 ? "Ver la revisión"
@@ -914,7 +928,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           <Card padded style={{ gap: theme.spacing.sm }}>
             <Text style={styles.cardTitle}>Contrato de arriendo · {auto.patente}</Text>
             <InfoRow label="Kilometraje de salida" value={`${km} km`} />
-            <InfoRow label="Garantía retenida" value={`$${(reserva?.monto_hold || 0).toLocaleString("es-CL")}`} />
+            <InfoRow label="Garantía retenida" value={`$${formatCLP(reserva?.monto_hold)}`} />
           </Card>
 
           <View>
@@ -947,6 +961,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
         </ScrollView>
         <Footer>
           <Button
+            testID="btn-firmar-entregar"
             label="Firmar y entregar las llaves"
             onPress={() => enviarChecklist()}
             loading={enviandoChecklist}
@@ -969,7 +984,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
               });
               setSelfieEntregaUrl(url);
             } catch (err) {
-              showAlert("No se pudo subir la selfie", err.message || "Intenta de nuevo.");
+              showAlert("No se pudo subir la selfie", msjError(err, "Intenta de nuevo."));
             } finally {
               setSubiendoSelfieEntrega(false);
             }
@@ -996,7 +1011,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             <InfoRow label="Reserva" value={(reservaIdActiva || "").slice(0, 8).toUpperCase()} />
             <InfoRow label="Registro fotográfico" value={`${fotos.length} fotos`} />
             <View style={styles.divider} />
-            <InfoRow label="Garantía" value={`$${(reserva?.monto_hold || 0).toLocaleString("es-CL")} retenidos`} />
+            <InfoRow label="Garantía" value={`$${formatCLP(reserva?.monto_hold)} retenidos`} />
           </Card>
         </ScrollView>
         <Footer>
@@ -1065,12 +1080,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
                 <Text style={styles.aiSubtitle}>Probabilidades estimadas por visión:</Text>
 
                 <View style={styles.aiBars}>
-                  {[
-                    { label: "Rayón", pct: analisisIA.probabilidades?.rayon || 0 },
-                    { label: "Golpe", pct: analisisIA.probabilidades?.abolladura || 0 },
-                    { label: "Choque", pct: analisisIA.probabilidades?.choque || 0 },
-                    { label: "Suciedad", pct: analisisIA.probabilidades?.suciedad || 0 },
-                  ].map((item) => (
+                  {CATEGORIAS_IA.map((a) => ({ ...a, pct: analisisIA.probabilidades?.[a.clave] || 0 })).map((item) => (
                     <View key={item.label} style={styles.aiBarRow}>
                       <Text style={styles.aiBarLabel}>{item.label}</Text>
                       <View style={styles.aiBarTrack}>
@@ -1123,7 +1133,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
               <View style={{ gap: theme.spacing.sm }}>
                 <SectionLabel>Tipo de diferencia</SectionLabel>
                 <View style={styles.chipsWrap}>
-                  {["Rayón", "Golpe", "Vidrio", "Neumático", "Interior", "Falta combustible"].map((t) => (
+                  {TIPOS_DANO.map((t) => (
                     <Chip key={t} label={t} selected={damageType === t} onPress={() => setDamageType(t)} />
                   ))}
                 </View>
@@ -1214,11 +1224,11 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             </View>
             <View style={styles.rowBetween}>
               <Text style={styles.infoLabel}>Monto a transferir</Text>
-              <Text style={styles.liqMonto}>${(r.liquidacion_dueno || 0).toLocaleString("es-CL")}</Text>
+              <Text style={styles.liqMonto}>${formatCLP(r.liquidacion_dueno)}</Text>
             </View>
-            {r.cargo_limpieza > 0 && <InfoRow label="Cargo limpieza" value={`$${r.cargo_limpieza.toLocaleString("es-CL")}`} />}
-            {r.cargo_combustible > 0 && <InfoRow label="Cargo combustible" value={`$${r.cargo_combustible.toLocaleString("es-CL")}`} />}
-            {r.cargo_km_extra > 0 && <InfoRow label="Cargo km extra" value={`$${r.cargo_km_extra.toLocaleString("es-CL")}`} />}
+            {r.cargo_limpieza > 0 && <InfoRow label="Cargo limpieza" value={`$${formatCLP(r.cargo_limpieza)}`} />}
+            {r.cargo_combustible > 0 && <InfoRow label="Cargo combustible" value={`$${formatCLP(r.cargo_combustible)}`} />}
+            {r.cargo_km_extra > 0 && <InfoRow label="Cargo km extra" value={`$${formatCLP(r.cargo_km_extra)}`} />}
             <Text style={styles.footNoteLeft}>
               {enDisputa
                 ? "La garantía y liquidación quedan en pausa hasta que soporte resuelva la disputa."
@@ -1234,7 +1244,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
                 <>
                   <Text style={styles.ratingTitle}>¿Cómo fue tu experiencia con el cliente?</Text>
                   <View style={styles.stars}>
-                    {[1, 2, 3, 4, 5].map((n) => (
+                    {PUNTAJES_CALIFICACION.map((n) => (
                       <TouchableOpacity key={n} onPress={() => setPuntajeCliente(n)} hitSlop={theme.control.hitSlop}>
                         <Icon name="star" size={30} color={n <= puntajeCliente ? colors.warning : colors.border} />
                       </TouchableOpacity>
@@ -1270,393 +1280,4 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   return null;
 }
-
-const styles = StyleSheet.create({
-  light: { flex: 1, backgroundColor: colors.background },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg, paddingBottom: theme.spacing.xxl },
-  centerBody: { padding: theme.spacing.xxl, alignItems: "center", gap: theme.spacing.lg },
-  centerText: { alignItems: "center", gap: theme.spacing.sm },
-  bigTitle: { ...theme.typography.title, color: colors.text, textAlign: "center" },
-  bigSub: { fontSize: 15, color: colors.textMuted, lineHeight: 22, textAlign: "center" },
-  successMark: { marginTop: theme.spacing.sm },
-  markWarn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.warningBg,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: theme.spacing.sm,
-  },
-  perfilFoto: { width: 96, height: 96, borderRadius: 48, alignSelf: "center" },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
-  infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },
-  infoLabel: { fontSize: 14, color: colors.textMuted },
-  infoValue: { fontSize: 14, color: colors.text, fontWeight: "500", flexShrink: 1, textAlign: "right" },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  divider: { height: 1, backgroundColor: colors.border },
-  help: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
-  okRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
-    backgroundColor: colors.accent100,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.pill,
-  },
-  okRowText: { fontSize: 13, fontWeight: "700", color: colors.accentDark },
-  input: {
-    minHeight: theme.control.height,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: colors.text,
-  },
-  textarea: { minHeight: 90, textAlignVertical: "top" },
-  noticeTeal: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    backgroundColor: colors.primary100,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.lg,
-  },
-  noticeTealText: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.primary },
-  noticeWarn: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.lg,
-  },
-  noticeWarnText: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.warningText },
-  noticeWarnBox: {
-    width: "100%",
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.lg,
-    gap: 4,
-  },
-  noticeWarnTitle: { fontSize: 14, fontWeight: "700", color: colors.warningText },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.md },
-  gridCard: {
-    width: "47%",
-    borderRadius: theme.radius.field,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  gridThumb: { height: 84, width: "100%", backgroundColor: colors.surfaceSecondary },
-  gridFoot: { padding: theme.spacing.sm, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 6 },
-  gridName: { fontSize: 13, color: colors.text, flex: 1 },
-  gridCardSm: {
-    width: "22%",
-    aspectRatio: 1,
-    borderRadius: theme.radius.sm,
-    overflow: "hidden",
-    backgroundColor: colors.surfaceSecondary,
-  },
-  gridThumbSm: { width: "100%", height: "100%" },
-  deltaLine: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  deltaLabel: { fontSize: 14, color: colors.textMuted },
-  deltaVal: { fontSize: 14, fontWeight: "600", color: colors.text },
-  kmRow: {
-    height: theme.control.height,
-    borderWidth: 1.5,
-    borderColor: colors.primary200,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    gap: theme.spacing.sm,
-  },
-  kmInput: { flex: 1, fontSize: 18, fontWeight: "700", color: colors.text },
-  kmSuffix: { fontSize: 16, color: colors.textMuted, fontWeight: "500" },
-  fuelRow: { flexDirection: "row", gap: 6 },
-  fuelBtn: {
-    flex: 1,
-    height: 58,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-  },
-  fuelBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  fuelText: { fontSize: 16, fontWeight: "600", color: colors.textMuted },
-  fuelSub: { fontSize: 10, color: colors.textMuted },
-  faceCam: {
-    height: 230,
-    backgroundColor: colors.primary800,
-    borderRadius: theme.radius.card,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: theme.spacing.lg,
-    gap: theme.spacing.md,
-  },
-  faceCircle: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    borderWidth: 2,
-    borderColor: "rgba(146,227,203,0.7)",
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary900,
-    overflow: "hidden",
-  },
-  faceCircleFoto: { width: "100%", height: "100%" },
-  faceTitle: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
-  faceDesc: { fontSize: 13, color: colors.accent300, textAlign: "center", maxWidth: 240, lineHeight: 18 },
-  liqMonto: { fontSize: 16, fontWeight: "800", color: colors.text },
-  footNote: { fontSize: 12, color: colors.textMuted, textAlign: "center" },
-  footNoteLeft: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 17,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: theme.spacing.sm,
-  },
-  ratingTitle: { fontSize: 15, fontWeight: "600", color: colors.text, textAlign: "center" },
-  ratingSent: { fontSize: 14, fontWeight: "600", color: colors.success },
-  stars: { flexDirection: "row", gap: 6 },
-  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: theme.spacing.sm,
-  },
-
-  // ---- barra de 3 pasos (devolución) ----
-  stepWrap: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 6,
-  },
-  stepSegs: { flexDirection: "row", gap: 5 },
-  stepSeg: { flex: 1, height: 4, borderRadius: 999, backgroundColor: colors.border },
-  stepSegDone: { backgroundColor: colors.primary },
-  stepSegNow: { backgroundColor: colors.accent },
-  stepLabels: { flexDirection: "row", justifyContent: "space-between" },
-  stepLbl: { fontSize: 11, fontWeight: "600", color: colors.textPlaceholder, flex: 1, textAlign: "center" },
-  stepLblNow: { color: colors.primary },
-  stepLblDone: { color: colors.accentDark },
-
-  // ---- cámara (chrome claro translúcido) ----
-  camContainer: { flex: 1, backgroundColor: colors.background },
-  camTop: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    gap: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  camHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  camTitle: { fontSize: 15, fontWeight: "700", color: colors.text, flex: 1, marginHorizontal: theme.spacing.md },
-  camFraction: { fontSize: 14, color: colors.primary, fontWeight: "700" },
-  camBars: { flexDirection: "row", gap: 5 },
-  camBar: { flex: 1, height: 4, borderRadius: 999 },
-  barDone: { backgroundColor: colors.accent },
-  barActive: { backgroundColor: colors.primary },
-  barPending: { backgroundColor: colors.border },
-  anglePills: { flexDirection: "row", gap: theme.spacing.sm, paddingVertical: 2 },
-  anglePill: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: theme.radius.pill, backgroundColor: colors.surfaceSecondary },
-  pillPast: { backgroundColor: colors.accent100 },
-  pillCurr: { backgroundColor: colors.primary },
-  pillFuture: { backgroundColor: colors.surfaceSecondary },
-  pillText: { fontSize: 13 },
-  viewfinder: {
-    flex: 1,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  guideBox: {
-    position: "absolute",
-    top: 24,
-    bottom: 24,
-    left: 20,
-    right: 20,
-    borderWidth: 2,
-    borderColor: colors.primary300,
-    borderStyle: "dashed",
-    borderRadius: theme.radius.card,
-  },
-  vfBadge: {
-    position: "absolute",
-    top: 22,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  vfBadgeText: { color: colors.text, fontSize: 15, fontWeight: "600" },
-  camShutter: {
-    paddingHorizontal: theme.spacing.xl,
-    paddingTop: theme.spacing.lg,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: theme.spacing.md,
-  },
-  shutterRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  skipText: { fontSize: 13, fontWeight: "700", color: colors.accentDark },
-  galleryBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.primary100,
-    borderWidth: 1.5,
-    borderColor: colors.primary200,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shutterBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  shutterInner: { width: 60, height: 60, borderRadius: 30, borderWidth: 3, borderColor: "#FFFFFF" },
-  thumbCounter: {
-    width: 52,
-    height: 52,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  thumbCounterText: { fontSize: 14, fontWeight: "800", color: colors.accentDark },
-  camNote: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
-  camPermBox: {
-    padding: theme.spacing.xl,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderRadius: theme.radius.card,
-    marginHorizontal: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  camPermTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  camPermDesc: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  camPermBtn: {
-    marginTop: 6,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: theme.radius.field,
-  },
-  camPermBtnText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-
-  // ---- Tarjeta de Peritaje Asistido por IA ----
-  aiCard: {
-    gap: 8,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    backgroundColor: colors.surface,
-  },
-  aiHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  aiTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  aiLoadingText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontStyle: "italic",
-    paddingVertical: 4,
-  },
-  aiSubtitle: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textMuted,
-  },
-  aiBars: {
-    gap: 6,
-    paddingVertical: 2,
-  },
-  aiBarRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  aiBarLabel: {
-    width: 68,
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: "500",
-  },
-  aiBarTrack: {
-    flex: 1,
-    height: 8,
-    backgroundColor: colors.surfaceSecondary || "#F1F5F9",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  aiBarFill: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  aiBarPct: {
-    width: 36,
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.text,
-    textAlign: "right",
-  },
-  aiDiagnosis: {
-    fontSize: 12.5,
-    color: colors.textMuted,
-    lineHeight: 18,
-    marginTop: 2,
-  },
-});
 

@@ -13,6 +13,7 @@ import {
   ContractSignatureModal,
   ContractModal,
   AgregarTarjetaModal,
+  msjError,
   useTarjetas,
   useCuentaRegresiva,
   useApp,
@@ -125,13 +126,15 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
       }
     } catch (error) {
       setPagando(false);
-      const motivo = error.message || "";
-      const esRequisito = /licencia|permiso internacional|edad mínima|residencia/i.test(motivo);
+      const motivo = msjError(error, "Intenta nuevamente en unos segundos.");
+      const esRequisito = /licencia|permiso internacional|edad mínima|residencia/i.test(
+        error?.message || ""
+      );
       showAlert(
         esRequisito ? "No puedes reservar este auto" : "No se pudo crear la reserva",
         esRequisito
           ? `${motivo}\n\nActualiza tus documentos desde tu perfil o escríbenos a soporte.`
-          : motivo || "Intenta nuevamente en unos segundos."
+          : motivo
       );
     }
   };
@@ -351,6 +354,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
           return (
             <>
               <Button
+                testID="btn-confirmar-pago"
                 label={
                   yaFirmo
                     ? pagoSimulado

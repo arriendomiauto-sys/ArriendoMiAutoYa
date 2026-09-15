@@ -4,7 +4,7 @@ import {
   TouchableOpacity, KeyboardAvoidingView, Platform,
 } from "react-native";
 import {
-  colors, theme, Icon, Button, Chip, SectionLabel, showAlert,
+  colors, theme, Icon, Button, Chip, SectionLabel, showAlert, msjError,
   ApiClient, CampoConSugerencias, buscarBancos, TIPOS_CUENTA_CHILE,
   useApp,
 } from "@rentacar/mobile-shared";
@@ -63,7 +63,7 @@ export function CuentaCobroModal({
       onGuardada?.(cuenta);
       onClose?.();
     } catch (err) {
-      showAlert("No se pudo guardar", err?.message || "Verifica el RUT e intenta de nuevo.");
+      showAlert("No se pudo guardar", msjError(err, "Verifica el RUT e inténtalo de nuevo."));
     } finally {
       setGuardando(false);
     }

@@ -8,6 +8,10 @@ import {
   colors,
   AuthFlow,
   SwitchingScreen,
+  NetworkBanner,
+  useNetworkStatus,
+  ForceUpdateScreen,
+  useVersionCheck,
 } from "@rentacar/mobile-shared";
 import { RenterApp } from "./src/renter/RenterApp";
 import { OwnerApp } from "./src/owner/OwnerApp";
@@ -24,6 +28,14 @@ import { OwnerApp } from "./src/owner/OwnerApp";
 // se pide recién al publicar o reservar un auto de verdad.
 function Root() {
   const { isLoggedIn, authLoading, mode, transition } = useApp();
+  const { bloqueado, urlStore } = useVersionCheck();
+
+  // Versión obligatoria: tiene prioridad sobre todo lo demás, incluido el
+  // login — no tiene sentido dejar entrar a una versión que el backend ya no
+  // soporta.
+  if (bloqueado) {
+    return <ForceUpdateScreen urlStore={urlStore} />;
+  }
 
   // Arranque: mientras se rehidrata la sesión de Supabase se muestra la
   // pantalla de carga. La biometría ya no bloquea el acceso general — solo se
@@ -53,6 +65,7 @@ function Root() {
 // base clara, así que el marco es siempre claro (barra de estado con iconos
 // oscuros incluida). El acento premium del dueño vive dentro de sus pantallas.
 function ThemedFrame() {
+  const { isConnected } = useNetworkStatus();
   return (
     <>
       {/* Barra de estado translúcida: el contenido queda debajo del notch
@@ -68,6 +81,7 @@ function ThemedFrame() {
         >
           <View style={styles.bodyContainer}>
             <Root />
+            <NetworkBanner visible={!isConnected} />
           </View>
         </SafeAreaView>
       </View>

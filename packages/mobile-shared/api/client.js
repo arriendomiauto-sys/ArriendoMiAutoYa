@@ -5,34 +5,6 @@ const API_BASE_URL =
   (typeof process !== "undefined" && process.env?.EXPO_PUBLIC_API_URL) ||
   "https://arriendomiautoya.onrender.com/api/v1";
 
-// Autos de respaldo SOLO para modo offline (backend inalcanzable). Los
-// campos siguen el mismo shape que devuelve GET /autos (AutoOut) para que
-// las pantallas no muestren datos con otra forma que la real.
-export const MOCK_CARS = [
-  {
-    id: "car-swift-01",
-    dueno_id: "dueno-demo",
-    marca: "Suzuki",
-    modelo: "Swift",
-    anio: 2023,
-    patente: "BBFK-42",
-    tarifa_dia: 38000,
-    ubicacion_base: "Providencia, Santiago",
-    estado: "activo",
-    transmision: "automatica",
-    combustible: "bencina",
-    asientos: 5,
-    puertas: 5,
-    categoria: "economico",
-    equipamiento: { ac: true, bluetooth: true, camara_retroceso: true },
-    documentos_verificados: true,
-    fotos: [
-      "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800",
-      "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800",
-    ],
-  },
-];
-
 /**
  * Cliente HTTP único, compartido por las experiencias de arrendatario y dueño.
  * Adjunta automáticamente el Bearer token de la sesión Supabase activa a
@@ -208,7 +180,7 @@ export class ApiClient {
           );
       // Marca explícita para distinguir "no llegué al servidor" de "el
       // servidor respondió mal": son dos fallas distintas y las pantallas
-      // reaccionan distinto (modo demo vs. error con reintento).
+      // reaccionan distinto (error genérico de conexión vs. reintento).
       err.esFalloDeConexion = true;
       throw err;
     } finally {
@@ -303,20 +275,27 @@ export class ApiClient {
       const query = new URLSearchParams(params).toString();
       return await this.request(`/autos${query ? `?${query}` : ""}`);
     } catch (err) {
-      // Sin conexión con el backend: modo demo con autos de ejemplo.
-      if (err?.esFalloDeConexion) return MOCK_CARS;
-      // El servidor SÍ respondió, pero con error (p. ej. el 500 que devolvía
-      // GET /autos cuando una fila traía NULL en fotos/equipamiento). Antes
-      // se devolvía [] y el marketplace se veía igual que "todavía no hay
-      // autos publicados": el fallo quedaba invisible y sin forma de
-      // reintentar. Se propaga para que la pantalla lo muestre como error.
-      console.warn("[getAutos] el backend respondió con error:", err?.message);
+      // Sin conexión no se enmascara el fallo con autos de ejemplo: un fallo
+      // de red es un error real que se propaga para que loadData setee
+      // carsError y la pantalla muestre error con reintento. El servidor SÍ
+      // respondió, pero con error (p. ej. el 500 que devolvía GET /autos
+      // cuando una fila traía NULL en fotos/equipamiento). Antes se devolvía
+      // [] y el marketplace se veía igual que "todavía no hay autos
+      // publicados": el fallo quedaba invisible y sin forma de reintentar.
+      // Se propaga para que la pantalla lo muestre como error.
+      console.warn("[getAutos] el backend no respondió o respondió con error:", err?.message);
       throw err;
     }
   }
 
   static async getAuto(autoId) {
     return this.request(`/autos/${autoId}`);
+  }
+
+  // Lectura pública (no requiere sesión): versión mínima soportada de la app,
+  // consultada al arrancar antes de cualquier login.
+  static async getVersionMinima() {
+    return this.request("/system/version");
   }
 
   // Rangos de fechas ya reservados de un auto (reserva pendiente_pago vigente,

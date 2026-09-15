@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  AppState,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -19,6 +20,7 @@ import { Icon } from "../components/Icon";
 import { ScreenHeader, EmptyState } from "../components/ui";
 import { ApiClient } from "../api/client";
 import { conectarChat } from "../api/chatSocket";
+import { avisarCambioChat } from "../utils/chatEvents";
 
 // Outbox persistente: lo que el usuario escribió y el servidor todavía no
 // confirmó se guarda en disco por reserva. Si cierra la app (o la mata el SO)
@@ -54,8 +56,9 @@ async function guardarOutbox(reservaId, mensajes) {
 
 // Red de seguridad, no el mecanismo principal: los mensajes llegan por
 // WebSocket. Este intervalo solo corre mientras el canal en vivo no esté
-// arriba (sin sesión, backend viejo, o señal cortada).
-const POLL_MS = 4000;
+// arriba (sin sesión, backend viejo, o señal cortada). Cada 2 s como
+// máximo de espera cuando se cayó a REST.
+const POLL_MS = 2000;
 // Cada cuánto se reafirma "estoy escribiendo" mientras se teclea, y cuánto se
 // espera sin teclas para avisar que se dejó de escribir.
 const ESCRIBIR_MS = 2500;
@@ -182,7 +185,10 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
       // 2) REST (canal caído). Sin `await` que bloquee la interfaz: el mensaje
       //    ya está en pantalla como "enviando".
       ApiClient.enviarMensaje(reservation.id, msg.texto)
-        .then((real) => conciliarMensaje({ ...real, _clientId: msg._clientId }))
+        .then((real) => {
+          conciliarMensaje({ ...real, _clientId: msg._clientId });
+          avisarCambioChat();
+        })
         .catch(() => marcarFallidoSiPendiente(msg._clientId));
     },
     [reservation?.id, marcarEstado, marcarFallidoSiPendiente, conciliarMensaje]
@@ -256,7 +262,10 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   useEffect(() => {
     if (!reservation?.id) return undefined;
     const canal = conectarChat(reservation.id, {
-      onMensaje: conciliarMensaje,
+      onMensaje: (nuevo) => {
+        conciliarMensaje(nuevo);
+        avisarCambioChat();
+      },
       onEstado: (estado) => {
         setEnVivo(estado === "conectado");
         // Al reconectar puede haberse perdido algo mientras no había canal:
@@ -292,6 +301,19 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     const t = setInterval(cargar, POLL_MS);
     return () => clearInterval(t);
   }, [cargar, enVivo]);
+
+  // Al volver al primer plano el SO pudo matar el WebSocket (datos móviles,
+  // suspensión). En vez de esperar el backoff y el siguiente poll, se refresca
+  // ya el historial y se despereza el canal de una.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (estado) => {
+      if (estado === "active") {
+        cargar();
+        canalRef.current?.reconectar?.();
+      }
+    });
+    return () => sub.remove();
+  }, [cargar]);
 
   const handleSend = () => {
     const texto = input.trim();
