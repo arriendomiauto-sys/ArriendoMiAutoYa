@@ -18,7 +18,7 @@ from app.schemas.schemas import (
     FirmaContratoOut,
     SesionVerificacionExternaOut,
 )
-from app.models.entities import Reserva, Auto, Usuario, Pago, ConductorAdicional, FirmaContrato
+from app.models.entities import Reserva, Auto, Usuario, Pago, ConductorAdicional, FirmaContrato, Mensaje
 from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.auth.onboarding.contract_service import ContractService
 from app.features.auth.onboarding.fines_service import FinesService
@@ -600,6 +600,7 @@ def realizar_precheckin(
                 mensaje=f"{current_user.nombre} completó el pre-checkin para la entrega en {reserva.lugar_entrega_acordado}.",
                 entidad_tipo="reserva",
                 entidad_id=reserva.id,
+                commit=False,
             )
     else:
         if (not auto or auto.dueno_id != current_user.id) and "admin" not in (current_user.roles_activos or []):
@@ -615,7 +616,19 @@ def realizar_precheckin(
             mensaje=f"El anfitrión confirmó que tu {auto.marca if auto else 'auto'} estará listo en {reserva.lugar_entrega_acordado}.",
             entidad_tipo="reserva",
             entidad_id=reserva.id,
+            commit=False,
         )
+
+    # Si se incluyeron notas para la contraparte, se registran en el chat de la reserva
+    if payload.notas and payload.notas.strip():
+        db.add(Mensaje(
+            id=str(uuid.uuid4()),
+            reserva_id=reserva.id,
+            autor_id=current_user.id,
+            texto=f"📋 [Pre-Checkin 24h]: {payload.notas.strip()}",
+            timestamp=ahora,
+            leido=False,
+        ))
 
     db.commit()
     db.refresh(reserva)
