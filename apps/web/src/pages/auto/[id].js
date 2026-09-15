@@ -159,11 +159,11 @@ export default function AutoDetalle({ auto }) {
                   <span className="font-display text-3xl font-bold text-brand-ink">{fmtCLP(auto.tarifa_dia)}</span>
                   <span className="pb-1 text-sm text-[#63645f]">CLP / día</span>
                 </div>
-                <a href="/#descargar-app" className="mt-4 block">
+                <Link href="/#descargar-app" className="mt-4 block">
                   <Button className="w-full rounded-xl bg-brand-teal py-6 text-[15px] font-semibold text-[#04231b] hover:bg-[#12b78d]">
                     Reservar en la app <ArrowRight className="ml-1.5 h-4 w-4" />
                   </Button>
-                </a>
+                </Link>
                 <Link href="/cotizador" className="mt-2 block">
                   <Button variant="outline" className="w-full rounded-xl border-brand-line text-sm font-semibold text-brand-ink hover:border-brand-ink">
                     Calcular el total de mi arriendo

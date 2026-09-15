@@ -4,7 +4,7 @@ import Link from "next/link";
 import Seo from "../../components/Seo";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
-import { CheckCircle2, Clock, XCircle, ArrowRight, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, ArrowRight } from "lucide-react";
 
 export default function PagoRetorno() {
   const router = useRouter();

@@ -8,16 +8,8 @@ import { Separator } from "../components/ui/separator";
 import {
   TrendingUp,
   ShieldCheck,
-  DollarSign,
   Car,
   Check,
-  Smartphone,
-  Sparkles,
-  ArrowRight,
-  HelpCircle,
-  Clock,
-  Shield,
-  FileCheck2,
 } from "lucide-react";
 
 export default function SimuladorDuenosPage() {

@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { FaEnvelope } from "react-icons/fa";
 
 const cols = [
@@ -44,7 +45,7 @@ export default function Footer() {
         <div className="grid grid-cols-2 gap-10 border-b border-[#2c2c29] pb-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="col-span-2 md:col-span-1">
             <div className="mb-3.5 flex items-center gap-2.5">
-              <img src="/logo.png" alt="ArriendoMiAutoYa" className="h-8 w-8 rounded-lg object-cover" />
+              <Image src="/logo.png" alt="ArriendoMiAutoYa" width={64} height={64} className="h-8 w-8 rounded-lg object-cover" />
               <span className="font-display text-base font-bold text-white">arriendomiautoya</span>
             </div>
             <p className="max-w-xs text-[13px] leading-relaxed">

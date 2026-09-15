@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "./ui/button";
 import { Menu, X } from "lucide-react";
 
@@ -30,9 +31,11 @@ export default function Navbar() {
     >
       <div className="container mx-auto flex h-[74px] max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2.5">
-          <img
+          <Image
             src="/logo.png"
             alt="ArriendoMiAutoYa"
+            width={64}
+            height={64}
             className="h-9 w-9 rounded-xl object-cover shadow-sm transition-transform group-hover:scale-105"
           />
           <span className="font-display text-lg font-bold tracking-tight text-brand-ink">

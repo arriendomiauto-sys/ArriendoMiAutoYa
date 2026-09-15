@@ -1,4 +1,5 @@
 import { Html, Head, Main, NextScript } from "next/document";
+import { escapeLdJson } from "../lib/ldjson";
 
 const SITE_URL = "https://arriendomiautoya.cl";
 
@@ -120,15 +121,15 @@ export default function Document() {
         {/* Datos estructurados globales */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(autoRentalLd) }}
+          dangerouslySetInnerHTML={{ __html: escapeLdJson(autoRentalLd) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }}
+          dangerouslySetInnerHTML={{ __html: escapeLdJson(organizationLd) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteLd) }}
+          dangerouslySetInnerHTML={{ __html: escapeLdJson(websiteLd) }}
         />
       </Head>
       <body className="bg-white text-[#17181a] antialiased">

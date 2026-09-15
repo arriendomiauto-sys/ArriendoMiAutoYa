@@ -8,6 +8,7 @@ import {
   DEFAULT_OG_IMAGE,
   absoluteUrl,
 } from "../lib/seo";
+import { escapeLdJson } from "../lib/ldjson";
 
 /**
  * Componente SEO reutilizable.
@@ -69,7 +70,7 @@ export default function Seo({
         <script
           key={i}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(block) }}
+          dangerouslySetInnerHTML={{ __html: escapeLdJson(block) }}
         />
       ))}
     </Head>

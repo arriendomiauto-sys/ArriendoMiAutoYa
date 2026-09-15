@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-/* Space Grotesk llega hasta 700; los pesos "black" heredados de páginas antiguas se sintetizan */
+/* Space Grotesk llega hasta 700; los pesos "black" heredados de páginas antiguas se sintetizan
+   (las fuentes se cargan vía <link> en _document.js con display=swap). */
 
 @tailwind base;
 @tailwind components;

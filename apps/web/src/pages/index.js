@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import dynamic from "next/dynamic";
 import Seo from "../components/Seo";
 import Navbar from "../components/Navbar";
@@ -31,7 +32,7 @@ import {
 import { FaApple, FaGooglePlay } from "react-icons/fa";
 
 import { API_BASE_URL } from "../lib/api";
-import { obtenerAutos, esAutoPublicable, autoHref } from "../lib/autos";
+import { obtenerAutos, autoHref } from "../lib/autos";
 import {
   haversineKm,
   formatearDistancia,
@@ -291,8 +292,15 @@ export default function Home() {
               <div className="relative">
                 <div className="absolute -bottom-6 -left-5 -right-6 top-6 rounded-[2rem] border-2 border-brand-tealTint" />
                 <div className="pointer-events-none absolute -bottom-10 -right-12 h-56 w-56 rounded-full bg-brand-teal/15 blur-[10px]" />
-                <div className="relative overflow-hidden rounded-3xl border border-brand-line shadow-soft">
-                  <img src="/hero-car.jpg" alt="Auto particular listo para arrendar" className="h-[360px] w-full object-cover sm:h-[430px]" />
+                <div className="relative h-[360px] w-full overflow-hidden rounded-3xl border border-brand-line shadow-soft sm:h-[430px]">
+                  <Image
+                    src="/hero-car.jpg"
+                    alt="Auto particular listo para arrendar"
+                    fill
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    className="object-cover"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/15 to-transparent" />
                 </div>
                 <div className="absolute -left-6 bottom-10 flex items-center gap-3 rounded-2xl border border-brand-line bg-white p-4 shadow-soft">
@@ -821,8 +829,8 @@ export default function Home() {
                   <div className="flex items-center justify-between px-1 pb-2 pt-1">
                     <span className="font-display text-[13px] font-bold text-brand-ink">Tu reserva</span>
                   </div>
-                  <div className="overflow-hidden rounded-2xl border border-brand-line">
-                    <img src="/hero-car.jpg" alt="" className="h-[88px] w-full object-cover" />
+                  <div className="relative h-[88px] w-full overflow-hidden rounded-2xl border border-brand-line">
+                    <Image src="/hero-car.jpg" alt="" fill sizes="290px" loading="lazy" className="object-cover" />
                     <div className="px-3 py-2.5">
                       <div className="text-[13.5px] font-semibold text-brand-ink">Toyota RAV4 Limited</div>
                       <div className="text-[11.5px] text-[#63645f]">Hoy 10:00 · a 6 cuadras</div>

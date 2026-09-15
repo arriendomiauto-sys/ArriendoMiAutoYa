@@ -34,6 +34,8 @@ const nextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "*.supabase.co" },
+      // Uploads del catálogo servidos por la API de Render (NEXT_PUBLIC_API_URL).
+      { protocol: "https", hostname: "arriendomiautoya.onrender.com" },
     ],
   },
   async headers() {

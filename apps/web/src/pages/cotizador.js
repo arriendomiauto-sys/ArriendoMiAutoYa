@@ -8,23 +8,13 @@ import { Button } from "../components/ui/button";
 import { Separator } from "../components/ui/separator";
 import {
   Car,
-  ShieldCheck,
   Calendar,
   DollarSign,
   MapPin,
   Lock,
-  Zap,
-  Gauge,
-  Fuel,
-  Users,
-  Check,
   Smartphone,
-  ArrowRight,
   Info,
   Clock,
-  ChevronRight,
-  Star,
-  CheckCircle2,
 } from "lucide-react";
 
 import { obtenerAutos } from "../lib/autos";
@@ -46,21 +36,16 @@ export default function CotizadorPage() {
     const manana = new Date(hoy);
     manana.setDate(hoy.getDate() + 1);
     const retorno = new Date(manana);
-    retorno.setDate(manana.getDate() + dias);
+    retorno.setDate(manana.getDate() + 3);
 
     setFechaInicio(manana.toISOString().split("T")[0]);
     setFechaFin(retorno.toISOString().split("T")[0]);
 
     const ctrl = new AbortController();
-    cargarAutos(ctrl.signal);
-    return () => ctrl.abort();
-  }, []);
-
-  const cargarAutos = (signal) => {
     setCarga("cargando");
-    obtenerAutos({ signal })
+    obtenerAutos({ signal: ctrl.signal })
       .then((data) => {
-        if (signal?.aborted) return;
+        if (ctrl.signal.aborted) return;
         setAutos(data);
         setCarga("ok");
         const autoQuery = router.query.auto;
@@ -68,11 +53,13 @@ export default function CotizadorPage() {
         setSelectedAuto(matched || data[0] || null);
       })
       .catch(() => {
-        if (signal?.aborted) return;
+        if (ctrl.signal.aborted) return;
         setAutos([]);
         setCarga("error");
       });
-  };
+
+    return () => ctrl.abort();
+  }, [router.query.auto]);
 
   // Sync when query param changes
   useEffect(() => {
@@ -414,12 +401,12 @@ export default function CotizadorPage() {
                       <p>El hold de $800.000 se libera automáticamente tras entregar el auto conforme al checklist inmutable de 9 fotos.</p>
                     </div>
 
-                    <a href="/#descargar-app">
+                    <Link href="/#descargar-app">
                       <Button className="w-full rounded-2xl py-6 font-bold bg-brand-teal text-[#04231b] hover:bg-[#12b78d] shadow-xl shadow-brand-teal/20 gap-2 transition-all hover:scale-105">
                         <Smartphone className="h-4 w-4" />
                         <span>Confirmar Reserva en la App</span>
                       </Button>
-                    </a>
+                    </Link>
                   </div>
                 )}
 

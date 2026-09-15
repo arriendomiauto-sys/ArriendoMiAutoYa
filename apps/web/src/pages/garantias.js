@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Seo from "../components/Seo";
 import Link from "next/link";
+import Image from "next/image";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { Button } from "../components/ui/button";
@@ -8,14 +9,6 @@ import {
   ShieldCheck,
   Lock,
   Camera,
-  Zap,
-  Check,
-  X,
-  Smartphone,
-  Shield,
-  FileCheck2,
-  HelpCircle,
-  Car,
 } from "lucide-react";
 
 export default function GarantiasPage() {
@@ -138,10 +131,13 @@ export default function GarantiasPage() {
               {photosList.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-brand-line bg-white overflow-hidden">
                   <div className="h-36 w-full relative">
-                    <img
+                    <Image
                       src={photoView === "antes" ? item.antes : item.despues}
                       alt={item.label}
-                      className="h-full w-full object-cover"
+                      fill
+                      unoptimized
+                      sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
+                      className="object-cover"
                     />
                     <span className="absolute bottom-2 left-2 bg-white text-[10px] font-bold text-brand-tealInk px-2 py-0.5 rounded-md border border-brand-line">
                       {photoView === "antes" ? "Inicial" : "Final"}
