@@ -17,7 +17,8 @@ _ASSET_KEYS = {
     "verified_avatar_url": "verified_avatar",
     "front_card_url": "id_card_front",
     "back_card_url": "id_card_back",
-    "license_url": "driver_license",
+    "license_front_url": "driver_license_front",
+    "license_back_url": "driver_license_back",
 }
 
 

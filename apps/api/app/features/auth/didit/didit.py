@@ -77,6 +77,21 @@ def esta_habilitado() -> bool:
     )
 
 
+def esta_habilitado_licencia() -> bool:
+    """
+    Igual que `esta_habilitado()` pero para el workflow de LICENCIA (solo OCR,
+    documento "DL" habilitado para prácticamente todos los países — ver
+    DIDIT_WORKFLOW_ID_LICENCIA). Es un workflow distinto del de identidad: se
+    puede tener uno encendido y el otro no.
+    """
+    return bool(
+        settings.VERIFICACION_EXTERNA_HABILITADA
+        and settings.DIDIT_API_KEY
+        and settings.DIDIT_WORKFLOW_ID_LICENCIA
+        and settings.DIDIT_WEBHOOK_SECRET
+    )
+
+
 def _headers() -> Dict[str, str]:
     if not settings.DIDIT_API_KEY:
         raise DiditNoConfigurado("Falta DIDIT_API_KEY")
@@ -137,6 +152,49 @@ def crear_sesion(
         resp = client.post(f"{_base()}/v3/session/", headers=_headers(), json=cuerpo)
     if resp.status_code not in (200, 201):
         logger.error("Didit crear_sesion %s: %s", resp.status_code, resp.text[:400])
+        raise RuntimeError(f"Didit rechazó la creación de sesión (HTTP {resp.status_code}).")
+
+    data = resp.json()
+    return {
+        "session_id": data.get("session_id"),
+        "session_token": data.get("session_token"),
+        "url": data.get("url"),
+        "status": data.get("status"),
+        "raw": data,
+    }
+
+
+def crear_sesion_licencia(
+    *,
+    vendor_data: str,
+    email: Optional[str] = None,
+    callback_url: Optional[str] = None,
+    idioma: str = "es",
+) -> Dict[str, Any]:
+    """
+    Crea una sesión hosted en el workflow de LICENCIA (solo OCR, sin liveness
+    ni face match). No manda `expected_details`: a diferencia de la cédula
+    (siempre chilena, RUT conocido de antemano), la licencia puede ser de
+    cualquier país y no hay con qué contrastarla de antemano.
+    """
+    if not settings.DIDIT_WORKFLOW_ID_LICENCIA:
+        raise DiditNoConfigurado("Falta DIDIT_WORKFLOW_ID_LICENCIA")
+
+    cuerpo: Dict[str, Any] = {
+        "workflow_id": settings.DIDIT_WORKFLOW_ID_LICENCIA,
+        "vendor_data": vendor_data,
+        "language": idioma,
+    }
+    callback = callback_url or settings.DIDIT_CALLBACK_URL
+    if callback:
+        cuerpo["callback"] = callback
+    if email:
+        cuerpo["contact_details"] = {"email": email, "send_notification_emails": False}
+
+    with httpx.Client(timeout=20.0) as client:
+        resp = client.post(f"{_base()}/v3/session/", headers=_headers(), json=cuerpo)
+    if resp.status_code not in (200, 201):
+        logger.error("Didit crear_sesion_licencia %s: %s", resp.status_code, resp.text[:400])
         raise RuntimeError(f"Didit rechazó la creación de sesión (HTTP {resp.status_code}).")
 
     data = resp.json()
@@ -285,9 +343,11 @@ def interpretar_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
         "datos": {"nombre","apellido","nombre_completo","rut",
                   "fecha_nacimiento","nacionalidad","documento_numero",
                   "foto_url","carnet_frontal_url","carnet_trasero_url"},
-                  # (sin licencia_*: Didit no la reconoce, ver nota más abajo)
         "rut_verificado_registro_civil": bool | None,
       }
+
+    Este parser es para el workflow de IDENTIDAD (cédula + liveness + face
+    match). El webhook del workflow de LICENCIA usa `interpretar_payload_licencia`.
     """
     estado_didit = payload.get("status")
     estado = _MAPA_ESTADO.get(estado_didit or "", "pendiente")
@@ -356,13 +416,10 @@ def interpretar_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
     # Imágenes del documento de identidad. Didit V3 entrega `front_image` /
     # `back_image` / `portrait_image` por cada id_verification.
     #
-    # Didit todavía no reconoce licencias de conducir de forma confiable (su
-    # workflow solo certifica cédula/pasaporte) — antes acá se intentaba
-    # distinguir una entrada de tipo "driver license" para extraer
-    # licencia_url/licencia_vencimiento/licencia_clase, pero en la práctica
-    # esa rama nunca se poblaba con datos utilizables. Se sacó del todo: la
-    # licencia se verifica siempre con el pipeline casero de Google Vision
-    # (ver `completar_licencia`), nunca con lo que devuelva Didit.
+    # Este workflow (identidad) solo acepta cédula/pasaporte, nunca licencia
+    # — por eso no se busca acá un id_verification de tipo licencia. La
+    # licencia usa su propio workflow y su propio parser, ver
+    # `interpretar_payload_licencia` más abajo.
     for _entry in decision.get("id_verifications") or []:
         if not isinstance(_entry, dict):
             continue
@@ -414,4 +471,71 @@ def interpretar_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
         "motivos": [m for m in motivos if m],
         "datos": {k: v for k, v in datos.items() if v},
         "rut_verificado_registro_civil": rut_ok,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Normalización del resultado — workflow de LICENCIA
+# --------------------------------------------------------------------------- #
+def interpretar_payload_licencia(payload: Mapping[str, Any]) -> Dict[str, Any]:
+    """
+    Igual que `interpretar_payload`, pero para el workflow de LICENCIA (solo
+    OCR: sin liveness, sin face match, sin validación contra Registro Civil —
+    esos pasos no aplican a una licencia y no corren en ese workflow).
+
+    Devuelve:
+      {
+        "estado": "pendiente|aprobada|rechazada|revision|expirada",
+        "session_id": str | None,
+        "vendor_data": str | None,
+        "motivos": [str, ...],
+        "datos": {"licencia_numero", "licencia_vencimiento",
+                   "licencia_frontal_url", "licencia_trasera_url"},
+      }
+
+    No se extrae el país emisor: a diferencia del RUT (que Didit valida
+    contra Registro Civil), acá el usuario ya lo declaró en la app
+    (`licencia_pais_emisor`) y el dato que devuelve el documento no viene en
+    un formato (ISO3 vs ISO2) que se pueda cruzar sin ambigüedad — se deja
+    como lo declaró el usuario.
+    """
+    estado_didit = payload.get("status")
+    estado = _MAPA_ESTADO.get(estado_didit or "", "pendiente")
+
+    decision = payload.get("decision")
+    if not isinstance(decision, dict):
+        decision = payload if any(
+            k in payload for k in ("id_verifications", "warnings")
+        ) else {}
+
+    motivos: list[str] = []
+    datos: Dict[str, Any] = {}
+
+    def _es_declined(item: Mapping[str, Any]) -> bool:
+        return str(item.get("status") or "").lower() == "declined"
+
+    idv = _primero(decision.get("id_verifications"))
+    if idv:
+        datos.update(
+            {
+                "licencia_numero": _buscar(idv, "document_number", "personal_number"),
+                "licencia_vencimiento": _buscar(idv, "expiration_date", "date_of_expiry"),
+                "licencia_frontal_url": _buscar(idv, "front_image"),
+                "licencia_trasera_url": _buscar(idv, "back_image"),
+            }
+        )
+        if _es_declined(idv):
+            motivos.append("La verificación de la licencia de conducir no pasó.")
+        for w in idv.get("warnings", []) or []:
+            txt = (w.get("description") or w.get("message")) if isinstance(w, dict) else str(w)
+            if txt:
+                motivos.append(str(txt))
+
+    return {
+        "estado": estado,
+        "estado_proveedor": estado_didit,
+        "session_id": payload.get("session_id"),
+        "vendor_data": payload.get("vendor_data"),
+        "motivos": [m for m in motivos if m],
+        "datos": {k: v for k, v in datos.items() if v},
     }

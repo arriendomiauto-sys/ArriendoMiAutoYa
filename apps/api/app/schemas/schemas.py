@@ -125,10 +125,25 @@ class CompletarLicencia(BaseModel):
     Solo la licencia de conducir, para un usuario ya verificado que se
     enroló como dueño (sin licencia) y ahora quiere arrendar. Reusa la
     identidad que ya tiene en ficha — acá va únicamente lo de conducción.
+
+    Camino de RESPALDO (captura manual + OCR casero): el camino primario es
+    POST /enrolamiento/verificacion-licencia/sesion (Didit).
     """
     licencia_url: str
     pic_url: Optional[str] = None
     licencia_pais_emisor: Optional[str] = None
+    es_residente_chile: Optional[bool] = None
+    fecha_inicio_residencia: Optional[datetime] = None
+
+class SesionVerificacionLicenciaCreate(BaseModel):
+    """
+    Datos que no vienen del documento y hace falta declarar ANTES de abrir la
+    sesión de Didit para la licencia (workflow separado del de identidad):
+    país emisor, PIC y residencia — todos opcionales, solo aplican al
+    extranjero. Un chileno no manda nada.
+    """
+    licencia_pais_emisor: Optional[str] = None
+    pic_url: Optional[str] = None
     es_residente_chile: Optional[bool] = None
     fecha_inicio_residencia: Optional[datetime] = None
 
@@ -159,6 +174,9 @@ class UserOut(UserBase):
     # app lo usa para exigir la validación de licencia antes de reservar a
     # quien se verificó solo como dueño.
     licencia_estado: Optional[str] = None
+    # Estado de la SESIÓN de Didit para la licencia (pendiente mientras la
+    # app espera el webhook). Nulo si nunca se abrió una.
+    licencia_verificacion_externa_estado: Optional[str] = None
     confianza_ocr: Optional[float] = 1.0
     notas_auditoria: Optional[str] = None
     roles_activos: List[str]
@@ -706,6 +724,7 @@ class ConductorAdicionalOut(BaseModel):
     confianza_ocr: Optional[float] = 1.0
     notas_auditoria: Optional[str] = None
     verificacion_externa_estado: Optional[str] = None
+    licencia_verificacion_externa_estado: Optional[str] = None
     antecedentes_estado: Optional[str] = None
     creado_en: datetime
     actualizado_en: Optional[datetime] = None

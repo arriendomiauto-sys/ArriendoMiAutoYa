@@ -930,10 +930,11 @@ def crear_sesion_verificacion_segundo_conductor(
     Misma verificación de identidad hosted que ya usa el titular
     (crear_sesion_verificacion_externa) — la app abre `url` para que el
     segundo conductor complete la captura de cédula + selfie en su propio
-    celular. La licencia de conducir NUNCA pasa por acá: Didit no la
-    reconoce de forma confiable (ver commit b4d774e); se sigue subiendo y
-    validando aparte con el pipeline casero de Google Vision
-    (carnet_frontal_url/licencia_url en PUT .../segundo-conductor).
+    celular. La licencia de conducir tiene su PROPIA sesión, en un workflow
+    separado (ver crear_sesion_verificacion_licencia_segundo_conductor):
+    igual que la identidad, ambas caen al pipeline casero de Google Vision
+    si Didit no está disponible (carnet_frontal_url/licencia_url en
+    PUT .../segundo-conductor).
     """
     reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
     if not reserva:
@@ -974,6 +975,65 @@ def crear_sesion_verificacion_segundo_conductor(
     conductor.verificacion_externa_ref = sesion["session_id"]
     conductor.verificacion_externa_estado = "pendiente"
     conductor.verificacion_externa_actualizada = datetime.now(timezone.utc)
+    db.commit()
+
+    return SesionVerificacionExternaOut(url=sesion["url"], session_id=sesion["session_id"], estado="pendiente")
+
+
+@router.post(
+    "/{reserva_id}/segundo-conductor/verificacion-licencia/sesion",
+    response_model=SesionVerificacionExternaOut,
+    summary="Crea una sesión de verificación de la LICENCIA de conducir con Didit para el segundo conductor",
+)
+@limiter.limit("10/minute")
+def crear_sesion_verificacion_licencia_segundo_conductor(
+    request: Request,
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Workflow de Didit separado del de identidad (solo OCR de la licencia,
+    sin liveness ni face match — ver DIDIT_WORKFLOW_ID_LICENCIA). El
+    resultado llega por webhook con
+    vendor_data="licencia_conductor:{conductor_id}" y dispara de nuevo
+    `ConductorKycService.procesar_kyc_conductor`. PUT .../segundo-conductor
+    con `licencia_url` sigue siendo el respaldo manual si Didit no está
+    disponible.
+    """
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=403, detail="Solo el titular de la reserva puede iniciar esta verificación.")
+
+    conductor = db.query(ConductorAdicional).filter(ConductorAdicional.reserva_id == reserva.id).first()
+    if not conductor:
+        raise HTTPException(status_code=404, detail="Esta reserva no tiene segundo conductor asignado.")
+    if conductor.licencia_verificacion_externa_estado == "aprobada":
+        raise HTTPException(status_code=400, detail="La licencia de este conductor ya está verificada.")
+    if not verificacion_didit.esta_habilitado_licencia():
+        raise HTTPException(
+            status_code=503,
+            detail="La verificación de licencia con proveedor externo no está habilitada.",
+        )
+
+    try:
+        sesion = verificacion_didit.crear_sesion_licencia(
+            vendor_data=f"licencia_conductor:{conductor.id}",
+            email=conductor.email,
+        )
+    except verificacion_didit.DiditNoConfigurado as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"No se pudo iniciar la verificación: {e}")
+
+    if not sesion.get("url") or not sesion.get("session_id"):
+        raise HTTPException(status_code=502, detail="El proveedor no devolvió una sesión válida.")
+
+    conductor.licencia_verificacion_externa_ref = sesion["session_id"]
+    conductor.licencia_verificacion_externa_estado = "pendiente"
+    conductor.licencia_verificacion_externa_actualizada = datetime.now(timezone.utc)
     db.commit()
 
     return SesionVerificacionExternaOut(url=sesion["url"], session_id=sesion["session_id"], estado="pendiente")

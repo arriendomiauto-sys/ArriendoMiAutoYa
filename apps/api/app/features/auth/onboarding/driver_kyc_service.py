@@ -81,18 +81,19 @@ class ConductorKycService:
 
         # 2. Identidad (cédula + selfie) y Licencia de Conducir
         #
-        # Si Didit ya aprobó la identidad de este conductor
-        # (crear_sesion_verificacion_segundo_conductor + webhook), la cédula
-        # y el control facial NO se vuelven a pasar por el OCR casero — pero
-        # la licencia SIEMPRE se revisa aparte con Vision, igual que
-        # completar_enrolamiento hace para el titular: Didit no la reconoce
-        # de forma confiable.
+        # Ambas tienen su propia sesión hosted de Didit, independientes entre
+        # sí (crear_sesion_verificacion_segundo_conductor para la identidad,
+        # crear_sesion_verificacion_licencia_segundo_conductor para la
+        # licencia — workflows distintos, pueden aprobarse en momentos
+        # distintos). Lo que Didit ya aprobó NO se vuelve a pasar por el OCR
+        # casero de Google Vision; solo lo que falte por Didit cae a mano.
         identidad_por_didit = conductor.verificacion_externa_estado == "aprobada"
+        licencia_por_didit = conductor.licencia_verificacion_externa_estado == "aprobada"
 
         resultado_ocr = {}
         if identidad_por_didit:
             lic_a_soporte = False
-            if conductor.licencia_url:
+            if not licencia_por_didit and conductor.licencia_url:
                 lic_bytes = OCRService.descargar_imagen_bytes(conductor.licencia_url)
                 texto_lic, _ = OCRService.llamar_google_vision_api(lic_bytes) if lic_bytes else (None, 0.0)
                 api_key, tiene_creds = OCRService._credenciales_vision()
@@ -113,12 +114,17 @@ class ConductorKycService:
                 resultado_ocr = OCRService.procesar_documentos_enrolamiento(
                     carnet_frontal_url=conductor.carnet_frontal_url,
                     carnet_trasero_url=conductor.carnet_trasero_url,
-                    licencia_url=conductor.licencia_url,
+                    # Con la licencia ya aprobada por Didit no se le vuelve a
+                    # pasar la URL al OCR casero — evita que Vision la
+                    # reclasifique y la mande a revisión sin necesidad.
+                    licencia_url=None if licencia_por_didit else conductor.licencia_url,
                     rut_usuario=conductor.rut,
                     selfie_url=conductor.selfie_url,
                     tipo_documento=conductor.tipo_documento,
                     pais_documento=conductor.pais_documento,
                 )
+                if licencia_por_didit:
+                    resultado_ocr["licencia_a_soporte"] = False
             except Exception as e:
                 logger.error("Error ejecutando OCR para conductor adicional: %s", e)
                 resultado_ocr = {
@@ -126,6 +132,17 @@ class ConductorKycService:
                     "motivo": f"Fallo al procesar OCR: {str(e)}",
                     "confianza_ocr": 0.5,
                 }
+        elif licencia_por_didit:
+            # La licencia ya está por Didit pero aún falta la identidad
+            # (cédula/selfie): no hay nada más que evaluar todavía.
+            conductor.estado_kyc = "pendiente"
+            conductor.notas_auditoria = "Falta la verificación de identidad (cédula + selfie)."
+            db.commit()
+            return {
+                "estado_kyc": "pendiente",
+                "motivo": conductor.notas_auditoria,
+                "confianza_ocr": 0.0,
+            }
         else:
             # Si aún no subió fotos ni tiene identidad por Didit, queda pendiente
             conductor.estado_kyc = "pendiente"

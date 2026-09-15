@@ -1,10 +1,12 @@
+from typing import Optional
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.config import settings
 from app.schemas.schemas import (
     UserEnrolamiento, UserOut, EnrolamientoARevision, CompletarLicencia,
-    SesionVerificacionExternaOut,
+    SesionVerificacionExternaOut, SesionVerificacionLicenciaCreate,
 )
 from app.models.entities import Usuario, Pago, TicketSoporte
 from app.features.auth.ocr.ocr_engine import OCRService
@@ -275,7 +277,7 @@ def completar_enrolamiento(
         # La cédula ya la validó Didit; acá solo se revisa la licencia si vino
         # (mismo criterio liviano que POST /completar-licencia).
         _lic_a_soporte = False
-        if payload.licencia_url:
+        if payload.licencia_url and current_user.licencia_verificacion_externa_estado != "aprobada":
             _lic_bytes = OCRService.descargar_imagen_bytes(payload.licencia_url)
             _texto_lic, _ = (
                 OCRService.llamar_google_vision_api(_lic_bytes) if _lic_bytes else (None, 0.0)
@@ -478,6 +480,78 @@ def completar_enrolamiento(
         background_tasks.add_task(BackgroundCheckService.run_and_flag_user_in_background, current_user.id)
 
     return current_user
+
+
+@router.post(
+    "/verificacion-licencia/sesion",
+    response_model=SesionVerificacionExternaOut,
+    summary="Crea una sesión de verificación de la LICENCIA de conducir con Didit",
+)
+@limiter.limit("10/minute")
+def crear_sesion_verificacion_licencia(
+    request: Request,
+    payload: Optional[SesionVerificacionLicenciaCreate] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Workflow de Didit separado del de identidad (solo OCR, sin liveness ni
+    face match — ver DIDIT_WORKFLOW_ID_LICENCIA, habilitado con documento
+    "DL" para prácticamente todos los países). El resultado llega por
+    webhook (`POST /webhooks/didit`, vendor_data="licencia:{usuario_id}").
+
+    Mismo gate que POST /completar-licencia (que sigue siendo el respaldo
+    manual si Didit no está disponible): requiere identidad ya verificada.
+    Los datos que no vienen del documento (país emisor, PIC, residencia) se
+    guardan de una vez, antes de abrir la sesión.
+    """
+    if current_user.estado_documentos != "verificado":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"motivo": "Primero completa la verificación de identidad.", "categoria": "sin_kyc"},
+        )
+    if current_user.licencia_estado == "verificada":
+        raise HTTPException(status_code=400, detail="Tu licencia ya está verificada.")
+    if not verificacion_didit.esta_habilitado_licencia():
+        raise HTTPException(
+            status_code=503,
+            detail="La verificación de licencia con proveedor externo no está habilitada.",
+        )
+
+    datos = payload or SesionVerificacionLicenciaCreate()
+    es_chileno = (current_user.tipo_documento or "rut") == "rut"
+    if datos.licencia_pais_emisor:
+        current_user.licencia_pais_emisor = datos.licencia_pais_emisor.strip().upper()
+    elif not current_user.licencia_pais_emisor:
+        current_user.licencia_pais_emisor = "CL" if es_chileno else None
+    if datos.pic_url:
+        current_user.pic_url = datos.pic_url
+    if datos.es_residente_chile is not None:
+        current_user.es_residente_chile = datos.es_residente_chile
+    if datos.fecha_inicio_residencia:
+        current_user.fecha_inicio_residencia = datos.fecha_inicio_residencia
+
+    try:
+        sesion = verificacion_didit.crear_sesion_licencia(
+            vendor_data=f"licencia:{current_user.id}",
+            email=current_user.email,
+        )
+    except verificacion_didit.DiditNoConfigurado as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"No se pudo iniciar la verificación: {e}")
+
+    if not sesion.get("url") or not sesion.get("session_id"):
+        raise HTTPException(status_code=502, detail="El proveedor no devolvió una sesión válida.")
+
+    current_user.licencia_verificacion_externa_ref = sesion["session_id"]
+    current_user.licencia_verificacion_externa_estado = "pendiente"
+    current_user.licencia_verificacion_externa_actualizada = datetime.utcnow()
+    db.commit()
+
+    return SesionVerificacionExternaOut(
+        url=sesion["url"], session_id=sesion["session_id"], estado="pendiente"
+    )
 
 
 @router.post("/completar-licencia", response_model=UserOut, summary="Valida solo la licencia de conducir (usuario ya verificado como dueño que quiere arrendar)")

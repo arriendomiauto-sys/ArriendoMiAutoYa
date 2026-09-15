@@ -71,6 +71,15 @@ class Usuario(Base):
     # sin esto en "verificada".
     licencia_estado = Column(String, nullable=True)
 
+    # Verificación de la LICENCIA con Didit (workflow separado del de
+    # identidad: solo OCR, sin liveness ni face match — ver
+    # DIDIT_WORKFLOW_ID_LICENCIA). Mismo vocabulario que
+    # `verificacion_externa_estado`; el webhook la resuelve y de ahí sale
+    # `licencia_estado`.
+    licencia_verificacion_externa_ref = Column(String, index=True, nullable=True)
+    licencia_verificacion_externa_estado = Column(String, nullable=True)
+    licencia_verificacion_externa_actualizada = Column(DateTime, nullable=True)
+
     # Fotos permanentes de los documentos de identidad. Las llena el
     # enrolamiento (flujo casero) o el webhook de Didit tras rebajar los
     # assets temporales del proveedor a Supabase Storage (bucket privado
@@ -617,6 +626,12 @@ class ConductorAdicional(Base):
     pic_vencimiento = Column(DateTime, nullable=True)
     es_residente_chile = Column(Boolean, default=False)
     fecha_inicio_residencia = Column(DateTime, nullable=True)
+
+    # Verificación de la licencia con Didit (mismo workflow y vocabulario que
+    # Usuario.licencia_verificacion_externa_*).
+    licencia_verificacion_externa_ref = Column(String, index=True, nullable=True)
+    licencia_verificacion_externa_estado = Column(String, nullable=True)
+    licencia_verificacion_externa_actualizada = Column(DateTime, nullable=True)
 
     # Documentos y fotos
     carnet_frontal_url = Column(String, nullable=True)

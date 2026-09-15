@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     # la app; si queda vacío, Didit muestra su propia pantalla de cierre.
     DIDIT_CALLBACK_URL: Optional[str] = None
 
+    # Workflow separado de Didit para la licencia de conducir ("Flujo
+    # Verificacion Licencias" en la consola): solo OCR, sin liveness ni face
+    # match, con el documento "DL" habilitado para prácticamente todos los
+    # países. Se crea como una segunda sesión hosted, independiente de la de
+    # identidad — comparten API key y webhook secret, no el workflow.
+    DIDIT_WORKFLOW_ID_LICENCIA: Optional[str] = None
+
     # Verificación de antecedentes del conductor (ChapiAPI).
     #
     # Sin llave (o en desarrollo) el proveedor responde un mock con
@@ -201,6 +208,12 @@ class Settings(BaseSettings):
                 "VERIFICACION_EXTERNA_HABILITADA está en True pero falta DIDIT_API_KEY, "
                 "DIDIT_WORKFLOW_ID o DIDIT_WEBHOOK_SECRET: el enrolamiento cae en "
                 "silencio al OCR casero de siempre."
+            )
+        if self.VERIFICACION_EXTERNA_HABILITADA and not self.DIDIT_WORKFLOW_ID_LICENCIA:
+            avisos.append(
+                "VERIFICACION_EXTERNA_HABILITADA está en True pero falta "
+                "DIDIT_WORKFLOW_ID_LICENCIA: la licencia de conducir cae en silencio "
+                "a la captura manual con OCR casero."
             )
         return avisos
 
