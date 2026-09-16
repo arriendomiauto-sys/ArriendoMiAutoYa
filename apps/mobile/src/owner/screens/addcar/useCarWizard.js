@@ -49,6 +49,7 @@ export const TIPO_POR_CAMPO = {
   doc_soap_url: "soap",
   doc_seguro_url: "seguro",
   doc_revision_tecnica_url: "revision_tecnica",
+  doc_certificado_gases_url: "certificado_gases",
 };
 
 export const DOCS = [
@@ -57,6 +58,7 @@ export const DOCS = [
     titulo: "Certificado de inscripción (Padrón)",
     ayuda: "Padrón del Registro Civil con folio y patente visible.",
     icon: "document",
+    opcional: true,
   },
   {
     key: "doc_permiso_circulacion_url",
@@ -75,6 +77,12 @@ export const DOCS = [
     titulo: "Revisión técnica o Certificado",
     ayuda: "Certificado de planta PRT o de homologación vigente.",
     icon: "check",
+  },
+  {
+    key: "doc_certificado_gases_url",
+    titulo: "Certificado de emisión de gases",
+    ayuda: "Certificado de revisión de gases o de control de emisiones vigente.",
+    icon: "gas",
   },
   {
     key: "doc_seguro_url",
