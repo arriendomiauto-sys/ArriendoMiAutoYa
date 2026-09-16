@@ -7,10 +7,14 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "npm --prefix apps/mobile start",
-    "android": "npm --prefix apps/mobile run android",
-    "ios": "npm --prefix apps/mobile run ios",
-    "web": "npm --prefix apps/mobile run web",
+    "start": "npm --prefix apps/mobile-renter start",
+    "start:owner": "npm --prefix apps/mobile-owner start",
+    "android": "npm --prefix apps/mobile-renter run android",
+    "android:owner": "npm --prefix apps/mobile-owner run android",
+    "ios": "npm --prefix apps/mobile-renter run ios",
+    "ios:owner": "npm --prefix apps/mobile-owner run ios",
+    "web": "npm --prefix apps/mobile-renter run web",
+    "web:owner": "npm --prefix apps/mobile-owner run web",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
