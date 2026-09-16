@@ -47,7 +47,10 @@ export function OwnerApp() {
   // Flota real del dueño autenticado (cualquier estado, no solo activos).
   const [misAutos, setMisAutos] = useState([]);
   const [errorFlota, setErrorFlota] = useState(null);
-  const [cargandoFlota, setCargandoFlota] = useState(false);
+  // Arranca en `true`: el efecto que carga la flota corre recién después del
+  // primer render, así que empezar en `false` dejaba un frame de "Todavía no
+  // tienes autos publicados" antes de que el loading real arrancara.
+  const [cargandoFlota, setCargandoFlota] = useState(true);
   const cargarMisAutos = useCallback(async () => {
     setCargandoFlota(true);
     try {

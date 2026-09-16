@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from "react";
+import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiClient } from "../api/client";
 import { supabase, vigilarSesionEnPrimerPlano } from "../api/supabase";
@@ -169,10 +170,16 @@ export function AppProvider({ children }) {
 
   const bankAccount = currentUser?.cuenta_bancaria || null;
 
+  // Última vez que el perfil se sincronizó con éxito (boot, login, KYC o
+  // resync por foreground) — la usa el efecto de abajo para no repreguntar
+  // /usuarios/me en cada vuelta a primer plano.
+  const ultimoSyncPerfilRef = useRef(0);
+
   const syncProfile = useCallback(async () => {
     try {
       const profile = await ApiClient.getMe();
       setCurrentUser(profile);
+      ultimoSyncPerfilRef.current = Date.now();
       // Quienes llaman a syncProfile con `await` (KYC tras volver de Didit,
       // editores de perfil) necesitan el perfil recién sincronizado: el
       // setCurrentUser no actualiza las variables que ya capturaron del hook.
@@ -201,6 +208,43 @@ export function AppProvider({ children }) {
       console.warn("[AppContext] No se pudo sincronizar el perfil:", err.message);
     }
   }, []);
+
+  // `true` mientras CUALQUIER flujo (login, login social, o el propio
+  // listener de abajo reaccionando a un evento de sesión) ya está
+  // sincronizando el perfil bajo su propia transición — evita que dos
+  // llamadas concurrentes (p. ej. login() Y el evento SIGNED_IN que ese
+  // mismo login dispara) arranquen dos transiciones o se pisen una a la
+  // otra al terminar.
+  const sincronizandoSesionRef = useRef(false);
+
+  /**
+   * Unifica "hay un cambio de sesión con currentUser todavía desactualizado"
+   * bajo la misma pantalla de transición que ya usan login/logout/cambio de
+   * rol. Sin esto, cualquier camino que NO pase por login()/loginConProveedor()
+   * explícitos (el registro, o el propio listener onAuthStateChange
+   * reaccionando solo) dejaba a RenterApp/OwnerApp montar de inmediato con
+   * currentUser=null durante todo el round-trip de GET /usuarios/me —
+   * banners de "verifica tu identidad" falsos para gente ya verificada.
+   */
+  const sincronizarSesionConTransicion = useCallback(async () => {
+    if (sincronizandoSesionRef.current) {
+      // Ya hay otro flujo cubriendo esto con su propia transición.
+      await syncProfile();
+      return;
+    }
+    sincronizandoSesionRef.current = true;
+    setTransition({
+      mode: modeRef.current,
+      title: "Entrando a tu cuenta",
+      subtitle: "Cargando tu perfil y tus arriendos.",
+    });
+    try {
+      await syncProfile();
+    } finally {
+      sincronizandoSesionRef.current = false;
+      endTransition();
+    }
+  }, [syncProfile, endTransition]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -274,7 +318,17 @@ export function AppProvider({ children }) {
       // TOKEN_REFRESHED se dispara cada vez que se renueva el token (cada hora
       // aprox.) y no cambia nada del perfil: volver a pedirlo en cada refresco
       // es tráfico y re-render de más.
-      if (evento !== "TOKEN_REFRESHED") syncProfile();
+      //
+      // Para el resto de los eventos (SIGNED_IN de un registro, un magic
+      // link, o el mismo login() de abajo disparando este mismo evento):
+      // sin la transición acá, `isLoggedIn` pasaba a true en este mismo
+      // tick y RenterApp/OwnerApp montaban de inmediato con currentUser
+      // todavía null durante todo el round-trip de GET /usuarios/me —
+      // banners de "verifica tu identidad" falsos para gente ya verificada.
+      // No se espera esta llamada (el callback no es async): el guard de
+      // `sincronizandoSesionRef` adentro es lo que evita pisar la
+      // transición si login()/loginConProveedor() ya están cubriendo esto.
+      if (evento !== "TOKEN_REFRESHED") sincronizarSesionConTransicion();
     });
 
     // Mantiene el token vivo mientras la app está en primer plano.
@@ -286,7 +340,33 @@ export function AppProvider({ children }) {
       subscription?.subscription?.unsubscribe();
       dejarDeVigilar();
     };
-  }, [syncProfile]);
+  }, [syncProfile, sincronizarSesionConTransicion]);
+
+  // Si un admin cambia el rol/KYC/perfil de este usuario mientras ya está
+  // adentro de la app, nada dispara syncProfile hasta el próximo login: el
+  // onAuthStateChange de arriba solo reacciona a eventos de Supabase Auth
+  // (login/logout/refresh), no a cambios de fila en `usuarios`. Se resuelve
+  // con un polling liviano al volver a primer plano en vez de Supabase
+  // Realtime o un endpoint "hay cambios pendientes": el caso que importa es
+  // que el usuario vea el cambio la próxima vez que USA la app, no mientras
+  // está en segundo plano, así que no hace falta empuje en tiempo real —
+  // y evita mantener una suscripción/canal vivo (y su reconexión) solo para
+  // esto. INTERVALO_RESYNC_PERFIL_MS evita repreguntar /usuarios/me si el
+  // usuario alterna entre apps seguido.
+  const INTERVALO_RESYNC_PERFIL_MS = 5 * 60 * 1000;
+  useEffect(() => {
+    let estadoPrevio = AppState.currentState;
+    const sub = AppState.addEventListener("change", (nuevoEstado) => {
+      const volvioAPrimerPlano =
+        (estadoPrevio === "background" || estadoPrevio === "inactive") &&
+        nuevoEstado === "active";
+      estadoPrevio = nuevoEstado;
+      if (!volvioAPrimerPlano || !isLoggedIn) return;
+      if (Date.now() - ultimoSyncPerfilRef.current < INTERVALO_RESYNC_PERFIL_MS) return;
+      syncProfile();
+    });
+    return () => sub?.remove?.();
+  }, [isLoggedIn, syncProfile]);
 
   useEffect(() => {
     loadData();
@@ -294,10 +374,28 @@ export function AppProvider({ children }) {
 
   // Notificaciones in-app: se traen del backend al iniciar sesión y se
   // refrescan por polling suave mientras la sesión está activa.
+  //
+  // markNotificationAsRead marca "leído" en el estado local antes de que
+  // confirme el POST (optimista). Si ese POST sigue en vuelo (ApiClient ya
+  // reintenta solo con backoff) cuando cae el próximo poll de acá, el poll
+  // traía el estado viejo del servidor y lo pisaba sin avisar — la
+  // notificación volvía a verse como no leída sin que nada fallara a la
+  // vista. `notifsPendientesRef` guarda los ids marcados localmente cuya
+  // confirmación todavía no llegó (ni en éxito ni en fallo definitivo); acá
+  // se los fuerza a `leido:true` para que el poll no los revierta mientras
+  // se resuelven.
+  const notifsPendientesRef = useRef(new Set());
   const cargarNotificaciones = useCallback(async () => {
     try {
       const data = await ApiClient.getNotificaciones();
-      setNotifications(Array.isArray(data) ? data : []);
+      const lista = Array.isArray(data) ? data : [];
+      setNotifications(
+        notifsPendientesRef.current.size === 0
+          ? lista
+          : lista.map((n) =>
+              notifsPendientesRef.current.has(n.id) ? { ...n, leido: true } : n
+            )
+      );
     } catch {
       /* se reintenta en el próximo tick */
     }
@@ -369,16 +467,7 @@ export function AppProvider({ children }) {
     if (error) throw error;
     // Credenciales OK: desde aquí la app va a cambiar de cuenta, así que la
     // transición tapa el salto de AuthFlow a la experiencia del usuario.
-    setTransition({
-      mode: modeRef.current,
-      title: "Entrando a tu cuenta",
-      subtitle: "Cargando tu perfil y tus arriendos.",
-    });
-    try {
-      await syncProfile();
-    } finally {
-      endTransition();
-    }
+    await sincronizarSesionConTransicion();
     return data;
   };
 
@@ -393,16 +482,7 @@ export function AppProvider({ children }) {
 
     if (VALID_MODES.includes(preferredMode)) setMode(preferredMode, { silent: true });
 
-    setTransition({
-      mode: modeRef.current,
-      title: "Entrando a tu cuenta",
-      subtitle: "Cargando tu perfil y tus arriendos.",
-    });
-    try {
-      await syncProfile();
-    } finally {
-      endTransition();
-    }
+    await sincronizarSesionConTransicion();
     return sesion;
   };
 
@@ -424,6 +504,14 @@ export function AppProvider({ children }) {
       subtitle: "Saliendo de forma segura de tu cuenta.",
     });
     try {
+      // En un dispositivo compartido, si el token push de este usuario queda
+      // asociado a su cuenta después de cerrar sesión, el siguiente que se
+      // loguea en el mismo dispositivo puede terminar recibiendo pushes
+      // dirigidos al primero. Se limpia ANTES de signOut porque el PUT
+      // necesita el access token todavía vigente; best-effort — un fallo acá
+      // no debe trabar el cierre de sesión (el backend igual se lo "roba" al
+      // próximo usuario que registre ese mismo token, ver PUT /push-token).
+      await ApiClient.registrarPushToken(null).catch(() => {});
       await supabase.auth.signOut();
       setCurrentUser(null);
       setActiveReservation(null);
@@ -454,12 +542,34 @@ export function AppProvider({ children }) {
     setNotifications((prev) =>
       prev.map((n) => (n.id === notifId ? { ...n, leido: true } : n))
     );
-    ApiClient.marcarNotificacionLeida(notifId).catch(() => {});
+    notifsPendientesRef.current.add(notifId);
+    ApiClient.marcarNotificacionLeida(notifId)
+      .catch((err) => {
+        // ApiClient ya reintentó solo (backoff de red/timeout) — si llegó
+        // acá es un fallo definitivo. Se loguea en vez de tragarlo en
+        // silencio; el próximo poll va a mostrar la notificación como no
+        // leída otra vez (correcto: el servidor nunca confirmó el cambio).
+        console.warn("[notificaciones] no se pudo marcar como leída:", notifId, err?.message);
+      })
+      .finally(() => {
+        notifsPendientesRef.current.delete(notifId);
+      });
   };
 
   const clearAllNotifications = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, leido: true })));
-    ApiClient.marcarTodasNotificacionesLeidas().catch(() => {});
+    setNotifications((prev) => {
+      prev.forEach((n) => {
+        if (!n.leido) notifsPendientesRef.current.add(n.id);
+      });
+      return prev.map((n) => ({ ...n, leido: true }));
+    });
+    ApiClient.marcarTodasNotificacionesLeidas()
+      .catch((err) => {
+        console.warn("[notificaciones] no se pudo marcar todas como leídas:", err?.message);
+      })
+      .finally(() => {
+        notifsPendientesRef.current.clear();
+      });
   };
 
   return (

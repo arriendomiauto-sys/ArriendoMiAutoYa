@@ -31,12 +31,15 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
   const { currentUser } = useApp?.() || {};
 
   const [cuentas, setCuentas] = useState([]);
+  const [cargandoCuentas, setCargandoCuentas] = useState(true);
   const [cuentaModal, setCuentaModal] = useState(false);
   const cargarCuentas = useCallback(async () => {
     try {
       setCuentas(await ApiClient.getCuentasCobro());
     } catch (e) {
       /* silencioso */
+    } finally {
+      setCargandoCuentas(false);
     }
   }, []);
 
@@ -188,7 +191,12 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
             </View>
           ) : null}
 
-          {predeterminada ? (
+          {cargandoCuentas ? (
+            // Todavía no sabemos si tiene cuenta o no — mejor no mostrar
+            // nada que pueda ser al revés de la realidad por una fracción
+            // de segundo (o más, con red lenta).
+            <View style={styles.accountBannerSkeleton} />
+          ) : predeterminada ? (
             <TouchableOpacity style={styles.autoPayoutBanner} onPress={() => setCuentaModal(true)} activeOpacity={0.85}>
               <View style={styles.autoPayoutDot} />
               <View style={{ flex: 1 }}>
@@ -442,6 +450,12 @@ const styles = StyleSheet.create({
   missingBankTitle: { fontSize: 13, fontWeight: "700", color: "#FDE047" },
   missingBankSub: { fontSize: 11.5, color: "rgba(255,255,255,0.85)", marginTop: 1 },
   missingBankLink: { fontSize: 13, fontWeight: "700", color: "#FDE047" },
+  accountBannerSkeleton: {
+    height: 54,
+    borderRadius: theme.radius.field,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    marginTop: theme.spacing.sm,
+  },
   bankExplain: { fontSize: 12, color: colors.textMuted, lineHeight: 17, marginBottom: 2 },
 
   errorCard: {
