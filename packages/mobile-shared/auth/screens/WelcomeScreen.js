@@ -24,7 +24,7 @@ const ROLE_OPTIONS = [
   },
 ];
 
-export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
+export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter", fixedRole }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -42,17 +42,20 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter" }) {
           </Text>
         </View>
 
-        {/* Selección de rol: define el modo con el que arranca la app */}
+        {/* Selección de rol: define el modo con el que arranca la app.
+            Con `fixedRole`, la app solo tiene un rol posible — se muestra
+            nada más la tarjeta de ese rol, sin picker. */}
         <View style={styles.cardsContainer}>
-          {ROLE_OPTIONS.map((opt) => {
+          {ROLE_OPTIONS.filter((opt) => !fixedRole || opt.key === fixedRole).map((opt) => {
             const selected = role === opt.key;
             return (
               <TouchableOpacity
                 key={opt.key}
                 onPress={() => onSelectRole?.(opt.key)}
-                activeOpacity={0.85}
+                activeOpacity={fixedRole ? 1 : 0.85}
                 accessibilityRole="radio"
                 accessibilityState={{ selected }}
+                disabled={!!fixedRole}
               >
                 <Card
                   style={[styles.optionCard, selected && styles.optionCardSelected]}

@@ -31,7 +31,7 @@ import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen";
  * bienvenida: quien ya conoce la app no tiene por qué volver a pasar por la
  * explicación cada vez que cierra sesión.
  */
-export function AuthFlow() {
+export function AuthFlow({ fixedRole }) {
   // 'splash' -> ('onboarding' solo la primera vez) -> 'welcome'
   //   -> 'login' | 'register'
   //   -> 'confirm_email' (solo si el registro no devolvió sesión activa)
@@ -41,8 +41,9 @@ export function AuthFlow() {
   const { onboardingVisto, marcarOnboardingVisto } = useApp();
 
   // Rol elegido en la bienvenida: 'renter' (arrendar) | 'owner' (publicar).
-  // Solo afecta el copy del registro y el modo inicial de la app.
-  const [role, setRole] = useState("renter");
+  // Si `fixedRole` viene fijo (apps separadas), el rol nunca cambia y la
+  // bienvenida no ofrece elegir el otro.
+  const [role, setRole] = useState(fixedRole || "renter");
 
   if (step === "splash") {
     return (
@@ -76,7 +77,8 @@ export function AuthFlow() {
     return (
       <WelcomeScreen
         role={role}
-        onSelectRole={setRole}
+        fixedRole={fixedRole}
+        onSelectRole={fixedRole ? undefined : setRole}
         onNavigate={(screen) => {
           if (screen === "login") setStep("login");
           else if (screen === "register") setStep("register");
