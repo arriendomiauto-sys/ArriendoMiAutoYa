@@ -189,11 +189,14 @@ def actualizar_cuenta_bancaria(
     pred = next((c for c in existentes if c.predeterminada), None)
     if pred:
         cuentas_cobro_service.eliminar(db, current_user, pred.id)
-    nueva = cuentas_cobro_service.agregar(
-        db, current_user,
-        banco=payload.banco, tipo_cuenta=payload.tipo_cuenta,
-        numero=payload.numero, titular=payload.titular, rut=payload.rut,
-    )
+    try:
+        nueva = cuentas_cobro_service.agregar(
+            db, current_user,
+            banco=payload.banco, tipo_cuenta=payload.tipo_cuenta,
+            numero=payload.numero, titular=payload.titular, rut=payload.rut,
+        )
+    except cuentas_cobro_service.CuentaCobroError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.as_detail())
     if not nueva.predeterminada:
         cuentas_cobro_service.marcar_predeterminada(db, current_user, nueva.id)
     # Intento de depósito de lo que estuviera pendiente por falta de cuenta.
@@ -213,7 +216,19 @@ def registrar_push_token(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    current_user.expo_push_token = (expo_push_token or "").strip() or None
+    token = (expo_push_token or "").strip() or None
+    if token:
+        # El token identifica al DISPOSITIVO, no a la cuenta: en uno
+        # compartido, si el usuario anterior no lo limpió al cerrar sesión,
+        # seguía asociado a su cuenta mientras otra persona ya lo usaba —
+        # y un push dirigido al primero llegaba al dispositivo del segundo.
+        # Se lo "robamos" a cualquier otra cuenta que lo tuviera antes de
+        # asignárselo a esta (el índice único de la BD es el resguardo final).
+        db.query(Usuario).filter(
+            Usuario.expo_push_token == token,
+            Usuario.id != current_user.id,
+        ).update({Usuario.expo_push_token: None})
+    current_user.expo_push_token = token
     db.commit()
     return {"ok": True}
 

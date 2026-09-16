@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 from sqlalchemy.orm import Session
 
+from app.core.database import SessionLocal
 from app.models.entities import Notificacion, Usuario
 
 logger = logging.getLogger(__name__)
@@ -25,11 +26,33 @@ EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 # best-effort, no vale la pena reservar recursos para que sea rápido.
 _push_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="expo-push")
 
+# Razones de error de Expo que significan "este token ya no sirve, nunca más
+# va a entregar nada" (desinstaló la app, token rotado, etc.) — a diferencia
+# de errores transitorios (MessageRateExceeded, credenciales, tamaño del
+# mensaje) que no dicen nada sobre si el token sigue vivo.
+_RAZONES_TOKEN_MUERTO = {"DeviceNotRegistered"}
+
+
+def _olvidar_token_muerto(token: str) -> None:
+    """Corre en el mismo thread del pool de push: abre su propia sesión de
+    BD (la del request que disparó la notificación ya se cerró hace rato)."""
+    db = SessionLocal()
+    try:
+        db.query(Usuario).filter(Usuario.expo_push_token == token).update(
+            {Usuario.expo_push_token: None}
+        )
+        db.commit()
+    except Exception as e:  # noqa: BLE001 — best-effort, no hay nadie a quien avisar
+        logger.warning("No se pudo limpiar el token push muerto: %s", e)
+        db.rollback()
+    finally:
+        db.close()
+
 
 def _post_push(token: str, titulo: str, mensaje: str, data: dict | None = None) -> None:
     try:
         with httpx.Client(timeout=6.0) as client:
-            client.post(
+            resp = client.post(
                 EXPO_PUSH_URL,
                 json={
                     "to": token,
@@ -40,6 +63,16 @@ def _post_push(token: str, titulo: str, mensaje: str, data: dict | None = None) 
                 },
                 headers={"Accept": "application/json", "Content-Type": "application/json"},
             )
+        # Expo responde 200 aunque el push individual haya fallado — el
+        # veredicto real está en data[].status/details.error, no en el
+        # status code HTTP. Antes esto se descartaba entero: un token muerto
+        # quedaba reintentándose para siempre en cada notificación futura.
+        ticket = (resp.json().get("data") or [{}])[0]
+        if ticket.get("status") == "error":
+            razon = (ticket.get("details") or {}).get("error")
+            logger.info("Push a Expo rechazado (%s): %s", razon, ticket.get("message"))
+            if razon in _RAZONES_TOKEN_MUERTO:
+                _olvidar_token_muerto(token)
     except Exception as e:  # noqa: BLE001
         logger.info("Push a Expo falló (no bloquea): %s", e)
 
