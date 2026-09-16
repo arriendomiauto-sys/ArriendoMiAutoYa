@@ -45,6 +45,19 @@ export function SignaturePad({ onChange, height = 180 }) {
           return siguientes;
         });
       },
+      // El pad vive dentro de un ScrollView: sin esto, un trazo con algo de
+      // componente vertical le puede "robar" el gesto al scroll a mitad de
+      // dibujo, cortando la firma. No cedemos el gesto y, si de todas
+      // formas nos lo quitan, cerramos el trazo en curso en vez de perderlo.
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderTerminate: () => {
+        setTrazos((prev) => {
+          const siguientes = [...prev.slice(0, -1), trazoActual.current];
+          const vacio = siguientes.every((t) => t.length < 2);
+          onChange && onChange(vacio ? null : aPathD(siguientes));
+          return siguientes;
+        });
+      },
     })
   ).current;
 
