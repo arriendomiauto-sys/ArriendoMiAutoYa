@@ -153,6 +153,36 @@ def calcular_bono_referido_pct(usuario, config) -> float:
     )
 
 
+def obtener_estadisticas(usuario, db: Session, config) -> dict:
+    """
+    Resumen para el panel de "invita y gana": cuántas personas registró con
+    su código y el bono/descuento vigente en este momento. No distingue
+    cuántos referidos ya "activaron" el bono del referente porque el modelo
+    solo guarda UN timestamp (`bono_referido_activado_en`, se pisa con cada
+    activación) — alcanza para saber que pasó al menos una vez, no cuántas.
+    """
+    from app.models.entities import Usuario
+
+    referidos_totales = (
+        db.query(Usuario).filter(Usuario.referido_por_id == usuario.id).count()
+    )
+
+    pct_invitado = calcular_bono_invitado_pct(usuario, config)
+    pct_referente = calcular_bono_referente_pct(usuario, config)
+    if pct_invitado >= pct_referente:
+        bono_pct, bono_origen = pct_invitado, ("invitado" if pct_invitado > 0 else None)
+    else:
+        bono_pct, bono_origen = pct_referente, "referente"
+
+    return {
+        "codigo": usuario.codigo_referido,
+        "referidos_totales": referidos_totales,
+        "bono_activado_alguna_vez": bool(usuario.bono_referido_activado_en),
+        "bono_pct_vigente": round(bono_pct, 1),
+        "bono_origen": bono_origen,
+    }
+
+
 def notificar_primera_actividad(usuario, db: Session) -> None:
     """
     Se llama cuando `usuario` completa su primera actividad real en la

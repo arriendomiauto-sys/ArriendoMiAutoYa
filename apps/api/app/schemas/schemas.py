@@ -146,6 +146,9 @@ class SesionVerificacionLicenciaCreate(BaseModel):
     pic_url: Optional[str] = None
     es_residente_chile: Optional[bool] = None
     fecha_inicio_residencia: Optional[datetime] = None
+    # "owner" | "renter": qué app inició el flujo, para que el callback de
+    # Didit vuelva al deep link correcto (ver didit.callback_url_para).
+    app: Optional[str] = None
 
 class EnrolamientoARevision(BaseModel):
     """
@@ -223,6 +226,15 @@ class SesionVerificacionExternaOut(BaseModel):
 
 class CodigoReferidoUpdate(BaseModel):
     codigo: str
+
+class EstadisticasReferidosOut(BaseModel):
+    """Resumen para el panel de "invita y gana" (ver referrals_service.obtener_estadisticas)."""
+    codigo: Optional[str] = None
+    link: str
+    referidos_totales: int
+    bono_activado_alguna_vez: bool
+    bono_pct_vigente: float
+    bono_origen: Optional[str] = None  # "invitado" | "referente" | None
 
 class CuentaBancariaUpdate(BaseModel):
     banco: str

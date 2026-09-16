@@ -102,6 +102,25 @@ def _base() -> str:
     return (settings.DIDIT_BASE_URL or "https://verification.didit.me").rstrip("/")
 
 
+_APPS_VALIDAS = {"owner", "renter"}
+
+
+def callback_url_para(app: Optional[str] = None) -> Optional[str]:
+    """
+    Arma la URL de retorno de Didit con el parámetro `?app=owner|renter`.
+    La página puente (RentACar-web `.../verificacion/retorno.js`) lo usa para
+    saber a qué esquema de deep link redirigir — `arriendatuautoduenos://`
+    para la app de dueños, `arriendatuauto://` (default) para la de
+    arrendatario. Sin `app` (o con un valor no reconocido), se devuelve el
+    callback base tal cual, y la web cae a su default de arrendatario.
+    """
+    base = settings.DIDIT_CALLBACK_URL
+    if not base or app not in _APPS_VALIDAS:
+        return base
+    separador = "&" if "?" in base else "?"
+    return f"{base}{separador}app={app}"
+
+
 # --------------------------------------------------------------------------- #
 # Crear sesión
 # --------------------------------------------------------------------------- #

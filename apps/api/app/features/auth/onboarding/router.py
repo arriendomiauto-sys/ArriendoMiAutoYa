@@ -53,6 +53,7 @@ def procesar_documentos_ocr(payload: UserEnrolamiento):
 @limiter.limit("10/minute")
 def crear_sesion_verificacion_externa(
     request: Request,
+    app: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -62,6 +63,11 @@ def crear_sesion_verificacion_externa(
     usuario. El resultado llega después por webhook (`POST /webhooks/didit`).
     Rate-limited a 10/min por si el usuario reintenta — cada llamada consume
     una verificación del plan.
+
+    `app` ("owner" | "renter"): qué app mobile inició el flujo — el mismo
+    usuario puede ser dueño y arrendatario, así que no se puede inferir del
+    usuario. Se usa para que el callback de Didit vuelva al deep link
+    correcto (ver didit.callback_url_para).
     """
     if current_user.estado_documentos == "verificado":
         raise HTTPException(status_code=400, detail="Tu identidad ya está verificada.")
@@ -83,6 +89,7 @@ def crear_sesion_verificacion_externa(
             apellido=apellido,
             rut=current_user.rut,
             email=current_user.email,
+            callback_url=verificacion_didit.callback_url_para(app),
         )
     except verificacion_didit.DiditNoConfigurado as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -535,6 +542,7 @@ def crear_sesion_verificacion_licencia(
         sesion = verificacion_didit.crear_sesion_licencia(
             vendor_data=f"licencia:{current_user.id}",
             email=current_user.email,
+            callback_url=verificacion_didit.callback_url_para(datos.app),
         )
     except verificacion_didit.DiditNoConfigurado as e:
         raise HTTPException(status_code=503, detail=str(e))

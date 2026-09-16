@@ -8,11 +8,13 @@ from app.models.entities import Usuario, Reserva
 from app.schemas.schemas import (
     UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate, TarjetaUpdate, TarjetaOut,
     CodigoReferidoUpdate, TarjetaVaultCreate, CuentaCobroCreate, CuentaCobroOut,
+    EstadisticasReferidosOut,
 )
 from app.features.auth.login.service import get_current_user
 from app.services import tarjetas, referidos
 from app.features.payments import wallet_service, cuentas_cobro_service
 from app.features.system.storage.service import StorageService
+from app.core.config import settings
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
@@ -41,6 +43,25 @@ async def get_me(db: Session = Depends(get_db), current_user: Usuario = Depends(
         referidos.obtener_o_generar_codigo(current_user, db)
 
     return current_user
+
+@router.get(
+    "/me/programa-referidos",
+    response_model=EstadisticasReferidosOut,
+    summary="Panel del programa de invitación: código, link para compartir y estadísticas",
+)
+def obtener_programa_referidos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if not current_user.codigo_referido:
+        referidos.obtener_o_generar_codigo(current_user, db)
+
+    from app.features.vehicles.catalog.pricing_service import PricingService
+
+    config = PricingService.obtener_configuracion(db)
+    stats = referidos.obtener_estadisticas(current_user, db, config)
+    stats["link"] = f"{settings.FRONTEND_URL.rstrip('/')}/invitacion/{current_user.codigo_referido}"
+    return EstadisticasReferidosOut(**stats)
 
 @router.put(
     "/me/codigo-referido",

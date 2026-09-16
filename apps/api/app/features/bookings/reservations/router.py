@@ -977,6 +977,7 @@ def verificar_kyc_segundo_conductor(
 def crear_sesion_verificacion_segundo_conductor(
     request: Request,
     reserva_id: str,
+    app: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -1017,6 +1018,7 @@ def crear_sesion_verificacion_segundo_conductor(
             apellido=apellido,
             rut=conductor.rut,
             email=conductor.email,
+            callback_url=verificacion_didit.callback_url_para(app),
         )
     except verificacion_didit.DiditNoConfigurado as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -1043,6 +1045,7 @@ def crear_sesion_verificacion_segundo_conductor(
 def crear_sesion_verificacion_licencia_segundo_conductor(
     request: Request,
     reserva_id: str,
+    app: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -1076,6 +1079,7 @@ def crear_sesion_verificacion_licencia_segundo_conductor(
         sesion = verificacion_didit.crear_sesion_licencia(
             vendor_data=f"licencia_conductor:{conductor.id}",
             email=conductor.email,
+            callback_url=verificacion_didit.callback_url_para(app),
         )
     except verificacion_didit.DiditNoConfigurado as e:
         raise HTTPException(status_code=503, detail=str(e))
