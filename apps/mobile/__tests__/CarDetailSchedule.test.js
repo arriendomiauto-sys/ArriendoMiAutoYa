@@ -18,8 +18,14 @@ const car = {
 };
 
 describe("CarDetailScreen · elección de fechas", () => {
-  it("las fechas van en línea en la ficha, con calendario y sin campos de texto libre", () => {
+  it("la ficha ya no trae el calendario en línea: las fechas viven en su propia pantalla", () => {
     const tr = renderTree(<CarDetailScreen car={car} onBack={() => {}} onProceedToPayment={() => {}} />);
+
+    // En la ficha solo hay auto y anfitrión — ni rastro de retiro/devolución.
+    expect(textOf(tr)).not.toContain("Retiro");
+    expect(textOf(tr)).not.toContain("Devolución");
+
+    pressText(tr, "Siguiente");
 
     const t = textOf(tr);
     expect(t).toContain("Retiro");
@@ -27,7 +33,7 @@ describe("CarDetailScreen · elección de fechas", () => {
     // Los placeholders del formato escrito a mano ya no existen…
     expect(t).not.toContain("AAAA-MM-DD");
     expect(t).not.toContain("HH:MM");
-    // …y no queda ningún input tipeable en la ficha.
+    // …y no queda ningún input tipeable.
     expect(tr.root.findAllByType(TextInput)).toHaveLength(0);
   });
 
@@ -37,7 +43,8 @@ describe("CarDetailScreen · elección de fechas", () => {
       <CarDetailScreen car={car} onBack={() => {}} onProceedToPayment={onProceedToPayment} />
     );
 
-    pressText(tr, "Ver resumen");
+    pressText(tr, "Siguiente");
+    pressText(tr, "Confirmar fechas");
     pressText(tr, "Ir a pagar");
 
     expect(onProceedToPayment).toHaveBeenCalledTimes(1);

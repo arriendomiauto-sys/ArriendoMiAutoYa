@@ -1,5 +1,12 @@
 /* eslint-env jest */
 
+// react-native-reanimated y react-native-gesture-handler (PhotoViewer) traen
+// módulos nativos (worklets, gestos) que no existen bajo Jest: se usan los
+// mocks oficiales de cada librería en vez de dejar que intenten cargar el
+// TurboModule real.
+require("react-native-gesture-handler/jestSetup");
+jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock"));
+
 // react-native-maps es un módulo nativo: en jest se mockea a componentes vacíos.
 jest.mock("react-native-maps", () => {
   const React = require("react");

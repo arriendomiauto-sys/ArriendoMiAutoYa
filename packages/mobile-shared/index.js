@@ -19,6 +19,7 @@ export {
 } from "./components/ui";
 export { Icon } from "./components/Icon";
 export { Skeleton } from "./components/Skeleton";
+export { PhotoViewer } from "./components/PhotoViewer";
 export { AvatarFoto } from "./components/AvatarFoto";
 export { TabBar } from "./components/TabBar";
 export { BrandLogo } from "./components/BrandLogo";

@@ -29,6 +29,8 @@
     "expo-web-browser": "*",
     "react": "*",
     "react-native": "*",
+    "react-native-gesture-handler": "*",
+    "react-native-reanimated": "^3.19.5",
     "react-native-safe-area-context": "*",
     "react-native-svg": "*",
     "react-native-view-shot": "*"

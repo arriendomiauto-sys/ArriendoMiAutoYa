@@ -42,18 +42,26 @@ beforeEach(() => {
 });
 
 describe("CarDetailScreen · disponibilidad no verificada", () => {
-  it("si falla la consulta, avisa y no deja avanzar a pagar", async () => {
+  it("si falla la consulta, la pantalla de fechas avisa y no deja confirmar", async () => {
     mockGetDisponibilidadAuto.mockRejectedValue(new Error("network"));
     const onProceedToPayment = jest.fn();
     const tr = renderTree(<CarDetailScreen car={car} onBack={() => {}} onProceedToPayment={onProceedToPayment} />);
     await asentar();
 
-    expect(textOf(tr)).toContain("No pudimos verificar disponibilidad");
+    // La ficha ya no tiene fechas ni calendario: el aviso vive en la pantalla
+    // dedicada a elegirlas, no acá.
+    expect(textOf(tr)).not.toContain("No pudimos verificar disponibilidad");
 
-    pressText(tr, "Ver resumen");
+    pressText(tr, "Siguiente");
     await asentar();
 
-    expect(textOf(tr)).toContain("No pudimos verificar qué días están disponibles");
+    expect(textOf(tr)).toContain("No pudimos verificar disponibilidad");
+
+    // "Confirmar fechas" queda deshabilitado: no hay forma de llegar al resumen.
+    pressText(tr, "Confirmar fechas");
+    await asentar();
+
+    expect(textOf(tr)).not.toContain("Resumen de la reserva");
     expect(onProceedToPayment).not.toHaveBeenCalled();
   });
 
@@ -62,9 +70,12 @@ describe("CarDetailScreen · disponibilidad no verificada", () => {
     const tr = renderTree(<CarDetailScreen car={car} onBack={() => {}} onProceedToPayment={() => {}} />);
     await asentar();
 
+    pressText(tr, "Siguiente");
+    await asentar();
+
     expect(textOf(tr)).not.toContain("No pudimos verificar disponibilidad");
 
-    pressText(tr, "Ver resumen");
+    pressText(tr, "Confirmar fechas");
     await asentar();
 
     expect(textOf(tr)).toContain("Resumen de la reserva");

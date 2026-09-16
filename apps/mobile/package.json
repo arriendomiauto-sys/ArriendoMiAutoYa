@@ -15,7 +15,7 @@
       "<rootDir>/jest-setup.js"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@rentacar/.*))"
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|react-native-gesture-handler|react-native-reanimated|@rentacar/.*))"
     ]
   },
   "dependencies": {
@@ -49,8 +49,10 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
     "react-native-document-scanner-plugin": "^2.0.4",
+    "react-native-gesture-handler": "~2.32.0",
     "react-native-maps": "1.27.2",
     "react-native-qrcode-svg": "^6.3.21",
+    "react-native-reanimated": "^3.19.5",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
     "react-native-url-polyfill": "^2.0.0",

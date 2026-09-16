@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -20,14 +20,15 @@ import {
   ScreenHeader,
   SectionLabel,
   Rating,
-  DateTimeField,
   formatearFechaHora,
   aISOLocal,
   ApiClient,
   useFavoritos,
   urlWeb,
   Skeleton,
+  PhotoViewer,
 } from "@rentacar/mobile-shared";
+import { DateSelectionScreen } from "./DateSelectionScreen";
 
 // Misma regla que app/services/pricing.py:PricingService.calcular_dias_reserva
 // (redondeo hacia arriba, mínimo 1 día) — para que el total mostrado acá
@@ -54,6 +55,13 @@ function enDias(offsetDias, hora) {
 const MIN_HORAS_ARRIENDO = 1;
 const masHoras = (fecha, horas) => new Date(fecha.getTime() + horas * 3600000);
 
+// Alto del hero: arranca en el valor histórico y se ajusta al aspect-ratio
+// real de cada foto (min/max para no descontrolar el layout con fotos muy
+// verticales u horizontales).
+const HERO_ALTURA_DEFAULT = 380;
+const HERO_ALTURA_MIN = 220;
+const HERO_ALTURA_MAX = 460;
+
 const EQUIPAMIENTO_LABELS = {
   ac: "Aire acondicionado",
   bluetooth: "Bluetooth / CarPlay",
@@ -64,13 +72,27 @@ const EQUIPAMIENTO_LABELS = {
 
 export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const insets = useSafeAreaInsets();
-  // Step: 'detail' (ficha + fechas en línea) | 'summary' (hoja de resumen)
+  // Step: 'detail' (ficha: solo auto y anfitrión) | 'dates' (elegir fechas,
+  // pantalla propia) | 'summary' (hoja de resumen antes de pagar)
   const [step, setStep] = useState("detail");
   const [fotoActiva, setFotoActiva] = useState(0);
   const [heroW, setHeroW] = useState(0);
+  const [heroAltura, setHeroAltura] = useState(HERO_ALTURA_DEFAULT);
   const [heroCargando, setHeroCargando] = useState(true);
+  const aspectRatiosFotos = useRef({});
   const [hostFotoError, setHostFotoError] = useState(false);
   const { esFavorito, toggle: toggleFavorito } = useFavoritos();
+
+  // Visor de fotos a pantalla completa (PhotoViewer, compartido): tocar la
+  // foto lo abre; adentro se puede pellizcar para hacer zoom, doble tap,
+  // deslizar entre fotos y deslizar hacia abajo para cerrar.
+  const [zoomVisible, setZoomVisible] = useState(false);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const abrirZoom = (i) => {
+    setZoomIndex(i);
+    setZoomVisible(true);
+  };
+  const cerrarZoom = () => setZoomVisible(false);
 
   const compartirAuto = () => {
     const precio = (car?.tarifa_dia || 0).toLocaleString("es-CL");
@@ -188,6 +210,9 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
     .map(([key]) => EQUIPAMIENTO_LABELS[key] || key);
   const precioCLP = (n) => `$${(n || 0).toLocaleString("es-CL")}`;
 
+  const alturaParaProporcion = (proporcion) =>
+    Math.min(HERO_ALTURA_MAX, Math.max(HERO_ALTURA_MIN, heroW / proporcion));
+
   const irAResumen = () => {
     setDateError(null);
     if (disponibilidadError) {
@@ -215,26 +240,47 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}>
-          <View style={styles.hero} onLayout={(e) => setHeroW(e.nativeEvent.layout.width)}>
+          <View
+            style={[styles.hero, { height: heroAltura }]}
+            onLayout={(e) => setHeroW(e.nativeEvent.layout.width)}
+          >
             {heroCargando && <Skeleton style={styles.heroImg} />}
             <ScrollView
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               scrollEnabled={fotos.length > 1}
-              onMomentumScrollEnd={(e) =>
-                setFotoActiva(Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width))
-              }
+              onMomentumScrollEnd={(e) => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width);
+                setFotoActiva(idx);
+                const proporcion = aspectRatiosFotos.current[idx];
+                if (proporcion && heroW) setHeroAltura(alturaParaProporcion(proporcion));
+              }}
             >
               {fotos.map((uri, i) => (
-                <Image
+                <TouchableOpacity
                   key={uri + i}
-                  source={{ uri }}
-                  style={[styles.heroImg, heroW ? { width: heroW } : null]}
-                  resizeMode="cover"
-                  onLoadEnd={() => setHeroCargando(false)}
-                  onError={() => setHeroCargando(false)}
-                />
+                  activeOpacity={0.92}
+                  onPress={() => abrirZoom(i)}
+                  style={heroW ? { width: heroW } : null}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver foto en pantalla completa"
+                >
+                  <Image
+                    source={{ uri }}
+                    style={[styles.heroImg, heroW ? { width: heroW } : null]}
+                    resizeMode="contain"
+                    onLoad={(e) => {
+                      const { width, height } = e.nativeEvent.source || {};
+                      if (!width || !height) return;
+                      const proporcion = width / height;
+                      aspectRatiosFotos.current[i] = proporcion;
+                      if (i === fotoActiva && heroW) setHeroAltura(alturaParaProporcion(proporcion));
+                    }}
+                    onLoadEnd={() => setHeroCargando(false)}
+                    onError={() => setHeroCargando(false)}
+                  />
+                </TouchableOpacity>
               ))}
             </ScrollView>
             <BackButton
@@ -274,11 +320,22 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 ))}
               </View>
             )}
+            {fotos.length > 0 && (
+              <View style={styles.zoomBadge} pointerEvents="none">
+                <Icon name="search" size={15} color={colors.primary} />
+              </View>
+            )}
           </View>
 
           <View style={styles.body}>
             <View>
-              <Text style={styles.carName}>{nombreAuto || "Vehículo"}</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.carName}>{nombreAuto || "Vehículo"}</Text>
+                <View style={styles.priceTag}>
+                  <Text style={styles.priceTagAmount}>{precioCLP(tarifaDia)}</Text>
+                  <Text style={styles.priceTagPer}>por día</Text>
+                </View>
+              </View>
               <View style={styles.metaRow}>
                 <Icon name="location" size={14} color={colors.textMuted} />
                 <Text style={styles.metaText}>{car?.ubicacion_base || "Ubicación no informada"}</Text>
@@ -320,59 +377,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             {/* 2. Descripción del vehículo */}
             {car?.descripcion ? <Text style={styles.descripcion}>{car.descripcion}</Text> : null}
 
-            {/* 3. Fechas para arrendarlo — colocado antes que las calificaciones */}
-            <View style={{ gap: theme.spacing.sm }}>
-              <SectionLabel>Fechas para arrendarlo</SectionLabel>
-              {disponibilidadError && (
-                <View style={styles.warnBox}>
-                  <Text style={styles.warnTitle}>No pudimos verificar disponibilidad</Text>
-                  <Text style={styles.warnText}>
-                    Reintenta antes de elegir fechas — así evitamos que reserves un día ya tomado.
-                  </Text>
-                </View>
-              )}
-              <View style={styles.datesRow}>
-                <DateTimeField
-                  label="Retiro"
-                  value={fechaInicio}
-                  onChange={cambiarInicio}
-                  minimumDate={ahora}
-                  rangosBloqueados={rangosOcupados}
-                  disabled={disponibilidadError}
-                />
-                <DateTimeField
-                  label="Devolución"
-                  value={fechaFin}
-                  onChange={cambiarFin}
-                  minimumDate={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
-                  rangosBloqueados={rangosOcupados}
-                  disabled={disponibilidadError}
-                />
-              </View>
-
-              {dateError && (
-                <View style={styles.warnBox}>
-                  <Text style={styles.warnTitle}>Fechas inválidas</Text>
-                  <Text style={styles.warnText}>{dateError}</Text>
-                </View>
-              )}
-
-              <Card style={styles.subtotalCard} padded>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.subtotalTitle}>
-                    {dias > 0 ? `${dias} ${dias === 1 ? "día" : "días"} de arriendo` : "Elige fechas válidas"}
-                  </Text>
-                  {dias > 0 && (
-                    <Text style={styles.subtotalRange}>
-                      {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
-                    </Text>
-                  )}
-                </View>
-                <Text style={styles.subtotalValue}>{precioCLP(montoCobro)}</Text>
-              </Card>
-            </View>
-
-            {/* 4. Calificaciones y reseñas — inmediatamente después de las fechas de arriendo */}
+            {/* 4. Calificaciones y reseñas del anfitrión */}
             {cargandoResenas ? null : calificaciones.length > 0 ? (
               <View style={{ gap: theme.spacing.sm }}>
                 <SectionLabel>Calificaciones</SectionLabel>
@@ -431,40 +436,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               </View>
             ) : null}
 
-            {/* 5. Planes y tarifas de referencia */}
-            <View style={styles.priceRow}>
-              {[
-                { l: "Día", v: tarifaDia },
-                { l: "Semana", v: tarifaDia * 7 },
-                { l: "Mes", v: tarifaDia * 30 },
-              ].map((p, i) => (
-                <View key={p.l} style={[styles.priceCell, i === 0 && styles.priceCellFirst]}>
-                  <Text style={styles.priceCellLabel}>{p.l}</Text>
-                  <Text style={styles.priceCellValue}>{precioCLP(p.v)}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* 6. Punto de Encuentro / Entrega */}
-            <Card style={styles.locationCard} padded>
-              <View style={styles.locationCardHeader}>
-                <View style={styles.locationIconBox}>
-                  <Icon name="location" size={18} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.locationCardTitle}>Punto de entrega y devolución</Text>
-                  <Text style={styles.locationCardAddress}>{car?.ubicacion_base || "Los Ángeles, Región del Biobío"}</Text>
-                </View>
-              </View>
-              <View style={styles.locationSecurityNotice}>
-                <Icon name="shield" size={13} color={colors.accent700} />
-                <Text style={styles.locationSecurityText}>
-                  Punto de encuentro público coordinado por seguridad de ambas partes.
-                </Text>
-              </View>
-            </Card>
-
-            {/* 7. Tarjeta del anfitrión */}
+            {/* 5. Tarjeta del anfitrión */}
             {tieneDueno ? (
               <View style={styles.hostCardDark}>
                 <View style={styles.hostHairline} />
@@ -497,32 +469,47 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 </View>
               </View>
             ) : null}
-
-            {/* 8. Garantía y entrega 100% digital */}
-            <Card style={styles.noteCard} padded elevated={false}>
-              <Icon name="shield" size={18} color={colors.primary} />
-              <Text style={styles.noteText}>
-                Retiro y devolución 100% digital: código QR y checklist fotográfico de 8 ángulos, sin mostrador.
-                La garantía se retiene, no se cobra.
-              </Text>
-            </Card>
           </View>
         </ScrollView>
 
         <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
           <View>
-            <Text style={styles.barPrice}>{dias > 0 ? precioCLP(montoCobro) : precioCLP(tarifaDia)}</Text>
-            <Text style={styles.barPer}>{dias > 0 ? `Total · ${dias} ${dias === 1 ? "día" : "días"}` : "por día"}</Text>
+            <Text style={styles.barPrice}>{precioCLP(tarifaDia)}</Text>
+            <Text style={styles.barPer}>por día</Text>
           </View>
           <Button
-            label={dias > 0 ? "Ver resumen" : "Elige fechas válidas"}
-            onPress={irAResumen}
-            disabled={dias === 0}
+            label="Siguiente"
+            iconRight="arrow-right"
+            onPress={() => setStep("dates")}
             fullWidth={false}
             style={{ flex: 1 }}
           />
         </View>
+
+        <PhotoViewer visible={zoomVisible} photos={fotos} initialIndex={zoomIndex} onClose={cerrarZoom} />
       </View>
+    );
+  }
+
+  // ---------------------------------------------------------------- FECHAS
+  if (step === "dates") {
+    return (
+      <DateSelectionScreen
+        car={car}
+        fechaInicio={fechaInicio}
+        fechaFin={fechaFin}
+        onChangeInicio={cambiarInicio}
+        onChangeFin={cambiarFin}
+        ahora={ahora}
+        minimumDateFin={masHoras(fechaInicio, MIN_HORAS_ARRIENDO)}
+        rangosOcupados={rangosOcupados}
+        disponibilidadError={disponibilidadError}
+        dias={dias}
+        montoCobro={montoCobro}
+        dateError={dateError}
+        onBack={() => setStep("detail")}
+        onConfirm={irAResumen}
+      />
     );
   }
 
@@ -610,7 +597,19 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
 
-  hero: { height: 300, backgroundColor: colors.primary100 },
+  hero: { backgroundColor: colors.primary100 },
+  zoomBadge: {
+    position: "absolute",
+    right: theme.spacing.screen,
+    bottom: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...theme.shadow.sm,
+  },
   heroImg: { width: "100%", height: "100%" },
   heroBack: {
     position: "absolute",
@@ -637,7 +636,11 @@ const styles = StyleSheet.create({
   dotOff: { width: 6, backgroundColor: "rgba(255,255,255,0.6)" },
 
   body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  carName: { ...theme.typography.title, color: colors.text },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: theme.spacing.sm },
+  carName: { ...theme.typography.title, color: colors.text, flex: 1 },
+  priceTag: { alignItems: "flex-end" },
+  priceTagAmount: { fontSize: 17, fontWeight: "800", color: colors.text },
+  priceTagPer: { fontSize: 11.5, color: colors.textMuted, marginTop: -1 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6, flexWrap: "wrap" },
   specsRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.md },
   specItem: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -702,19 +705,6 @@ const styles = StyleSheet.create({
   reviewTexto: { fontSize: 13, color: colors.text, lineHeight: 18 },
   reviewAutor: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
 
-  priceRow: {
-    flexDirection: "row",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: theme.radius.card,
-    backgroundColor: colors.surface,
-    overflow: "hidden",
-  },
-  priceCell: { flex: 1, alignItems: "center", paddingVertical: theme.spacing.md, gap: 3, borderLeftWidth: 1, borderLeftColor: colors.border },
-  priceCellFirst: { borderLeftWidth: 0 },
-  priceCellLabel: { fontSize: 12, color: colors.textMuted },
-  priceCellValue: { fontSize: 15, fontWeight: "700", color: colors.text },
-
   equipGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
   equipChip: {
     flexDirection: "row",
@@ -726,33 +716,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   equipText: { fontSize: 12, fontWeight: "600", color: colors.accent700 },
-
-  locationCard: { gap: theme.spacing.sm, backgroundColor: colors.surface },
-  locationCardHeader: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  locationIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  locationCardTitle: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
-  locationCardAddress: { fontSize: 15, fontWeight: "600", color: colors.text, marginTop: 2 },
-  locationSecurityNotice: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.accent100,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: theme.radius.sm,
-    marginTop: 4,
-  },
-  locationSecurityText: { fontSize: 12, color: colors.accent800, fontWeight: "500", flex: 1 },
-
-  noteCard: { flexDirection: "row", gap: theme.spacing.md, backgroundColor: colors.primary100, borderColor: colors.primary200 },
-  noteText: { flex: 1, fontSize: 13, color: colors.primary, lineHeight: 19 },
 
   bar: {
     flexDirection: "row",
@@ -768,15 +731,6 @@ const styles = StyleSheet.create({
   barPer: { fontSize: 12, color: colors.textMuted },
 
   stepBody: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  datesRow: { flexDirection: "row", gap: theme.spacing.md },
-  warnBox: { backgroundColor: colors.warningBg, borderRadius: theme.radius.field, padding: theme.spacing.lg, gap: 4 },
-  warnTitle: { fontSize: 14, fontWeight: "700", color: colors.warningText },
-  warnText: { fontSize: 13, color: colors.warningText, lineHeight: 19 },
-
-  subtotalCard: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  subtotalTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
-  subtotalRange: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  subtotalValue: { fontSize: 18, fontWeight: "700", color: colors.text },
 
   footer: {
     paddingHorizontal: theme.spacing.screen,

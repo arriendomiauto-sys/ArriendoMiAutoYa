@@ -1,5 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -97,11 +98,13 @@ export default function App() {
   // pantallas enteras a la mitad inferior. Dejar que SafeAreaProvider mida
   // en vivo cambia un parpadeo inicial mínimo por insets siempre correctos.
   return (
-    <SafeAreaProvider>
-      <AppProvider>
-        <ThemedFrame />
-      </AppProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppProvider>
+          <ThemedFrame />
+        </AppProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
