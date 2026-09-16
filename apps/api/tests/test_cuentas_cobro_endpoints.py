@@ -44,3 +44,37 @@ def test_put_cuenta_bancaria_legacy_crea_predeterminada(client, usuario_factory,
     assert r.status_code == 200
     lista = auth_as(u).get("/api/v1/usuarios/me/cuentas-cobro").json()["cuentas_cobro"]
     assert len(lista) == 1 and lista[0]["predeterminada"] is True
+
+
+def test_agregar_misma_cuenta_dos_veces_no_duplica(client, usuario_factory, auth_as):
+    """
+    Un reintento automático del cliente HTTP tras un timeout (la request sí
+    había llegado y se guardó, solo se perdió la respuesta) no debe crear una
+    segunda fila idéntica — a diferencia de antes, que no tenía ningún
+    chequeo de duplicados acá.
+    """
+    u = _dueno(usuario_factory)
+    r1 = auth_as(u).post("/api/v1/usuarios/me/cuentas-cobro", json=DATOS)
+    assert r1.status_code == 201
+
+    r2 = auth_as(u).post("/api/v1/usuarios/me/cuentas-cobro", json=DATOS)
+    assert r2.status_code == 409
+    assert r2.json()["detail"]["codigo"] == "CUENTA_DUPLICADA"
+
+    lista = auth_as(u).get("/api/v1/usuarios/me/cuentas-cobro").json()["cuentas_cobro"]
+    assert len(lista) == 1
+
+
+def test_put_cuenta_bancaria_reintentado_no_duplica(client, usuario_factory, auth_as):
+    """Mismo escenario que arriba pero contra el endpoint legacy PUT, que
+    borra la predeterminada anterior antes de re-agregar — el reintento debe
+    seguir dejando una sola cuenta, no reventar con un 500 sin manejar."""
+    u = _dueno(usuario_factory)
+    r1 = auth_as(u).put("/api/v1/usuarios/me/cuenta-bancaria", json=DATOS)
+    assert r1.status_code == 200
+
+    r2 = auth_as(u).put("/api/v1/usuarios/me/cuenta-bancaria", json=DATOS)
+    assert r2.status_code == 200
+
+    lista = auth_as(u).get("/api/v1/usuarios/me/cuentas-cobro").json()["cuentas_cobro"]
+    assert len(lista) == 1

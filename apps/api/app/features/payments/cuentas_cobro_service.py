@@ -89,7 +89,21 @@ def agregar(db: Session, usuario: Usuario, banco: str, tipo_cuenta: str,
             "Debes tener un nombre registrado en tu perfil o validar tu carnet antes de agregar una cuenta de cobro."
         )
 
-    existentes = db.query(CuentaCobro).filter(CuentaCobro.usuario_id == usuario.id).count()
+    cuentas_usuario = listar(db, usuario)
+
+    # Sin este chequeo, un reintento automático del cliente HTTP tras un
+    # timeout (la request sí había llegado y se guardó, solo se perdió la
+    # respuesta) duplicaba la cuenta — a diferencia de crear_reserva/tarjetas,
+    # que ya son idempotentes ante ese mismo escenario.
+    numero_norm = (numero or "").strip()
+    ya_esta = next(
+        (c for c in cuentas_usuario if c.banco == banco.strip() and c.numero == numero_norm),
+        None,
+    )
+    if ya_esta:
+        raise CuentaCobroError(409, "CUENTA_DUPLICADA", "Ya tienes registrada esa cuenta de cobro.")
+
+    existentes = len(cuentas_usuario)
     c = CuentaCobro(
         usuario_id=usuario.id,
         banco=banco.strip(), tipo_cuenta=tipo_cuenta.strip(),
