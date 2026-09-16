@@ -18,11 +18,12 @@ import { validarPatenteChilena } from "@rentacar/shared-schemas";
 import { MAPA, PUNTO_INICIAL } from "./useCarWizard";
 import { Tarjeta, TituloPaso, MensajeError, comun, TRANSMISIONES, COMBUSTIBLES, EQUIPAMIENTO } from "./comun";
 import { SelectorAnioModal } from "./SelectorAnioModal";
+import { SelectorCategoria } from "./SelectorCategoria";
 
 const { MapView, Marker } = MAPA;
 
 export function PasoVehiculo({ wizard }) {
-  const { form, setForm, setField, errorDe, tienePunto } = wizard;
+  const { form, setForm, setField, errorDe, tienePunto, tipos, elegirCategoria } = wizard;
   const [modalAnioAbierto, setModalAnioAbierto] = useState(false);
   const anioActual = new Date().getFullYear();
 
@@ -150,6 +151,12 @@ export function PasoVehiculo({ wizard }) {
             <MensajeError texto={errorDe("patente")} />
           </View>
         </View>
+      </Tarjeta>
+
+      <Tarjeta>
+        <Text style={comun.cardTitle}>Categoría</Text>
+        <SelectorCategoria tipos={tipos} seleccionado={form.categoria} onSelect={elegirCategoria} />
+        <MensajeError texto={errorDe("categoria")} />
       </Tarjeta>
 
       <Tarjeta>

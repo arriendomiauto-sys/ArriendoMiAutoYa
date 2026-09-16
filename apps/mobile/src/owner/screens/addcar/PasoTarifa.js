@@ -2,11 +2,10 @@ import React from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { theme } from "@rentacar/mobile-shared";
 import { TituloPaso } from "./comun";
-import { SelectorCategoria } from "./SelectorCategoria";
 import { ControlTarifa } from "./ControlTarifa";
 
 export function PasoTarifa({ wizard }) {
-  const { tipos, form, configTipo, tarifaActual, desglose, elegirCategoria, ajustarTarifa, fijarTarifa } = wizard;
+  const { configTipo, tarifaActual, desglose, ajustarTarifa, fijarTarifa } = wizard;
 
   return (
     <ScrollView
@@ -15,11 +14,9 @@ export function PasoTarifa({ wizard }) {
       showsVerticalScrollIndicator={false}
     >
       <TituloPaso
-        titulo="Tu categoría y tu tarifa"
-        bajada="La categoría fija el precio base. Tú decides cuánto descontar."
+        titulo="Tu tarifa"
+        bajada="La categoría que elegiste fija el precio base. Tú decides cuánto descontar."
       />
-
-      <SelectorCategoria tipos={tipos} seleccionado={form.categoria} onSelect={elegirCategoria} />
 
       <ControlTarifa
         tipo={configTipo}

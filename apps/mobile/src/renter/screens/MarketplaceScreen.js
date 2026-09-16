@@ -301,6 +301,10 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
   const [filtros, setFiltros] = useState(FILTROS_VACIOS);
   const [orden, setOrden] = useState("recientes");
   const [modalAbierto, setModalAbierto] = useState(false);
+  // Alto real del header de la lista (banner de arriendo activo, verificación
+  // de identidad, contador) — varía según esos estados. Se mide con onLayout
+  // para que `getItemLayout` calcule bien el offset de cada fila.
+  const [headerAltura, setHeaderAltura] = useState(0);
 
   // Filtros persistentes: se restauran al volver a la pestaña y se guardan
   // ante cada cambio. La clave lleva el id del usuario para que cada cuenta
@@ -399,6 +403,21 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
       </View>
     ),
     [onSelectCar, esFavorito, toggleFavorito]
+  );
+
+  // getItemLayout: CarCard tiene alto fijo (104) + el margen inferior de cada
+  // fila, así FlatList no necesita medir cada celda para virtualizar/scrollear.
+  // Depende del alto medido del header porque este va dentro de
+  // ListHeaderComponent (banner de arriendo activo / verificación / contador,
+  // que cambian de alto según el estado del usuario).
+  const ROW_ALTURA = 104 + theme.spacing.md;
+  const getItemLayout = useCallback(
+    (_data, index) => ({
+      length: ROW_ALTURA,
+      offset: theme.spacing.screen + headerAltura + ROW_ALTURA * index,
+      index,
+    }),
+    [headerAltura, ROW_ALTURA]
   );
 
   return (
@@ -567,8 +586,9 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
         data={filteredCars}
         keyExtractor={(car) => String(car.id || car._id)}
         renderItem={renderCar}
+        getItemLayout={getItemLayout}
         ListHeaderComponent={() => (
-          <>
+          <View onLayout={(e) => setHeaderAltura(e.nativeEvent.layout.height)}>
             {activeReservation && (activeReservation.estado === "en_curso" || activeReservation.estado === "confirmada") && (
               <TouchableOpacity
                 style={styles.activeRentalBanner}
@@ -599,7 +619,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
                 {filteredCars.length} {filteredCars.length === 1 ? "auto disponible" : "autos disponibles"}
               </Text>
             )}
-          </>
+          </View>
         )}
         ListEmptyComponent={
           cargandoInicial ? (

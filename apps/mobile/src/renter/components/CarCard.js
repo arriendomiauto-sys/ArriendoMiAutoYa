@@ -46,7 +46,7 @@ export const CarCard = React.memo(function CarCard({ car, onPress, esFavorito, o
           <Image
             source={{ uri: foto }}
             style={styles.photoImg}
-            resizeMode="cover"
+            resizeMode="contain"
             onLoadEnd={() => setFotoCargando(false)}
             onError={() => {
               setFotoError(true);
@@ -113,6 +113,7 @@ const styles = StyleSheet.create({
   photo: {
     width: 116,
     height: "100%",
+    backgroundColor: colors.primary100,
     borderRightWidth: 1,
     borderRightColor: colors.border,
   },
