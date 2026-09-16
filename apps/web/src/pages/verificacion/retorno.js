@@ -29,7 +29,13 @@ export default function VerificacionRetorno() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const search = window.location.search;
-    const targetLink = `arriendatuauto://kyc-retorno${search}`;
+    // El backend agrega ?app=owner|renter al callback (ver
+    // didit.callback_url_para) para saber a qué app volver: son dos apps
+    // con esquemas distintos desde el split owner/renter. Sin el parámetro
+    // (o con un valor no reconocido) se asume arrendatario, como antes.
+    const app = String(router.query.app || "").toLowerCase();
+    const scheme = app === "owner" ? "arriendatuautoduenos" : "arriendatuauto";
+    const targetLink = `${scheme}://kyc-retorno${search}`;
     setDeepLink(targetLink);
 
     const timer = setTimeout(() => {
