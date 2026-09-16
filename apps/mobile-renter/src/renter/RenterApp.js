@@ -35,6 +35,7 @@ import {
   CompletarLicenciaScreen,
   TabBar,
   useConversaciones,
+  PromoterPanelScreen,
 } from "@rentacar/mobile-shared";
 
 export function RenterApp() {
@@ -80,6 +81,7 @@ export function RenterApp() {
   const [showWallet, setShowWallet] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showLicencia, setShowLicencia] = useState(false);
+  const [showPromoterPanel, setShowPromoterPanel] = useState(false);
   // Conversación elegida a mano desde la lista de Mensajes (cuando no hay un
   // arriendo activo obvio al que entrar directo).
   const [chatReservaSeleccionada, setChatReservaSeleccionada] = useState(null);
@@ -146,6 +148,11 @@ export function RenterApp() {
           onDone={() => setShowLicencia(false)}
         />
       );
+    }
+
+    // 1c2. Panel de "invita y gana" (código propio + estadísticas)
+    if (showPromoterPanel) {
+      return <PromoterPanelScreen onBack={() => setShowPromoterPanel(false)} />;
     }
 
     // 1b. Editar datos de contacto de la cuenta (nombre / teléfono)
@@ -430,6 +437,7 @@ export function RenterApp() {
             onOpenFavorites={() => setShowFavorites(true)}
             onOpenNotifications={() => setShowNotifications(true)}
             onOpenSupport={() => setShowSupport(true)}
+            onOpenPromoterPanel={() => setShowPromoterPanel(true)}
           />
         );
 
@@ -441,6 +449,7 @@ export function RenterApp() {
   const isModalOpen =
     showEnrolment ||
     showEditProfile ||
+    showPromoterPanel ||
     showMap ||
     showFavorites ||
     !!selectedCar ||
@@ -460,6 +469,7 @@ export function RenterApp() {
   const capasAbiertas = [];
   if (showEnrolment) capasAbiertas.push({ nivel: "kyc", onCerrar: () => setShowEnrolment(false) });
   if (showLicencia) capasAbiertas.push({ nivel: "licencia", onCerrar: () => setShowLicencia(false) });
+  if (showPromoterPanel) capasAbiertas.push({ nivel: "invita-y-gana", onCerrar: () => setShowPromoterPanel(false) });
   if (showEditProfile) capasAbiertas.push({ nivel: "editar-perfil", onCerrar: () => setShowEditProfile(false) });
   if (showFavorites) capasAbiertas.push({ nivel: "favoritos", onCerrar: () => setShowFavorites(false) });
   if (showMap) capasAbiertas.push({ nivel: "mapa", onCerrar: () => setShowMap(false) });

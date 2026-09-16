@@ -14,7 +14,6 @@ import {
   ApiClient,
   showAlert,
   msjError,
-  ReferralCodeCard,
   LegalModal,
   ReadinessBand,
 } from "@rentacar/mobile-shared";
@@ -32,6 +31,7 @@ export function RenterProfileScreen({
   onOpenFavorites,
   onOpenNotifications,
   onOpenSupport,
+  onOpenPromoterPanel,
 }) {
   const insets = useSafeAreaInsets();
   const { currentUser, reservations, logout } = useApp();
@@ -172,14 +172,13 @@ export function RenterProfileScreen({
             <MenuRow tile tileTone="menta" icon="shield" label="Identidad" meta={identidadMeta} onPress={handleKycPress} />
             <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenPaymentMethods} />
             <MenuRow tile icon="heart" label="Autos guardados" onPress={onOpenFavorites} />
+            <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />
             <MenuRow tile icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
             <MenuRow tile icon="help" label="Centro de ayuda" onPress={onOpenSupport} />
             <MenuRow tile icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
             <MenuRow tile tileTone="danger" icon="logout" label="Cerrar sesión" danger onPress={handleLogout} />
           </MenuList>
         </View>
-
-        <ReferralCodeCard />
 
         <TouchableOpacity
           onPress={handleEliminarCuenta}

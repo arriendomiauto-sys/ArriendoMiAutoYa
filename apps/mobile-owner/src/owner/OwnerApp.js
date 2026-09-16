@@ -20,6 +20,7 @@ import {
   msjError,
   verificarMandatoAceptado,
   ChatListScreen,
+  PromoterPanelScreen,
 } from "@rentacar/mobile-shared";
 
 // Screens del Dueño
@@ -74,6 +75,7 @@ export function OwnerApp() {
   const [showAddCar, setShowAddCar] = useState(false);
   const [showEnrolment, setShowEnrolment] = useState(false);
   const [showTarjeta, setShowTarjeta] = useState(false);
+  const [showPromoterPanel, setShowPromoterPanel] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showMaintenance, setShowMaintenance] = useState(false);
@@ -174,6 +176,10 @@ export function OwnerApp() {
 
     if (showTarjeta) {
       return <TarjetaScreen onBack={() => setShowTarjeta(false)} onDone={() => setShowTarjeta(false)} />;
+    }
+
+    if (showPromoterPanel) {
+      return <PromoterPanelScreen onBack={() => setShowPromoterPanel(false)} />;
     }
 
     if (showEditProfile) {
@@ -337,6 +343,7 @@ export function OwnerApp() {
             onOpenSupport={() => setShowSupport(true)}
             onOpenEnrolment={() => setShowEnrolment(true)}
             onOpenTarjeta={() => setShowTarjeta(true)}
+            onOpenPromoterPanel={() => setShowPromoterPanel(true)}
           />
         );
 
@@ -348,6 +355,7 @@ export function OwnerApp() {
   const barraOculta =
     showEnrolment ||
     showTarjeta ||
+    showPromoterPanel ||
     showEditProfile ||
     showDeliveryFlow ||
     showCalendar ||
@@ -366,6 +374,7 @@ export function OwnerApp() {
   const capasAbiertas = [];
   if (showEnrolment) capasAbiertas.push({ nivel: "kyc", onCerrar: () => setShowEnrolment(false) });
   if (showTarjeta) capasAbiertas.push({ nivel: "tarjetas", onCerrar: () => setShowTarjeta(false) });
+  if (showPromoterPanel) capasAbiertas.push({ nivel: "invita-y-gana", onCerrar: () => setShowPromoterPanel(false) });
   if (showEditProfile) capasAbiertas.push({ nivel: "editar-perfil", onCerrar: () => setShowEditProfile(false) });
   if (showDeliveryFlow) capasAbiertas.push({ nivel: "entrega", onCerrar: () => setShowDeliveryFlow(false) });
   if (showCalendar) capasAbiertas.push({ nivel: "calendario", onCerrar: () => setShowCalendar(false) });
