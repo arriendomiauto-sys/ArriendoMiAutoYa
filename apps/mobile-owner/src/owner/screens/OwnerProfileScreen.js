@@ -15,7 +15,6 @@ import {
   ReferralCodeCard,
   LegalModal,
   ReadinessBand,
-  ModeSwitchRow,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
 
@@ -36,7 +35,7 @@ export function OwnerProfileScreen({
   onOpenTarjeta,
 }) {
   const insets = useSafeAreaInsets();
-  const { currentUser, logout, setMode } = useApp();
+  const { currentUser, logout } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
   const [showLegal, setShowLegal] = useState(false);
   const [eliminando, setEliminando] = useState(false);
@@ -189,14 +188,6 @@ export function OwnerProfileScreen({
             <MenuRow tile tileTone="danger" icon="logout" label="Cerrar sesión" danger onPress={handleLogout} />
           </MenuList>
         </View>
-
-        <ModeSwitchRow
-          tone="light"
-          target="renter"
-          title="Cambiar a modo arrendatario"
-          desc="Busca y reserva autos para arrendar."
-          onPress={() => setMode("renter")}
-        />
 
         <ReferralCodeCard />
 
