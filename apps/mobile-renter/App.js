@@ -15,41 +15,25 @@ import {
   useVersionCheck,
 } from "@rentacar/mobile-shared";
 import { RenterApp } from "./src/renter/RenterApp";
-import { OwnerApp } from "./src/owner/OwnerApp";
 
-// App unificada: un solo binario con dos experiencias. `mode` (persistido en
-// AppContext) decide cuál se muestra:
-//   - "renter" -> RenterApp
-//   - "owner"  -> OwnerApp
-// Ambos roles comparten la MISMA base clara; el lado dueño se distingue por
-// acentos premium (teal casi negro) aplicados pieza a pieza dentro de sus
-// pantallas, no por el marco de la app.
-// El usuario elige el modo inicial en el registro y alterna entre ellos
-// desde su perfil. La verificación de identidad (KYC) no bloquea el acceso:
-// se pide recién al publicar o reservar un auto de verdad.
+// App del Arrendatario, separada de la de Dueño (mobile-owner). Cada una es
+// un binario propio con su propio rol fijo — ver
+// docs/superpowers/specs/2026-09-15-mobile-app-split-design.md.
 function Root() {
-  const { isLoggedIn, authLoading, mode, transition } = useApp();
+  const { isLoggedIn, authLoading, transition } = useApp();
   const { bloqueado, urlStore } = useVersionCheck();
 
-  // Versión obligatoria: tiene prioridad sobre todo lo demás, incluido el
-  // login — no tiene sentido dejar entrar a una versión que el backend ya no
-  // soporta.
   if (bloqueado) {
     return <ForceUpdateScreen urlStore={urlStore} />;
   }
 
-  // Arranque: mientras se rehidrata la sesión de Supabase se muestra la
-  // pantalla de carga. La biometría ya no bloquea el acceso general — solo se
-  // pide al firmar y confirmar el arriendo de un vehículo.
   if (authLoading) {
-    return <SwitchingScreen mode={mode} title="Cargando tu sesión" subtitle="Un segundo, estamos abriendo la app." />;
+    return <SwitchingScreen mode="renter" title="Cargando tu sesión" subtitle="Un segundo, estamos abriendo la app." />;
   }
 
   return (
     <>
-      {isLoggedIn ? (mode === "owner" ? <OwnerApp /> : <RenterApp />) : <AuthFlow />}
-      {/* Cambio de rol o de cuenta: la experiencia destino monta debajo y la
-          transición se retira cuando ya está lista. */}
+      {isLoggedIn ? <RenterApp /> : <AuthFlow fixedRole="renter" />}
       {transition ? (
         <SwitchingScreen
           overlay
@@ -62,20 +46,12 @@ function Root() {
   );
 }
 
-// El marco de área segura de toda la app. Los dos roles comparten la misma
-// base clara, así que el marco es siempre claro (barra de estado con iconos
-// oscuros incluida). El acento premium del dueño vive dentro de sus pantallas.
 function ThemedFrame() {
   const { isConnected } = useNetworkStatus();
   return (
     <>
-      {/* Barra de estado translúcida: el contenido queda debajo del notch
-          gracias al SafeAreaView. */}
       <StatusBar style="dark" translucent />
       <View style={[styles.outerFrame, { backgroundColor: colors.appOuter }]}>
-        {/* Único borde de área segura de toda la app. Los edges top/left/right
-            empujan el contenido fuera del notch; el inset inferior lo maneja
-            cada barra fija (tab bar, botoneras). */}
         <SafeAreaView
           style={[styles.appContainer, { backgroundColor: colors.background }]}
           edges={["top", "left", "right"]}
@@ -91,16 +67,10 @@ function ThemedFrame() {
 }
 
 export default function App() {
-  // Sin `initialMetrics`, a propósito: en Android edge-to-edge (15+),
-  // `initialWindowMetrics` puede llegar con los insets mal medidos (queda
-  // tomada antes de que el sistema termine de acomodar la barra de estado
-  // translúcida) y ESA foto mala se queda pegada — es lo que empujaba
-  // pantallas enteras a la mitad inferior. Dejar que SafeAreaProvider mida
-  // en vivo cambia un parpadeo inicial mínimo por insets siempre correctos.
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AppProvider>
+        <AppProvider initialMode="renter">
           <ThemedFrame />
         </AppProvider>
       </SafeAreaProvider>
