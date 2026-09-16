@@ -5,6 +5,7 @@
 // mocks oficiales de cada librería en vez de dejar que intenten cargar el
 // TurboModule real.
 require("react-native-gesture-handler/jestSetup");
+jest.mock("react-native-worklets", () => require("react-native-worklets/lib/module/mock"));
 jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock"));
 
 // react-native-maps es un módulo nativo: en jest se mockea a componentes vacíos.
