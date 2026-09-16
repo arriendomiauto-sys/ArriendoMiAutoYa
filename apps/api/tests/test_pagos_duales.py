@@ -176,7 +176,7 @@ def test_pagar_exige_firmar_el_contrato_antes(usuario_factory, auth_as, db_sessi
     assert pago.json()["detail"]["codigo"] == "CONTRATO_NO_FIRMADO"
 
 
-def test_pagar_con_tipo_de_tarjeta_equivocado(usuario_factory, auth_as, db_session):
+def test_pagar_con_debito_en_la_garantia_se_rechaza(usuario_factory, auth_as, db_session):
     dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
     auto = _auto(db_session, dueno, patente="PGTT-14")
     cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
@@ -185,14 +185,51 @@ def test_pagar_con_tipo_de_tarjeta_equivocado(usuario_factory, auth_as, db_sessi
     reserva = _crear_reserva(auth_as, cliente, auto).json()
     _firmar(auth_as, cliente, reserva["id"])
 
-    # Se invierten los roles: crédito para el cobro, débito para la garantía.
+    # La garantía SIEMPRE es un hold en crédito — débito ahí sigue inválido,
+    # aunque crédito para el cobro ya no lo sea (ver el test siguiente).
     pago = auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
         json={"tarjeta_cobro_id": cred["id"], "tarjeta_garantia_id": deb["id"]},
     )
     assert pago.status_code == 402
     assert pago.json()["detail"]["codigo"] == "TARJETA_TIPO_INVALIDO"
-    assert pago.json()["detail"]["campo"] == "cobro"
+    assert pago.json()["detail"]["campo"] == "garantia"
+
+
+def test_pagar_el_arriendo_con_credito_es_valido(usuario_factory, auth_as, db_session):
+    """El cobro del arriendo acepta débito o crédito — la garantía sigue
+    siendo exclusiva de crédito, así que hace falta una segunda tarjeta de
+    crédito distinta para no repetir la misma en ambos campos."""
+    dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
+    auto = _auto(db_session, dueno, patente="PGCR-17")
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    cred_cobro = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111").json()["tarjeta"]
+    cred_garantia = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-2222").json()["tarjeta"]
+    reserva = _crear_reserva(auth_as, cliente, auto).json()
+    _firmar(auth_as, cliente, reserva["id"])
+
+    pago = auth_as(cliente).post(
+        f"/api/v1/reservas/{reserva['id']}/pagar",
+        json={"tarjeta_cobro_id": cred_cobro["id"], "tarjeta_garantia_id": cred_garantia["id"]},
+    )
+    assert pago.status_code == 200, pago.text
+    assert pago.json()["estado"] == "confirmada"
+
+
+def test_pagar_con_la_misma_tarjeta_en_cobro_y_garantia_se_rechaza(usuario_factory, auth_as, db_session):
+    dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
+    auto = _auto(db_session, dueno, patente="PGSM-18")
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111").json()["tarjeta"]
+    reserva = _crear_reserva(auth_as, cliente, auto).json()
+    _firmar(auth_as, cliente, reserva["id"])
+
+    pago = auth_as(cliente).post(
+        f"/api/v1/reservas/{reserva['id']}/pagar",
+        json={"tarjeta_cobro_id": cred["id"], "tarjeta_garantia_id": cred["id"]},
+    )
+    assert pago.status_code == 402
+    assert pago.json()["detail"]["codigo"] == "TARJETA_TIPO_INVALIDO"
 
 
 def test_cobro_rechazado_no_deja_garantia_retenida(usuario_factory, auth_as, db_session):

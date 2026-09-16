@@ -158,10 +158,19 @@ def procesar_pago(
     if "arrendatario" not in {f.rol for f in reserva.firmas}:
         raise CheckoutError(409, "CONTRATO_NO_FIRMADO", "Firma el contrato antes de pagar.")
 
-    tc = _tarjeta_de(db, usuario, tarjeta_cobro_id)
-    if not tc or tc.tipo != "debito" or tc.estado != "validada":
+    if tarjeta_cobro_id == tarjeta_garantia_id:
         raise CheckoutError(402, "TARJETA_TIPO_INVALIDO",
-                            "El arriendo se cobra a una tarjeta de débito validada.", campo="cobro")
+                            "El cobro del arriendo y la garantía deben ir en tarjetas distintas.",
+                            campo="cobro")
+
+    tc = _tarjeta_de(db, usuario, tarjeta_cobro_id)
+    # El cobro del arriendo acepta débito o crédito (antes solo débito) — la
+    # garantía siempre es un hold en crédito, así que si el arrendatario no
+    # tiene débito puede igual reservar dejando ambos montos en la misma
+    # tarjeta de crédito (con tarjetas distintas, valida arriba).
+    if not tc or tc.tipo not in ("debito", "credito") or tc.estado != "validada":
+        raise CheckoutError(402, "TARJETA_TIPO_INVALIDO",
+                            "El arriendo se cobra a una tarjeta de débito o crédito validada.", campo="cobro")
     tg = _tarjeta_de(db, usuario, tarjeta_garantia_id)
     if not tg or tg.tipo != "credito" or tg.estado != "validada":
         raise CheckoutError(402, "TARJETA_TIPO_INVALIDO",
