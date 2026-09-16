@@ -23,6 +23,7 @@ from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.auth.onboarding.contract_service import ContractService
 from app.features.auth.onboarding.fines_service import FinesService
 from app.features.communications.notifications.service import crear_notificacion
+from app.features.communications.email.service import enviar_contrato_firmado
 from app.features.auth.login.service import get_current_user
 from app.features.auth.didit import didit as verificacion_didit
 from app.features.auth.background_checks import BackgroundCheckService
@@ -36,6 +37,22 @@ from app.services import tarjetas
 from app.features.payments import checkout_service
 
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
+
+# Clase de licencia chilena exigida por categoría de vehículo. Clase B habilita
+# vehículos particulares (hasta 9 asientos o carga) con peso bruto vehicular
+# de hasta 3.500 kg — todo el catálogo actual (economico/sedan/suv/camioneta/
+# premium) cae bajo ese umbral, así que hoy las 5 categorías piden lo mismo.
+# Clase A2 es para transporte remunerado de pasajeros (taxis) y no aplica: el
+# arrendatario conduce para uso propio, no presta un servicio. Si algún día se
+# publica un vehículo de carga pesada (>3.500 kg PBV) va a hacer falta
+# diferenciar esa categoría y exigir A4.
+CLASES_LICENCIA_REQUERIDAS_POR_CATEGORIA = {
+    "economico": {"B"},
+    "sedan": {"B"},
+    "suv": {"B"},
+    "camioneta": {"B"},
+    "premium": {"B"},
+}
 
 
 def _con_desglose_pago(reserva: Reserva):
@@ -92,6 +109,25 @@ def crear_reserva(
         raise HTTPException(status_code=404, detail="Auto no encontrado")
     if auto.estado != "activo":
         raise HTTPException(status_code=400, detail="El auto no está disponible para arriendo")
+
+    # Clase de licencia vs. categoría del vehículo. "Clase" (B, A2, A4...) es
+    # una taxonomía chilena sin equivalente directo en otros países — ahí ya
+    # rige evaluar_licencia_usuario más arriba (Convenio de Viena, PIC,
+    # homologación), así que este cruce solo aplica a licencias chilenas.
+    pais_licencia = (
+        current_user.licencia_pais_emisor or current_user.pais_documento or "CL"
+    ).strip().upper()
+    if pais_licencia == "CL":
+        clases_requeridas = CLASES_LICENCIA_REQUERIDAS_POR_CATEGORIA.get(auto.categoria)
+        if clases_requeridas and current_user.licencia_clase not in clases_requeridas:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Tu licencia de conducir clase {current_user.licencia_clase or 'no registrada'} "
+                    f"no te habilita para arrendar un vehículo categoría '{auto.categoria}'. "
+                    f"Se requiere clase {'/'.join(sorted(clases_requeridas))}."
+                ),
+            )
 
     # Reingreso al checkout: el usuario pudo arrancar el pago de este auto y
     # salirse sin pagar. Su propia reserva `pendiente_pago` no expirada ya ocupa
@@ -423,7 +459,8 @@ def firmar_contrato(
         )
 
     # 3. Bloque: hash del contrato vigente — prueba de QUÉ se está firmando
-    pdf_hash = ContractService.calcular_hash_contrato(_generar_pdf_contrato(reserva, db))
+    pdf_bytes = _generar_pdf_contrato(reserva, db)
+    pdf_hash = ContractService.calcular_hash_contrato(pdf_bytes)
 
     # 4. Bloque: upsert del registro de firma (una por rol)
     firma = (
@@ -448,7 +485,8 @@ def firmar_contrato(
     # 5. Bloque: con ambas partes firmadas, se marca la fecha de firma del contrato
     roles_firmados = {f.rol for f in reserva.firmas} | {rol}
     ambas_partes = {"arrendatario", "arrendador"}.issubset(roles_firmados)
-    if ambas_partes and not reserva.fecha_firma_biometrica:
+    contrato_recien_completado = ambas_partes and not reserva.fecha_firma_biometrica
+    if contrato_recien_completado:
         reserva.fecha_firma_biometrica = firma.firmado_en
 
     db.commit()
@@ -469,6 +507,22 @@ def firmar_contrato(
             ),
             entidad_tipo="reserva",
             entidad_id=reserva_id,
+        )
+
+    # 7. Bloque: contrato recién completado (primera vez que firman ambas
+    # partes) — se lo mandamos por correo a las dos, con el PDF ya generado
+    # arriba (mismos bytes que se hashearon, para no regenerar el documento
+    # dos veces). No hace nada si Resend no está configurado.
+    if contrato_recien_completado:
+        dueno = auto.dueno if auto else None
+        enviar_contrato_firmado(
+            destinatarios=[
+                (reserva.cliente.email if reserva.cliente else None),
+                (dueno.email if dueno else None),
+            ],
+            patente=auto.patente if auto else "",
+            reserva_id=reserva_id,
+            pdf_bytes=pdf_bytes,
         )
 
     return firma

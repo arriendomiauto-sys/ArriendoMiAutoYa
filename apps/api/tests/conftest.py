@@ -296,6 +296,7 @@ def usuario_factory(db_session):
     lógica de cada endpoint (ownership, roles) de forma aislada.
     """
     def _factory(roles_activos=None, **kwargs):
+        estado_documentos = kwargs.get("estado_documentos", "verificado")
         user = Usuario(
             id=kwargs.get("id") or str(uuid.uuid4()),
             nombre=kwargs.get("nombre", "Usuario de Prueba"),
@@ -303,7 +304,7 @@ def usuario_factory(db_session):
             email=kwargs.get("email") or f"{uuid.uuid4().hex[:10]}@test.cl",
             telefono=kwargs.get("telefono"),
             roles_activos=roles_activos if roles_activos is not None else ["cliente"],
-            estado_documentos=kwargs.get("estado_documentos", "verificado"),
+            estado_documentos=estado_documentos,
             sucursal_id=kwargs.get("sucursal_id"),
             # Un usuario verificado tiene, por definición, una tarjeta validada:
             # se registra junto con el KYC y sin ella no puede arrendar ni
@@ -314,6 +315,16 @@ def usuario_factory(db_session):
             tarjeta_marca=kwargs.get("tarjeta_marca", "visa"),
             tarjeta_token=kwargs.get("tarjeta_token", "tok-test"),
             expo_push_token=kwargs.get("expo_push_token"),
+            # Un usuario "verificado" salió del KYC: en producción eso deja
+            # licencia_clase poblada (default "B" para chilenos si no la trae
+            # el OCR — ver onboarding/router.py). Solo se aplica ese default
+            # cuando estado_documentos ya es "verificado": un usuario
+            # "pendiente" (todavía no pasó KYC) no debe traerlo, ver
+            # test_verification_kyc.py::...persiste_identidad_pero_no_la_licencia.
+            licencia_pais_emisor=kwargs.get("licencia_pais_emisor"),
+            licencia_clase=kwargs.get("licencia_clase", "B" if estado_documentos == "verificado" else None),
+            licencia_estado=kwargs.get("licencia_estado"),
+            fecha_nacimiento=kwargs.get("fecha_nacimiento"),
         )
         db_session.add(user)
         db_session.commit()
