@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, JSON, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Text, JSON, UniqueConstraint, CheckConstraint, Index, text
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -14,6 +14,22 @@ def utc_now():
 
 class Usuario(Base):
     __tablename__ = "usuarios"
+    __table_args__ = (
+        # Un mismo token de dispositivo no debería quedar registrado en dos
+        # cuentas a la vez: en un dispositivo compartido, si el usuario
+        # anterior no lo limpió al cerrar sesión, un push dirigido a SU cuenta
+        # terminaba llegando al dispositivo que ahora usa otra persona.
+        # PUT /usuarios/me/push-token ya se lo "roba" al dueño anterior antes
+        # de asignarlo; este índice es la garantía a nivel de BD. Parcial
+        # (solo NOT NULL) porque muchas cuentas nunca registran push.
+        Index(
+            "uq_usuarios_expo_push_token",
+            "expo_push_token",
+            unique=True,
+            postgresql_where=text("expo_push_token IS NOT NULL"),
+            sqlite_where=text("expo_push_token IS NOT NULL"),
+        ),
+    )
 
     id = Column(String, primary_key=True, default=generate_uuid)
     nombre = Column(String, nullable=True)
@@ -186,6 +202,12 @@ class CuentaCobro(Base):
 
 class Auto(Base):
     __tablename__ = "autos"
+    __table_args__ = (
+        CheckConstraint(
+            "categoria IN ('economico', 'sedan', 'suv', 'camioneta', 'premium')",
+            name="ck_auto_categoria_valida",
+        ),
+    )
 
     id = Column(String, primary_key=True, default=generate_uuid)
     dueno_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
@@ -215,6 +237,7 @@ class Auto(Base):
     doc_permiso_circulacion_url = Column(String, nullable=True)  # Permiso de circulación vigente
     doc_soap_url = Column(String, nullable=True)                 # Seguro Obligatorio (SOAP) vigente
     doc_revision_tecnica_url = Column(String, nullable=True)     # Revisión técnica al día
+    doc_certificado_gases_url = Column(String, nullable=True)    # Certificado de emisión de gases, obligatorio y propio (antes: marcador dentro de la revisión técnica)
     doc_seguro_url = Column(String, nullable=True)               # Póliza de seguro comercial (opcional; validada por OCR)
     documentos_verificados = Column(Boolean, default=False)     # Los revisó un ejecutivo
 

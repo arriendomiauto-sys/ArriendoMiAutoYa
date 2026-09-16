@@ -376,6 +376,7 @@ class AutoPendienteKycOut(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    doc_certificado_gases_url: Optional[str] = None
     doc_seguro_url: Optional[str] = None
     documentos_verificados: bool = False
 
@@ -467,6 +468,7 @@ class AutoBase(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    doc_certificado_gases_url: Optional[str] = None
     # Póliza de seguro comercial: OPCIONAL. Si viene, el router la pasa por OCR
     # y solo la guarda si se lee como un documento contractual de seguro; una
     # imagen genérica se descarta (el auto se publica igual).
@@ -534,6 +536,7 @@ class AutoUpdate(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    doc_certificado_gases_url: Optional[str] = None
     doc_seguro_url: Optional[str] = None
     gps_consentimiento: Optional[bool] = None
 
@@ -555,6 +558,7 @@ class ValidarDocumentosAutoRequest(BaseModel):
     doc_permiso_circulacion_url: Optional[str] = None
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
+    doc_certificado_gases_url: Optional[str] = None
     doc_seguro_url: Optional[str] = None
 
 
