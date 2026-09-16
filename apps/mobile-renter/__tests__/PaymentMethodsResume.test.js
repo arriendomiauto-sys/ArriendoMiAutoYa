@@ -20,6 +20,7 @@ const tarjetaDebito = { id: "deb-1", tipo: "debito", predeterminada_cobro: true 
 const tarjetaCredito = { id: "cred-1", tipo: "credito", predeterminada_garantia: true };
 jest.mock("@rentacar/mobile-shared/hooks/useTarjetas", () => ({
   useTarjetas: () => ({
+    validadas: [tarjetaDebito, tarjetaCredito],
     tarjetasDebito: [tarjetaDebito],
     tarjetasCredito: [tarjetaCredito],
     agregar: jest.fn(),

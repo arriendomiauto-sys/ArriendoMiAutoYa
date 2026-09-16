@@ -269,6 +269,12 @@ export class ApiClient {
     });
   }
 
+  // Panel de "invita y gana": código, link para compartir y estadísticas
+  // (ver referrals_service.obtener_estadisticas en el backend).
+  static async getProgramaReferidos() {
+    return this.request("/usuarios/me/programa-referidos");
+  }
+
   // Autos / Marketplace
   static async getAutos(params = {}) {
     try {
@@ -436,8 +442,9 @@ export class ApiClient {
   // Sesión hosted de Didit para verificar la identidad del segundo
   // conductor (cédula + selfie) -- la licencia nunca pasa por acá, sigue
   // yendo por PUT .../segundo-conductor con licencia_url.
-  static async crearSesionVerificacionSegundoConductor(reservaId) {
-    return this.request(`/reservas/${reservaId}/segundo-conductor/verificacion-externa/sesion`, {
+  static async crearSesionVerificacionSegundoConductor(reservaId, app) {
+    const query = app ? `?app=${encodeURIComponent(app)}` : "";
+    return this.request(`/reservas/${reservaId}/segundo-conductor/verificacion-externa/sesion${query}`, {
       method: "POST",
     });
   }
@@ -506,9 +513,10 @@ export class ApiClient {
   // (Didit, flujo hosted). Devuelve { url, session_id, estado } para abrir en
   // el navegador, o `null` si el backend no tiene la verificación externa
   // habilitada (HTTP 503) — en ese caso la app sigue con el flujo de cámara.
-  static async crearSesionVerificacionExterna() {
+  static async crearSesionVerificacionExterna(app) {
+    const query = app ? `?app=${encodeURIComponent(app)}` : "";
     try {
-      return await this.request("/enrolamiento/verificacion-externa/sesion", { method: "POST" });
+      return await this.request(`/enrolamiento/verificacion-externa/sesion${query}`, { method: "POST" });
     } catch (err) {
       if (err?.status === 503) return null;
       throw err;

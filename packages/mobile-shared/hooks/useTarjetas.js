@@ -127,6 +127,9 @@ export function useTarjetas() {
     recargar,
     agregar,
     eliminar,
+    // El cobro del arriendo acepta débito o crédito (ver checkout_service.py
+    // en el backend): `validadas` es el pool completo para ese selector.
+    validadas,
     tarjetasDebito,
     tarjetasCredito,
     tieneDebito: tarjetasDebito.length > 0,

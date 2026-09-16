@@ -67,10 +67,13 @@ describe("SegundoConductorModal · identidad con Didit", () => {
     });
 
     expect(mockAsignar).toHaveBeenCalledWith("res-1", { nombre: "Carlos Segundo" });
-    expect(mockCrearSesion).toHaveBeenCalledWith("res-1");
+    expect(mockCrearSesion).toHaveBeenCalledWith("res-1", "renter");
 
     const WebBrowser = require("expo-web-browser");
-    expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://verify.didit.me/sess-1");
+    expect(WebBrowser.openAuthSessionAsync).toHaveBeenCalledWith(
+      "https://verify.didit.me/sess-1",
+      "arriendatuauto://kyc-retorno"
+    );
     expect(mockObtener).toHaveBeenCalledWith("res-1");
   });
 
@@ -95,7 +98,7 @@ describe("SegundoConductorModal · identidad con Didit", () => {
     });
 
     expect(mockAsignar).not.toHaveBeenCalled();
-    expect(mockCrearSesion).toHaveBeenCalledWith("res-1");
+    expect(mockCrearSesion).toHaveBeenCalledWith("res-1", "renter");
   });
 
   it("si la identidad ya está aprobada, no muestra el botón de Didit ni la captura manual", async () => {

@@ -77,15 +77,28 @@ export function useKycFlow({ role = "renter", prefill = null, onComplete, onBack
     if (isLoading) return;
     setIsLoading(true);
     try {
-      const session = await ApiClient.crearSesionVerificacionExterna();
+      // "owner" | "renter": el backend arma el callback de Didit con este
+      // valor para que la web de retorno abra el deep link de la app
+      // correcta (arriendatuautoduenos:// vs arriendatuauto://) — un mismo
+      // usuario puede ser dueño y arrendatario, así que no se puede inferir
+      // solo del usuario.
+      const appId = role === "owner" ? "owner" : "renter";
+      const session = await ApiClient.crearSesionVerificacionExterna(appId);
       if (!session?.url) {
         throw new Error("El proveedor no devolvió una URL válida.");
       }
 
       setDiditSession(session);
 
+      const redirectUrl =
+        appId === "owner" ? "arriendatuautoduenos://kyc-retorno" : "arriendatuauto://kyc-retorno";
       const WebBrowser = loadWebBrowser();
-      if (WebBrowser?.openBrowserAsync) {
+      if (WebBrowser?.openAuthSessionAsync) {
+        // A diferencia de openBrowserAsync (solo resuelve al cerrar
+        // manualmente), esto escucha el deep link de retorno y cierra el
+        // navegador solo — el cierre no dependía del usuario ni del SO.
+        await WebBrowser.openAuthSessionAsync(session.url, redirectUrl);
+      } else if (WebBrowser?.openBrowserAsync) {
         await WebBrowser.openBrowserAsync(session.url);
       } else {
         await Linking.openURL(session.url);
@@ -123,7 +136,7 @@ export function useKycFlow({ role = "renter", prefill = null, onComplete, onBack
     } finally {
       setIsLoading(false);
     }
-  }, [syncProfile, isLoading]);
+  }, [syncProfile, isLoading, role]);
 
   // ==========================================================================
   // Bloque: pasar a la captura manual (respaldo)

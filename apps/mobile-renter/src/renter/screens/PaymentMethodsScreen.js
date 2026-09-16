@@ -25,7 +25,7 @@ const clp = (n) => `$${(n || 0).toLocaleString("es-CL")}`;
 export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentSuccess, existingReservation }) {
   const insets = useSafeAreaInsets();
   const { currentUser } = useApp();
-  const { tarjetasDebito, tarjetasCredito, agregar, recargar } = useTarjetas();
+  const { validadas, tarjetasDebito, tarjetasCredito, agregar, recargar } = useTarjetas();
 
   // Reanudar una reserva `pendiente_pago` ya existente (desde "Mis reservas"
   // o el reintento en el arriendo activo) no trae `car`/`booking` por
@@ -74,12 +74,19 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
     };
   }, []);
 
-  // Preselección: la tarjeta marcada como predeterminada, o la primera.
+  // El cobro del arriendo acepta débito o crédito; la garantía es siempre un
+  // hold en crédito y no puede repetir la misma tarjeta que el cobro.
+  const tarjetasCobro = validadas.filter((t) => t.id !== tarjetaGarantiaId);
+
+  // Preselección: la tarjeta marcada como predeterminada, o la primera —
+  // prefiere débito si hay (evita "gastar" cupo de crédito sin necesidad).
   useEffect(() => {
-    if (!tarjetaCobroId && tarjetasDebito.length) {
-      setTarjetaCobroId((tarjetasDebito.find((t) => t.predeterminada_cobro) || tarjetasDebito[0]).id);
+    if (!tarjetaCobroId && tarjetasCobro.length) {
+      setTarjetaCobroId(
+        (tarjetasDebito.find((t) => t.predeterminada_cobro) || tarjetasDebito[0] || tarjetasCobro[0]).id
+      );
     }
-  }, [tarjetasDebito, tarjetaCobroId]);
+  }, [tarjetasCobro, tarjetasDebito, tarjetaCobroId]);
   useEffect(() => {
     if (!tarjetaGarantiaId && tarjetasCredito.length) {
       setTarjetaGarantiaId(
@@ -87,6 +94,16 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
       );
     }
   }, [tarjetasCredito, tarjetaGarantiaId]);
+
+  // Si ambos selectores terminan apuntando a la misma tarjeta (p. ej. el
+  // usuario cambia la garantía a la que ya estaba usando para el cobro),
+  // limpia el cobro en vez de dejar seleccionado un id que ya no aparece
+  // en su lista (el backend igual lo rechazaría con TARJETA_TIPO_INVALIDO).
+  useEffect(() => {
+    if (tarjetaCobroId && tarjetaCobroId === tarjetaGarantiaId) {
+      setTarjetaCobroId(null);
+    }
+  }, [tarjetaCobroId, tarjetaGarantiaId]);
 
   const listo = !!tarjetaCobroId && !!tarjetaGarantiaId && !pagando;
 
@@ -175,16 +192,18 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
           `Esta tarjeta no tiene cupo para la garantía de ${clp(garantia)}. Elige otra o agrega una.`
         );
       } else if (e?.codigo === "COBRO_RECHAZADO") {
-        setErrorCobro(mensajeLimpio || "El cobro fue rechazado. Prueba con otra tarjeta de débito.");
+        setErrorCobro(mensajeLimpio || "El cobro fue rechazado. Prueba con otra tarjeta.");
       } else if (e?.codigo === "TARJETA_TIPO_INVALIDO") {
         if (e?.campo === "cobro") {
-          setErrorCobro(mensajeLimpio || "El arriendo requiere una tarjeta de débito validada.");
+          setErrorCobro(
+            mensajeLimpio || "El arriendo requiere una tarjeta de débito o crédito validada, distinta de la garantía."
+          );
         } else if (e?.campo === "garantia") {
           setErrorGarantia(mensajeLimpio || "La garantía requiere una tarjeta de crédito validada.");
         } else {
           showAlert(
             "Tipo de tarjeta incorrecto",
-            mensajeLimpio || "Una de las tarjetas no corresponde al tipo requerido (débito para arriendo, crédito para garantía)."
+            mensajeLimpio || "Una de las tarjetas no corresponde al tipo requerido (débito o crédito para el arriendo, crédito para la garantía)."
           );
         }
         recargar();
@@ -294,16 +313,16 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
 
         <SelectorTarjeta
           titulo="Cobro del arriendo"
-          subtitulo="Se cobra hoy a una tarjeta de débito."
-          tarjetas={tarjetasDebito}
+          subtitulo="Se cobra hoy a una tarjeta de débito o crédito."
+          tarjetas={tarjetasCobro}
           seleccionadaId={tarjetaCobroId}
           onSeleccionar={(id) => {
             setTarjetaCobroId(id);
             setErrorCobro(null);
           }}
-          onAgregar={() => setModalAgregar("debito")}
+          onAgregar={() => setModalAgregar(tarjetasDebito.length ? "credito" : "debito")}
           error={errorCobro}
-          tipoVacio="débito"
+          tipoVacio="débito o crédito"
         />
 
         <SelectorTarjeta

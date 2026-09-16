@@ -11,6 +11,7 @@ import {
   Linking,
   Image,
   TextInput,
+  KeyboardAvoidingView,
 } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
@@ -40,9 +41,17 @@ function cargarEscanerDocumento() {
 
 // Misma carga perezosa que usa el KYC del titular (auth/kyc/utils/kycScanners) —
 // se inlinea acá para no acoplar este modal a las carpetas internas de ese módulo.
+// Este modal solo lo usa la app arrendatario (ActiveRentalScreen), por eso el
+// deep link de retorno es siempre el de esa app.
 function abrirEnNavegador(url) {
   try {
     const WebBrowser = require("expo-web-browser");
+    // openAuthSessionAsync escucha el deep link de retorno y cierra el
+    // navegador solo, a diferencia de openBrowserAsync (solo resuelve al
+    // cerrarse manualmente).
+    if (WebBrowser?.openAuthSessionAsync) {
+      return WebBrowser.openAuthSessionAsync(url, "arriendatuauto://kyc-retorno");
+    }
     if (WebBrowser?.openBrowserAsync) return WebBrowser.openBrowserAsync(url);
   } catch (err) {
     // expo-web-browser no disponible: cae a Linking más abajo.
@@ -151,7 +160,7 @@ export function SegundoConductorModal({
       const id = await asegurarConductorCreado();
       if (!id) return;
 
-      const sesion = await ApiClient.crearSesionVerificacionSegundoConductor(reservaId);
+      const sesion = await ApiClient.crearSesionVerificacionSegundoConductor(reservaId, "renter");
       if (!sesion?.url) throw new Error("El proveedor no devolvió una URL válida.");
 
       await abrirEnNavegador(sesion.url);
@@ -341,7 +350,10 @@ export function SegundoConductorModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <View style={styles.modalContent}>
           <ScreenHeader
             title="Segundo Conductor"
@@ -531,7 +543,7 @@ export function SegundoConductorModal({
             />
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
