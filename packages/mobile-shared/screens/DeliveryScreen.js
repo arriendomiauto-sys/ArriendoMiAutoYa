@@ -87,6 +87,31 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   const cameraRef = useRef(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
+  // Zoom rápido (0.5x/1x/2x). El prop `zoom` de expo-camera es 0-1 (porcentaje
+  // del zoom digital máximo del equipo, no un múltiplo real), así que "2x" es
+  // una aproximación razonable, no un valor calibrado. "0.5x" (gran angular
+  // real) solo existe en iPhones con esa lente física, vía `selectedLens`
+  // (API de solo iOS) — en el resto de los equipos ese botón ni se muestra.
+  const ZOOM_DIGITAL_2X = 0.1;
+  const [nivelZoom, setNivelZoom] = useState("1x");
+  const [lenteUltraWide, setLenteUltraWide] = useState(null);
+  useEffect(() => {
+    if (!cameraPermission?.granted) return;
+    cameraRef.current
+      ?.getAvailableLensesAsync?.()
+      .then((lentes) => {
+        const ultraWide = (lentes || []).find((l) => /ultrawide/i.test(l));
+        setLenteUltraWide(ultraWide || null);
+      })
+      .catch(() => {});
+  }, [cameraPermission?.granted]);
+  const zoomProps =
+    nivelZoom === "0.5x" && lenteUltraWide
+      ? { zoom: 0, selectedLens: lenteUltraWide }
+      : nivelZoom === "2x"
+      ? { zoom: ZOOM_DIGITAL_2X }
+      : { zoom: 0 };
+
   // Métricas
   const [km, setKm] = useState("");
   const [fuelLevel, setFuelLevel] = useState("¾");
@@ -560,8 +585,36 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           <Image source={{ uri: fotos[currentAngleIdx] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : cameraPermission?.granted ? (
           <>
-            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" {...zoomProps} />
             <View style={styles.guideBox} pointerEvents="none" />
+            <View style={styles.zoomRow}>
+              {lenteUltraWide && (
+                <TouchableOpacity
+                  style={[styles.zoomChip, nivelZoom === "0.5x" && styles.zoomChipActivo]}
+                  onPress={() => setNivelZoom("0.5x")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Zoom gran angular 0.5x"
+                >
+                  <Text style={[styles.zoomChipText, nivelZoom === "0.5x" && styles.zoomChipTextActivo]}>0.5x</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.zoomChip, nivelZoom === "1x" && styles.zoomChipActivo]}
+                onPress={() => setNivelZoom("1x")}
+                accessibilityRole="button"
+                accessibilityLabel="Zoom normal 1x"
+              >
+                <Text style={[styles.zoomChipText, nivelZoom === "1x" && styles.zoomChipTextActivo]}>1x</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.zoomChip, nivelZoom === "2x" && styles.zoomChipActivo]}
+                onPress={() => setNivelZoom("2x")}
+                accessibilityRole="button"
+                accessibilityLabel="Zoom acercado 2x"
+              >
+                <Text style={[styles.zoomChipText, nivelZoom === "2x" && styles.zoomChipTextActivo]}>2x</Text>
+              </TouchableOpacity>
+            </View>
           </>
         ) : (
           <View style={styles.camPermBox}>
