@@ -43,12 +43,12 @@ const TITULOS_MODO = {
  * persiste. No hay cuentas distintas por rol — es la misma sesión de
  * Supabase en ambos modos.
  */
-export function AppProvider({ children }) {
+export function AppProvider({ children, initialMode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
-  const [mode, setModeState] = useState("renter");
+  const [mode, setModeState] = useState(initialMode || "renter");
 
   // null = todavía no se sabe (se está leyendo del almacenamiento). El flujo
   // de autenticación espera a que deje de ser null para decidir si muestra
@@ -68,7 +68,7 @@ export function AppProvider({ children }) {
   const transitionTimer = useRef(null);
   // El modo actual también en un ref: setMode necesita compararlo sin
   // recrearse en cada cambio (lo consumen callbacks memorizados).
-  const modeRef = useRef("renter");
+  const modeRef = useRef(initialMode || "renter");
 
   const endTransition = useCallback((delay = SESSION_SWITCH_MS) => {
     clearTimeout(transitionTimer.current);
@@ -95,17 +95,23 @@ export function AppProvider({ children }) {
   }, []);
 
   // Rehidrata el modo elegido en la sesión anterior y si ya se vio el
-  // onboarding, antes de pintar la app.
+  // onboarding, antes de pintar la app. Si `initialMode` viene fijo (apps
+  // separadas mobile-renter/mobile-owner, cada una con un solo rol posible),
+  // el modo NUNCA se lee ni se sobreescribe desde el storage — evita que una
+  // instalación vieja del binario único deje un valor guardado que no aplica.
   useEffect(() => {
     let alive = true;
-    AsyncStorage.multiGet([MODE_STORAGE_KEY, ONBOARDING_STORAGE_KEY])
+    const claves = initialMode ? [ONBOARDING_STORAGE_KEY] : [MODE_STORAGE_KEY, ONBOARDING_STORAGE_KEY];
+    AsyncStorage.multiGet(claves)
       .then((pares) => {
         if (!alive) return;
         const guardado = Object.fromEntries(pares);
-        const modoGuardado = guardado[MODE_STORAGE_KEY];
-        if (VALID_MODES.includes(modoGuardado)) {
-          modeRef.current = modoGuardado;
-          setModeState(modoGuardado);
+        if (!initialMode) {
+          const modoGuardado = guardado[MODE_STORAGE_KEY];
+          if (VALID_MODES.includes(modoGuardado)) {
+            modeRef.current = modoGuardado;
+            setModeState(modoGuardado);
+          }
         }
         setOnboardingVisto(guardado[ONBOARDING_STORAGE_KEY] === "1");
       })
@@ -117,7 +123,7 @@ export function AppProvider({ children }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initialMode]);
 
   /** Marca el onboarding como visto para que no vuelva a aparecer. */
   const marcarOnboardingVisto = useCallback(() => {
