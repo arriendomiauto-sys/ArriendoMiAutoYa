@@ -934,6 +934,10 @@ const mockUseApp = {
   currentUser: { id: "u1", nombre: "Marcela" },
   onboardingVisto: true,
 };
+// App.js importa `verificarMandatoAceptado` desde el barrel
+// "@rentacar/mobile-shared", no desde la ruta del submódulo — el mock tiene
+// que reemplazarlo ahí, si no App.js sigue viendo la función real.
+const mockVerificarMandato = jest.fn();
 jest.mock("@rentacar/mobile-shared", () => {
   const real = jest.requireActual("@rentacar/mobile-shared");
   return {
@@ -941,12 +945,8 @@ jest.mock("@rentacar/mobile-shared", () => {
     useApp: () => mockUseApp,
     useVersionCheck: () => ({ bloqueado: false, urlStore: null }),
     useNetworkStatus: () => ({ isConnected: true }),
+    verificarMandatoAceptado: (...args) => mockVerificarMandato(...args),
   };
-});
-
-jest.mock("@rentacar/mobile-shared/components/MandatoDuenoModal", () => {
-  const real = jest.requireActual("@rentacar/mobile-shared/components/MandatoDuenoModal");
-  return { ...real, verificarMandatoAceptado: jest.fn() };
 });
 
 const asentar = async () => {
@@ -957,8 +957,7 @@ const asentar = async () => {
 
 describe("App (mobile-owner) · gate de mandato", () => {
   it("si nunca aceptó el mandato, lo muestra antes de OwnerApp", async () => {
-    const { verificarMandatoAceptado } = require("@rentacar/mobile-shared/components/MandatoDuenoModal");
-    verificarMandatoAceptado.mockResolvedValue(false);
+    mockVerificarMandato.mockResolvedValue(false);
 
     const tr = renderTree(<App />);
     await asentar();
@@ -967,8 +966,7 @@ describe("App (mobile-owner) · gate de mandato", () => {
   });
 
   it("si ya aceptó el mandato, entra directo a OwnerApp", async () => {
-    const { verificarMandatoAceptado } = require("@rentacar/mobile-shared/components/MandatoDuenoModal");
-    verificarMandatoAceptado.mockResolvedValue(true);
+    mockVerificarMandato.mockResolvedValue(true);
 
     const tr = renderTree(<App />);
     await asentar();
