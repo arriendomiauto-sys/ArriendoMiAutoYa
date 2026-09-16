@@ -1,0 +1,94 @@
+{
+  "expo": {
+    "name": "ArriendoMiAutoYa Dueños",
+    "slug": "arrienda-tu-auto-duenos",
+    "scheme": "arriendatuautoduenos",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "cl.arriendatuauto.duenos",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "ArriendoMiAutoYa Dueños usa tu ubicación para fijar el punto de entrega de tu auto en el mapa.",
+        "NSCameraUsageDescription": "ArriendoMiAutoYa Dueños necesita acceso a tu cámara para verificar tu identidad y fotografiar los documentos y fotos de tu auto.",
+        "NSPhotoLibraryUsageDescription": "ArriendoMiAutoYa Dueños necesita acceso a tus fotos para publicar tu vehículo y sus documentos.",
+        "NSPhotoLibraryAddUsageDescription": "ArriendoMiAutoYa Dueños guarda copias de seguridad de las fotos de entrega."
+      }
+    },
+    "android": {
+      "package": "cl.arriendatuauto.duenos",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDDoQbqpICrFbaIkiJ4V3jQAw7USg1BN1c"
+        }
+      },
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FAFAF9"
+      },
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FAFAF9"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ArriendoMiAutoYa Dueños necesita acceso a tus fotos para publicar tu vehículo y verificar tus documentos.",
+          "cameraPermission": "ArriendoMiAutoYa Dueños necesita acceso a la cámara para fotografiar el vehículo durante la entrega."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "ArriendoMiAutoYa Dueños necesita tu cámara para fotografiar tu cédula, tu licencia y tomar la selfie de verificación de identidad."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "ArriendoMiAutoYa Dueños usa tu ubicación para fijar el punto de entrega de tu auto en el mapa."
+        }
+      ],
+      "expo-web-browser",
+      "expo-notifications",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "ArriendoMiAutoYa Dueños usa Face ID para proteger el acceso a tu cuenta si activas el bloqueo biométrico."
+        }
+      ],
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "ArriendoMiAutoYa Dueños necesita tu cámara para escanear tu cédula automáticamente."
+        }
+      ],
+      "@sentry/react-native",
+      "expo-secure-store"
+    ],
+    "owner": "arriendomiautoya"
+  }
+}
