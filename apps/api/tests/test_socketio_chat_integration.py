@@ -246,3 +246,74 @@ async def test_difundir_mensaje_socketio():
     with patch.object(sio, "emit", new_callable=AsyncMock) as mock_emit:
         await difundir_mensaje_socketio("res-100", {"id": "msg-1", "texto": "Broadcast"})
         mock_emit.assert_called_once_with("nuevo_mensaje", {"reserva_id": "res-100", "mensaje": {"id": "msg-1", "texto": "Broadcast"}}, room="reserva_res-100")
+
+
+@pytest.mark.anyio
+async def test_socketio_enviar_mensaje_no_bloquea_el_event_loop(usuario_factory, db_session, monkeypatch):
+    """
+    Regresión del delay del chat: `enviar_mensaje` hacía sus queries y el
+    commit síncronos directo en el cuerpo async, bloqueando el único event
+    loop del proceso (confirmado: Render corre un solo worker, sin
+    `--workers`) durante toda la persistencia — no solo ese mensaje, todo el
+    tráfico concurrente del proceso se frenaba con cada uno. Ahora esa parte
+    corre vía `asyncio.to_thread` (ver `_guardar_mensaje`). Se simula una
+    consulta lenta (un `time.sleep` síncrono real, como pagaría una query
+    bloqueante) y se prueba que una tarea concurrente del loop sigue
+    avanzando MIENTRAS tanto — si el fix se revirtiera, esta tarea quedaría
+    congelada durante el sleep y el conteo de "ticks" no llegaría al mínimo.
+    """
+    import time as time_module
+    from app.features.communications.messages import socketio_server as srv
+
+    dueno = usuario_factory(roles_activos=["dueno", "cliente"], estado_documentos="verificado")
+    cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+
+    auto = Auto(
+        dueno_id=dueno.id, marca="Suzuki", modelo="Swift", anio=2021,
+        patente="SWIF-96", tarifa_dia=25000, estado="activo", ubicacion_base="Los Ángeles"
+    )
+    db_session.add(auto)
+    db_session.commit()
+
+    reserva = Reserva(
+        auto_id=auto.id, cliente_id=cliente.id,
+        fecha_inicio=datetime(2026, 9, 10, 10), fecha_fin=datetime(2026, 9, 12, 10),
+        estado="confirmada", monto_hold=50000, lugar_entrega_acordado="Terminal"
+    )
+    db_session.add(reserva)
+    db_session.commit()
+
+    original_guardar_mensaje = srv._guardar_mensaje
+
+    def _guardar_mensaje_lento(*args, **kwargs):
+        time_module.sleep(0.2)  # simula una query real bloqueante
+        return original_guardar_mensaje(*args, **kwargs)
+
+    monkeypatch.setattr(srv, "_guardar_mensaje", _guardar_mensaje_lento)
+
+    ticks = 0
+
+    async def _ticker():
+        nonlocal ticks
+        while True:
+            ticks += 1
+            await asyncio.sleep(0.01)
+
+    with patch("app.features.communications.messages.socketio_server.SessionLocal", return_value=NoCloseSession(db_session)), \
+         patch.object(sio, "get_session", new_callable=AsyncMock) as mock_get_session, \
+         patch.object(sio, "emit", new_callable=AsyncMock):
+
+        mock_get_session.return_value = {"usuario_id": cliente.id}
+        tarea_ticker = asyncio.create_task(_ticker())
+        try:
+            res = await enviar_mensaje("sid_cliente", {
+                "reserva_id": reserva.id,
+                "texto": "probando que el loop no se frena",
+            })
+        finally:
+            tarea_ticker.cancel()
+
+    assert res["ok"] is True
+    # 0.2s de "query lenta" con el ticker corriendo cada 10ms debería dar
+    # ~20 vueltas si el loop quedó libre; un loop bloqueado da 0 o 1.
+    assert ticks >= 5, f"el event loop pareció bloqueado durante la query (ticks={ticks})"

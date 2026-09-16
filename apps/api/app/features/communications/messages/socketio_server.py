@@ -105,6 +105,14 @@ async def connect(sid, environ, auth=None):
         db.close()
 
 
+def _cargar_acceso_reserva(db: Session, usuario_id: str, reserva_id: str):
+    """Trabajo síncrono de `unir_reserva` — ver nota en `enviar_mensaje`."""
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    tiene_acceso = bool(usuario and reserva and _es_parte_de_la_reserva(reserva, usuario, db))
+    return tiene_acceso
+
+
 @sio.event
 async def unir_reserva(sid, data):
     """
@@ -122,10 +130,8 @@ async def unir_reserva(sid, data):
     usuario_id = session["usuario_id"]
     db: Session = SessionLocal()
     try:
-        usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
-        reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
-
-        if not usuario or not reserva or not _es_parte_de_la_reserva(reserva, usuario, db):
+        tiene_acceso = await asyncio.to_thread(_cargar_acceso_reserva, db, usuario_id, reserva_id)
+        if not tiene_acceso:
             return {"ok": False, "error": "Sin acceso a esta reserva"}
 
         room_name = f"reserva_{reserva_id}"
@@ -139,6 +145,31 @@ async def unir_reserva(sid, data):
         return {"ok": False, "error": str(e)}
     finally:
         db.close()
+
+
+def _guardar_mensaje(db: Session, usuario_id: str, reserva_id: str, texto: str):
+    """
+    Todo el trabajo SÍNCRONO de `enviar_mensaje` (queries + commit), para
+    correr en un hilo aparte vía `asyncio.to_thread` — ver nota grande más
+    abajo, junto al `await` que lo dispara, sobre por qué hace falta.
+
+    Devuelve `None` si el usuario no tiene permiso para escribir en la
+    reserva (el llamador lo traduce al mismo error que antes).
+    """
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    # Se carga una sola vez: la usan tanto el chequeo de acceso como la
+    # resolución del destinatario de la notificación, más abajo.
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first() if reserva else None
+
+    if not usuario or not reserva or not _es_parte_de_la_reserva(reserva, usuario, db, auto=auto):
+        return None
+
+    mensaje = Mensaje(reserva_id=reserva_id, autor_id=usuario.id, texto=texto)
+    db.add(mensaje)
+    db.commit()
+    db.refresh(mensaje)
+    return mensaje, usuario, reserva, auto
 
 
 @sio.event
@@ -165,19 +196,20 @@ async def enviar_mensaje(sid, data):
     usuario_id = session["usuario_id"]
     db: Session = SessionLocal()
     try:
-        usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
-        reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
-        # Se carga una sola vez: la usan tanto el chequeo de acceso como la
-        # resolución del destinatario de la notificación, más abajo.
-        auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first() if reserva else None
-
-        if not usuario or not reserva or not _es_parte_de_la_reserva(reserva, usuario, db, auto=auto):
+        # `sio` corre en modo ASGI sobre UN solo event loop de un solo
+        # worker (confirmado: el Start Command de Render no usa --workers).
+        # Ese mismo loop atiende TODO — cada mensaje de chat, cada conexión
+        # nueva, y el resto del tráfico HTTP de la API. `db.query`/`db.commit`
+        # con la Session síncrona de SQLAlchemy son bloqueantes: sin
+        # `asyncio.to_thread`, cada mensaje frenaba el proceso entero durante
+        # esas 3 queries + el commit, no solo el chat. `db` es seguro de
+        # pasar al hilo así porque el uso es estrictamente secuencial (este
+        # `await` suspende hasta que el hilo termina, nunca hay dos hilos
+        # tocándola a la vez).
+        resultado = await asyncio.to_thread(_guardar_mensaje, db, usuario_id, reserva_id, texto)
+        if resultado is None:
             return {"ok": False, "error": "Sin permisos para escribir en esta reserva"}
-
-        mensaje = Mensaje(reserva_id=reserva_id, autor_id=usuario.id, texto=texto)
-        db.add(mensaje)
-        db.commit()
-        db.refresh(mensaje)
+        mensaje, usuario, reserva, auto = resultado
 
         mensaje_dict = MessageOut.model_validate(mensaje).model_dump(mode="json")
         room_name = f"reserva_{reserva_id}"

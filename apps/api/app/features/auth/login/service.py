@@ -1,4 +1,5 @@
 from typing import List, Optional
+import asyncio
 import hashlib
 import logging
 import time
@@ -129,6 +130,14 @@ async def autenticar_token(token: str, db: Session) -> Usuario:
 
     Vive aparte de `get_current_user` porque los WebSockets/Socket.IO no pueden
     mandar cabeceras propias: el token les llega por query string.
+
+    Los dos primeros bloques (cache y JWT local) son el camino caliente de
+    CADA request autenticado, HTTP o Socket.IO — y tocan la BD con la Session
+    síncrona de SQLAlchemy. Con un solo worker/event loop (confirmado en
+    Render), esas queries bloqueaban el loop entero mientras corrían, no solo
+    la request que las disparó. `asyncio.to_thread` las saca del loop; `db`
+    es seguro de pasar así porque el `await` deja el uso estrictamente
+    secuencial (nunca dos hilos tocándola a la vez).
     """
     if not token:
         raise HTTPException(status_code=401, detail="No autenticado")
@@ -136,7 +145,9 @@ async def autenticar_token(token: str, db: Session) -> Usuario:
     # 1. Bloque: cache en proceso
     cached_id = _cache_leer(token)
     if cached_id:
-        user = db.query(Usuario).filter(Usuario.id == cached_id).first()
+        user = await asyncio.to_thread(
+            lambda: db.query(Usuario).filter(Usuario.id == cached_id).first()
+        )
         if user:
             return user  # entrada de cache válida
         # la fila ya no existe (DB reiniciada en tests, borrado): revalidar
@@ -144,7 +155,7 @@ async def autenticar_token(token: str, db: Session) -> Usuario:
     # 2. Bloque: verificación local del JWT (sin red)
     claims = _decodificar_jwt_local(token)
     if claims and claims.get("sub"):
-        user = _sincronizar_usuario_local(db, claims["sub"], claims.get("email"))
+        user = await asyncio.to_thread(_sincronizar_usuario_local, db, claims["sub"], claims.get("email"))
         _cache_guardar(token, user.id)
         return user
 
@@ -173,7 +184,7 @@ async def autenticar_token(token: str, db: Session) -> Usuario:
     if not supa_id:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
 
-    user = _sincronizar_usuario_local(db, supa_id, supa_email)
+    user = await asyncio.to_thread(_sincronizar_usuario_local, db, supa_id, supa_email)
     _cache_guardar(token, user.id)
     return user
 
