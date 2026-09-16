@@ -184,6 +184,15 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
 
+    # Envío de contratos firmados por correo (Resend, resend.com). Apagado
+    # si falta la API key: firmar_contrato sigue funcionando igual, solo no
+    # se manda el correo — mismo criterio best-effort que el push de Expo.
+    RESEND_API_KEY: Optional[str] = None
+    # Remitente verificado en Resend. Sin un dominio verificado de verdad en
+    # la cuenta del cliente, el envío falla igual aunque la API key esté
+    # puesta — confirmar el dominio antes de encender esto en producción.
+    RESEND_FROM_EMAIL: str = "contratos@arriendomiautoya.cl"
+
     def advertencias_produccion(self) -> List[str]:
         """
         Config que en desarrollo cae a un mock silencioso (antecedentes
