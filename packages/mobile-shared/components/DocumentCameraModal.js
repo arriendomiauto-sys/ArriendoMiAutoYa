@@ -108,8 +108,15 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
 
   // Caja donde se muestra la foto tomada, con la proporción real del archivo:
   // así lo que se rasteriza es exactamente la foto, sin bandas negras.
+  // Acotada (min 40% del ancho, max 62% del alto de pantalla): si
+  // `previewDims` llega con un aspect ratio anómalo, el contenedor de fondo
+  // negro no se dispara a un tamaño absurdo — eso era lo que dejaba un
+  // bloque negro gigante debajo de la foto censurada.
   const cajaW = SCREEN_W - 24;
-  const cajaH = previewDims ? Math.round((cajaW * previewDims.height) / previewDims.width) : Math.round(cajaW * 0.75);
+  const cajaHRaw = previewDims
+    ? Math.round((cajaW * previewDims.height) / previewDims.width)
+    : Math.round(cajaW * 0.75);
+  const cajaH = Math.min(Math.max(cajaHRaw, Math.round(cajaW * 0.4)), Math.round(SCREEN_H * 0.62));
 
   const cerrar = () => {
     setPreview(null);
@@ -163,8 +170,18 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
         // La foto del auto se usa completa: recortarla al marco dejaría el
         // vehículo cortado. Solo los documentos se ajustan a la ventana.
         const uri = esVehiculo ? foto.uri : await recortarAlMarco(foto.uri, foto.width, foto.height);
-        if (foto.width && foto.height) setPreviewDims({ width: foto.width, height: foto.height });
+        setPreviewDims(null);
         setPreview(uri);
+        // Medir el archivo final tal como lo decodifica <Image>, en vez de
+        // confiar en foto.width/height: en algunos Android takePictureAsync
+        // no refleja bien la rotación EXIF, lo que descuadraba `cajaH`.
+        Image.getSize(
+          uri,
+          (w, h) => setPreviewDims({ width: w, height: h }),
+          () => {
+            if (foto.width && foto.height) setPreviewDims({ width: foto.width, height: foto.height });
+          }
+        );
       }
     } catch (e) {
       // Silencioso: el usuario puede reintentar con el botón.
@@ -282,18 +299,28 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
                 onStartShouldSetResponder={() => true}
                 onResponderRelease={moverCensor}
               >
-                <Image source={{ uri: preview }} style={{ width: cajaW, height: cajaH }} resizeMode="cover" />
-                <View
-                  style={[
-                    styles.censorBar,
-                    {
-                      left: (censor.cx - BANDA_PATENTE.w / 2) * cajaW,
-                      top: (censor.cy - BANDA_PATENTE.h / 2) * cajaH,
-                      width: BANDA_PATENTE.w * cajaW,
-                      height: BANDA_PATENTE.h * cajaH,
-                    },
-                  ]}
-                />
+                {previewDims ? (
+                  <>
+                    <Image source={{ uri: preview }} style={{ width: cajaW, height: cajaH }} resizeMode="cover" />
+                    <View
+                      style={[
+                        styles.censorBar,
+                        {
+                          left: (censor.cx - BANDA_PATENTE.w / 2) * cajaW,
+                          top: (censor.cy - BANDA_PATENTE.h / 2) * cajaH,
+                          width: BANDA_PATENTE.w * cajaW,
+                          height: BANDA_PATENTE.h * cajaH,
+                        },
+                      ]}
+                    />
+                  </>
+                ) : (
+                  // Mientras se mide el archivo real (Image.getSize), evita
+                  // dejar ver el fondo negro sólido del contenedor a solas.
+                  <View style={styles.previewLoadingBox}>
+                    <ActivityIndicator color="#FFFFFF" />
+                  </View>
+                )}
               </View>
             </View>
             <Text style={styles.previewAsk}>
@@ -557,6 +584,7 @@ const styles = StyleSheet.create({
   // Preview
   previewCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   censorBar: { position: "absolute", backgroundColor: "#000000", borderRadius: 4 },
+  previewLoadingBox: { flex: 1, alignItems: "center", justifyContent: "center" },
   previewImg: { flex: 1, width: "100%", backgroundColor: "#000000" },
   previewAsk: {
     color: "#FFFFFF",

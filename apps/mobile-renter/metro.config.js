@@ -27,4 +27,22 @@ config.resolver.extraNodeModules = {
   "@rentacar/mobile-shared": path.resolve(workspaceRoot, "packages/mobile-shared"),
 };
 
+// Reescribe peticiones directas de /index.bundle (típicas de clientes nativos
+// y dev-client) hacia la ruta relativa al workspaceRoot del monorepo.
+const originalRewrite = config.server?.rewriteRequestUrl;
+config.server = {
+  ...config.server,
+  rewriteRequestUrl: (url) => {
+    const rewritten = originalRewrite ? originalRewrite(url) : url;
+    if (
+      rewritten.startsWith("/index.") ||
+      rewritten.startsWith("/index?") ||
+      rewritten === "/index"
+    ) {
+      return "/apps/mobile-renter" + rewritten;
+    }
+    return rewritten;
+  },
+};
+
 module.exports = config;

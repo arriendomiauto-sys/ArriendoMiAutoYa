@@ -1,13 +1,31 @@
 import React, { useState, useEffect } from "react";
 import { Modal, View, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GestureDetector, Gesture } from "react-native-gesture-handler";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  runOnJS,
-} from "react-native-reanimated";
+let GestureDetector = null;
+let Gesture = null;
+try {
+  const gh = require("react-native-gesture-handler");
+  GestureDetector = gh.GestureDetector;
+  Gesture = gh.Gesture;
+} catch {
+  // react-native-gesture-handler no disponible en binario nativo
+}
+let Animated = null;
+let useSharedValue = null;
+let useAnimatedStyle = null;
+let withTiming = null;
+let runOnJS = null;
+
+try {
+  const reanimated = require("react-native-reanimated");
+  Animated = reanimated.default || reanimated;
+  useSharedValue = reanimated.useSharedValue;
+  useAnimatedStyle = reanimated.useAnimatedStyle;
+  withTiming = reanimated.withTiming;
+  runOnJS = reanimated.runOnJS;
+} catch {
+  // react-native-reanimated / NativeWorklets no disponible en binario nativo
+}
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
@@ -21,7 +39,7 @@ const UMBRAL_DESCARTAR = 120;
  * moverse mientras está ampliada, doble tap para saltar a un zoom fijo, y
  * deslizar hacia abajo (sin zoom) para cerrar el visor completo.
  */
-function FotoConGestos({ uri, width, height, onZoomChange, onDismiss }) {
+function FotoConGestosInterno({ uri, width, height, onZoomChange, onDismiss }) {
   const escala = useSharedValue(1);
   const escalaGuardada = useSharedValue(1);
   const trasladoX = useSharedValue(0);
@@ -118,6 +136,21 @@ function FotoConGestos({ uri, width, height, onZoomChange, onDismiss }) {
       </Animated.View>
     </GestureDetector>
   );
+}
+
+function FotoSimple({ uri, width, height }) {
+  return (
+    <View style={[{ width, height }, styles.slide]}>
+      <Image source={{ uri }} style={styles.imagen} resizeMode="contain" />
+    </View>
+  );
+}
+
+function FotoConGestos(props) {
+  if (!GestureDetector || !Gesture || !Animated || !useSharedValue) {
+    return <FotoSimple uri={props.uri} width={props.width} height={props.height} />;
+  }
+  return <FotoConGestosInterno {...props} />;
 }
 
 /**

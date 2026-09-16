@@ -1,3 +1,9 @@
+try {
+  require("react-native-gesture-handler");
+} catch {
+  // En caso de que el binario nativo (APK dev client) no tenga RNGestureHandlerModule compilado
+}
+
 import { registerRootComponent } from "expo";
 import { inicializarSentry, registrarTareaTelemetria } from "@rentacar/mobile-shared";
 import App from "./App";
