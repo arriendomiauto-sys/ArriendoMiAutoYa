@@ -166,12 +166,16 @@ def crear_auto(
             detail="Debes verificar tu identidad antes de publicar un vehículo."
         )
 
-    # Documentos legales del vehículo: los 4 son obligatorios para publicar.
+    # Documentos legales del vehículo obligatorios para publicar. El padrón
+    # (doc_inscripcion_url) quedó opcional: el permiso de circulación y el
+    # SOAP ya traen la patente vigente, así que alcanza con esos para validar
+    # el vehículo sin trabar la publicación por un trámite que no siempre
+    # está a mano.
     DOCS_REQUERIDOS = {
-        "doc_inscripcion_url": "Certificado de inscripción (padrón)",
         "doc_permiso_circulacion_url": "Permiso de circulación",
         "doc_soap_url": "Seguro Obligatorio (SOAP)",
         "doc_revision_tecnica_url": "Revisión técnica",
+        "doc_certificado_gases_url": "Certificado de emisión de gases",
     }
     faltantes = [
         nombre for campo, nombre in DOCS_REQUERIDOS.items()
@@ -215,6 +219,7 @@ def crear_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_certificado_gases_url=payload.doc_certificado_gases_url,
         doc_seguro_url=payload.doc_seguro_url,
     )
     doc_verificados = bool(resultado_validacion.get("verificado", False))
@@ -262,6 +267,7 @@ def crear_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_certificado_gases_url=payload.doc_certificado_gases_url,
         doc_seguro_url=doc_seguro_a_guardar,
         documentos_verificados=doc_verificados,
         gps_consentimiento=True,
@@ -283,7 +289,8 @@ def crear_auto(
                     f"Padrón: {payload.doc_inscripcion_url}\n"
                     f"Permiso: {payload.doc_permiso_circulacion_url}\n"
                     f"SOAP: {payload.doc_soap_url}\n"
-                    f"Revisión Técnica: {payload.doc_revision_tecnica_url}"
+                    f"Revisión Técnica: {payload.doc_revision_tecnica_url}\n"
+                    f"Certificado de gases: {payload.doc_certificado_gases_url}"
                 ),
             )
         )
@@ -310,12 +317,14 @@ _DOC_INTERNO_A_CAMPO = {
     "permiso": "doc_permiso_circulacion_url",
     "soap": "doc_soap_url",
     "revision": "doc_revision_tecnica_url",
+    "gases": "doc_certificado_gases_url",
 }
 _DOC_INTERNO_A_PUBLICO = {
     "padron": "padron",
     "permiso": "permiso_circulacion",
     "soap": "soap",
     "revision": "revision_tecnica",
+    "gases": "certificado_gases",
 }
 
 
@@ -332,10 +341,11 @@ def validar_documentos_auto(
 ):
     """
     Se llama apenas se sube CADA documento (padrón, permiso, SOAP, revisión
-    técnica y — opcional — la póliza de seguro), para mostrar de inmediato si
-    el OCR lo reconoció, en vez de que el dueño se entere al intentar publicar.
+    técnica, certificado de gases y — opcional — la póliza de seguro), para
+    mostrar de inmediato si el OCR lo reconoció, en vez de que el dueño se
+    entere al intentar publicar.
 
-    Para los 4 obligatorios nunca bloquea: POST /autos deriva a revisión
+    Para los documentos obligatorios nunca bloquea: POST /autos deriva a revisión
     manual ante duda en vez de rechazar. La póliza de seguro OPCIONAL es la
     excepción: si se sube una imagen que no es un documento contractual de
     seguro, `bloquea=True` — no tiene sentido "aprobar" una foto cualquiera
@@ -347,6 +357,7 @@ def validar_documentos_auto(
         doc_permiso_circulacion_url=payload.doc_permiso_circulacion_url,
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
+        doc_certificado_gases_url=payload.doc_certificado_gases_url,
         doc_seguro_url=payload.doc_seguro_url,
     )
 
@@ -390,7 +401,7 @@ def validar_documentos_auto(
             }
         )
 
-    # Seguro comercial opcional: a diferencia de los 4 obligatorios, acá SÍ se
+    # Seguro comercial opcional: a diferencia de los obligatorios, acá SÍ se
     # bloquea. Si el dueño sube algo que no se lee como una póliza, la app no
     # lo deja publicar con ese archivo (que lo quite o suba el contrato real).
     if payload.doc_seguro_url:

@@ -1,5 +1,5 @@
 """
-Motor de validación de documentos legales de vehículos (padrón, permiso, SOAP, revisión técnica).
+Motor de validación de documentos legales de vehículos (padrón, permiso, SOAP, revisión técnica, certificado de gases).
 
 Utiliza Google Cloud Vision / OCR para extraer texto, verificar coincidencia de patente
 y extraer números de folio o códigos de verificación oficiales.
@@ -50,10 +50,24 @@ _MARCADORES_REVISION = (
     "REVISION TECNICA",
     "PLANTA DE REVISION",
     "CERTIFICADO DE REVISION",
-    "GASES",
     "HOMOLOGACION",
     "MINISTERIO DE TRANSPORTES",
     "INSPECCION TECNICA",
+)
+
+# Certificado de emisión de gases: antes era un marcador más dentro de
+# _MARCADORES_REVISION (compartía casilla con la revisión técnica); ahora es
+# un documento propio y obligatorio, así que se le saca "GASES" a la tupla de
+# arriba para no confundir un certificado de gases con una revisión técnica.
+_MARCADORES_GASES = (
+    "CERTIFICADO DE EMISIONES",
+    "REVISION DE GASES",
+    "HOMOLOGACION DE GASES",
+    "EMISIONES CONTAMINANTES",
+    "CONTROL DE EMISIONES",
+    "GASES",
+    "OPACIDAD",
+    "PLANTA DE REVISION",
 )
 
 # Seguro COMERCIAL del auto (casilla opcional, distinta del SOAP obligatorio).
@@ -201,6 +215,7 @@ class CarDocValidator:
         doc_permiso_circulacion_url: Optional[str] = None,
         doc_soap_url: Optional[str] = None,
         doc_revision_tecnica_url: Optional[str] = None,
+        doc_certificado_gases_url: Optional[str] = None,
         doc_seguro_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -215,11 +230,14 @@ class CarDocValidator:
 
         # En modo mock (tests o dev sin Vision), validar según presencia de URLs
         if settings.USE_OCR_MOCK:
+            # El padrón (doc_inscripcion_url) es opcional: no se exige para
+            # dar por verificados los documentos, igual que en el router de
+            # creación de autos.
             todos_presentes = bool(
-                doc_inscripcion_url
-                and doc_permiso_circulacion_url
+                doc_permiso_circulacion_url
                 and doc_soap_url
                 and doc_revision_tecnica_url
+                and doc_certificado_gases_url
             )
             # El seguro comercial es opcional: en mock se acepta por presencia,
             # igual que el resto. La validación real de "¿es una póliza?" solo
@@ -233,6 +251,7 @@ class CarDocValidator:
                     "permiso": "FOLIO-MOCK-5678" if doc_permiso_circulacion_url else None,
                     "soap": "SOAP-MOCK-9012" if doc_soap_url else None,
                     "revision": "PRT-MOCK-3456" if doc_revision_tecnica_url else None,
+                    "gases": "GASES-MOCK-9900" if doc_certificado_gases_url else None,
                     "seguro": "POLIZA-MOCK-7788" if doc_seguro_url else None,
                 },
                 "seguro_presente": bool(doc_seguro_url),
@@ -257,6 +276,7 @@ class CarDocValidator:
             ("permiso", doc_permiso_circulacion_url, _MARCADORES_PERMISO),
             ("soap", doc_soap_url, _MARCADORES_SOAP),
             ("revision", doc_revision_tecnica_url, _MARCADORES_REVISION),
+            ("gases", doc_certificado_gases_url, _MARCADORES_GASES),
         ]
 
         def _analizar_un_doc(tipo: str, url: Optional[str], marcadores: tuple) -> Tuple[str, Optional[str], Optional[str], bool]:
@@ -313,7 +333,7 @@ class CarDocValidator:
 
         # Seguro comercial (casilla OPCIONAL): si el dueño subió algo, tiene que
         # leerse como una póliza / contrato de cobertura real. NO cuenta para
-        # `aprobado_auto` — es independiente de los 4 documentos obligatorios.
+        # `aprobado_auto` — es independiente de los documentos obligatorios.
         seguro_presente = bool(doc_seguro_url)
         seguro_valido = False
         seguro_motivo = None

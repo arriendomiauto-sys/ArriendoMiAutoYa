@@ -37,6 +37,7 @@ PAYLOAD = {
     "doc_permiso_circulacion_url": "https://storage.test/permiso.jpg",
     "doc_soap_url": "https://storage.test/soap.jpg",
     "doc_revision_tecnica_url": "https://storage.test/revtec.jpg",
+    "doc_certificado_gases_url": "https://storage.test/gases.jpg",
 }
 
 

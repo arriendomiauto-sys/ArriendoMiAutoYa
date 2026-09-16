@@ -17,6 +17,7 @@ PAYLOAD_AUTO = {
     "doc_permiso_circulacion_url": "https://ejemplo.com/permiso.jpg",
     "doc_soap_url": "https://ejemplo.com/soap.jpg",
     "doc_revision_tecnica_url": "https://ejemplo.com/revtec.jpg",
+    "doc_certificado_gases_url": "https://ejemplo.com/gases.jpg",
 }
 
 
