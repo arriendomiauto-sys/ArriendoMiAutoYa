@@ -125,3 +125,19 @@ def test_crear_pago_con_tarjeta_modo_produccion_usa_correo_real(mp_config, monke
     assert len(llamadas) == 1
     metodo, ruta, json_body = llamadas[0]
     assert json_body["payer"] == {"email": "usuario.real@gmail.com"}
+
+
+def test_es_produccion_con_token_app_usr_en_modo_prueba(monkeypatch):
+    """BUG-026: Si MERCADOPAGO_TEST_MODE es True, no debe ser producción aunque el token sea APP_USR-."""
+    monkeypatch.setattr(settings, "MERCADOPAGO_ACCESS_TOKEN", "APP_USR-test-user-credentials")
+    monkeypatch.setattr(settings, "MERCADOPAGO_TEST_MODE", True)
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    assert MercadoPagoService.es_produccion() is False
+
+
+def test_es_produccion_con_token_app_usr_en_produccion_real(monkeypatch):
+    """BUG-026: Solo es producción real cuando TEST_MODE es False y ENVIRONMENT es production."""
+    monkeypatch.setattr(settings, "MERCADOPAGO_ACCESS_TOKEN", "APP_USR-live-credentials")
+    monkeypatch.setattr(settings, "MERCADOPAGO_TEST_MODE", False)
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    assert MercadoPagoService.es_produccion() is True

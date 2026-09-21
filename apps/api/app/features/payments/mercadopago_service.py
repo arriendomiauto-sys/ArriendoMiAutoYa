@@ -62,8 +62,18 @@ class MercadoPagoService:
 
     @classmethod
     def es_produccion(cls) -> bool:
-        """El token dice el entorno: `TEST-` es sandbox, `APP_USR-` es real."""
-        return (settings.MERCADOPAGO_ACCESS_TOKEN or "").startswith("APP_USR-")
+        """
+        Determina si el entorno es producción real.
+        Mercado Pago emite credenciales para usuarios de prueba que también comienzan
+        con `APP_USR-`. Por tanto, si `MERCADOPAGO_TEST_MODE` es True o el entorno no
+        es 'production', se debe operar en sandbox (sandbox_init_point).
+        """
+        if getattr(settings, "MERCADOPAGO_TEST_MODE", True):
+            return False
+        token = (settings.MERCADOPAGO_ACCESS_TOKEN or "").strip()
+        if not token.startswith("APP_USR-"):
+            return False
+        return getattr(settings, "ENVIRONMENT", "development").lower() == "production"
 
     @classmethod
     def _headers(cls, idempotency_key: Optional[str] = None) -> Dict[str, str]:
