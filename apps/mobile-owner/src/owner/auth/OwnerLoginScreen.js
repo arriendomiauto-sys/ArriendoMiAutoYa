@@ -40,26 +40,33 @@ export function OwnerLoginScreen({ onNavigate }) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="light-content" />
-      <OwnerAuthHero variant="compact" />
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="flex-grow px-4 pt-6 pb-8 gap-4"
+        contentContainerClassName="flex-grow pb-6"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <Text className="text-2xl font-bold text-primary-700 text-center">Bienvenido de nuevo</Text>
-        <Text className="text-sm text-textMuted text-center">Ingresa para revisar tus autos y tus ganancias.</Text>
+        <OwnerAuthHero variant="compact" />
 
-        {error ? <AlertaInline testID="aviso-login" titulo={error.titulo} mensaje={error.mensaje} /> : null}
+        <View className="flex-grow px-5 pt-4 gap-4">
+          <View className="items-center gap-1.5">
+            <Text className="text-[22px] font-bold text-textDark text-center" style={{ letterSpacing: -0.5 }}>
+              Bienvenido de nuevo
+            </Text>
+            <Text className="text-[13px] leading-[18px] text-textMuted text-center">
+              Revisa tus autos y tus ganancias.
+            </Text>
+          </View>
 
-        <View className="gap-5 mt-4">
+          {error ? <AlertaInline testID="aviso-login" titulo={error.titulo} mensaje={error.mensaje} /> : null}
+
           <OwnerField
             testID="input-email"
             label="Correo"
             iconLeft="mail"
-            placeholder="Correo electrónico"
+            placeholder="nombre@correo.cl"
             value={email}
             onChangeText={editar(setEmail)}
             editable={!loading}
@@ -76,7 +83,7 @@ export function OwnerLoginScreen({ onNavigate }) {
             ref={passwordRef}
             label="Contraseña"
             iconLeft="lock"
-            placeholder="Contraseña"
+            placeholder="••••••••••"
             value={password}
             onChangeText={editar(setPassword)}
             editable={!loading}
@@ -95,23 +102,32 @@ export function OwnerLoginScreen({ onNavigate }) {
             activeOpacity={0.7}
             hitSlop={theme.control.hitSlop}
           >
-            <Text className={`text-[13.5px] font-semibold text-primary-700 ${loading ? "opacity-50" : ""}`}>
+            <Text className={`text-[13px] font-semibold text-accent-700 ${loading ? "opacity-50" : ""}`}>
               ¿Olvidaste tu contraseña?
             </Text>
           </TouchableOpacity>
+
+          <View className="flex-grow min-h-[16px]" />
+
+          <OwnerGradientButton testID="btn-login" label="Iniciar sesión" onPress={handleLogin} loading={loading} />
+
+          <BotonesOAuth preferredMode="owner" compact redondeado disabled={loading} />
+
+          <TouchableOpacity
+            testID="btn-crear-cuenta"
+            onPress={() => onNavigate("register")}
+            disabled={loading}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Crear cuenta"
+            accessibilityState={{ disabled: loading }}
+            className={`h-[52px] rounded-full border-[1.5px] border-primary-700 bg-surface items-center justify-center ${
+              loading ? "opacity-50" : ""
+            }`}
+          >
+            <Text className="text-[15.5px] font-semibold text-primary-700">Crear cuenta</Text>
+          </TouchableOpacity>
         </View>
-
-        <View className="flex-grow min-h-[24px]" />
-
-        <OwnerGradientButton testID="btn-login" label="Iniciar sesión" onPress={handleLogin} loading={loading} />
-
-        <BotonesOAuth preferredMode="owner" compact disabled={loading} />
-
-        <TouchableOpacity className="h-10 items-center justify-center active:opacity-70" onPress={() => onNavigate("register")} activeOpacity={0.7}>
-          <Text className="text-[13.5px] text-textMuted">
-            ¿No tienes cuenta? <Text className="text-primary-700 font-bold">Crear cuenta</Text>
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );

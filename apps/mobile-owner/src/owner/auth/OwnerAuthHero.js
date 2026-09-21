@@ -8,12 +8,21 @@ const ownerLogo = require("../../../assets/logo.png");
 const OWNER_LOGO_ZOOM = 1.33;
 
 /**
- * Cabecera hero moderna, esbelta y compacta para la app de Dueño.
- * Sustituye la ola pesada por una barra visual limpia y estilizada.
+ * Cabecera hero esbelta de la app de Dueño.
+ * Elimina la ola invasiva y optimiza el espacio vertical al 100%.
+ * Variantes:
+ * - "compact": barra esbelta de 58px con degradado premium esmeralda/petróleo.
+ * - "full": cabecera centrada de 96px para bienvenida.
  */
-export function OwnerAuthHero({ variant = "compact", title, caption, onBack }) {
+export function OwnerAuthHero({
+  variant = "compact",
+  title = "Arriendo Mi Auto Ya",
+  caption = "PARA DUEÑOS",
+  onBack,
+  pasoLabel,
+}) {
   const isFull = variant === "full";
-  const height = isFull ? 115 : 58;
+  const height = isFull ? 96 : 58;
 
   return (
     <View style={{ height }} className="w-full relative overflow-hidden rounded-b-2xl shadow-sm">
@@ -31,9 +40,10 @@ export function OwnerAuthHero({ variant = "compact", title, caption, onBack }) {
         </Svg>
       </View>
 
-      {/* Variante compacta: barra horizontal limpia y moderna (58px) */}
+      {/* Contenido */}
       {!isFull ? (
         <View className="flex-1 flex-row items-center justify-between px-3.5">
+          {/* Botón Volver a la izquierda */}
           <View className="w-8 items-start justify-center">
             {onBack ? (
               <TouchableOpacity
@@ -48,10 +58,11 @@ export function OwnerAuthHero({ variant = "compact", title, caption, onBack }) {
             ) : null}
           </View>
 
+          {/* Logo y Marca centrados */}
           <View className="flex-row items-center gap-2">
-            <BrandLogo size={30} source={ownerLogo} zoom={OWNER_LOGO_ZOOM} />
+            <BrandLogo size={28} source={ownerLogo} zoom={OWNER_LOGO_ZOOM} />
             <Text className="text-sm font-bold text-white tracking-tight">
-              {title || "Arriendo Mi Auto Ya"}
+              {title}
             </Text>
             {caption ? (
               <View className="bg-[#2DD4BF]/20 px-2 py-0.5 rounded-full border border-[#2DD4BF]/30">
@@ -62,15 +73,21 @@ export function OwnerAuthHero({ variant = "compact", title, caption, onBack }) {
             ) : null}
           </View>
 
-          {/* Espacio para balancear el centro */}
-          <View className="w-8" />
+          {/* Indicador de paso o balance a la derecha */}
+          <View className="w-12 items-end justify-center">
+            {pasoLabel ? (
+              <Text className="text-xs font-semibold text-white/90">
+                {pasoLabel}
+              </Text>
+            ) : null}
+          </View>
         </View>
       ) : (
-        /* Variante full (Bienvenida): centrada y elegante (115px) */
-        <View className="flex-1 items-center justify-center px-4 gap-1.5">
-          <BrandLogo size={46} source={ownerLogo} zoom={OWNER_LOGO_ZOOM} />
+        /* Variante full: centrada, compacta y elegante */
+        <View className="flex-1 items-center justify-center px-4 gap-1">
+          <BrandLogo size={40} source={ownerLogo} zoom={OWNER_LOGO_ZOOM} />
           <Text className="text-base font-bold text-white tracking-tight">
-            {title || "Arriendo Mi Auto Ya"}
+            {title}
           </Text>
           {caption ? (
             <View className="bg-[#2DD4BF]/20 px-2.5 py-0.5 rounded-full border border-[#2DD4BF]/30">

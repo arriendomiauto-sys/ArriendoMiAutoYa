@@ -10,6 +10,45 @@ import { DOCUMENTOS_LEGALES } from "../legal/documentos";
 import { showAlert } from "../utils/alert";
 
 /**
+ * Texto de un documento legal: fecha de actualización, secciones y enlace a la
+ * versión completa del sitio. Lo usa el visor modal y el paso "Términos" del
+ * registro, para que se lea igual en los dos.
+ */
+export function CuerpoDocumentoLegal({ documento }) {
+  const abrirEnElSitio = async () => {
+    try {
+      await WebBrowser.openBrowserAsync(documento.url);
+    } catch {
+      showAlert("No se pudo abrir el navegador", `Puedes leerlo en ${documento.url}`);
+    }
+  };
+
+  return (
+    <>
+      <Text style={styles.actualizado}>{documento.actualizado}</Text>
+
+      {documento.secciones.map((s) => (
+        <View key={s.h} style={styles.seccion}>
+          <Text style={styles.seccionTitulo}>{s.h}</Text>
+          {s.p ? <Text style={styles.parrafo}>{s.p}</Text> : null}
+          {(s.items || []).map((item) => (
+            <View key={item} style={styles.item}>
+              <Text style={styles.bullet}>•</Text>
+              <Text style={styles.itemTexto}>{item}</Text>
+            </View>
+          ))}
+        </View>
+      ))}
+
+      <TouchableOpacity style={styles.linkSitio} onPress={abrirEnElSitio} activeOpacity={0.8}>
+        <Icon name="document" size={15} color={colors.accentDark} />
+        <Text style={styles.linkSitioTexto}>Ver la versión completa en el sitio</Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+/**
  * Visor de los documentos legales (términos y política de privacidad) que se
  * aceptan al crear la cuenta. Se abre desde el registro para poder leerlos
  * ANTES de marcar la casilla; `onAccept` deja aceptar desde acá mismo.
@@ -30,14 +69,6 @@ export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
   }
 
   const documento = DOCUMENTOS_LEGALES[activo] || DOCUMENTOS_LEGALES.terminos;
-
-  const abrirEnElSitio = async () => {
-    try {
-      await WebBrowser.openBrowserAsync(documento.url);
-    } catch {
-      showAlert("No se pudo abrir el navegador", `Puedes leerlo en ${documento.url}`);
-    }
-  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -67,25 +98,7 @@ export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
           </View>
 
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.actualizado}>{documento.actualizado}</Text>
-
-            {documento.secciones.map((s) => (
-              <View key={s.h} style={styles.seccion}>
-                <Text style={styles.seccionTitulo}>{s.h}</Text>
-                {s.p ? <Text style={styles.parrafo}>{s.p}</Text> : null}
-                {(s.items || []).map((item) => (
-                  <View key={item} style={styles.item}>
-                    <Text style={styles.bullet}>•</Text>
-                    <Text style={styles.itemTexto}>{item}</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
-
-            <TouchableOpacity style={styles.linkSitio} onPress={abrirEnElSitio} activeOpacity={0.8}>
-              <Icon name="document" size={15} color={colors.accentDark} />
-              <Text style={styles.linkSitioTexto}>Ver la versión completa en el sitio</Text>
-            </TouchableOpacity>
+            <CuerpoDocumentoLegal documento={documento} />
           </ScrollView>
 
           <View style={styles.footer}>

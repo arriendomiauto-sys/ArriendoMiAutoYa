@@ -89,6 +89,24 @@ export {
 export { supabase } from "./api/supabase";
 export { AppProvider, useApp } from "./context/AppContext";
 export { AuthFlow } from "./auth/AuthFlow";
+export {
+  useRegistroCuenta,
+  PASO_CUENTA,
+  PASO_TERMINOS,
+  PASO_CODIGO,
+  PASO_EXITO,
+} from "./auth/register/useRegistroCuenta";
+export {
+  SegmentosPaso,
+  MensajeCampo,
+  RequisitosContrasena,
+  CodigoVerificacion,
+  ReenvioCodigo,
+  EncabezadoCentrado,
+  ResumenCuenta,
+} from "./auth/register/RegistroPiezas";
+export { PasoTerminos } from "./auth/register/PasoTerminos";
+export { formatearCelular } from "./auth/register/validaciones";
 export { CampoConSugerencias } from "./components/CampoConSugerencias";
 export {
   BANCOS_CHILE,
@@ -115,7 +133,7 @@ export { MisTarjetasScreen } from "./screens/MisTarjetasScreen";
 // Compat: el nombre viejo apunta a la pantalla nueva de multi-tarjeta.
 export { MisTarjetasScreen as TarjetaScreen } from "./screens/MisTarjetasScreen";
 export { EditProfileScreen } from "./screens/EditProfileScreen";
-export { LegalModal } from "./screens/LegalModal";
+export { LegalModal, CuerpoDocumentoLegal } from "./screens/LegalModal";
 export { ForceUpdateScreen } from "./screens/ForceUpdateScreen";
 export { DOCUMENTOS_LEGALES, EDAD_MINIMA_ARRENDATARIO } from "./legal/documentos";
 export { parsearFechaCarnet, calcularEdad, edadDesdeOcr } from "./utils/edad";

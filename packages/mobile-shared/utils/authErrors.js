@@ -19,6 +19,7 @@ const REGLAS = [
   [/rate limit/i, "Demasiados intentos. Espera unos segundos antes de volver a intentarlo."],
   [/for security purposes/i, "Por seguridad debes esperar unos segundos antes de volver a intentarlo."],
   [/user not found/i, "No encontramos una cuenta con ese correo."],
+  [/error sending confirmation email/i, "No pudimos enviar el correo de confirmación. Revisa el servidor de correo o intenta más tarde."],
   [/failed to fetch|network request failed|load failed/i, "No se pudo conectar. Revisa tu conexión a internet e intenta de nuevo."],
 ];
 

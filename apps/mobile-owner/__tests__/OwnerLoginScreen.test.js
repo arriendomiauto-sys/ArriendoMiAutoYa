@@ -78,7 +78,7 @@ describe("OwnerLoginScreen", () => {
   it("conserva el saludo del dueño", () => {
     const t = textOf(renderTree(<OwnerLoginScreen onNavigate={() => {}} />));
     expect(t).toContain("Bienvenido de nuevo");
-    expect(t).toContain("Ingresa para revisar tus autos y tus ganancias.");
+    expect(t).toContain("Revisa tus autos y tus ganancias.");
   });
 
   it("los campos llevan rótulo e ícono, igual que en la app de arrendatario", () => {
@@ -95,10 +95,10 @@ describe("OwnerLoginScreen", () => {
     expect(t).not.toContain("Continuar con Google");
   });
 
-  it("los proveedores van antes del enlace para crear cuenta", () => {
+  it("los proveedores van antes del botón para crear cuenta", () => {
     const t = textOf(renderTree(<OwnerLoginScreen onNavigate={() => {}} />));
     expect(t.indexOf("o continúa con")).toBeGreaterThan(-1);
-    expect(t.indexOf("o continúa con")).toBeLessThan(t.indexOf("¿No tienes cuenta?"));
+    expect(t.indexOf("o continúa con")).toBeLessThan(t.indexOf("Crear cuenta"));
   });
 
   it("no deja entrar con campos vacíos y lo avisa en la pantalla, sin ventana emergente", async () => {

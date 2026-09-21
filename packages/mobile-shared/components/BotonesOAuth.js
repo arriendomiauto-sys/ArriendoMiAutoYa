@@ -52,9 +52,19 @@ const nombre = (provider) => NOMBRE_PROVEEDOR[provider] || provider;
  * `onDone` se llama tras un login exitoso, por si la pantalla quiere navegar.
  * `compact` pone los proveedores en una fila, con solo su nombre, bajo el
  * separador "o continúa con" (pantallas de login). `disabled` los bloquea desde
- * afuera, p. ej. mientras el login por correo está en curso.
+ * afuera, p. ej. mientras el login por correo está en curso. `titulo` cambia el
+ * texto del separador (el registro usa "o regístrate con") y `redondeado` los
+ * deja en píldora, como el resto de la app de dueño.
  */
-export function BotonesOAuth({ preferredMode, onDone, divider = true, compact = false, disabled = false }) {
+export function BotonesOAuth({
+  preferredMode,
+  onDone,
+  divider = true,
+  compact = false,
+  disabled = false,
+  titulo,
+  redondeado = false,
+}) {
   const { loginConProveedor } = useApp();
   const [cargando, setCargando] = useState(null); // provider en curso | null
 
@@ -80,7 +90,7 @@ export function BotonesOAuth({ preferredMode, onDone, divider = true, compact = 
       {divider ? (
         <View style={styles.dividerRow}>
           <View style={styles.line} />
-          <Text style={styles.dividerText}>{compact ? "o continúa con" : "o"}</Text>
+          <Text style={styles.dividerText}>{titulo || (compact ? "o continúa con" : "o")}</Text>
           <View style={styles.line} />
         </View>
       ) : null}
@@ -92,6 +102,7 @@ export function BotonesOAuth({ preferredMode, onDone, divider = true, compact = 
             style={[
               styles.boton,
               compact && styles.botonCompacto,
+              redondeado && styles.botonPildora,
               (disabled || (cargando && cargando !== provider)) && styles.botonOff,
             ]}
             activeOpacity={0.7}
@@ -142,6 +153,7 @@ const styles = StyleSheet.create({
   columna: { gap: theme.spacing.sm },
   fila: { flexDirection: "row", gap: theme.spacing.sm },
   botonCompacto: { flex: 1 },
+  botonPildora: { borderRadius: theme.radius.pill },
   botonOff: { opacity: 0.5 },
   botonTexto: { fontSize: 15, fontWeight: "600", color: colors.text },
 });

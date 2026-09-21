@@ -125,15 +125,13 @@ export function LoginScreen({ onNavigate }) {
 
         <BotonesOAuth compact disabled={loading} />
 
-        <TouchableOpacity
-          style={styles.registerLink}
+        <Button
+          testID="btn-crear-cuenta"
+          variant="outline"
+          label="Crear cuenta"
           onPress={() => onNavigate("register")}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.registerLinkText}>
-            ¿No tienes cuenta? <Text style={styles.registerLinkHighlight}>Crear cuenta</Text>
-          </Text>
-        </TouchableOpacity>
+          disabled={loading}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -183,18 +181,5 @@ const styles = StyleSheet.create({
   },
   bloqueado: {
     opacity: 0.5,
-  },
-  registerLink: {
-    height: theme.control.heightSm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  registerLinkText: {
-    ...theme.typography.callout,
-    color: colors.textMuted,
-  },
-  registerLinkHighlight: {
-    color: colors.accent700,
-    fontWeight: "600",
   },
 });

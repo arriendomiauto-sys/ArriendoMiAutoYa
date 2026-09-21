@@ -1,6 +1,5 @@
 import React from "react";
 import { LegalModal, EDAD_MINIMA_ARRENDATARIO } from "@rentacar/mobile-shared";
-import { RegisterScreen } from "@rentacar/mobile-shared/auth/screens/RegisterScreen";
 import { renderTree, textOf, pressText } from "../test-utils";
 
 jest.mock("@rentacar/mobile-shared/context/AppContext", () => ({
@@ -65,24 +64,5 @@ describe("LegalModal", () => {
 
     expect(onAccept).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("RegisterScreen · términos", () => {
-  it("ofrece leer términos y privacidad antes de marcar la casilla", () => {
-    const tr = renderTree(<RegisterScreen onNavigate={() => {}} role="renter" />);
-    const t = textOf(tr);
-    expect(t).toContain("Términos y condiciones");
-    expect(t).toContain("Política de privacidad");
-    expect(t).toContain(`${EDAD_MINIMA_ARRENDATARIO} años o más`);
-  });
-
-  it("abre el documento completo desde el registro", () => {
-    const tr = renderTree(<RegisterScreen onNavigate={() => {}} role="renter" />);
-    expect(textOf(tr)).not.toContain("Hold de garantía");
-
-    pressText(tr, "Términos y condiciones");
-
-    expect(textOf(tr)).toContain("Hold de garantía");
   });
 });
