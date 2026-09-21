@@ -10,7 +10,6 @@ import {
   Platform,
 } from "react-native";
 import {
-  colors,
   theme,
   useApp,
   ApiClient,
@@ -18,47 +17,15 @@ import {
   Checkbox,
   LegalModal,
   BotonesOAuth,
-  EDAD_MINIMA_ARRENDATARIO,
   showAlert,
   traducirErrorAuth,
   formatearTelefonoInput,
   normalizarTelefonoCompleto,
-  formatearRutEnVivo,
   supabase,
 } from "@rentacar/mobile-shared";
 import { OwnerAuthHero } from "./OwnerAuthHero";
 import { OwnerGradientButton } from "./OwnerGradientButton";
 import { OwnerField } from "./OwnerField";
-
-/**
- * Valida un RUT chileno con algoritmo oficial de Módulo 11.
- */
-function validarRutChileno(rut) {
-  if (!rut || typeof rut !== "string") return false;
-  const limpio = rut.replace(/[^0-9kK]/g, "").toUpperCase();
-  if (limpio.length < 8 || limpio.length > 9) return false;
-  const cuerpo = limpio.slice(0, -1);
-  const dv = limpio.slice(-1);
-  let suma = 0;
-  let multiplo = 2;
-  for (let i = cuerpo.length - 1; i >= 0; i--) {
-    suma += parseInt(cuerpo[i], 10) * multiplo;
-    multiplo = multiplo === 7 ? 2 : multiplo + 1;
-  }
-  const esperado = 11 - (suma % 11);
-  const dvEsperado = esperado === 11 ? "0" : esperado === 10 ? "K" : String(esperado);
-  return dv === dvEsperado;
-}
-
-/**
- * Formatea fecha de nacimiento en DD/MM/AAAA en vivo.
- */
-function formatearFechaNacimiento(texto) {
-  const digitos = (texto || "").replace(/\D/g, "").slice(0, 8);
-  if (digitos.length <= 2) return digitos;
-  if (digitos.length <= 4) return `${digitos.slice(0, 2)}/${digitos.slice(2)}`;
-  return `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`;
-}
 
 /**
  * Barra superior de progreso de 2 pasos.
@@ -71,7 +38,7 @@ function StepProgress({ pasoActual, totalPasos = 2, onBack }) {
         className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center active:opacity-70"
         hitSlop={theme.control.hitSlop}
       >
-        <Icon name="chevron-left" size={18} color={colors.primary700} strokeWidth={2} />
+        <Icon name="chevron-left" size={18} color="#0F3D3E" strokeWidth={2} />
       </TouchableOpacity>
       <View className="flex-row flex-1 mx-4 gap-2">
         <View
@@ -103,16 +70,15 @@ export function OwnerRegisterScreen({ onNavigate }) {
   const [avisoCorreoExistente, setAvisoCorreoExistente] = useState(false);
   const [documentoLegal, setDocumentoLegal] = useState(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [haRevisadoTerminos, setHaRevisadoTerminos] = useState(false);
 
-  // Formulario Paso 1
+  // Formulario Paso 1: Compacto y sin RUT ni fecha de nacimiento
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
     email: "",
     password: "",
-    rut: "",
     telefono: "",
-    fechaNacimiento: "",
   });
 
   // OTP Paso 2
@@ -124,9 +90,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
   const apellidoRef = useRef(null);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
-  const rutRef = useRef(null);
   const telefonoRef = useRef(null);
-  const fechaRef = useRef(null);
 
   const set = (campo) => (text) => {
     if (avisoCorreoExistente && campo === "email") setAvisoCorreoExistente(false);
@@ -143,7 +107,6 @@ export function OwnerRegisterScreen({ onNavigate }) {
   }, [paso, tiempoReenvio]);
 
   // Validaciones en vivo
-  const rutValido = form.rut.length >= 8 && validarRutChileno(form.rut);
   const passwordLargo = form.password.length >= 8;
   const passwordLetra = /[a-zA-Z]/.test(form.password);
   const passwordNumero = /[0-9]/.test(form.password);
@@ -175,6 +138,19 @@ export function OwnerRegisterScreen({ onNavigate }) {
     }
   };
 
+  // Abrir modal de términos obligatoriamente
+  const handleToggleTerms = () => {
+    if (!haRevisadoTerminos) {
+      setDocumentoLegal("terminos");
+      return;
+    }
+    setAcceptedTerms((v) => !v);
+  };
+
+  const handleOpenDoc = (doc) => {
+    setDocumentoLegal(doc);
+  };
+
   // Acción Paso 1: Enviar datos y pasar a Paso 2 (Código)
   const handleEnviarDatos = async () => {
     if (loading) return;
@@ -190,20 +166,17 @@ export function OwnerRegisterScreen({ onNavigate }) {
       showAlert("Contraseña débil", "La contraseña debe tener al menos 8 caracteres, una letra y un número.");
       return;
     }
-    if (!rutValido) {
-      showAlert("RUT inválido", "Por favor ingresa un RUT chileno válido con su dígito verificador.");
-      return;
-    }
     const digitosTel = form.telefono.replace(/\D/g, "");
     if (!digitosTel || digitosTel.length < 8) {
       showAlert("Celular requerido", "Por favor ingresa un número de celular de 9 dígitos.");
       return;
     }
-    if (!acceptedTerms) {
+    if (!haRevisadoTerminos || !acceptedTerms) {
       showAlert(
         "Términos requeridos",
-        `Debes aceptar los términos y condiciones y la política de privacidad, y declarar tener ${EDAD_MINIMA_ARRENDATARIO} años o más.`
+        `Debes abrir y revisar los Términos de uso y la Política de privacidad antes de crear tu cuenta.`
       );
+      setDocumentoLegal("terminos");
       return;
     }
 
@@ -251,9 +224,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
       try {
         await ApiClient.actualizarPerfilBasico({
           nombre: `${form.nombre.trim()} ${form.apellido.trim()}`,
-          rut: form.rut.trim(),
           telefono: normalizarTelefonoCompleto(form.telefono),
-          fecha_nacimiento: form.fechaNacimiento.trim(),
         });
       } catch (err) {
         console.warn("[OwnerRegister] Error al actualizar perfil:", err.message);
@@ -298,21 +269,17 @@ export function OwnerRegisterScreen({ onNavigate }) {
             Cuenta de dueño creada
           </Text>
           <Text className="text-sm text-textMuted text-center px-4 leading-5 mb-8">
-            Hola, {form.nombre.trim()}. Desde tu panel verás tus autos y tus ganancias.
+            Hola, {form.nombre.trim()}. Tu cuenta está lista. Ahora puedes publicar tus vehículos o revisar tu panel.
           </Text>
 
-          <View className="w-full bg-white rounded-2xl border border-gray-100 p-5 shadow-sm gap-3.5">
-            <View className="flex-row justify-between items-center py-1 border-b border-gray-50">
+          <View className="w-full bg-white rounded-2xl border border-gray-100 p-5 gap-3">
+            <View className="flex-row justify-between items-center py-1 border-b border-gray-100">
               <Text className="text-xs text-textMuted font-medium">Correo</Text>
               <Text className="text-sm font-semibold text-primary-800">{form.email.trim()}</Text>
             </View>
-            <View className="flex-row justify-between items-center py-1 border-b border-gray-50">
+            <View className="flex-row justify-between items-center py-1">
               <Text className="text-xs text-textMuted font-medium">Celular</Text>
               <Text className="text-sm font-semibold text-primary-800">+56 9 {form.telefono.trim()}</Text>
-            </View>
-            <View className="flex-row justify-between items-center py-1">
-              <Text className="text-xs text-textMuted font-medium">RUT</Text>
-              <Text className="text-sm font-semibold text-primary-800">{form.rut.trim()}</Text>
             </View>
           </View>
         </View>
@@ -410,7 +377,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
     );
   }
 
-  // PANTALLA PASO 1: Todos los datos
+  // PANTALLA PASO 1: Formulario Compacto
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-background"
@@ -422,24 +389,24 @@ export function OwnerRegisterScreen({ onNavigate }) {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="flex-grow px-4 pt-4 pb-8 gap-4"
+        contentContainerClassName="flex-grow px-4 pt-3 pb-6 gap-2.5"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-2xl font-bold text-primary-700">Crea tu cuenta de dueño</Text>
-        <Text className="text-sm text-textMuted -mt-2">
-          Escribe tus datos como aparecen en tu cédula.
+        <Text className="text-xl font-bold text-primary-700">Crea tu cuenta de dueño</Text>
+        <Text className="text-xs text-textMuted -mt-1.5">
+          Completa tus datos para comenzar a publicar tus autos.
         </Text>
 
         {/* Alerta de correo existente */}
         {avisoCorreoExistente ? (
-          <View className="rounded-xl border border-red-200 bg-red-50 p-3.5 gap-1.5">
-            <Text className="text-sm font-bold text-red-700">Ese correo ya tiene una cuenta</Text>
-            <Text className="text-xs text-red-600 leading-4">
+          <View className="rounded-xl border border-red-200 bg-red-50 p-3 gap-1">
+            <Text className="text-xs font-bold text-red-700">Ese correo ya tiene una cuenta</Text>
+            <Text className="text-[11px] text-red-600 leading-4">
               ¿Eres tú? Inicia sesión o cambia tu contraseña.
             </Text>
             <TouchableOpacity
-              className="mt-1 self-start py-1"
+              className="mt-0.5 self-start py-0.5"
               onPress={() => onNavigate("login")}
             >
               <Text className="text-xs font-bold text-red-800 underline">Ir a iniciar sesión</Text>
@@ -448,7 +415,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
         ) : null}
 
         {/* Fila Nombre y Apellido */}
-        <View className="flex-row gap-3">
+        <View className="flex-row gap-2.5">
           <OwnerField
             className="flex-1"
             placeholder="Nombre"
@@ -498,63 +465,38 @@ export function OwnerRegisterScreen({ onNavigate }) {
           revealIcon
           returnKeyType="next"
           blurOnSubmit={false}
-          onSubmitEditing={() => rutRef.current?.focus()}
+          onSubmitEditing={() => telefonoRef.current?.focus()}
         />
 
         {/* Chips de validación de contraseña */}
-        <View className="flex-row flex-wrap gap-2 -mt-1">
+        <View className="flex-row flex-wrap gap-1.5 -mt-0.5">
           <View
-            className={`flex-row items-center px-2.5 py-1 rounded-full border ${
+            className={`flex-row items-center px-2 py-0.5 rounded-full border ${
               passwordLargo ? "bg-[#E4F8F2] border-[#A7F3D0]" : "bg-gray-100 border-gray-200"
             }`}
           >
-            <Text className={`text-xs font-semibold ${passwordLargo ? "text-teal-800" : "text-gray-500"}`}>
-              {passwordLargo ? "✓ " : ""}8 o más caracteres
+            <Text className={`text-[11px] font-semibold ${passwordLargo ? "text-teal-800" : "text-gray-500"}`}>
+              {passwordLargo ? "✓ " : ""}8+ chars
             </Text>
           </View>
           <View
-            className={`flex-row items-center px-2.5 py-1 rounded-full border ${
+            className={`flex-row items-center px-2 py-0.5 rounded-full border ${
               passwordLetra ? "bg-[#E4F8F2] border-[#A7F3D0]" : "bg-gray-100 border-gray-200"
             }`}
           >
-            <Text className={`text-xs font-semibold ${passwordLetra ? "text-teal-800" : "text-gray-500"}`}>
-              {passwordLetra ? "✓ " : ""}Una letra
+            <Text className={`text-[11px] font-semibold ${passwordLetra ? "text-teal-800" : "text-gray-500"}`}>
+              {passwordLetra ? "✓ " : ""}Letra
             </Text>
           </View>
           <View
-            className={`flex-row items-center px-2.5 py-1 rounded-full border ${
+            className={`flex-row items-center px-2 py-0.5 rounded-full border ${
               passwordNumero ? "bg-[#E4F8F2] border-[#A7F3D0]" : "bg-gray-100 border-gray-200"
             }`}
           >
-            <Text className={`text-xs font-semibold ${passwordNumero ? "text-teal-800" : "text-gray-500"}`}>
-              {passwordNumero ? "✓ " : ""}Un número
+            <Text className={`text-[11px] font-semibold ${passwordNumero ? "text-teal-800" : "text-gray-500"}`}>
+              {passwordNumero ? "✓ " : ""}Número
             </Text>
           </View>
-        </View>
-
-        {/* RUT */}
-        <View>
-          <OwnerField
-            ref={rutRef}
-            placeholder="12.345.678-5"
-            iconLeft="user"
-            value={form.rut}
-            onChangeText={(txt) => set("rut")(formatearRutEnVivo(txt))}
-            autoCapitalize="characters"
-            maxLength={12}
-            returnKeyType="next"
-            blurOnSubmit={false}
-            onSubmitEditing={() => telefonoRef.current?.focus()}
-          />
-          {rutValido ? (
-            <Text className="text-xs text-teal-700 font-semibold mt-1 px-1">
-              ✓ RUT válido
-            </Text>
-          ) : form.rut.length >= 8 ? (
-            <Text className="text-xs text-red-600 mt-1 px-1">
-              El RUT no es válido. Revisa el número y el dígito después del guión.
-            </Text>
-          ) : null}
         </View>
 
         {/* Celular con prefijo +56 */}
@@ -567,66 +509,69 @@ export function OwnerRegisterScreen({ onNavigate }) {
           format={formatearTelefonoInput}
           maxLength={11}
           keyboardType="phone-pad"
-          returnKeyType="next"
-          blurOnSubmit={false}
-          onSubmitEditing={() => fechaRef.current?.focus()}
-        />
-
-        {/* Fecha de nacimiento */}
-        <OwnerField
-          ref={fechaRef}
-          placeholder="DD/MM/AAAA"
-          iconLeft="calendar"
-          value={form.fechaNacimiento}
-          onChangeText={(txt) => set("fechaNacimiento")(formatearFechaNacimiento(txt))}
-          maxLength={10}
-          keyboardType="numeric"
           returnKeyType="done"
+          onSubmitEditing={handleEnviarDatos}
         />
 
-        {/* Términos y privacidad */}
-        <View className="flex-row items-start gap-2.5 pt-1">
-          <Checkbox
-            checked={acceptedTerms}
-            onToggle={() => setAcceptedTerms((v) => !v)}
-          />
-          <Text className="text-xs text-textMuted leading-4 flex-1">
-            Acepto los{" "}
-            <Text
-              className="text-primary-700 font-bold underline"
-              onPress={() => setDocumentoLegal("terminos")}
-            >
-              Términos de uso
-            </Text>{" "}
-            y la{" "}
-            <Text
-              className="text-primary-700 font-bold underline"
-              onPress={() => setDocumentoLegal("privacidad")}
-            >
-              Política de privacidad
-            </Text>
-            .
-          </Text>
-        </View>
+        {/* Términos y privacidad obligatorios para abrir */}
+        <TouchableOpacity
+          className={`rounded-xl border p-2.5 mt-0.5 active:opacity-85 ${
+            acceptedTerms ? "bg-[#F0FDF9] border-[#A7F3D0]" : "bg-gray-50 border-gray-200"
+          }`}
+          onPress={handleToggleTerms}
+          activeOpacity={0.8}
+        >
+          <View className="flex-row items-start gap-2.5">
+            <Checkbox
+              checked={acceptedTerms}
+              onToggle={handleToggleTerms}
+            />
+            <View className="flex-1">
+              <Text className="text-xs font-bold text-primary-800 mb-0.5">
+                Términos y Privacidad{" "}
+                <Text className="text-[11px] font-semibold text-teal-700">
+                  {haRevisadoTerminos ? (acceptedTerms ? "✓ Aceptados" : "(Revisados)") : "(Toca para leer)"}
+                </Text>
+              </Text>
+              <Text className="text-[11px] text-textMuted leading-4">
+                Debes leer y aceptar los{" "}
+                <Text
+                  className="text-primary-700 font-bold underline"
+                  onPress={() => handleOpenDoc("terminos")}
+                >
+                  Términos de uso
+                </Text>{" "}
+                y la{" "}
+                <Text
+                  className="text-primary-700 font-bold underline"
+                  onPress={() => handleOpenDoc("privacidad")}
+                >
+                  Política de privacidad
+                </Text>
+                .
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
 
         <OwnerGradientButton
           label="Crear cuenta"
           onPress={handleEnviarDatos}
           loading={loading}
-          className="mt-2"
+          className="mt-1"
         />
 
-        <View className="items-center my-1">
-          <Text className="text-xs text-textMuted font-medium">o regístrate con</Text>
+        <View className="items-center my-0.5">
+          <Text className="text-[11px] text-textMuted font-medium">o regístrate con</Text>
         </View>
 
         <BotonesOAuth preferredMode="owner" compact />
 
         <TouchableOpacity
-          className="h-10 items-center justify-center active:opacity-70 mt-1"
+          className="h-8 items-center justify-center active:opacity-70 mt-0.5"
           onPress={() => onNavigate("login")}
         >
-          <Text className="text-[13.5px] text-textMuted">
+          <Text className="text-xs text-textMuted">
             ¿Ya tienes cuenta? <Text className="text-primary-700 font-bold">Entrar</Text>
           </Text>
         </TouchableOpacity>
@@ -635,10 +580,16 @@ export function OwnerRegisterScreen({ onNavigate }) {
       <LegalModal
         visible={!!documentoLegal}
         doc={documentoLegal || "terminos"}
-        onClose={() => setDocumentoLegal(null)}
-        onAccept={() => setAcceptedTerms(true)}
+        onClose={() => {
+          setHaRevisadoTerminos(true);
+          setDocumentoLegal(null);
+        }}
+        onAccept={() => {
+          setHaRevisadoTerminos(true);
+          setAcceptedTerms(true);
+          setDocumentoLegal(null);
+        }}
       />
     </KeyboardAvoidingView>
   );
 }
-
