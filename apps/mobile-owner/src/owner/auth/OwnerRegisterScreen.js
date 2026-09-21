@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import {
   useRegistroCuenta,
   PASO_CUENTA,
@@ -17,15 +17,14 @@ import {
   normalizarTelefonoCompleto,
   LegalModal,
   Icon,
+  BackButton,
 } from "@rentacar/mobile-shared";
-import { OwnerAuthHero } from "./OwnerAuthHero";
-import { OwnerGradientButton } from "./OwnerGradientButton";
 import { OwnerField } from "./OwnerField";
 
 function Titulo({ titulo, subtitulo }) {
   return (
-    <View className="gap-1">
-      <Text className="text-[21px] font-bold text-textDark tracking-tight">
+    <View className="gap-1 mb-1">
+      <Text className="text-2xl font-bold text-textDark tracking-tight">
         {titulo}
       </Text>
       <Text className="text-[13px] leading-[18px] text-textMuted">{subtitulo}</Text>
@@ -34,10 +33,10 @@ function Titulo({ titulo, subtitulo }) {
 }
 
 /**
- * Registro de la app de Dueño en 2 pasos:
+ * Registro minimalista de la app de Dueño en 2 pasos:
  * 1. Datos de cuenta + Aceptación obligatoria de términos y condiciones.
  * 2. Verificación del código de 6 dígitos enviado por correo.
- * 100% NativeWind, sin RUT ni fecha de nacimiento (se capturan en verificación KYC posterior).
+ * Estilo minimalista coherente con el login, 100% NativeWind, sin emojis ni elementos invasivos.
  */
 export function OwnerRegisterScreen({ onNavigate }) {
   const r = useRegistroCuenta({ role: "owner" });
@@ -83,8 +82,8 @@ export function OwnerRegisterScreen({ onNavigate }) {
 
   if (paso === PASO_EXITO) {
     return (
-      <View className="flex-1 bg-background px-5 pt-12 pb-6 gap-5">
-        <StatusBar barStyle="dark-content" />
+      <View className="flex-1 bg-background px-6 pt-16 pb-8 gap-5">
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         <EncabezadoCentrado icono="check" titulo="Cuenta de dueño creada">
           Hola, {form.nombre.trim()}. Desde tu panel podrás publicar tus autos y gestionar tus ganancias.
         </EncabezadoCentrado>
@@ -95,7 +94,14 @@ export function OwnerRegisterScreen({ onNavigate }) {
           ]}
         />
         <View className="flex-grow min-h-[16px]" />
-        <OwnerGradientButton testID="btn-ir-panel" label="Ir a mi panel" onPress={irALogin} />
+        <TouchableOpacity
+          testID="btn-ir-panel"
+          onPress={irALogin}
+          activeOpacity={0.85}
+          className="h-[52px] rounded-2xl bg-[#0F3D3E] items-center justify-center shadow-sm"
+        >
+          <Text className="text-white font-bold text-[15px]">Ir a mi panel</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -105,31 +111,37 @@ export function OwnerRegisterScreen({ onNavigate }) {
       className="flex-1 bg-background"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <StatusBar barStyle="light-content" />
-
-      {/* Cabecera superior moderna de Dueño */}
-      <OwnerAuthHero
-        variant="compact"
-        pasoLabel={`Paso ${r.numeroDePaso} de ${r.totalPasos}`}
-        onBack={() => r.volver(irALogin)}
-      />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="flex-grow px-5 pt-3 pb-6 gap-3.5"
+        contentContainerClassName="flex-grow px-6 pt-5 pb-8 gap-4"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {/* Barra de progreso de 2 pasos */}
+        {/* Barra superior minimalista */}
+        <View className="flex-row items-center justify-between mb-1">
+          <BackButton onPress={() => r.volver(irALogin)} />
+          <Text className="text-xs font-semibold text-textMuted">
+            Paso {r.numeroDePaso} de {r.totalPasos}
+          </Text>
+        </View>
+
+        {/* Barra de progreso */}
         <SegmentosPaso actual={r.numeroDePaso} total={r.totalPasos} />
 
         {/* PASO 1: Datos de la cuenta */}
         {paso === PASO_CUENTA ? (
           <>
+            {/* Badge de auto de dueño */}
+            <View className="w-11 h-11 rounded-2xl bg-[#0F3D3E] items-center justify-center mt-1">
+              <Icon name="car" size={20} color="#10B981" />
+            </View>
+
             <Titulo
               titulo="Crea tu cuenta de dueño"
-              subtitulo="Escribe tu nombre y correo tal como aparecen en tu cédula."
+              subtitulo="Ingresa tus datos tal como aparecen en tu cédula."
             />
 
             {r.avisoCorreoExistente ? (
@@ -149,7 +161,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
             ) : null}
 
             {/* Nombre y Apellido lado a lado */}
-            <View className="flex-row gap-2.5">
+            <View className="flex-row gap-3">
               <OwnerField
                 testID="input-nombre"
                 className="flex-1"
@@ -245,16 +257,16 @@ export function OwnerRegisterScreen({ onNavigate }) {
             />
 
             {/* Caja de Términos y Condiciones */}
-            <View className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 gap-2.5">
-              <View className="flex-row items-start gap-2.5">
+            <View className="bg-slate-50 border border-slate-200 rounded-2xl p-4 gap-2">
+              <View className="flex-row items-start gap-3">
                 <TouchableOpacity
                   onPress={handleToggleTerminos}
                   activeOpacity={0.7}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: terminosAceptados }}
-                  className={`w-5 h-5 rounded border mt-0.5 items-center justify-center ${
+                  className={`w-5 h-5 rounded-md border mt-0.5 items-center justify-center ${
                     terminosAceptados
-                      ? "bg-primary-700 border-primary-700"
+                      ? "bg-[#0F3D3E] border-[#0F3D3E]"
                       : "bg-white border-slate-300"
                   }`}
                 >
@@ -268,14 +280,14 @@ export function OwnerRegisterScreen({ onNavigate }) {
                     He leído y acepto los{" "}
                     <Text
                       onPress={() => abrirLegal("terminos")}
-                      className="font-bold text-accent-700 underline"
+                      className="font-bold text-[#0F3D3E] underline"
                     >
                       Términos de Servicio
                     </Text>{" "}
                     y la{" "}
                     <Text
                       onPress={() => abrirLegal("privacidad")}
-                      className="font-bold text-accent-700 underline"
+                      className="font-bold text-[#0F3D3E] underline"
                     >
                       Política de Privacidad
                     </Text>
@@ -283,14 +295,14 @@ export function OwnerRegisterScreen({ onNavigate }) {
                   </Text>
                   {!haRevisadoTerminos ? (
                     <Text className="text-[11px] text-amber-700 font-medium mt-1">
-                      ⚠️ Toca el enlace para leer los términos antes de aceptar.
+                      Toca el enlace para leer los términos antes de continuar.
                     </Text>
                   ) : null}
                 </View>
               </View>
 
               {errorTerminos ? (
-                <Text className="text-[11.5px] text-danger-600 font-medium pl-1">
+                <Text className="text-[11.5px] text-red-600 font-medium pl-1">
                   {errorTerminos}
                 </Text>
               ) : null}
@@ -298,13 +310,23 @@ export function OwnerRegisterScreen({ onNavigate }) {
 
             <View className="flex-grow min-h-[4px]" />
 
-            {/* Botón de envío */}
-            <OwnerGradientButton
+            {/* Botón principal */}
+            <TouchableOpacity
               testID="btn-continuar"
-              label="Continuar"
               onPress={handleContinuarPaso1}
-              loading={loading}
-            />
+              disabled={loading}
+              activeOpacity={0.85}
+              className="h-[52px] rounded-2xl bg-[#0F3D3E] items-center justify-center shadow-sm"
+            >
+              {loading ? (
+                <View className="flex-row items-center gap-2">
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text className="text-white font-bold text-[15px]">Creando cuenta...</Text>
+                </View>
+              ) : (
+                <Text className="text-white font-bold text-[15px]">Continuar</Text>
+              )}
+            </TouchableOpacity>
 
             {r.avisoCorreoExistente ? (
               <TouchableOpacity
@@ -312,22 +334,22 @@ export function OwnerRegisterScreen({ onNavigate }) {
                 onPress={irALogin}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                className="h-[46px] rounded-full border-[1.5px] border-slate-200 bg-surface items-center justify-center"
+                className="h-[52px] rounded-2xl border border-slate-200 bg-white items-center justify-center"
               >
-                <Text className="text-[13.5px] font-semibold text-primary-700">
+                <Text className="text-[14px] font-semibold text-[#0F3D3E]">
                   Ir a iniciar sesión
                 </Text>
               </TouchableOpacity>
             ) : (
               <>
-                <BotonesOAuth preferredMode="owner" compact redondeado titulo="o regístrate con" />
+                <BotonesOAuth preferredMode="owner" compact titulo="o regístrate con" />
                 <TouchableOpacity
-                  className="h-9 items-center justify-center"
+                  className="h-10 items-center justify-center"
                   onPress={irALogin}
                   activeOpacity={0.7}
                 >
-                  <Text className="text-[13px] text-textMuted">
-                    ¿Ya tienes cuenta? <Text className="font-bold text-accent-700">Entrar</Text>
+                  <Text className="text-[13.5px] text-textMuted">
+                    ¿Ya tienes cuenta? <Text className="font-bold text-[#0F3D3E]">Entrar</Text>
                   </Text>
                 </TouchableOpacity>
               </>
@@ -353,12 +375,22 @@ export function OwnerRegisterScreen({ onNavigate }) {
 
             <View className="flex-grow min-h-[8px]" />
 
-            <OwnerGradientButton
+            <TouchableOpacity
               testID="btn-verificar"
-              label="Verificar y activar cuenta"
               onPress={codigo.verificar}
-              loading={loading}
-            />
+              disabled={loading}
+              activeOpacity={0.85}
+              className="h-[52px] rounded-2xl bg-[#0F3D3E] items-center justify-center shadow-sm"
+            >
+              {loading ? (
+                <View className="flex-row items-center gap-2">
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text className="text-white font-bold text-[15px]">Verificando...</Text>
+                </View>
+              ) : (
+                <Text className="text-white font-bold text-[15px]">Verificar y activar cuenta</Text>
+              )}
+            </TouchableOpacity>
 
             <ReenvioCodigo
               segundos={codigo.tiempoReenvio}
@@ -372,7 +404,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
               activeOpacity={0.7}
             >
               <Text className="text-[13.5px] text-textMuted">
-                ¿Correo equivocado? <Text className="font-bold text-accent-700">Cambiarlo</Text>
+                ¿Correo equivocado? <Text className="font-bold text-[#0F3D3E]">Cambiarlo</Text>
               </Text>
             </TouchableOpacity>
           </>
