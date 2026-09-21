@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, StatusBar, Animated, Easing, Platform } from "react-native";
-import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Circle, Path } from "react-native-svg";
-import { colors } from "../../theme/colors";
+import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Circle } from "react-native-svg";
+import { BrandLogo } from "../../components/BrandLogo";
 
 const TEXTOS = {
   renter: {
@@ -18,58 +18,23 @@ const ANCHO_BARRA = 140;
 const ANCHO_TRAMO = 64;
 
 /**
- * Ícono vectorial del auto oficial del diseño de la pantalla de carga.
- */
-function CarSplashIcon({ size = 42, color = "#2DD4BF" }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-      {/* Techo y parabrisas */}
-      <Path
-        d="M9.5 14L12 7.5C12.3 6.6 13.2 6 14.2 6H21.8C22.8 6 23.7 6.6 24 7.5L26.5 14"
-        stroke={color}
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Carrocería principal */}
-      <Path
-        d="M6 14H30C31.1 14 32 14.9 32 16V22C32 23.1 31.1 24 30 24H6C4.9 24 4 23.1 4 22V16C4 14.9 4.9 14 6 14Z"
-        stroke={color}
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Faros */}
-      <Path
-        d="M8.5 19H12.5M23.5 19H27.5"
-        stroke={color}
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      />
-      {/* Ruedas inferiores */}
-      <Path
-        d="M7.5 24V26.5C7.5 27.3 8.2 28 9 28H9.5C10.3 28 11 27.3 11 26.5V24M25 24V26.5C25 27.3 25.7 28 26.5 28H27C27.8 28 28.5 27.3 28.5 26.5V24"
-        stroke={color}
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
-/**
  * Pantalla de carga oficial de la app (mobile-renter y mobile-owner).
  * Implementa el diseño estético de alta fidelidad:
  * - Fondo degradado verde esmeralda / petróleo profundo con aros concéntricos sutiles.
  * - Barra superior tipo píldora (notch indicator).
- * - Caja de vidrio oscuro translúcido con ícono frontal de auto en verde menta (#2DD4BF).
+ * - Caja de vidrio oscuro translúcido con el logo oficial propio de cada aplicación.
  * - Tipografía premium ("Arriendo Mi Auto Ya") con eslogan adaptativo por variante.
  * - Etiqueta "PARA DUEÑOS" en verde brillante para la app de dueño.
  * - Barra de progreso delgada animada con mensaje "Revisando tu sesión".
  */
-export function SplashScreen({ variante = "renter", mensaje = "Revisando tu sesión" }) {
+export function SplashScreen({
+  variante = "renter",
+  mensaje = "Revisando tu sesión",
+  logoSource,
+  logoZoom,
+}) {
   const textos = TEXTOS[variante] || TEXTOS.renter;
+  const zoomFinal = logoZoom || (variante === "owner" ? 1.33 : 1);
 
   // Animación de entrada suave (fade + ligera escala)
   const entrada = useRef(new Animated.Value(0)).current;
@@ -156,9 +121,13 @@ export function SplashScreen({ variante = "renter", mensaje = "Revisando tu sesi
 
       {/* Contenido Central */}
       <Animated.View style={[styles.centerContent, estiloEntrada]}>
-        {/* Caja del ícono de auto */}
+        {/* Caja del logo oficial de la app */}
         <View style={styles.iconBox}>
-          <CarSplashIcon size={40} color="#2DD4BF" />
+          <BrandLogo
+            size={74}
+            source={logoSource}
+            zoom={zoomFinal}
+          />
         </View>
 
         {/* Textos de Marca */}

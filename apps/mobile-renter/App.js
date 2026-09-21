@@ -29,6 +29,8 @@ import {
 } from "@rentacar/mobile-shared";
 import { RenterApp } from "./src/renter/RenterApp";
 
+const renterLogo = require("./assets/logo.png");
+
 // App del Arrendatario, separada de la de Dueño (mobile-owner). Cada una es
 // un binario propio con su propio rol fijo — ver
 // docs/superpowers/specs/2026-09-15-mobile-app-split-design.md.
@@ -45,7 +47,7 @@ function Root() {
   // encima solo cuando esa carga ya terminó, para no taparla con otra pantalla.
   return (
     <>
-      <ArranqueGate variante="renter">
+      <ArranqueGate variante="renter" logoSource={renterLogo}>
         {isLoggedIn ? <RenterApp /> : <AuthFlow fixedRole="renter" />}
       </ArranqueGate>
       {transition && !authLoading ? (
