@@ -67,7 +67,7 @@ export default function Footer() {
         </div>
 
         <div className="flex flex-col items-start justify-between gap-4 pt-7 text-[12.5px] sm:flex-row sm:items-center">
-          <span>© 2026 ARRIENDOMIAUTOYA CHILE SpA. Todos los derechos reservados.</span>
+          <span>© 2026 ARRIENDO MI AUTO SpA. Todos los derechos reservados.</span>
           <a
             href="mailto:soporte@arriendomiautoya.cl"
             className="inline-flex items-center gap-2 rounded-full bg-[#1f1f1d] px-3.5 py-2 transition-colors hover:text-brand-tealBright text-white"

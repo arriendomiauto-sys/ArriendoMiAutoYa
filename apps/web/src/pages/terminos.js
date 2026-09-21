@@ -72,10 +72,10 @@ export default function TerminosPage() {
                 <span className="text-brand-tealInk">1.</span> Naturaleza del Servicio y Objeto
               </h2>
               <p>
-                <strong>ArriendoMiAutoYa Chile SpA</strong> opera una plataforma tecnológica de economía colaborativa
-                (Car-Sharing P2P) que conecta a propietarios de vehículos particulares con conductores validados
-                para la celebración de contratos de arriendo a corto y mediano plazo en la comuna de Los Ángeles,
-                Región del Biobío.
+                <strong>ARRIENDO MI AUTO SpA</strong> (RUT <strong>78.493.457-8</strong>) opera la plataforma tecnológica
+                de economía colaborativa (Car-Sharing P2P) ArriendoMiAutoYa, conectando a propietarios de vehículos particulares
+                con conductores verificados para la celebración de contratos de arriendo a corto y mediano plazo en la comuna
+                de Los Ángeles, Región del Biobío.
               </p>
             </section>
 
@@ -85,7 +85,7 @@ export default function TerminosPage() {
               </h2>
               <ul className="list-disc pl-5 space-y-1.5 text-[#63645f]">
                 <li>Ser mayor de 21 años al momento de solicitar el arriendo.</li>
-                <li>Cédula Nacional de Identidad chilena vigente y sin órdenes pendientes.</li>
+                <li>Cédula Nacional de Identidad chilena vigente y sin órdenes pendientes, o pasaporte verificado.</li>
                 <li>Licencia de Conducir Clase B con al menos 1 año de antigüedad demostrable.</li>
                 <li>Tarjeta de crédito bancaria a nombre del conductor titular para la constitución del Hold de garantía.</li>
               </ul>
@@ -93,14 +93,15 @@ export default function TerminosPage() {
 
             <section className="space-y-3">
               <h2 className="text-base sm:text-lg font-bold text-brand-ink flex items-center gap-2">
-                <span className="text-brand-tealInk">3.</span> Seguro, Siniestros y Deducible 15 UF (50/50)
+                <span className="text-brand-tealInk">3.</span> Programa de Cobertura y Deducible 15 UF (50/50)
               </h2>
               <p>
-                Todos los vehículos cuentan con cobertura de seguro comercial durante el período de arriendo. En caso de
-                siniestro calificado (colisión, choque, robo o daño material):
+                Los vehículos cuentan con programa de protección y cobertura comercial durante el período de arriendo. Ante
+                un siniestro fortuito o culposo calificado amparado por la póliza:
               </p>
               <ul className="list-disc pl-5 space-y-1.5 text-[#63645f]">
-                <li>El deducible fijado de <strong>15 UF</strong> es compartido de forma equitativa: 50% de cargo del arrendatario y 50% asumido por la empresa/dueño según corresponda.</li>
+                <li>El deducible fijado de <strong>15 UF</strong> es absorbido en partes iguales: <strong>50% por ARRIENDO MI AUTO SpA</strong> y <strong>50% por el propietario del vehículo</strong>, quedando el arrendatario exento de este pago.</li>
+                <li>El arrendatario responderá con su Hold de Garantía ($800.000) y hasta el valor total de los perjuicios únicamente ante dolo, culpa grave, conducción bajo efectos del alcohol o drogas, conductores no autorizados o exclusiones directas de la póliza.</li>
                 <li>Es obligación del arrendatario realizar la constancia policial inmediata ante Carabineros de Chile y reportar el evento en la plataforma en un plazo inferior a 2 horas.</li>
               </ul>
             </section>
@@ -149,6 +150,32 @@ export default function TerminosPage() {
               <p>
                 Las reservas pueden cancelarse sin costo alguno hasta con <strong>24 horas de anticipación</strong> a la hora de inicio pactada.
                 Cancelaciones posteriores estarán sujetas a la retención de un día de tarifa base en compensación al propietario.
+              </p>
+            </section>
+
+            <section className="space-y-3">
+              <h2 className="text-base sm:text-lg font-bold text-brand-ink flex items-center gap-2">
+                <span className="text-brand-tealInk">8.</span> Responsabilidad Civil e Indemnidad (Ley de Tránsito)
+              </h2>
+              <p>
+                El arrendatario asume en forma personal y exclusiva la responsabilidad civil, penal y contravencional
+                por la conducción y custodia del vehículo durante todo el tiempo que medie entre la entrega y su restitución
+                conforme. En cumplimiento del artículo 169 de la Ley N° 18.290, el arrendatario se obliga expresamente a
+                mantener total e íntegramente indemne al propietario del vehículo y a ARRIENDO MI AUTO SpA frente a cualquier
+                reclamo, demanda o condena indemnizatoria por daños materiales, lesiones o perjuicios a terceros, reembolsando
+                de inmediato cualquier suma que aquellos fueren obligados a pagar.
+              </p>
+            </section>
+
+            <section className="space-y-3">
+              <h2 className="text-base sm:text-lg font-bold text-brand-ink flex items-center gap-2">
+                <span className="text-brand-tealInk">9.</span> Ley Aplicable y Jurisdicción
+              </h2>
+              <p>
+                Los presentes términos se rigen por las leyes de la República de Chile. Para todos los efectos legales,
+                las partes fijan su domicilio en la comuna de Los Ángeles, Región del Biobío, sin perjuicio de las normas
+                de competencia especial que la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores reconoce
+                al arrendatario para interponer sus acciones ante el tribunal correspondiente a su domicilio.
               </p>
             </section>
 

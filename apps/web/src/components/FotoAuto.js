@@ -7,7 +7,9 @@ import { cn } from "../lib/utils";
 // Imagen de un auto. Si no hay foto o la URL falla, muestra un marcador
 // neutro (fondo claro + ícono) — nunca una foto de ejemplo de otro auto.
 // El contenedor debe definir su tamaño (el padre es `relative`): la imagen usa
-// `fill` + `object-cover`, igual que el antiguo <img>.
+// `fill`, con `object-cover` por defecto (igual que el antiguo <img>) o
+// `fit="contain"` cuando el contenedor tiene una altura fija y no queremos
+// recortar la foto (el fondo `bg-brand-soft` hace de letterbox).
 // ============================================================================
 export default function FotoAuto({
   src,
@@ -16,6 +18,7 @@ export default function FotoAuto({
   imgClassName,
   priority = false,
   sizes = "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw",
+  fit = "cover",
 }) {
   const [falló, setFalló] = useState(false);
   const mostrar = src && !falló;
@@ -30,7 +33,7 @@ export default function FotoAuto({
           sizes={sizes}
           loading={priority ? "eager" : "lazy"}
           onError={() => setFalló(true)}
-          className={cn("object-cover", imgClassName)}
+          className={cn(fit === "contain" ? "object-contain" : "object-cover", imgClassName)}
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center">

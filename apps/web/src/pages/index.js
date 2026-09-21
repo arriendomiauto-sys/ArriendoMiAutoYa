@@ -505,6 +505,7 @@ export default function Home() {
                       alt={`${a.marca} ${a.modelo} ${a.anio || ""}`.trim()}
                       className="h-full w-full"
                       imgClassName="transition-transform duration-300 group-hover:scale-[1.03]"
+                      fit="contain"
                     />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
                     {a.categoria && (

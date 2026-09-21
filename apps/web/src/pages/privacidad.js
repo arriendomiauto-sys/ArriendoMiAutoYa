@@ -71,7 +71,7 @@ export default function PrivacidadPage() {
                 <span className="text-brand-tealInk">1.</span> Responsable del Tratamiento
               </h2>
               <p>
-                <strong>ArriendoMiAutoYa Chile SpA</strong>, domiciliada en la comuna de Los Ángeles, Región del Biobío,
+                <strong>ARRIENDO MI AUTO SpA</strong> (RUT N° 78.493.457-8), domiciliada en la comuna de Los Ángeles, Región del Biobío,
                 es la entidad responsable de la custodia y administración de las bases de datos generadas a través de su
                 aplicación móvil y plataforma web, en estricto cumplimiento de la Ley N° 19.628 sobre Protección de la Vida Privada.
               </p>
