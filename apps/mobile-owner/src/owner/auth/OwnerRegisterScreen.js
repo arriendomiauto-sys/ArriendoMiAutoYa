@@ -131,7 +131,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="light-content" />
-      <OwnerAuthHero variant="compact" title="Crea tu cuenta de dueño" onBack={() => onNavigate("welcome")} />
+      <OwnerAuthHero variant="compact" title="Crea tu cuenta de dueño" onBack={() => onNavigate("login")} />
 
       <ScrollView
         className="flex-1"

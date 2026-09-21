@@ -504,6 +504,7 @@ export const Field = React.forwardRef(function Field(
     label,
     helper,
     error,
+    invalid = false,
     prefix,
     iconLeft,
     secure = false,
@@ -546,7 +547,12 @@ export const Field = React.forwardRef(function Field(
     }
   };
 
-  const borderColor = error ? colors.danger : focused ? p.accent : p.border;
+  // `invalid` marca el campo en rojo sin texto debajo (el mensaje vive en otro
+  // lado, p. ej. un aviso arriba del formulario); `error` además lo escribe.
+  const marcado = !!error || invalid;
+  const borderColor = marcado ? colors.danger : focused ? p.accent : p.border;
+  // Un campo bloqueado (editable={false}) se apaga para que se note que no responde.
+  const apagado = inputProps.editable === false;
 
   return (
     <View style={[styles.field, style]}>
@@ -554,8 +560,8 @@ export const Field = React.forwardRef(function Field(
       <View
         style={[
           styles.fieldBox,
-          { backgroundColor: p.surface, borderColor },
-          focused && !error && styles.fieldBoxFocused,
+          { backgroundColor: apagado ? (p.dark ? p.surfaceSubtle : colors.surfaceSecondary) : p.surface, borderColor },
+          focused && !marcado && styles.fieldBoxFocused,
         ]}
       >
         {iconLeft ? <Icon name={iconLeft} size={18} color={p.textMuted} /> : null}
@@ -567,7 +573,7 @@ export const Field = React.forwardRef(function Field(
           ref={ref}
           value={format ? masked : value}
           onChangeText={handleChangeText}
-          style={[styles.fieldInput, { color: p.text }]}
+          style={[styles.fieldInput, { color: apagado ? p.textMuted : p.text }]}
           placeholderTextColor={colors.textPlaceholder}
           secureTextEntry={secure && !revealed}
           onFocus={(e) => {

@@ -20,6 +20,7 @@ import {
   useApp,
   colors,
   SwitchingScreen,
+  ArranqueGate,
   NetworkBanner,
   useNetworkStatus,
   ForceUpdateScreen,
@@ -29,6 +30,14 @@ import {
 } from "@rentacar/mobile-shared";
 import { OwnerApp } from "./src/owner/OwnerApp";
 import { OwnerAuthFlow } from "./src/owner/auth/OwnerAuthFlow";
+
+// Logo propio de la app de dueño: `BrandLogo` (paquete compartido) trae por
+// defecto el de mobile-renter, así que se pasa explícito a la pantalla de carga.
+// El PNG viene con ~12.5% de margen vacío alrededor del isotipo (el de
+// mobile-renter llega justo al borde); sin compensarlo con zoom se ve como un
+// doble marco (uno del propio PNG y otro del recorte redondeado de BrandLogo).
+const ownerLogo = require("./assets/logo.png");
+const OWNER_LOGO_ZOOM = 1.33;
 
 // App del Dueño, separada de la de Arrendatario (mobile-renter). Antes de
 // entrar al home de dueño se exige el mandato de intermediación (mismo
@@ -59,34 +68,36 @@ function Root() {
     return <ForceUpdateScreen urlStore={urlStore} />;
   }
 
-  if (authLoading) {
-    return <SwitchingScreen mode="owner" title="Cargando tu sesión" subtitle="Un segundo, estamos abriendo la app." />;
-  }
-
+  // ArranqueGate cubre la revisión de la sesión al abrir la app (carga, "sin
+  // conexión" y el paso a login o a la app). La transición de cuenta se dibuja
+  // encima solo cuando esa carga ya terminó, para no taparla con otra pantalla.
   return (
     <>
-      {isLoggedIn ? (
-        mandatoAceptado === false ? (
-          <MandatoDuenoModal
-            visible
-            userId={currentUser?.id}
-            onClose={() => {}}
-            onAccepted={() => setMandatoAceptado(true)}
-          />
-        ) : mandatoAceptado === null ? (
-          <SwitchingScreen mode="owner" title="Cargando tu cuenta" subtitle="Un segundo más." />
+      <ArranqueGate variante="owner" logoSource={ownerLogo} logoZoom={OWNER_LOGO_ZOOM}>
+        {isLoggedIn ? (
+          mandatoAceptado === false ? (
+            <MandatoDuenoModal
+              visible
+              userId={currentUser?.id}
+              onClose={() => {}}
+              onAccepted={() => setMandatoAceptado(true)}
+            />
+          ) : mandatoAceptado === null ? (
+            <SwitchingScreen mode="owner" title="Cargando tu cuenta" subtitle="Un segundo más." />
+          ) : (
+            <OwnerApp />
+          )
         ) : (
-          <OwnerApp />
-        )
-      ) : (
-        <OwnerAuthFlow />
-      )}
-      {transition ? (
+          <OwnerAuthFlow />
+        )}
+      </ArranqueGate>
+      {transition && !authLoading ? (
         <SwitchingScreen
           overlay
           mode={transition.mode}
           title={transition.title}
           subtitle={transition.subtitle}
+          exito={transition.exito}
         />
       ) : null}
     </>

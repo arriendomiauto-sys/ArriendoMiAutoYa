@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Animated } from "react-nativ
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { BrandLogo } from "../components/BrandLogo";
+import { SuccessCheck } from "../components/SuccessCheck";
 
 /**
  * Pantalla de transición. Se muestra mientras la app cambia de contexto y el
@@ -25,6 +26,7 @@ export function SwitchingScreen({
   title = "Un momento…",
   subtitle,
   overlay = false,
+  exito = false,
 }) {
   const bg = colors.background;
   const text = colors.text;
@@ -45,7 +47,8 @@ export function SwitchingScreen({
       accessibilityRole="progressbar"
       accessibilityLabel={title}
     >
-      <BrandLogo size={80} />
+      {/* `exito`: las credenciales ya se aceptaron; el check reemplaza al logo mientras carga el perfil. */}
+      {exito ? <SuccessCheck size={80} iconSize={40} /> : <BrandLogo size={80} />}
       <View style={styles.textBox}>
         <Text style={[styles.title, { color: text }]}>{title}</Text>
         {subtitle ? <Text style={[styles.subtitle, { color: muted }]}>{subtitle}</Text> : null}

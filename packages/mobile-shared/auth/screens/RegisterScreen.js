@@ -150,7 +150,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
     >
       <StatusBar barStyle="dark-content" />
 
-      <ScreenHeader title="Crear mi cuenta" onBack={() => onNavigate("welcome")} />
+      <ScreenHeader title="Crear mi cuenta" onBack={() => onNavigate("login")} />
 
       <ScrollView
         style={styles.scroll}

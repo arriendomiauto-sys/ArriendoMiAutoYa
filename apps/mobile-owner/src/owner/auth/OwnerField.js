@@ -6,7 +6,8 @@ import { colors, theme, Icon } from "@rentacar/mobile-shared";
  * Campo de texto del flujo de dueño usando NativeWind classes.
  *
  * `label` pone un rótulo sobre el campo, `iconLeft` un ícono antes del texto y
- * `revealIcon` cambia el "Ver/Ocultar" de la contraseña por un ojo.
+ * `revealIcon` cambia el "Ver/Ocultar" de la contraseña por un ojo. `invalid`
+ * marca el borde en rojo (el mensaje va aparte, en un aviso).
  */
 export const OwnerField = React.forwardRef(function OwnerField(
   {
@@ -16,6 +17,7 @@ export const OwnerField = React.forwardRef(function OwnerField(
     secure = false,
     revealIcon = false,
     iconLeft,
+    invalid = false,
     prefix,
     className = "",
     style,
@@ -49,10 +51,18 @@ export const OwnerField = React.forwardRef(function OwnerField(
     }
   };
 
+  // Bloqueado (editable={false}): se apaga para que se note que no responde.
+  const apagado = inputProps.editable === false;
+  const estadoCaja = invalid
+    ? "border-danger bg-surface"
+    : focused
+      ? "border-accent bg-surface"
+      : "border-transparent bg-surface-secondary";
+
   const campo = (
     <View
-      className={`h-[52px] rounded-2xl border-[1.5px] ${
-        focused ? "border-accent bg-surface" : "border-transparent bg-surface-secondary"
+      className={`h-[52px] rounded-2xl border-[1.5px] ${estadoCaja} ${
+        apagado ? "opacity-60" : ""
       } flex-row items-center gap-2 px-[18px] ${label ? "" : className}`}
       style={label ? undefined : style}
     >

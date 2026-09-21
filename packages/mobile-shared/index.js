@@ -20,6 +20,8 @@ export {
 export { Icon } from "./components/Icon";
 export { LlegadaPorUbicacion } from "./components/LlegadaPorUbicacion";
 export { Skeleton } from "./components/Skeleton";
+export { ArranqueGate } from "./components/ArranqueGate";
+export { AlertaInline } from "./components/AlertaInline";
 export { PhotoViewer } from "./components/PhotoViewer";
 export { AvatarFoto } from "./components/AvatarFoto";
 export { TabBar } from "./components/TabBar";
@@ -71,6 +73,8 @@ export { useConversaciones } from "./hooks/useConversaciones";
 export { useFavoritos } from "./hooks/useFavoritos";
 export { useTarjetas, limpiarCacheTarjetas } from "./hooks/useTarjetas";
 export { useCuentaRegresiva } from "./hooks/useCuentaRegresiva";
+export { useEnvioLogin } from "./hooks/useEnvioLogin";
+export { useEnvioRecuperacion } from "./hooks/useEnvioRecuperacion";
 export { useTelemetriaArriendo } from "./hooks/useTelemetriaArriendo";
 export { useNetworkStatus } from "./hooks/useNetworkStatus";
 export { useBackAndroid } from "./hooks/useBackAndroid";
@@ -134,7 +138,7 @@ export { PROVEEDORES_OAUTH, redirectUriOAuth, iniciarSesionConProveedor } from "
 export { SegundoConductorModal } from "./screens/SegundoConductorModal";
 export { MandatoDuenoModal, verificarMandatoAceptado } from "./components/MandatoDuenoModal";
 export { showAlert } from "./utils/alert";
-export { traducirErrorAuth } from "./utils/authErrors";
+export { traducirErrorAuth, esErrorCredenciales } from "./utils/authErrors";
 export { msjError } from "./utils/msjError";
 export { registrarPushToken, registrarListenerNotificaciones } from "./utils/push";
 export { inicializarSentry } from "./utils/sentry";

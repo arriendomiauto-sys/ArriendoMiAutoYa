@@ -1,4 +1,4 @@
-import { traducirErrorAuth } from "@rentacar/mobile-shared";
+import { traducirErrorAuth, esErrorCredenciales } from "@rentacar/mobile-shared";
 
 describe("traducirErrorAuth", () => {
   it("traduce credenciales inválidas", () => {
@@ -26,5 +26,26 @@ describe("traducirErrorAuth", () => {
   it("no explota con entrada vacía", () => {
     expect(typeof traducirErrorAuth(undefined)).toBe("string");
     expect(typeof traducirErrorAuth("")).toBe("string");
+  });
+});
+
+describe("esErrorCredenciales", () => {
+  it("reconoce el rechazo de correo/contraseña de Supabase, venga como Error o como texto", () => {
+    expect(esErrorCredenciales(new Error("Invalid login credentials"))).toBe(true);
+    expect(esErrorCredenciales("invalid login credentials")).toBe(true);
+  });
+
+  it.each([
+    ["sin conexión", new Error("Network request failed")],
+    ["correo sin confirmar", new Error("Email not confirmed")],
+    ["límite de intentos", new Error("Request rate limit reached")],
+    ["error desconocido", new Error("boom")],
+  ])("no marca como credenciales un error de %s", (_caso, err) => {
+    expect(esErrorCredenciales(err)).toBe(false);
+  });
+
+  it("no explota con entrada vacía", () => {
+    expect(esErrorCredenciales(undefined)).toBe(false);
+    expect(esErrorCredenciales(null)).toBe(false);
   });
 });

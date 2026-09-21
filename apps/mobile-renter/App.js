@@ -21,6 +21,7 @@ import {
   colors,
   AuthFlow,
   SwitchingScreen,
+  ArranqueGate,
   NetworkBanner,
   useNetworkStatus,
   ForceUpdateScreen,
@@ -39,19 +40,21 @@ function Root() {
     return <ForceUpdateScreen urlStore={urlStore} />;
   }
 
-  if (authLoading) {
-    return <SwitchingScreen mode="renter" title="Cargando tu sesión" subtitle="Un segundo, estamos abriendo la app." />;
-  }
-
+  // ArranqueGate cubre la revisión de la sesión al abrir la app (carga, "sin
+  // conexión" y el paso a login o a la app). La transición de cuenta se dibuja
+  // encima solo cuando esa carga ya terminó, para no taparla con otra pantalla.
   return (
     <>
-      {isLoggedIn ? <RenterApp /> : <AuthFlow fixedRole="renter" />}
-      {transition ? (
+      <ArranqueGate variante="renter">
+        {isLoggedIn ? <RenterApp /> : <AuthFlow fixedRole="renter" />}
+      </ArranqueGate>
+      {transition && !authLoading ? (
         <SwitchingScreen
           overlay
           mode={transition.mode}
           title={transition.title}
           subtitle={transition.subtitle}
+          exito={transition.exito}
         />
       ) : null}
     </>

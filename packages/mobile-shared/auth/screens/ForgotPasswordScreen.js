@@ -1,11 +1,21 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, StatusBar, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  StatusBar,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
-import { Button, Card, Field, ScreenHeader, EmptyState } from "../../components/ui";
-import { showAlert } from "../../utils/alert";
-import { traducirErrorAuth } from "../../utils/authErrors";
+import { Icon } from "../../components/Icon";
+import { Button, Field, ScreenHeader, EmptyState } from "../../components/ui";
+import { AlertaInline } from "../../components/AlertaInline";
+import { useEnvioRecuperacion } from "../../hooks/useEnvioRecuperacion";
 
 // Antes esto era un flujo de 4 pantallas totalmente simulado (código SMS
 // falso que aceptaba cualquier dígito, "actualizar contraseña" con un
@@ -15,30 +25,20 @@ import { traducirErrorAuth } from "../../utils/authErrors";
 // correo de recuperación real de Supabase (el que de verdad permite
 // definir una nueva clave) y es honesto sobre que el resto pasa por correo.
 //
-// La pantalla venía además con fondo oscuro mientras login/registro son
-// claros: se veía como si perteneciera a otra app. Ahora usa la misma
-// superficie crema y las mismas primitivas que el resto del flujo.
+// Comparte encabezado y estados con el login: un solo campo, el error a la
+// vista en la pantalla (no en una ventana emergente) y, una vez enviado, una
+// espera visible antes de poder reenviar. La confirmación dice "si tiene una
+// cuenta": es la misma respuesta exista o no el correo, así la pantalla no
+// sirve para averiguar qué correos están registrados.
 export function ForgotPasswordScreen({ onNavigate }) {
   const { resetPassword } = useApp();
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [enviado, setEnviado] = useState(false);
+  const { loading, error, enviado, correo, puedeReenviar, etiquetaEspera, enviar, limpiarError } =
+    useEnvioRecuperacion(resetPassword);
 
-  const handleEnviar = async () => {
-    if (loading) return;
-    if (!email.trim()) {
-      showAlert("Campo requerido", "Ingresa el correo con el que te registraste.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await resetPassword(email.trim());
-      setEnviado(true);
-    } catch (err) {
-      showAlert("No se pudo enviar el correo", traducirErrorAuth(err));
-    } finally {
-      setLoading(false);
-    }
+  const editar = (texto) => {
+    if (error) limpiarError();
+    setEmail(texto);
   };
 
   return (
@@ -50,56 +50,76 @@ export function ForgotPasswordScreen({ onNavigate }) {
     >
       <StatusBar barStyle="dark-content" />
 
-      <ScreenHeader
-        title="Recuperar clave"
-        subtitle="Restablece el acceso a tu cuenta"
-        onBack={() => onNavigate("login")}
-      />
+      <ScreenHeader title="" onBack={() => onNavigate("login")} />
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: 40 }]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
         {!enviado ? (
-          <Card style={styles.card}>
-            <View style={styles.cardIntro}>
-              <Text style={styles.cardTitle}>Ingresa tu correo</Text>
-              <Text style={styles.cardDesc}>
-                Te enviaremos un enlace para definir una nueva contraseña.
+          <>
+            <View style={styles.hero}>
+              <View style={styles.marca}>
+                <Icon name="key" size={24} color={colors.accent} />
+              </View>
+              <Text style={styles.title}>Recupera tu acceso</Text>
+              <Text style={styles.subtitle}>
+                Escribe tu correo y te enviamos un enlace para crear una contraseña nueva.
               </Text>
             </View>
 
+            {error ? <AlertaInline testID="aviso-recuperar" titulo={error.titulo} mensaje={error.mensaje} /> : null}
+
             <Field
-              label="Correo registrado"
+              testID="input-email"
+              label="Correo"
+              iconLeft="mail"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={editar}
+              editable={!loading}
               placeholder="nombre@correo.com"
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
               returnKeyType="go"
-              onSubmitEditing={handleEnviar}
+              onSubmitEditing={() => enviar(email)}
             />
 
-            <Button
-              label="Enviar enlace de recuperación"
-              onPress={handleEnviar}
-              loading={loading}
-              iconRight="arrow-right"
-            />
-          </Card>
+            <View style={styles.spacer} />
+
+            <Button testID="btn-enviar-enlace" label="Enviar enlace" onPress={() => enviar(email)} loading={loading} />
+
+            <TouchableOpacity style={styles.volverLink} onPress={() => onNavigate("login")} activeOpacity={0.7}>
+              <Text style={styles.volverLinkText}>
+                ¿Ya la recordaste? <Text style={styles.volverLinkHighlight}>Volver a entrar</Text>
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : (
-          <Card style={styles.card}>
-            <EmptyState
-              icon="chat"
-              title="Revisa tu correo"
-              message={`Si ${email.trim()} está registrado, te enviamos un enlace para definir una nueva contraseña. Puede tardar unos minutos — revisa también spam.`}
+          <>
+            <View style={styles.confirmacion}>
+              <EmptyState
+                icon="mail"
+                title="Revisa tu correo"
+                message={`Si ${correo} tiene una cuenta, te llegará un enlace. Puede tardar un par de minutos; mira también en spam.`}
+              />
+            </View>
+
+            {error ? <AlertaInline testID="aviso-recuperar" titulo={error.titulo} mensaje={error.mensaje} /> : null}
+
+            <Button label="Volver a entrar" onPress={() => onNavigate("login")} />
+            <Button
+              testID="btn-reenviar-enlace"
+              variant="ghost"
+              label={puedeReenviar ? "Reenviar enlace" : `Reenviar enlace en ${etiquetaEspera}`}
+              onPress={() => enviar(correo)}
+              disabled={!puedeReenviar}
+              loading={loading}
             />
-            <Button label="Ir al inicio de sesión" onPress={() => onNavigate("login")} />
-          </Card>
+          </>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -115,20 +135,51 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flexGrow: 1,
     padding: theme.spacing.screen,
-  },
-  card: {
+    paddingBottom: 32,
     gap: theme.spacing.lg,
   },
-  cardIntro: {
-    gap: theme.spacing.xs,
+  hero: {
+    alignItems: "flex-start",
+    gap: theme.spacing.sm,
   },
-  cardTitle: {
-    ...theme.typography.heading,
+  marca: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    ...theme.typography.display,
     color: colors.text,
+    marginTop: theme.spacing.xs,
   },
-  cardDesc: {
+  subtitle: {
     ...theme.typography.body,
     color: colors.textMuted,
+  },
+  spacer: {
+    flexGrow: 1,
+    minHeight: theme.spacing.xl,
+  },
+  confirmacion: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  volverLink: {
+    height: theme.control.heightSm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  volverLinkText: {
+    ...theme.typography.callout,
+    color: colors.textMuted,
+  },
+  volverLinkHighlight: {
+    color: colors.accent700,
+    fontWeight: "600",
   },
 });

@@ -299,6 +299,11 @@ export function Icon({
         </>
       );
 
+    case "wifi-off":
+      return renderSvg(
+        <Path d="M3 3l18 18M2.5 9a15 15 0 0 1 5-3M9.5 5.4A15 15 0 0 1 21.5 9M5.6 12.6a10 10 0 0 1 3.3-2M12.5 10.1a10 10 0 0 1 5.9 2.5M8.8 16.2a5 5 0 0 1 6.4 0M12 19.5v.1" />
+      );
+
     case "alert":
     case "warning":
       return renderSvg(

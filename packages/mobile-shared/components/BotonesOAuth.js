@@ -51,9 +51,10 @@ const nombre = (provider) => NOMBRE_PROVEEDOR[provider] || provider;
  * app la primera vez (igual que el rol elegido en el registro por correo).
  * `onDone` se llama tras un login exitoso, por si la pantalla quiere navegar.
  * `compact` pone los proveedores en una fila, con solo su nombre, bajo el
- * separador "o continúa con" (pantallas de login).
+ * separador "o continúa con" (pantallas de login). `disabled` los bloquea desde
+ * afuera, p. ej. mientras el login por correo está en curso.
  */
-export function BotonesOAuth({ preferredMode, onDone, divider = true, compact = false }) {
+export function BotonesOAuth({ preferredMode, onDone, divider = true, compact = false, disabled = false }) {
   const { loginConProveedor } = useApp();
   const [cargando, setCargando] = useState(null); // provider en curso | null
 
@@ -91,13 +92,13 @@ export function BotonesOAuth({ preferredMode, onDone, divider = true, compact = 
             style={[
               styles.boton,
               compact && styles.botonCompacto,
-              cargando && cargando !== provider && styles.botonOff,
+              (disabled || (cargando && cargando !== provider)) && styles.botonOff,
             ]}
             activeOpacity={0.7}
-            disabled={!!cargando}
+            disabled={!!cargando || disabled}
             onPress={() => entrar(provider)}
             accessibilityRole="button"
-            accessibilityState={{ disabled: !!cargando, busy: cargando === provider }}
+            accessibilityState={{ disabled: !!cargando || disabled, busy: cargando === provider }}
             accessibilityLabel={`Continuar con ${nombre(provider)}`}
           >
             {cargando === provider ? (

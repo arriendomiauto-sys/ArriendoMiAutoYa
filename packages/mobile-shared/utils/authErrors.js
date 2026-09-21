@@ -29,3 +29,22 @@ export function traducirErrorAuth(err) {
   }
   return "No se pudo completar la operación. Intenta de nuevo en unos segundos.";
 }
+
+/**
+ * `true` solo cuando Supabase rechazó el par correo/contraseña. El login lo usa
+ * para marcar el campo de contraseña; un error de red o de correo sin confirmar
+ * no dice nada sobre lo que la persona escribió.
+ */
+export function esErrorCredenciales(err) {
+  const mensaje = typeof err === "string" ? err : err?.message || "";
+  return /invalid login credentials/i.test(mensaje);
+}
+
+/**
+ * `true` cuando supabase-js no pudo completar una operación de sesión por la red
+ * (`AuthRetryableFetchError`). Es distinto de una sesión rechazada: no dice nada
+ * sobre si la persona tiene o no una sesión válida.
+ */
+export function esErrorDeRedAuth(err) {
+  return err?.name === "AuthRetryableFetchError";
+}

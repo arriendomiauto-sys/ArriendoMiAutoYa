@@ -45,6 +45,7 @@ module.exports = {
           subtle: "#F4FAF9",
           secondary: "#EFF1F3",
         },
+        danger: "#DC2626",
         textDark: "#1A1D1F",
         textMuted: "#6B7280",
         darkBg: "#061E1F",

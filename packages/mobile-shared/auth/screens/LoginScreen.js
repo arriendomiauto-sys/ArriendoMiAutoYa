@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, KeyboardAvoidingView, Platform } from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
@@ -6,8 +6,8 @@ import { useApp } from "../../context/AppContext";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Button, Field, ScreenHeader } from "../../components/ui";
 import { BotonesOAuth } from "../../components/BotonesOAuth";
-import { showAlert } from "../../utils/alert";
-import { traducirErrorAuth } from "../../utils/authErrors";
+import { AlertaInline } from "../../components/AlertaInline";
+import { useEnvioLogin } from "../../hooks/useEnvioLogin";
 
 // El login ya no tiene un selector de rol: AppContext determina quién es el
 // usuario a partir de su token de sesión, sin importar en qué app inició.
@@ -21,25 +21,22 @@ export function LoginScreen({ onNavigate }) {
   const { login } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const passwordRef = useRef(null);
+  // El hook también cubre el doble toque (la tecla "go" del teclado no se
+  // deshabilita con `loading` como el botón), la validación y el timeout.
+  const { loading, error, enviar, limpiarError } = useEnvioLogin(login);
 
-  const handleLogin = async () => {
-    // Guard: la tecla "go" del teclado no se deshabilita con `loading` como el
-    // botón, así que un doble toque rápido dispararía dos veces `login()`.
-    if (loading) return;
-    if (!email.trim() || !password.trim()) {
-      showAlert("Campos requeridos", "Ingresa tu correo y tu contraseña.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await login(email.trim(), password);
-    } catch (err) {
-      showAlert("No se pudo iniciar sesión", traducirErrorAuth(err));
-    } finally {
-      setLoading(false);
-    }
+  const handleLogin = () => enviar(email, password);
+
+  // Con las credenciales rechazadas el foco vuelve a la contraseña; lo escrito
+  // se conserva para corregirlo sin volver a tipear el correo.
+  useEffect(() => {
+    if (error?.campo === "password") passwordRef.current?.focus();
+  }, [error]);
+
+  const editar = (setter) => (texto) => {
+    if (error) limpiarError();
+    setter(texto);
   };
 
   return (
@@ -54,7 +51,7 @@ export function LoginScreen({ onNavigate }) {
     >
       <StatusBar barStyle="dark-content" />
 
-      <ScreenHeader title="" onBack={() => onNavigate("welcome")} />
+      <ScreenHeader title="" />
 
       <ScrollView
         style={styles.scroll}
@@ -70,6 +67,10 @@ export function LoginScreen({ onNavigate }) {
           <Text style={styles.subtitle}>Ingresa para retomar tu próximo arriendo.</Text>
         </View>
 
+        {error ? (
+          <AlertaInline testID="aviso-login" titulo={error.titulo} mensaje={error.mensaje} />
+        ) : null}
+
         {/* Bloque credenciales: el "Siguiente" del teclado salta al campo que sigue */}
         <View style={styles.form}>
           <Field
@@ -77,7 +78,8 @@ export function LoginScreen({ onNavigate }) {
             label="Correo"
             iconLeft="mail"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={editar(setEmail)}
+            editable={!loading}
             placeholder="nombre@correo.com"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -93,7 +95,9 @@ export function LoginScreen({ onNavigate }) {
             label="Contraseña"
             iconLeft="lock"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={editar(setPassword)}
+            editable={!loading}
+            invalid={error?.campo === "password"}
             placeholder="••••••••••"
             secure
             revealIcon
@@ -105,10 +109,11 @@ export function LoginScreen({ onNavigate }) {
           <TouchableOpacity
             style={styles.forgotLink}
             onPress={() => onNavigate("forgot")}
+            disabled={loading}
             activeOpacity={0.7}
             hitSlop={theme.control.hitSlop}
           >
-            <Text style={styles.forgotLinkText}>¿Olvidaste tu contraseña?</Text>
+            <Text style={[styles.forgotLinkText, loading && styles.bloqueado]}>¿Olvidaste tu contraseña?</Text>
           </TouchableOpacity>
         </View>
 
@@ -118,7 +123,7 @@ export function LoginScreen({ onNavigate }) {
         {/* Bloque acciones */}
         <Button testID="btn-login" label="Entrar" onPress={handleLogin} loading={loading} />
 
-        <BotonesOAuth compact />
+        <BotonesOAuth compact disabled={loading} />
 
         <TouchableOpacity
           style={styles.registerLink}
@@ -175,6 +180,9 @@ const styles = StyleSheet.create({
   forgotLinkText: {
     ...theme.typography.bodyStrong,
     color: colors.accent700,
+  },
+  bloqueado: {
+    opacity: 0.5,
   },
   registerLink: {
     height: theme.control.heightSm,

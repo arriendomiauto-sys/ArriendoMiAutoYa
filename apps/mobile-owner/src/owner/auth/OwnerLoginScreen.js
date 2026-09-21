@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { theme, useApp, BotonesOAuth, showAlert, traducirErrorAuth } from "@rentacar/mobile-shared";
+import { theme, useApp, BotonesOAuth, AlertaInline, useEnvioLogin } from "@rentacar/mobile-shared";
 import { OwnerAuthHero } from "./OwnerAuthHero";
 import { OwnerGradientButton } from "./OwnerGradientButton";
 import { OwnerField } from "./OwnerField";
@@ -18,23 +18,20 @@ export function OwnerLoginScreen({ onNavigate }) {
   const { login } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const passwordRef = useRef(null);
+  const { loading, error, enviar, limpiarError } = useEnvioLogin(login);
 
-  const handleLogin = async () => {
-    if (loading) return;
-    if (!email.trim() || !password.trim()) {
-      showAlert("Campos requeridos", "Ingresa tu correo y tu contraseña.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await login(email.trim(), password);
-    } catch (err) {
-      showAlert("No se pudo iniciar sesión", traducirErrorAuth(err));
-    } finally {
-      setLoading(false);
-    }
+  const handleLogin = () => enviar(email, password);
+
+  // Con las credenciales rechazadas el foco vuelve a la contraseña; lo escrito
+  // se conserva para corregirlo sin volver a tipear el correo.
+  useEffect(() => {
+    if (error?.campo === "password") passwordRef.current?.focus();
+  }, [error]);
+
+  const editar = (setter) => (texto) => {
+    if (error) limpiarError();
+    setter(texto);
   };
 
   return (
@@ -43,7 +40,7 @@ export function OwnerLoginScreen({ onNavigate }) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="light-content" />
-      <OwnerAuthHero variant="compact" onBack={() => onNavigate("welcome")} />
+      <OwnerAuthHero variant="compact" />
 
       <ScrollView
         className="flex-1"
@@ -55,6 +52,8 @@ export function OwnerLoginScreen({ onNavigate }) {
         <Text className="text-2xl font-bold text-primary-700 text-center">Bienvenido de nuevo</Text>
         <Text className="text-sm text-textMuted text-center">Ingresa para revisar tus autos y tus ganancias.</Text>
 
+        {error ? <AlertaInline testID="aviso-login" titulo={error.titulo} mensaje={error.mensaje} /> : null}
+
         <View className="gap-5 mt-4">
           <OwnerField
             testID="input-email"
@@ -62,7 +61,8 @@ export function OwnerLoginScreen({ onNavigate }) {
             iconLeft="mail"
             placeholder="Correo electrónico"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={editar(setEmail)}
+            editable={!loading}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
@@ -78,7 +78,9 @@ export function OwnerLoginScreen({ onNavigate }) {
             iconLeft="lock"
             placeholder="Contraseña"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={editar(setPassword)}
+            editable={!loading}
+            invalid={error?.campo === "password"}
             secure
             revealIcon
             autoComplete="password"
@@ -89,10 +91,13 @@ export function OwnerLoginScreen({ onNavigate }) {
           <TouchableOpacity
             className="self-start py-1 active:opacity-70"
             onPress={() => onNavigate("forgot")}
+            disabled={loading}
             activeOpacity={0.7}
             hitSlop={theme.control.hitSlop}
           >
-            <Text className="text-[13.5px] font-semibold text-primary-700">¿Olvidaste tu contraseña?</Text>
+            <Text className={`text-[13.5px] font-semibold text-primary-700 ${loading ? "opacity-50" : ""}`}>
+              ¿Olvidaste tu contraseña?
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -100,7 +105,7 @@ export function OwnerLoginScreen({ onNavigate }) {
 
         <OwnerGradientButton testID="btn-login" label="Iniciar sesión" onPress={handleLogin} loading={loading} />
 
-        <BotonesOAuth preferredMode="owner" compact />
+        <BotonesOAuth preferredMode="owner" compact disabled={loading} />
 
         <TouchableOpacity className="h-10 items-center justify-center active:opacity-70" onPress={() => onNavigate("register")} activeOpacity={0.7}>
           <Text className="text-[13.5px] text-textMuted">

@@ -6,6 +6,10 @@ import { supabase, vigilarSesionEnPrimerPlano } from "../api/supabase";
 import { iniciarSesionConProveedor } from "../utils/oauth";
 import { urlWeb } from "../utils/webUrl";
 import { limpiarCacheTarjetas } from "../hooks/useTarjetas";
+import { esErrorDeRedAuth } from "../utils/authErrors";
+
+// Máximo que se espera a que responda la revisión de la sesión al abrir la app.
+const TIMEOUT_SESION_MS = 8000;
 
 const AppContext = createContext();
 
@@ -46,6 +50,11 @@ const TITULOS_MODO = {
 export function AppProvider({ children, initialMode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  // Resultado de revisar la sesión guardada al abrir la app: "revisando" |
+  // "listo" | "sin_conexion". `sin_conexion` NO es "sin sesión": la revisión no
+  // pudo completarse por la red, así que no se sabe si hay sesión y no se debe
+  // mandar a la persona al login como si la hubiera perdido.
+  const [sesionEstado, setSesionEstado] = useState("revisando");
   const [currentUser, setCurrentUser] = useState(null);
 
   const [mode, setModeState] = useState(initialMode || "renter");
@@ -243,6 +252,7 @@ export function AppProvider({ children, initialMode }) {
       mode: modeRef.current,
       title: "Entrando a tu cuenta",
       subtitle: "Cargando tu perfil y tus arriendos.",
+      exito: true,
     });
     try {
       await syncProfile();
@@ -270,50 +280,66 @@ export function AppProvider({ children, initialMode }) {
     }
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
+  const montadoRef = useRef(true);
+  const idTimeoutSesionRef = useRef(null);
+
+  // Revisa la sesión guardada. Se llama al abrir la app y desde
+  // `reintentarSesion` (botón "Reintentar" de la pantalla "Sin conexión").
+  const revisarSesion = useCallback(async () => {
+    setSesionEstado("revisando");
+    setAuthLoading(true);
 
     // Con mala señal, `supabase.auth.getSession()` puede quedar COLGADA en
     // vez de rechazar (intenta refrescar el token contra la red y esa
     // promesa nunca se resuelve ni se rechaza) — el try/catch de abajo no
     // sirve de nada ahí porque nunca dispara. Sin este timeout, ese caso
     // dejaba `authLoading` en true para siempre: la app se quedaba pegada
-    // en "Cargando tu sesión" sin ningún error que lo explicara.
-    let idTimeout;
+    // en "Cargando tu sesión" sin ningún error que lo explicara. Si vence,
+    // NO se asume que no hay sesión (podría haberla): queda "sin_conexion".
     const seColgo = new Promise((resolve) => {
-      idTimeout = setTimeout(() => resolve("timeout"), 10000);
+      idTimeoutSesionRef.current = setTimeout(() => resolve("timeout"), TIMEOUT_SESION_MS);
     });
 
-    Promise.race([
-      supabase.auth.getSession().then(({ data }) => ({ data })),
-      seColgo,
-    ])
-      .then(async (resultado) => {
-        if (!isMounted) return;
-        if (resultado === "timeout") {
-          console.warn("[AppContext] getSession() no respondió a tiempo; se continúa sin sesión confirmada.");
-          setIsLoggedIn(false);
-          return;
-        }
-        const haySesion = !!resultado.data?.session;
-        setIsLoggedIn(haySesion);
-        // Se espera a que termine: si no, `authLoading` bajaba en el mismo
-        // tick y el dashboard alcanzaba a pintarse un frame antes de que
-        // syncProfile() confirmara (o desmintiera, con un 401) que la cuenta
-        // sigue existiendo. Mejor mantener la pantalla de carga hasta saberlo.
-        if (haySesion) await syncProfile();
-      })
-      .catch((err) => {
-        // Sin este catch, cualquier falla leyendo la sesión (almacenamiento
-        // corrupto, cliente mal configurado) dejaba authLoading en true para
-        // siempre: la app se quedaba pegada en "Cargando tu sesión".
-        console.warn("[AppContext] No se pudo recuperar la sesión:", err?.message);
-        if (isMounted) setIsLoggedIn(false);
-      })
-      .finally(() => {
-        clearTimeout(idTimeout);
-        if (isMounted) setAuthLoading(false);
-      });
+    try {
+      const resultado = await Promise.race([
+        supabase.auth.getSession().then(({ data, error }) => ({ data, error })),
+        seColgo,
+      ]);
+      if (!montadoRef.current) return;
+      // Cuando el refresco del token falla por la red, supabase-js NO lanza:
+      // devuelve `session: null` junto a un `AuthRetryableFetchError`. Leerlo
+      // como "sin sesión" mandaba al login a quien sí tenía una.
+      if (resultado === "timeout" || esErrorDeRedAuth(resultado.error)) {
+        console.warn("[AppContext] No se pudo revisar la sesión por la red; se ofrece reintentar.");
+        setSesionEstado("sin_conexion");
+        return;
+      }
+      const haySesion = !!resultado.data?.session;
+      setIsLoggedIn(haySesion);
+      // Se espera a que termine: si no, `authLoading` bajaba en el mismo
+      // tick y el dashboard alcanzaba a pintarse un frame antes de que
+      // syncProfile() confirmara (o desmintiera, con un 401) que la cuenta
+      // sigue existiendo. Mejor mantener la pantalla de carga hasta saberlo.
+      if (haySesion) await syncProfile();
+      if (montadoRef.current) setSesionEstado("listo");
+    } catch (err) {
+      // Sin este catch, cualquier falla leyendo la sesión (almacenamiento
+      // corrupto, cliente mal configurado) dejaba authLoading en true para
+      // siempre: la app se quedaba pegada en "Cargando tu sesión".
+      console.warn("[AppContext] No se pudo recuperar la sesión:", err?.message);
+      if (montadoRef.current) {
+        setIsLoggedIn(false);
+        setSesionEstado("listo");
+      }
+    } finally {
+      clearTimeout(idTimeoutSesionRef.current);
+      if (montadoRef.current) setAuthLoading(false);
+    }
+  }, [syncProfile]);
+
+  useEffect(() => {
+    montadoRef.current = true;
+    revisarSesion();
 
     const { data: subscription } = supabase.auth.onAuthStateChange((evento, session) => {
       setIsLoggedIn(!!session);
@@ -341,12 +367,12 @@ export function AppProvider({ children, initialMode }) {
     const dejarDeVigilar = vigilarSesionEnPrimerPlano();
 
     return () => {
-      isMounted = false;
-      clearTimeout(idTimeout);
+      montadoRef.current = false;
+      clearTimeout(idTimeoutSesionRef.current);
       subscription?.subscription?.unsubscribe();
       dejarDeVigilar();
     };
-  }, [syncProfile, sincronizarSesionConTransicion]);
+  }, [revisarSesion, sincronizarSesionConTransicion]);
 
   // Si un admin cambia el rol/KYC/perfil de este usuario mientras ya está
   // adentro de la app, syncProfile se ejecuta silenciosamente (sin modales ni
@@ -590,6 +616,8 @@ export function AppProvider({ children, initialMode }) {
       value={{
         isLoggedIn,
         authLoading,
+        sesionEstado,
+        reintentarSesion: revisarSesion,
         onboardingVisto,
         marcarOnboardingVisto,
         mode,
