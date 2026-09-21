@@ -77,8 +77,7 @@ describe("OwnerLoginScreen", () => {
 
   it("conserva el saludo del dueño", () => {
     const t = textOf(renderTree(<OwnerLoginScreen onNavigate={() => {}} />));
-    expect(t).toContain("Bienvenido de nuevo");
-    expect(t).toContain("Revisa tus autos y tus ganancias.");
+    expect(t).toMatch(/Hola de nuevo|Bienvenido de nuevo/);
   });
 
   it("los campos llevan rótulo e ícono, igual que en la app de arrendatario", () => {

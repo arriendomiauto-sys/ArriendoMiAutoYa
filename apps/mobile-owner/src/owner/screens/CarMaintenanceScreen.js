@@ -97,13 +97,35 @@ export function CarMaintenanceScreen({ car, onBack }) {
       showAlert("Falta el nombre", "Ingresa el nombre del documento o servicio.");
       return;
     }
+    // Validación de fecha para documento legal
+    let fechaIso = null;
+    if (form.tipo === "documento_legal" && f.fecha && f.fecha.trim()) {
+      const fechaLimpia = f.fecha.trim();
+      const parsedDate = new Date(fechaLimpia);
+      if (isNaN(parsedDate.getTime())) {
+        showAlert("Fecha inválida", "Ingresa la fecha de vencimiento en formato AAAA-MM-DD (ej: 2027-05-30) o déjala en blanco.");
+        return;
+      }
+      fechaIso = parsedDate.toISOString();
+    }
+
+    // Validación de kilometraje para servicio mecánico
+    let kmNum = null;
+    if (form.tipo === "servicio_mecanico" && f.km && f.km.trim()) {
+      kmNum = parseInt(f.km.trim(), 10);
+      if (isNaN(kmNum) || kmNum < 0) {
+        showAlert("Kilometraje inválido", "El kilometraje debe ser un número entero mayor o igual a 0.");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const nuevo = await ApiClient.crearMantencion(car.id, {
         tipo: form.tipo,
         nombre: f.nombre.trim(),
-        fecha_vencimiento: form.tipo === "documento_legal" && f.fecha ? new Date(f.fecha).toISOString() : null,
-        kilometraje: form.tipo === "servicio_mecanico" && f.km ? parseInt(f.km, 10) : null,
+        fecha_vencimiento: fechaIso,
+        kilometraje: kmNum,
         notas: f.notas.trim() || null,
       });
       setForm(null);

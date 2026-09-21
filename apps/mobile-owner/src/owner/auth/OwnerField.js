@@ -61,16 +61,16 @@ export const OwnerField = React.forwardRef(function OwnerField(
     ? "border-danger bg-surface"
     : focused
       ? "border-accent bg-surface"
-      : "border-transparent bg-surface-secondary";
+      : "border-slate-200 bg-surface-secondary";
 
   // Con rótulo o mensaje el campo va envuelto; `className`/`style` van al envoltorio.
   const conRotulo = !!label || !!error || !!helper;
 
   const campo = (
     <View
-      className={`h-[52px] rounded-full border-[1.5px] ${estadoCaja} ${
+      className={`h-[52px] rounded-2xl border-[1.5px] ${estadoCaja} ${
         apagado ? "opacity-60" : ""
-      } flex-row items-center gap-2 px-[18px] ${conRotulo ? "" : className}`}
+      } flex-row items-center gap-2.5 px-4 ${conRotulo ? "" : className}`}
       style={conRotulo ? undefined : style}
     >
       {iconLeft ? <Icon name={iconLeft} size={18} color={colors.textMuted} /> : null}
@@ -116,7 +116,7 @@ export const OwnerField = React.forwardRef(function OwnerField(
 
   return (
     <View className={`gap-1.5 ${className}`} style={style}>
-      {label ? <Text className="text-xs font-semibold text-textMuted tracking-wide">{label}</Text> : null}
+      {label ? <Text className="text-[13px] font-medium text-textMuted pl-0.5">{label}</Text> : null}
       {campo}
       {error ? (
         <View className="flex-row items-start gap-1.5 px-1" accessibilityRole="alert">
