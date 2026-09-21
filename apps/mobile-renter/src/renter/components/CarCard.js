@@ -1,13 +1,13 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
-import { colors, theme, Icon, Rating, Skeleton } from "@rentacar/mobile-shared";
+import { View, Text, Image, TouchableOpacity } from "react-native";
+import { colors, Icon, Rating, Skeleton } from "@rentacar/mobile-shared";
 
 // Esqueleto de carga con la misma silueta que <CarCard> (fila de 104 px).
 export function CarCardSkeleton() {
   return (
-    <View style={[styles.card, styles.skelCard]}>
-      <Skeleton testID="skeleton-foto" style={[styles.photo, styles.skelBlock]} />
-      <View style={styles.body}>
+    <View className="flex-row h-[104px] bg-gray-100 rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+      <Skeleton testID="skeleton-foto" className="w-[116px] h-full bg-gray-50" />
+      <View className="flex-1 py-3 px-3.5 gap-1.5">
         <Skeleton style={{ width: "62%", height: 14 }} />
         <Skeleton style={{ width: "40%", height: 12 }} />
         <Skeleton style={{ width: "30%", height: 14, marginTop: "auto" }} />
@@ -33,19 +33,19 @@ export const CarCard = React.memo(function CarCard({ car, onPress, esFavorito, o
   return (
     <TouchableOpacity
       testID={`car-card-${car.patente || car.id}`}
-      style={styles.card}
+      className="flex-row h-[104px] bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm active:opacity-85"
       onPress={() => onPress(car)}
       activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={`${nombre}, $${precio} por día`}
     >
       {/* Bloque foto: skeleton mientras carga, imagen real o icono en error */}
-      <View style={styles.photo}>
-        {fotoCargando && <Skeleton testID="skeleton-foto" style={styles.photoImg} />}
+      <View className="w-[116px] h-full bg-primary-100 border-r border-gray-100">
+        {fotoCargando && <Skeleton testID="skeleton-foto" className="w-full h-full" />}
         {foto && !fotoError ? (
           <Image
             source={{ uri: foto }}
-            style={styles.photoImg}
+            className="w-full h-full"
             resizeMode="contain"
             onLoadEnd={() => setFotoCargando(false)}
             onError={() => {
@@ -54,34 +54,34 @@ export const CarCard = React.memo(function CarCard({ car, onPress, esFavorito, o
             }}
           />
         ) : (
-          <View style={styles.photoPlaceholder}>
+          <View className="flex-1 bg-accent-100 items-center justify-center">
             <Icon name="car" size={24} color={colors.primary300} />
           </View>
         )}
       </View>
 
       {/* Bloque info */}
-      <View style={styles.body}>
-        <Text style={styles.title} numberOfLines={1}>
+      <View className="flex-1 py-3 px-3.5 gap-1.5">
+        <Text className="text-base font-semibold text-textDark pr-6" numberOfLines={1}>
           {nombre || "Vehículo"}
         </Text>
 
-        <View style={styles.metaRow}>
+        <View className="flex-row items-center">
           <Rating value={car.rating_promedio} count={car.rating_cantidad} size="sm" />
-          {comuna ? <Text style={styles.comuna} numberOfLines={1}>{` · ${comuna}`}</Text> : null}
+          {comuna ? <Text className="text-xs text-textMuted shrink" numberOfLines={1}>{` · ${comuna}`}</Text> : null}
         </View>
 
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>
+        <View className="mt-auto flex-row items-baseline">
+          <Text className="text-[17px] font-bold text-primary tracking-tight">
             {`$${precio} `}
-            <Text style={styles.per}>/ día</Text>
+            <Text className="text-[13px] font-normal text-textMuted">/ día</Text>
           </Text>
         </View>
       </View>
 
       {onToggleFavorito ? (
         <TouchableOpacity
-          style={styles.fav}
+          className="absolute top-2.5 right-2.5 w-7 h-7 items-center justify-center"
           onPress={() => onToggleFavorito(car)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
@@ -97,61 +97,4 @@ export const CarCard = React.memo(function CarCard({ car, onPress, esFavorito, o
       ) : null}
     </TouchableOpacity>
   );
-});
-
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: "row",
-    height: 104,
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-    ...theme.shadow.sm,
-  },
-  photo: {
-    width: 116,
-    height: "100%",
-    backgroundColor: colors.primary100,
-    borderRightWidth: 1,
-    borderRightColor: colors.border,
-  },
-  photoImg: { width: "100%", height: "100%" },
-  photoPlaceholder: {
-    flex: 1,
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  body: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 5,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-    paddingRight: 26,
-  },
-  metaRow: { flexDirection: "row", alignItems: "center" },
-  comuna: { fontSize: 12, color: colors.textMuted, flexShrink: 1 },
-  priceRow: { marginTop: "auto", flexDirection: "row", alignItems: "baseline" },
-  price: { fontSize: 17, fontWeight: "700", color: colors.primary, letterSpacing: -0.2 },
-  per: { fontSize: 13, fontWeight: "400", color: colors.textMuted },
-  fav: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Skeleton
-  skelCard: { backgroundColor: colors.skeleton, borderColor: colors.skeleton },
-  skelBlock: { backgroundColor: colors.surfaceSecondary, borderRightWidth: 0 },
 });

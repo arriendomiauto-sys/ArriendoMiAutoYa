@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   ScrollView,
   TouchableOpacity,
@@ -35,23 +34,23 @@ import { ControlTarifa } from "./addcar/ControlTarifa";
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
 
-// Miniatura del auto con skeleton tipo YouTube mientras carga la foto desde
-// la red. En modo demo sin fotos deja el placeholder con icono.
+// Miniatura del auto usando NativeWind
 function CarroThumb({ uri }) {
   const [cargando, setCargando] = useState(!!uri);
   if (!uri) {
     return (
-      <View style={[styles.image, styles.imageEmpty]}>
+      <View className="w-full h-full items-center justify-center bg-primary-100">
         <Icon name="car" size={44} color={colors.primary200} />
       </View>
     );
   }
   return (
     <>
-      {cargando && <Skeleton style={styles.image} />}
+      {cargando && <Skeleton style={{ width: "100%", height: "100%" }} />}
       <Image
         source={{ uri }}
-        style={styles.image}
+        className="w-full h-full"
+        resizeMode="cover"
         onLoadEnd={() => setCargando(false)}
         onError={() => setCargando(false)}
       />
@@ -59,8 +58,6 @@ function CarroThumb({ uri }) {
   );
 }
 
-// `cars`/`setCars` vienen como props (la flota real del dueño, desde
-// OwnerApp) — no del contexto global, que es el marketplace público completo.
 export function MyCarsScreen({
   cars,
   setCars,
@@ -70,6 +67,7 @@ export function MyCarsScreen({
   onAddNewCar,
   onOpenCalendar,
   onOpenMaintenance,
+  onOpenVerificacion,
   onOpenChat,
   onOpenEarnings,
   noLeidos,
@@ -139,57 +137,57 @@ export function MyCarsScreen({
     const docsOk = item.documentos_verificados;
 
     return (
-      <View style={[oc.card, styles.card]}>
-        <View style={styles.imageWrap}>
+      <View className="bg-surface rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-0">
+        <View className="h-[150px] bg-surface-secondary relative">
           <CarroThumb uri={item.fotos?.[0]} />
-          <View style={[oc.pill, styles.statusPill]}>
-            <View style={[oc.pillDot, { backgroundColor: disponible ? colors.accent : colors.textMuted }]} />
-            <Text style={[oc.pillText, { color: disponible ? colors.accentDark : colors.textMuted }]}>
+          <View className="absolute top-3 left-3 bg-white/95 rounded-full py-1 px-2.5 flex-row items-center gap-1.5 shadow-sm">
+            <View className={`w-1.5 h-1.5 rounded-full ${disponible ? "bg-accent-500" : "bg-gray-400"}`} />
+            <Text className={`text-xs font-bold ${disponible ? "text-accent-700" : "text-gray-500"}`}>
               {disponible ? "Disponible" : "Pausado"}
             </Text>
           </View>
         </View>
 
-        <View style={styles.body}>
+        <View className="p-4 gap-3.5">
           <View>
-            <Text style={styles.carName}>
+            <Text className="text-base font-bold text-textDark">
               {item.marca} {item.modelo} {item.anio || ""}
             </Text>
-            <Text style={styles.carMeta}>
+            <Text className="text-[13px] text-textMuted mt-0.5">
               {item.ubicacion_base || "Los Ángeles"} · {item.patente || "—"}
             </Text>
           </View>
 
           {!docsOk && (
-            <View style={styles.docsWarn}>
+            <View className="flex-row items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3">
               <Icon name="warning" size={14} color={colors.warning} />
-              <Text style={styles.docsWarnText}>Documentos en revisión</Text>
+              <Text className="text-xs text-amber-800 font-semibold">Documentos en revisión</Text>
             </View>
           )}
 
-          <View style={[oc.seccionMarca, styles.rateBox]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rateLabel}>Tarifa / día</Text>
-              <Text style={styles.rateValue}>{fmt(tarifa)}</Text>
+          <View className="flex-row items-center gap-3 p-3.5 rounded-xl bg-primary-100">
+            <View className="flex-1">
+              <Text className="text-[11px] text-textMuted font-semibold">Tarifa / día</Text>
+              <Text className="text-[15px] font-extrabold text-textDark mt-0.5">{fmt(tarifa)}</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rateLabel}>Recibes (85%)</Text>
-              <Text style={[styles.rateValue, { color: colors.accentDark }]}>{fmt(ganancia)}</Text>
+            <View className="flex-1">
+              <Text className="text-[11px] text-textMuted font-semibold">Recibes (85%)</Text>
+              <Text className="text-[15px] font-extrabold text-accent-700 mt-0.5">{fmt(ganancia)}</Text>
             </View>
             <TouchableOpacity
-              style={styles.editBtn}
+              className="flex-row items-center gap-1.5 py-2 px-3 rounded-lg bg-primary active:opacity-80"
               onPress={() => handleOpenEdit(item)}
               accessibilityRole="button"
               accessibilityLabel={`Editar tarifa de ${item.marca} ${item.modelo}`}
               hitSlop={theme.control.hitSlop}
             >
               <Icon name="settings" size={14} color="#FFFFFF" />
-              <Text style={styles.editBtnText}>Editar</Text>
+              <Text className="text-xs font-bold text-white">Editar</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Disponible para arriendos</Text>
+          <View className="flex-row justify-between items-center pt-3 border-t border-gray-200">
+            <Text className="text-[13px] text-textDark font-medium">Disponible para arriendos</Text>
             <Switch
               value={disponible}
               onValueChange={() => toggleCarAvailability(item)}
@@ -198,9 +196,9 @@ export function MyCarsScreen({
             />
           </View>
 
-          <View style={styles.tools}>
+          <View className="flex-row gap-2">
             <TouchableOpacity
-              style={styles.tool}
+              className="flex-1 flex-row items-center justify-center gap-1.5 bg-surface-subtle py-2.5 rounded-xl border border-gray-200 active:opacity-75"
               onPress={() => onOpenCalendar?.(item)}
               activeOpacity={0.8}
               hitSlop={theme.control.hitSlop}
@@ -208,10 +206,10 @@ export function MyCarsScreen({
               accessibilityLabel={`Calendario de ${item.marca} ${item.modelo}`}
             >
               <Icon name="calendar" size={15} color={colors.primary} />
-              <Text style={styles.toolText}>Calendario</Text>
+              <Text className="text-xs font-semibold text-textDark">Calendario</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.tool}
+              className="flex-1 flex-row items-center justify-center gap-1.5 bg-surface-subtle py-2.5 rounded-xl border border-gray-200 active:opacity-75"
               onPress={() => onOpenMaintenance?.(item)}
               activeOpacity={0.8}
               hitSlop={theme.control.hitSlop}
@@ -219,7 +217,18 @@ export function MyCarsScreen({
               accessibilityLabel={`Mantenciones de ${item.marca} ${item.modelo}`}
             >
               <Icon name="settings" size={15} color={colors.primary} />
-              <Text style={styles.toolText}>Mantenciones</Text>
+              <Text className="text-xs font-semibold text-textDark">Mantenciones</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="flex-1 flex-row items-center justify-center gap-1.5 bg-surface-subtle py-2.5 rounded-xl border border-gray-200 active:opacity-75"
+              onPress={() => onOpenVerificacion?.(item)}
+              activeOpacity={0.8}
+              hitSlop={theme.control.hitSlop}
+              accessibilityRole="button"
+              accessibilityLabel={`Verificar ${item.marca} ${item.modelo}`}
+            >
+              <Icon name="shield" size={15} color={colors.primary} />
+              <Text className="text-xs font-semibold text-textDark">Verificar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -228,7 +237,7 @@ export function MyCarsScreen({
   };
 
   return (
-    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+    <View className="flex-1 bg-background" style={{ paddingTop: Math.max(insets.top, 12) }}>
       <CabeceraOwner
         titulo="Mi flota"
         subtitulo={
@@ -245,7 +254,7 @@ export function MyCarsScreen({
       />
 
       {!identidadVerificada && (
-        <View style={styles.banner}>
+        <View className="px-4 pb-3">
           <VerifyIdentityBanner role="owner" onPress={onVerifyIdentity} />
         </View>
       )}
@@ -253,7 +262,8 @@ export function MyCarsScreen({
       <FlatList
         data={cars}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[oc.listContent, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+        contentContainerClassName="px-4 gap-4"
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 24 }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           cars?.length ? (
@@ -271,9 +281,9 @@ export function MyCarsScreen({
         renderItem={renderCar}
         ListEmptyComponent={
           loading ? (
-            <View style={styles.carga}>
+            <View className="items-center justify-center gap-3 py-10">
               <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.cargaText}>Cargando tu flota...</Text>
+              <Text className="text-sm text-textMuted">Cargando tu flota...</Text>
             </View>
           ) : error ? (
             <EmptyState
@@ -296,23 +306,23 @@ export function MyCarsScreen({
       />
 
       <Modal visible={!!editingCar} transparent animationType="fade" onRequestClose={() => setEditingCar(null)}>
-        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>Ajustar tarifa diaria</Text>
-                <Text style={styles.modalSub}>
+        <KeyboardAvoidingView className="flex-1 bg-black/45 justify-center p-6" behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View className="bg-surface rounded-2xl p-6 border border-gray-200 gap-4 max-h-[90%] shadow-2xl">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1">
+                <Text className="text-[17px] font-bold text-textDark">Ajustar tarifa diaria</Text>
+                <Text className="text-[13px] text-textMuted mt-0.5">
                   {editingCar?.marca} {editingCar?.modelo} · {editingCar?.patente}
                 </Text>
               </View>
-              <View style={styles.catBadge}>
-                <Text style={styles.catBadgeText}>{tipoConfig?.labelCorto || tipoConfig?.label}</Text>
+              <View className="bg-primary-100 border border-primary-200 px-2.5 py-1 rounded-lg">
+                <Text className="text-xs font-bold text-primary">{tipoConfig?.labelCorto || tipoConfig?.label}</Text>
               </View>
             </View>
 
             <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
+              className="max-h-[440px]"
+              contentContainerClassName="gap-4 py-1"
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
@@ -325,7 +335,7 @@ export function MyCarsScreen({
               />
             </ScrollView>
 
-            <View style={styles.modalActions}>
+            <View className="flex-row gap-3.5 mt-1">
               <Button variant="secondary" label="Cancelar" onPress={() => setEditingCar(null)} style={{ flex: 1 }} />
               <Button label="Guardar tarifa" onPress={handleSaveRate} loading={saving} style={{ flex: 1 }} />
             </View>
@@ -335,113 +345,3 @@ export function MyCarsScreen({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: { overflow: "hidden", padding: 0 },
-  carga: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.md,
-    paddingVertical: theme.spacing.xxl,
-  },
-  cargaText: { fontSize: 14, color: colors.textMuted },
-  banner: { paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.md },
-  imageWrap: { height: 150, backgroundColor: colors.surfaceSecondary },
-  image: { width: "100%", height: "100%" },
-  imageEmpty: { alignItems: "center", justifyContent: "center", backgroundColor: colors.primary100 },
-  statusPill: {
-    position: "absolute",
-    top: theme.spacing.md,
-    left: theme.spacing.md,
-    backgroundColor: "rgba(255,255,255,0.94)",
-  },
-  body: { padding: theme.spacing.lg, gap: theme.spacing.md },
-  carName: { fontSize: 16, fontWeight: "700", color: colors.text },
-  carMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  rateBox: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  rateLabel: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
-  rateValue: { fontSize: 15, fontWeight: "800", color: colors.text, marginTop: 2 },
-  editBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.sm,
-    backgroundColor: colors.primary,
-  },
-  editBtnText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
-  docsWarn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    borderRadius: theme.radius.sm,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  docsWarnText: { fontSize: 12, color: colors.warningText, fontWeight: "600" },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  switchLabel: { fontSize: 13, color: colors.text },
-  tools: { flexDirection: "row", gap: theme.spacing.sm },
-  tool: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: colors.surfaceSubtle,
-    paddingVertical: 10,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  toolText: { fontSize: 12, fontWeight: "600", color: colors.text },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(6,30,31,0.45)",
-    justifyContent: "center",
-    padding: theme.spacing.xl,
-  },
-  modalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: theme.spacing.md,
-    maxHeight: "90%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  catBadge: {
-    backgroundColor: colors.primary100,
-    borderWidth: 1,
-    borderColor: colors.primary200,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  catBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.primary,
-  },
-  modalTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
-  modalSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  modalScroll: { maxHeight: 440 },
-  modalScrollContent: { gap: theme.spacing.md, paddingVertical: 4 },
-  modalActions: { flexDirection: "row", gap: theme.spacing.md, marginTop: 4 },
-});

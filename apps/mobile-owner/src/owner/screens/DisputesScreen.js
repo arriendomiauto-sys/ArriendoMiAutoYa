@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TextInput,
   ActivityIndicator,
@@ -11,8 +10,8 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Chip, Badge, Button, EmptyState, SectionLabel, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
-import { CabeceraOwner, oc } from "../comun";
+import { colors, Chip, Badge, Button, EmptyState, SectionLabel, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
+import { CabeceraOwner } from "../comun";
 
 const MOTIVOS = [
   { id: "multa_tag", label: "Peaje / TAG" },
@@ -21,10 +20,6 @@ const MOTIVOS = [
 ];
 const LABEL = Object.fromEntries(MOTIVOS.map((m) => [m.id, m.label]));
 
-// Estados que devuelve TicketSoporte.estado, traducidos al badge que ve el
-// dueño. Antes esto vivía solo en memoria del componente: cerrar la app
-// perdía el historial completo de reclamos, y el estado real (si soporte ya
-// lo resolvió, si escaló a disputa formal) nunca se reflejaba.
 const ESTADO_BADGE = {
   abierto: { variant: "warning", label: "Recibido" },
   en_revision: { variant: "info", label: "En revisión" },
@@ -78,8 +73,6 @@ export function DisputesScreen({ onBack }) {
         `Detalle: ${form.descripcion.trim()}`,
       ].filter(Boolean).join("\n");
       const ticket = await ApiClient.crearTicketSoporte("Reclamo de garantía (Dueño)", detalle);
-      // Se agrega de inmediato (no hace falta esperar el próximo refresco
-      // para verlo) y de todos modos queda persistido en el backend.
       setTickets((p) => [ticket, ...p]);
       setForm({ monto: "", reservaId: "", folio: "", descripcion: "" });
       showAlert(
@@ -96,7 +89,8 @@ export function DisputesScreen({ onBack }) {
 
   return (
     <KeyboardAvoidingView
-      style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}
+      className="flex-1 bg-background"
+      style={{ paddingTop: Math.max(insets.top, 12) }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <CabeceraOwner
@@ -105,13 +99,14 @@ export function DisputesScreen({ onBack }) {
         onBack={onBack}
       />
 
-      <View style={styles.tabs}>
+      <View className="flex-row gap-2 px-4 pb-3">
         <Chip label={`Mis reclamos (${tickets.length})`} selected={tab === "activas"} onPress={() => setTab("activas")} />
         <Chip label="Ingresar disputa" selected={tab === "nueva"} onPress={() => setTab("nueva")} />
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.body}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 32 }}
+        className="px-4"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -122,7 +117,7 @@ export function DisputesScreen({ onBack }) {
       >
         {tab === "activas" ? (
           cargando && tickets.length === 0 ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+            <ActivityIndicator color={colors.primary} className="mt-10" />
           ) : error && tickets.length === 0 ? (
             <EmptyState
               icon="alert"
@@ -143,27 +138,27 @@ export function DisputesScreen({ onBack }) {
             tickets.map((d) => {
               const badge = ESTADO_BADGE[d.estado] || { variant: "warning", label: d.estado };
               return (
-                <View key={d.id} style={[oc.card, oc.cardPadded, styles.crd]}>
-                  <View style={styles.cardHead}>
-                    <Text style={styles.ticketId}>Ticket #{d.id.slice(0, 8).toUpperCase()}</Text>
+                <View key={d.id} className="bg-white rounded-2xl border border-gray-100 p-4 gap-2 shadow-sm mb-3">
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-xs text-textMuted font-bold">Ticket #{d.id.slice(0, 8).toUpperCase()}</Text>
                     <Badge variant={badge.variant} label={badge.label} />
                   </View>
-                  <Text style={styles.asunto}>{d.asunto}</Text>
-                  <Text style={styles.fecha}>{new Date(d.timestamp).toLocaleDateString("es-CL")}</Text>
-                  <View style={[oc.seccionSuave, { marginTop: 2 }]}>
-                    <Text style={styles.detalleText}>{d.descripcion}</Text>
+                  <Text className="text-sm font-bold text-textDark">{d.asunto}</Text>
+                  <Text className="text-xs text-textMuted">{new Date(d.timestamp).toLocaleDateString("es-CL")}</Text>
+                  <View className="bg-surface-subtle p-3 rounded-xl mt-0.5">
+                    <Text className="text-xs text-textMuted leading-[17px]">{d.descripcion}</Text>
                   </View>
                 </View>
               );
             })
           )
         ) : (
-          <View style={[oc.card, oc.cardPadded, styles.crd]}>
-            <Text style={styles.formTitle}>Nuevo reclamo de garantía</Text>
+          <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-2 shadow-sm mb-6">
+            <Text className="text-[15px] font-bold text-textDark">Nuevo reclamo de garantía</Text>
 
-            <View style={{ gap: 8 }}>
+            <View className="gap-2 mt-2">
               <SectionLabel>Tipo de cobro</SectionLabel>
-              <View style={styles.motivos}>
+              <View className="flex-row flex-wrap gap-2">
                 {MOTIVOS.map((m) => (
                   <Chip key={m.id} label={m.label} selected={motivo === m.id} onPress={() => setMotivo(m.id)} />
                 ))}
@@ -175,10 +170,10 @@ export function DisputesScreen({ onBack }) {
               { k: "reservaId", label: "ID de la reserva (opcional)", ph: "20fa33e9-…" },
               { k: "folio", label: "Folio de citación o comprobante TAG", ph: "CIT-8921-LA" },
             ].map((fi) => (
-              <View key={fi.k} style={{ gap: 6, marginTop: theme.spacing.md }}>
-                <Text style={styles.label}>{fi.label}</Text>
+              <View key={fi.k} className="gap-1.5 mt-3">
+                <Text className="text-xs font-semibold text-textMuted uppercase tracking-wider">{fi.label}</Text>
                 <TextInput
-                  style={styles.input}
+                  className="bg-white rounded-xl px-3.5 h-12 text-[15px] text-textDark border-[1.5px] border-gray-200"
                   placeholder={fi.ph}
                   placeholderTextColor={colors.textPlaceholder}
                   value={form[fi.k]}
@@ -189,10 +184,11 @@ export function DisputesScreen({ onBack }) {
               </View>
             ))}
 
-            <View style={{ gap: 6, marginTop: theme.spacing.md }}>
-              <Text style={styles.label}>Explicación detallada</Text>
+            <View className="gap-1.5 mt-3">
+              <Text className="text-xs font-semibold text-textMuted uppercase tracking-wider">Explicación detallada</Text>
               <TextInput
-                style={styles.textarea}
+                className="bg-white rounded-xl p-3.5 min-h-[90px] text-[15px] text-textDark border-[1.5px] border-gray-200"
+                style={{ textAlignVertical: "top" }}
                 placeholder="Fecha, autopista o circunstancias de la infracción…"
                 placeholderTextColor={colors.textPlaceholder}
                 value={form.descripcion}
@@ -201,45 +197,10 @@ export function DisputesScreen({ onBack }) {
               />
             </View>
 
-            <Button label="Enviar a mediación" onPress={crear} loading={enviando} style={{ marginTop: theme.spacing.lg }} />
+            <Button label="Enviar a mediación" onPress={crear} loading={enviando} style={{ marginTop: 16 }} />
           </View>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  tabs: { flexDirection: "row", gap: theme.spacing.sm, paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.md },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.md, paddingBottom: theme.spacing.xxxl },
-  crd: { gap: theme.spacing.sm },
-  cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  ticketId: { fontSize: 12, color: colors.textMuted, fontWeight: "700" },
-  asunto: { fontSize: 14, fontWeight: "700", color: colors.text },
-  fecha: { fontSize: 12, color: colors.textMuted },
-  detalleText: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
-  formTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
-  motivos: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  label: { fontSize: 12, fontWeight: "600", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.4 },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.field,
-    paddingHorizontal: 14,
-    height: theme.control.height,
-    fontSize: 15,
-    color: colors.text,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  textarea: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.field,
-    padding: 14,
-    minHeight: 90,
-    fontSize: 15,
-    color: colors.text,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    textAlignVertical: "top",
-  },
-});

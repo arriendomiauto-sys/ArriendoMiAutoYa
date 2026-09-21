@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Image,
   ScrollView,
   TouchableOpacity,
@@ -11,8 +10,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  colors,
-  theme,
   Icon,
   Button,
   Card,
@@ -125,10 +122,6 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
         setDisponibilidadError(false);
       })
       .catch((e) => {
-        // Que falle no debe romper la ficha; el backend igual valida al reservar.
-        // Pero en dev sí conviene verlo: si el endpoint no responde (404 de un
-        // backend viejo, red caída) el calendario queda sin días bloqueados y
-        // "deja elegir" fechas ocupadas sin ninguna señal visible.
         if (__DEV__) console.warn("[disponibilidad] no se pudo cargar; el calendario no marcará días ocupados:", e?.message || e);
         if (vivo) setDisponibilidadError(true);
       });
@@ -237,14 +230,15 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   // ---------------------------------------------------------------- DETALLE
   if (step === "detail") {
     return (
-      <View style={styles.container}>
+      <View className="flex-1 bg-background">
         <StatusBar barStyle="light-content" />
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: theme.spacing.xxl }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
           <View
-            style={[styles.hero, { height: heroAltura }]}
+            className="bg-teal-50"
+            style={{ height: heroAltura }}
             onLayout={(e) => setHeroW(e.nativeEvent.layout.width)}
           >
-            {heroCargando && <Skeleton style={styles.heroImg} />}
+            {heroCargando && <Skeleton className="w-full h-full" />}
             <ScrollView
               horizontal
               pagingEnabled
@@ -268,7 +262,8 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 >
                   <Image
                     source={{ uri }}
-                    style={[styles.heroImg, heroW ? { width: heroW } : null]}
+                    className="w-full h-full"
+                    style={heroW ? { width: heroW } : null}
                     resizeMode="contain"
                     onLoad={(e) => {
                       const { width, height } = e.nativeEvent.source || {};
@@ -286,74 +281,75 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             <BackButton
               variant="overlay"
               onPress={onBack}
-              style={[styles.heroBack, { top: insets.top + 8 }]}
+              className="absolute left-4"
+              style={{ top: insets.top + 8 }}
             />
-            <View style={[styles.heroActions, { top: insets.top + 8 }]}>
+            <View className="absolute right-4 flex-row gap-2" style={{ top: insets.top + 8 }}>
               <TouchableOpacity
-                style={styles.heroActionBtn}
+                className="w-10 h-10 rounded-full bg-white/95 items-center justify-center shadow-sm"
                 onPress={compartirAuto}
-                hitSlop={theme.control.hitSlop}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel="Compartir este auto"
               >
-                <Icon name="share" size={18} color={colors.primary} />
+                <Icon name="share" size={18} color="#0F766E" />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.heroActionBtn}
+                className="w-10 h-10 rounded-full bg-white/95 items-center justify-center shadow-sm"
                 onPress={() => toggleFavorito(car?.id)}
-                hitSlop={theme.control.hitSlop}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel={esFavorito(car?.id) ? "Quitar de favoritos" : "Agregar a favoritos"}
               >
                 <Icon
                   name="heart"
                   size={18}
-                  color={esFavorito(car?.id) ? colors.danger : colors.primary}
-                  fill={esFavorito(car?.id) ? colors.danger : "none"}
+                  color={esFavorito(car?.id) ? "#EF4444" : "#0F766E"}
+                  fill={esFavorito(car?.id) ? "#EF4444" : "none"}
                 />
               </TouchableOpacity>
             </View>
             {fotos.length > 1 && (
-              <View style={styles.dots}>
+              <View className="absolute bottom-3.5 left-0 right-0 flex-row justify-center gap-1.5">
                 {fotos.map((_, i) => (
-                  <View key={i} style={[styles.dot, i === fotoActiva ? styles.dotOn : styles.dotOff]} />
+                  <View key={i} className={`h-1.5 rounded-full ${i === fotoActiva ? "w-5 bg-white" : "w-1.5 bg-white/60"}`} />
                 ))}
               </View>
             )}
             {fotos.length > 0 && (
-              <View style={styles.zoomBadge} pointerEvents="none">
-                <Icon name="search" size={15} color={colors.primary} />
+              <View className="absolute right-4 bottom-3.5 w-[34px] h-[34px] rounded-full bg-white/95 items-center justify-center shadow-sm" pointerEvents="none">
+                <Icon name="search" size={15} color="#0F766E" />
               </View>
             )}
           </View>
 
-          <View style={styles.body}>
+          <View className="p-4 gap-4">
             <View>
-              <View style={styles.titleRow}>
-                <Text style={styles.carName}>{nombreAuto || "Vehículo"}</Text>
-                <View style={styles.priceTag}>
-                  <Text style={styles.priceTagAmount}>{precioCLP(tarifaDia)}</Text>
-                  <Text style={styles.priceTagPer}>por día</Text>
+              <View className="flex-row items-start justify-between gap-2">
+                <Text className="text-xl font-bold text-textDark flex-1">{nombreAuto || "Vehículo"}</Text>
+                <View className="items-end">
+                  <Text className="text-[17px] font-extrabold text-textDark">{precioCLP(tarifaDia)}</Text>
+                  <Text className="text-[11.5px] text-textMuted -mt-0.5">por día</Text>
                 </View>
               </View>
-              <View style={styles.metaRow}>
-                <Icon name="location" size={14} color={colors.textMuted} />
-                <Text style={styles.metaText}>{car?.ubicacion_base || "Ubicación no informada"}</Text>
+              <View className="flex-row items-center gap-1 mt-1.5 flex-wrap">
+                <Icon name="location" size={14} color="#64748B" />
+                <Text className="text-[13px] text-textMuted">{car?.ubicacion_base || "Ubicación no informada"}</Text>
                 {car?.categoria ? (
                   <>
-                    <Text style={styles.metaDot}>·</Text>
-                    <Text style={styles.metaText}>{CAT_LABEL[car.categoria] || car.categoria}</Text>
+                    <Text className="text-textMuted">·</Text>
+                    <Text className="text-[13px] text-textMuted">{CAT_LABEL[car.categoria] || car.categoria}</Text>
                   </>
                 ) : null}
               </View>
             </View>
 
             {specs.length > 0 && (
-              <View style={styles.specsRow}>
+              <View className="flex-row flex-wrap gap-3">
                 {specs.map((s) => (
-                  <View key={s.label} style={styles.specItem}>
-                    <Icon name={s.icon} size={15} color={colors.primary} />
-                    <Text style={styles.specText}>{s.label}</Text>
+                  <View key={s.label} className="flex-row items-center gap-1.5">
+                    <Icon name={s.icon} size={15} color="#0F766E" />
+                    <Text className="text-[13px] text-textDark font-medium">{s.label}</Text>
                   </View>
                 ))}
               </View>
@@ -361,13 +357,13 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
             {/* 1. Equipamiento del vehículo */}
             {equipamientoActivo.length > 0 && (
-              <View style={{ gap: theme.spacing.sm }}>
+              <View className="gap-2">
                 <SectionLabel>Equipamiento</SectionLabel>
-                <View style={styles.equipGrid}>
+                <View className="flex-row flex-wrap gap-2">
                   {equipamientoActivo.map((label) => (
-                    <View key={label} style={styles.equipChip}>
-                      <Icon name="check" size={12} color={colors.accent700} />
-                      <Text style={styles.equipText}>{label}</Text>
+                    <View key={label} className="flex-row items-center gap-1.5 bg-teal-50 rounded-full py-1.5 px-3">
+                      <Icon name="check" size={12} color="#0F766E" />
+                      <Text className="text-xs font-semibold text-teal-700">{label}</Text>
                     </View>
                   ))}
                 </View>
@@ -375,27 +371,27 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             )}
 
             {/* 2. Descripción del vehículo */}
-            {car?.descripcion ? <Text style={styles.descripcion}>{car.descripcion}</Text> : null}
+            {car?.descripcion ? <Text className="text-sm text-textMuted leading-5">{car.descripcion}</Text> : null}
 
             {/* 4. Calificaciones y reseñas del anfitrión */}
             {cargandoResenas ? null : calificaciones.length > 0 ? (
-              <View style={{ gap: theme.spacing.sm }}>
+              <View className="gap-2">
                 <SectionLabel>Calificaciones</SectionLabel>
-                <View style={styles.ratingSummaryRow}>
-                  <Text style={styles.ratingSummaryNum}>{promedioResenas.toFixed(1)}</Text>
-                  <View style={{ gap: 2 }}>
-                    <View style={{ flexDirection: "row" }}>
+                <View className="flex-row items-center gap-3">
+                  <Text className="text-3xl font-extrabold text-textDark tracking-tight">{promedioResenas.toFixed(1)}</Text>
+                  <View className="gap-0.5">
+                    <View className="flex-row">
                       {[1, 2, 3, 4, 5].map((n) => (
                         <Icon
                           key={n}
                           name={n <= Math.round(promedioResenas) ? "star" : "star-outline"}
                           size={14}
-                          color={colors.accent500}
-                          fill={n <= Math.round(promedioResenas) ? colors.accent500 : "none"}
+                          color="#F59E0B"
+                          fill={n <= Math.round(promedioResenas) ? "#F59E0B" : "none"}
                         />
                       ))}
                     </View>
-                    <Text style={styles.ratingSummarySub}>
+                    <Text className="text-xs text-textMuted">
                       {calificaciones.length} {calificaciones.length === 1 ? "opinión" : "opiniones"}
                     </Text>
                   </View>
@@ -404,32 +400,32 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: theme.spacing.sm, paddingRight: theme.spacing.screen }}
+                  contentContainerStyle={{ gap: 8, paddingRight: 16 }}
                 >
                   {calificaciones.slice(0, 10).map((r) => (
-                    <View key={r.id} style={styles.reviewCard}>
-                      <View style={styles.reviewHead}>
-                        <View style={{ flexDirection: "row" }}>
+                    <View key={r.id} className="w-[220px] bg-gray-50 rounded-xl border border-border p-3 gap-1.5">
+                      <View className="flex-row justify-between items-center">
+                        <View className="flex-row">
                           {[1, 2, 3, 4, 5].map((n) => (
                             <Icon
                               key={n}
                               name={n <= r.puntaje ? "star" : "star-outline"}
                               size={11}
-                              color={colors.accent500}
-                              fill={n <= r.puntaje ? colors.accent500 : "none"}
+                              color="#F59E0B"
+                              fill={n <= r.puntaje ? "#F59E0B" : "none"}
                             />
                           ))}
                         </View>
-                        <Text style={styles.reviewFecha}>
+                        <Text className="text-[11px] text-textMuted">
                           {new Date(r.timestamp).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
                         </Text>
                       </View>
                       {r.comentario ? (
-                        <Text style={styles.reviewTexto} numberOfLines={4}>
+                        <Text className="text-[13px] text-textDark leading-[18px]" numberOfLines={4}>
                           {r.comentario}
                         </Text>
                       ) : null}
-                      <Text style={styles.reviewAutor}>{r.autor_nombre || "Arrendatario"}</Text>
+                      <Text className="text-xs font-semibold text-textMuted">{r.autor_nombre || "Arrendatario"}</Text>
                     </View>
                   ))}
                 </ScrollView>
@@ -438,22 +434,22 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
             {/* 5. Tarjeta del anfitrión */}
             {tieneDueno ? (
-              <View style={styles.hostCardDark}>
-                <View style={styles.hostHairline} />
-                <View style={styles.hostAvatarDark}>
+              <View className="flex-row items-center gap-3 bg-teal-950 rounded-2xl p-4 overflow-hidden relative">
+                <View className="absolute top-0 left-4 right-4 h-px bg-teal-400" />
+                <View className="w-12 h-12 rounded-full bg-teal-500/20 items-center justify-center overflow-hidden">
                   {duenoFoto && !hostFotoError ? (
                     <Image
                       source={{ uri: duenoFoto }}
-                      style={styles.hostAvatarImg}
+                      className="w-full h-full"
                       onError={() => setHostFotoError(true)}
                     />
                   ) : (
-                    <Icon name="user" size={20} color={colors.accent500} />
+                    <Icon name="user" size={20} color="#F59E0B" />
                   )}
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.hostNameDark}>{duenoNombre}</Text>
-                  <Text style={styles.hostSubDark}>Anfitrión verificado</Text>
+                <View className="flex-1">
+                  <Text className="text-[15px] font-semibold text-white">{duenoNombre}</Text>
+                  <Text className="text-[12.5px] text-teal-200 mt-0.5">Anfitrión verificado</Text>
                   {promedioResenas || dueno?.rating || car?.rating_promedio ? (
                     <Rating
                       tone="dark"
@@ -464,18 +460,18 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                     />
                   ) : null}
                 </View>
-                <View style={styles.hostShield}>
-                  <Icon name="shield" size={14} color={colors.accent500} />
+                <View className="w-[30px] h-[30px] rounded-lg bg-teal-500/20 items-center justify-center">
+                  <Icon name="shield" size={14} color="#F59E0B" />
                 </View>
               </View>
             ) : null}
           </View>
         </ScrollView>
 
-        <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+        <View className="flex-row items-center gap-3 px-4 pt-3 bg-white border-t border-border" style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}>
           <View>
-            <Text style={styles.barPrice}>{precioCLP(tarifaDia)}</Text>
-            <Text style={styles.barPer}>por día</Text>
+            <Text className="text-lg font-bold text-textDark">{precioCLP(tarifaDia)}</Text>
+            <Text className="text-xs text-textMuted">por día</Text>
           </View>
           <Button
             label="Siguiente"
@@ -515,53 +511,53 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
   // -------------------------------------------------------------- RESUMEN
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Resumen de la reserva" onBack={() => setStep("detail")} />
-      <ScrollView contentContainerStyle={styles.stepBody} showsVerticalScrollIndicator={false}>
-        <Card style={styles.sumCarCard} padded>
+      <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+        <Card className="flex-row items-center gap-3" padded>
           {fotos[0] ? (
-            <Image source={{ uri: fotos[0] }} style={styles.sumThumb} />
+            <Image source={{ uri: fotos[0] }} className="w-[76px] h-[58px] rounded-xl bg-teal-50" />
           ) : (
-            <View style={[styles.sumThumb, styles.sumThumbEmpty]}>
-              <Icon name="car" size={22} color={colors.primary300} />
+            <View className="w-[76px] h-[58px] rounded-xl bg-teal-50 items-center justify-center">
+              <Icon name="car" size={22} color="#5EEAD4" />
             </View>
           )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sumName}>{nombreAuto || "Vehículo"}</Text>
-            <Text style={styles.sumMeta}>
+          <View className="flex-1">
+            <Text className="text-[15px] font-bold text-textDark">{nombreAuto || "Vehículo"}</Text>
+            <Text className="text-[13px] text-textMuted mt-0.5">
               {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
             </Text>
-            <Text style={styles.sumMeta}>{car?.ubicacion_base}</Text>
+            <Text className="text-[13px] text-textMuted mt-0.5">{car?.ubicacion_base}</Text>
           </View>
         </Card>
 
         {/* Desglose — el arriendo SE COBRA (IVA incl., ya en la tarifa); la
             garantía es un hold aparte que no se cobra. */}
-        <Card padded style={{ gap: theme.spacing.md }}>
-          <View style={styles.bdRow}>
-            <Text style={styles.bdLabel}>Arriendo · {dias} {dias === 1 ? "día" : "días"}</Text>
-            <Text style={styles.bdValue}>{precioCLP(subtotalNeto)}</Text>
+        <Card padded style={{ gap: 12 }}>
+          <View className="flex-row justify-between items-center">
+            <Text className="text-[15px] text-textMuted">Arriendo · {dias} {dias === 1 ? "día" : "días"}</Text>
+            <Text className="text-[15px] text-textDark font-medium">{precioCLP(subtotalNeto)}</Text>
           </View>
-          <View style={styles.bdRow}>
-            <Text style={styles.bdLabel}>IVA 19%</Text>
-            <Text style={styles.bdValue}>{precioCLP(ivaMonto)}</Text>
+          <View className="flex-row justify-between items-center">
+            <Text className="text-[15px] text-textMuted">IVA 19%</Text>
+            <Text className="text-[15px] text-textDark font-medium">{precioCLP(ivaMonto)}</Text>
           </View>
           {montoGarantia > 0 ? (
-            <View style={styles.bdRow}>
-              <Text style={styles.bdLabel}>Garantía retenida</Text>
-              <Text style={styles.bdValue}>{precioCLP(montoGarantia)}</Text>
+            <View className="flex-row justify-between items-center">
+              <Text className="text-[15px] text-textMuted">Garantía retenida</Text>
+              <Text className="text-[15px] text-textDark font-medium">{precioCLP(montoGarantia)}</Text>
             </View>
           ) : null}
-          <View style={[styles.bdRow, styles.bdTotal]}>
-            <Text style={styles.bdTotalLabel}>Se cobra al reservar</Text>
-            <Text style={styles.bdTotalValue}>{precioCLP(montoCobro)}</Text>
+          <View className="flex-row justify-between items-center border-t border-border pt-3">
+            <Text className="text-[17px] font-bold text-textDark">Se cobra al reservar</Text>
+            <Text className="text-lg font-bold text-textDark">{precioCLP(montoCobro)}</Text>
           </View>
         </Card>
 
-        <View style={styles.holdBox}>
-          <Icon name="shield" size={16} color={colors.accent700} />
-          <Text style={styles.holdText}>
+        <View className="flex-row gap-2 bg-teal-50 rounded-xl p-4">
+          <Icon name="shield" size={16} color="#0F766E" />
+          <Text className="flex-1 text-[13px] text-teal-800 leading-[19px]">
             {montoGarantia > 0
               ? `La garantía de ${precioCLP(montoGarantia)} queda bloqueada en tu tarjeta de crédito, no se cobra. `
               : "La garantía queda bloqueada en tu tarjeta de crédito, no se cobra. "}
@@ -571,7 +567,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View className="px-4 pt-3 bg-white border-t border-border" style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}>
         <Button
           testID="btn-ir-a-pagar"
           label="Ir a pagar"
@@ -586,7 +582,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             })
           }
         />
-        <Text style={styles.footerHelp}>
+        <Text className="text-xs text-textMuted text-center mt-2 leading-[17px]">
           En el paso siguiente eliges el medio de pago y firmas el contrato.
         </Text>
       </View>
@@ -594,179 +590,3 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-
-  hero: { backgroundColor: colors.primary100 },
-  zoomBadge: {
-    position: "absolute",
-    right: theme.spacing.screen,
-    bottom: 14,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.94)",
-    alignItems: "center",
-    justifyContent: "center",
-    ...theme.shadow.sm,
-  },
-  heroImg: { width: "100%", height: "100%" },
-  heroBack: {
-    position: "absolute",
-    left: theme.spacing.screen,
-  },
-  heroActions: {
-    position: "absolute",
-    right: theme.spacing.screen,
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-  },
-  heroActionBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.94)",
-    alignItems: "center",
-    justifyContent: "center",
-    ...theme.shadow.sm,
-  },
-  dots: { position: "absolute", bottom: 14, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 6 },
-  dot: { height: 6, borderRadius: 999 },
-  dotOn: { width: 20, backgroundColor: "#FFFFFF" },
-  dotOff: { width: 6, backgroundColor: "rgba(255,255,255,0.6)" },
-
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: theme.spacing.sm },
-  carName: { ...theme.typography.title, color: colors.text, flex: 1 },
-  priceTag: { alignItems: "flex-end" },
-  priceTagAmount: { fontSize: 17, fontWeight: "800", color: colors.text },
-  priceTagPer: { fontSize: 11.5, color: colors.textMuted, marginTop: -1 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6, flexWrap: "wrap" },
-  specsRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.md },
-  specItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  specText: { fontSize: 13, color: colors.text, fontWeight: "500" },
-  descripcion: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
-  metaText: { fontSize: 13, color: colors.textMuted },
-  metaDot: { color: colors.textMuted },
-
-  // Tarjeta del anfitrión — bloque premium pino oscuro con hairline menta.
-  hostCardDark: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    backgroundColor: colors.primary900,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-    overflow: "hidden",
-  },
-  hostHairline: {
-    position: "absolute",
-    top: 0,
-    left: 16,
-    right: 16,
-    height: 1,
-    backgroundColor: colors.accent500,
-  },
-  hostAvatarDark: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(47,191,155,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  hostAvatarImg: { width: "100%", height: "100%" },
-  hostNameDark: { fontSize: 15, fontWeight: "600", color: colors.textWhite },
-  hostSubDark: { fontSize: 12.5, color: colors.accent200, marginTop: 2 },
-  hostShield: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    backgroundColor: "rgba(47,191,155,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  ratingSummaryRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  ratingSummaryNum: { fontSize: 32, fontWeight: "800", color: colors.text, letterSpacing: -1 },
-  ratingSummarySub: { fontSize: 12, color: colors.textMuted },
-  reviewCard: {
-    width: 220,
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: theme.spacing.md,
-    gap: 6,
-  },
-  reviewHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  reviewFecha: { fontSize: 11, color: colors.textMuted },
-  reviewTexto: { fontSize: 13, color: colors.text, lineHeight: 18 },
-  reviewAutor: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
-
-  equipGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  equipChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.accent100,
-    borderRadius: theme.radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  equipText: { fontSize: 12, fontWeight: "600", color: colors.accent700 },
-
-  bar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  barPrice: { fontSize: 18, fontWeight: "700", color: colors.text },
-  barPer: { fontSize: 12, color: colors.textMuted },
-
-  stepBody: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  footerHelp: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: "center",
-    marginTop: theme.spacing.sm,
-    lineHeight: 17,
-  },
-
-  sumCarCard: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  sumThumb: { width: 76, height: 58, borderRadius: theme.radius.field, backgroundColor: colors.primary100 },
-  sumThumbEmpty: { backgroundColor: colors.accent100, alignItems: "center", justifyContent: "center" },
-  sumName: { fontSize: 15, fontWeight: "700", color: colors.text },
-  sumMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-
-  bdRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  bdLabel: { fontSize: 15, color: colors.textMuted },
-  bdValue: { fontSize: 15, color: colors.text, fontWeight: "500" },
-  bdTotal: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: theme.spacing.md },
-  bdTotalLabel: { fontSize: 17, fontWeight: "700", color: colors.text },
-  bdTotalValue: { fontSize: 18, fontWeight: "700", color: colors.text },
-
-  // Caja menta "garantía retenida" del resumen (dirección Lote 3, pantalla 20).
-  holdBox: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    backgroundColor: colors.accent100,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.lg,
-  },
-  holdText: { flex: 1, fontSize: 13, color: colors.accent800, lineHeight: 19 },
-});

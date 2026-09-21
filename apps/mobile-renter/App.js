@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Platform } from "react-native";
+import { View, Platform } from "react-native";
 let GestureHandlerRootView = View;
 try {
   const gh = require("react-native-gesture-handler");
@@ -63,12 +63,12 @@ function ThemedFrame() {
   return (
     <>
       <StatusBar style="dark" translucent />
-      <View style={styles.outerFrame}>
+      <View className={`flex-1 ${isWeb ? "bg-appOuter items-center justify-center" : "bg-background"}`}>
         <SafeAreaView
-          style={styles.appContainer}
+          className={`flex-1 w-full bg-background ${isWeb ? "max-w-[440px] shadow-2xl" : ""}`}
           edges={["top", "left", "right"]}
         >
-          <View style={styles.bodyContainer}>
+          <View className="flex-1">
             <Root />
             <NetworkBanner visible={!isConnected} />
           </View>
@@ -80,7 +80,7 @@ function ThemedFrame() {
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <AppProvider initialMode="renter">
           <ThemedFrame />
@@ -91,29 +91,3 @@ export default function App() {
 }
 
 const isWeb = Platform.OS === "web";
-
-const styles = StyleSheet.create({
-  outerFrame: {
-    flex: 1,
-    backgroundColor: isWeb ? colors.appOuter : colors.background,
-    ...(isWeb
-      ? {
-          alignItems: "center",
-          justifyContent: "center",
-        }
-      : {}),
-  },
-  appContainer: {
-    flex: 1,
-    width: "100%",
-    backgroundColor: colors.background,
-    ...(isWeb
-      ? {
-          maxWidth: 440,
-          boxShadow: "0px 10px 28px rgba(15, 61, 62, 0.14)",
-          elevation: 8,
-        }
-      : {}),
-  },
-  bodyContainer: { flex: 1 },
-});

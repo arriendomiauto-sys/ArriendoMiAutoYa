@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, StyleSheet, ScrollView, StatusBar, ActivityIndicator, RefreshControl } from "react-native";
+import { View, ScrollView, StatusBar, ActivityIndicator, RefreshControl } from "react-native";
 import {
-  colors,
-  theme,
   ScreenHeader,
   EmptyState,
   ApiClient,
@@ -38,13 +36,13 @@ export function FavoritesScreen({ onBack, onSelectCar }) {
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Mis favoritos" onBack={onBack} />
 
       {cargando ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#0F766E" />
         </View>
       ) : autos.length === 0 ? (
         <EmptyState
@@ -54,7 +52,7 @@ export function FavoritesScreen({ onBack, onSelectCar }) {
         />
       ) : (
         <ScrollView
-          contentContainerStyle={styles.list}
+          contentContainerClassName="p-4"
           refreshControl={<RefreshControl refreshing={refrescando} onRefresh={() => cargar(true)} />}
         >
           {autos.map((car) => (
@@ -72,8 +70,3 @@ export function FavoritesScreen({ onBack, onSelectCar }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  list: { padding: theme.spacing.screen },
-});

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, StatusBar, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, StatusBar, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  colors,
-  theme,
   useApp,
   Icon,
   AvatarFoto,
@@ -27,6 +25,7 @@ import {
 export function RenterProfileScreen({
   onOpenEnrolment,
   onOpenPaymentMethods,
+  onOpenAntecedentes,
   onOpenEditProfile,
   onOpenFavorites,
   onOpenNotifications,
@@ -79,6 +78,8 @@ export function RenterProfileScreen({
       : user.estado_documentos === "requiere_revision_manual"
         ? "En revisión"
         : "Pendiente";
+  const antecedentesMeta =
+    { limpio: "Aprobados", revision: "En revisión", bloqueado: "Contacta a soporte" }[user.antecedentes_estado] || "Pendiente";
   const tarjetaMeta = user.tarjeta_ultimos4
     ? `•• ${user.tarjeta_ultimos4}`
     : user.tarjeta_estado === "validada"
@@ -120,41 +121,42 @@ export function RenterProfileScreen({
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 32 }]}
+        contentContainerClassName="p-4 gap-4"
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 32 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
-        <Text style={styles.eyebrow}>Mi perfil</Text>
+        <Text className="text-[13px] font-bold text-textMuted tracking-[0.3px] -mb-1">Mi perfil</Text>
 
         <Card padded={false}>
           <TouchableOpacity
-            style={styles.heroHead}
+            className="flex-row items-center gap-3 p-4"
             onPress={onOpenEditProfile}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Editar perfil"
           >
             <AvatarFoto size={64} iconSize={26} />
-            <View style={styles.heroId}>
-              <Text style={styles.name} numberOfLines={1}>
+            <View className="flex-1 min-w-0">
+              <Text className="text-xl font-bold text-textDark tracking-[-0.2px]" numberOfLines={1}>
                 {user.nombre || user.email || "Mi cuenta"}
               </Text>
               {ratingNum ? (
                 <Rating value={ratingNum} count={totalArriendos} size="sm" style={{ marginTop: 3 }} />
               ) : (
-                <Text style={styles.actividad}>
+                <Text className="text-[13px] text-textMuted mt-0.5">
                   {totalArriendos > 0
                     ? `${totalArriendos} ${totalArriendos === 1 ? "arriendo" : "arriendos"}`
                     : "Aún sin arriendos"}
                 </Text>
               )}
             </View>
-            <View style={styles.editBtn}>
-              <Icon name="pencil" size={16} color={colors.accent700} />
+            <View className="w-9 h-9 rounded-xl border border-border items-center justify-center bg-white">
+              <Icon name="pencil" size={16} color="#B45309" />
             </View>
           </TouchableOpacity>
 
@@ -167,10 +169,11 @@ export function RenterProfileScreen({
         </Card>
 
         <View>
-          <Text style={styles.section}>Cuenta</Text>
+          <Text className="text-[13px] font-bold text-textMuted mb-2 ml-1">Cuenta</Text>
           <MenuList>
             <MenuRow tile tileTone="menta" icon="shield" label="Identidad" meta={identidadMeta} onPress={handleKycPress} />
             <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenPaymentMethods} />
+            <MenuRow tile tileTone="menta" icon="document" label="Antecedentes" meta={antecedentesMeta} onPress={onOpenAntecedentes} />
             <MenuRow tile icon="heart" label="Autos guardados" onPress={onOpenFavorites} />
             <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />
             <MenuRow tile icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
@@ -183,12 +186,12 @@ export function RenterProfileScreen({
         <TouchableOpacity
           onPress={handleEliminarCuenta}
           disabled={eliminando}
-          hitSlop={theme.control.hitSlop}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel="Eliminar mi cuenta"
-          style={styles.deleteBtn}
+          className="self-center py-1.5 px-3"
         >
-          <Text style={styles.deleteText}>{eliminando ? "Enviando solicitud…" : "Eliminar mi cuenta"}</Text>
+          <Text className="text-[13px] text-danger font-semibold">{eliminando ? "Enviando solicitud…" : "Eliminar mi cuenta"}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -197,33 +200,3 @@ export function RenterProfileScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  eyebrow: { fontSize: 13, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.3, marginBottom: -4 },
-
-  heroHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    padding: theme.spacing.lg,
-  },
-  heroId: { flex: 1, minWidth: 0 },
-  name: { fontSize: 20, fontWeight: "700", color: colors.text, letterSpacing: -0.2 },
-  actividad: { fontSize: 13, color: colors.textMuted, marginTop: 3 },
-  editBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-  },
-
-  section: { fontSize: 13, fontWeight: "700", color: colors.textMuted, marginBottom: theme.spacing.sm, marginLeft: 4 },
-
-  deleteBtn: { alignSelf: "center", paddingVertical: 6, paddingHorizontal: theme.spacing.md },
-  deleteText: { fontSize: 13, color: colors.danger, fontWeight: "600" },
-});

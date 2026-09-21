@@ -42,14 +42,18 @@ function MarcaProveedor({ provider, size = 20 }) {
   return null;
 }
 
+const nombre = (provider) => NOMBRE_PROVEEDOR[provider] || provider;
+
 /**
  * Botones de inicio de sesión / registro con proveedores sociales.
  *
  * `preferredMode` ("renter" | "owner") fija el modo con el que arranca la
  * app la primera vez (igual que el rol elegido en el registro por correo).
  * `onDone` se llama tras un login exitoso, por si la pantalla quiere navegar.
+ * `compact` pone los proveedores en una fila, con solo su nombre, bajo el
+ * separador "o continúa con" (pantallas de login).
  */
-export function BotonesOAuth({ preferredMode, onDone, divider = true }) {
+export function BotonesOAuth({ preferredMode, onDone, divider = true, compact = false }) {
   const { loginConProveedor } = useApp();
   const [cargando, setCargando] = useState(null); // provider en curso | null
 
@@ -62,7 +66,7 @@ export function BotonesOAuth({ preferredMode, onDone, divider = true }) {
       if (err?.code !== "oauth_cancelado") {
         showAlert(
           "No se pudo iniciar sesión",
-          err?.message || `Hubo un problema con ${NOMBRE_PROVEEDOR[provider] || provider}.`
+          err?.message || `Hubo un problema con ${nombre(provider)}.`
         );
       }
     } finally {
@@ -75,34 +79,40 @@ export function BotonesOAuth({ preferredMode, onDone, divider = true }) {
       {divider ? (
         <View style={styles.dividerRow}>
           <View style={styles.line} />
-          <Text style={styles.dividerText}>o</Text>
+          <Text style={styles.dividerText}>{compact ? "o continúa con" : "o"}</Text>
           <View style={styles.line} />
         </View>
       ) : null}
 
-      {(PROVEEDORES_OAUTH || ["google"]).map((provider) => (
-        <TouchableOpacity
-          key={provider}
-          style={[styles.boton, cargando && cargando !== provider && styles.botonOff]}
-          activeOpacity={0.7}
-          disabled={!!cargando}
-          onPress={() => entrar(provider)}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !!cargando, busy: cargando === provider }}
-          accessibilityLabel={`Continuar con ${NOMBRE_PROVEEDOR[provider] || provider}`}
-        >
-          {cargando === provider ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <>
-              <MarcaProveedor provider={provider} size={20} />
-              <Text style={styles.botonTexto}>
-                Continuar con {NOMBRE_PROVEEDOR[provider] || provider}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-      ))}
+      <View style={compact ? styles.fila : styles.columna}>
+        {(PROVEEDORES_OAUTH || ["google"]).map((provider) => (
+          <TouchableOpacity
+            key={provider}
+            style={[
+              styles.boton,
+              compact && styles.botonCompacto,
+              cargando && cargando !== provider && styles.botonOff,
+            ]}
+            activeOpacity={0.7}
+            disabled={!!cargando}
+            onPress={() => entrar(provider)}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !!cargando, busy: cargando === provider }}
+            accessibilityLabel={`Continuar con ${nombre(provider)}`}
+          >
+            {cargando === provider ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <>
+                <MarcaProveedor provider={provider} size={20} />
+                <Text style={styles.botonTexto}>
+                  {compact ? nombre(provider) : `Continuar con ${nombre(provider)}`}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 }
@@ -128,6 +138,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: theme.spacing.sm,
   },
+  columna: { gap: theme.spacing.sm },
+  fila: { flexDirection: "row", gap: theme.spacing.sm },
+  botonCompacto: { flex: 1 },
   botonOff: { opacity: 0.5 },
   botonTexto: { fontSize: 15, fontWeight: "600", color: colors.text },
 });

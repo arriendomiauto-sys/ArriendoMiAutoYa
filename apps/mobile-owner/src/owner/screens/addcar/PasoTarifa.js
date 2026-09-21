@@ -1,6 +1,5 @@
 import React from "react";
-import { ScrollView, StyleSheet } from "react-native";
-import { theme } from "@rentacar/mobile-shared";
+import { ScrollView } from "react-native";
 import { TituloPaso } from "./comun";
 import { ControlTarifa } from "./ControlTarifa";
 
@@ -9,7 +8,7 @@ export function PasoTarifa({ wizard }) {
 
   return (
     <ScrollView
-      contentContainerStyle={estilos.scroll}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 16 }}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
@@ -28,12 +27,3 @@ export function PasoTarifa({ wizard }) {
     </ScrollView>
   );
 }
-
-const estilos = StyleSheet.create({
-  scroll: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    paddingBottom: 40,
-    gap: theme.spacing.lg,
-  },
-});

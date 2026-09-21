@@ -14,7 +14,7 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "ArriendoMiAutoYa usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa.",
+        "NSLocationWhenInUseUsageDescription": "ArriendoMiAutoYa usa tu ubicación para mostrarte los autos disponibles cerca de ti en el mapa y verificar puntualmente tu llegada al punto de encuentro para la entrega o devolución del vehículo.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ArriendoMiAutoYa rastrea la ubicación del vehículo arrendado durante el período de arriendo activo, con tu consentimiento, por seguridad y prevención de fraude/robo. Se detiene automáticamente al finalizar el arriendo.",
         "NSCameraUsageDescription": "ArriendoMiAutoYa necesita acceso a tu cámara para verificar tu identidad y registrar fotos de entrega y devolución del auto.",
         "NSPhotoLibraryUsageDescription": "ArriendoMiAutoYa necesita acceso a tus fotos para adjuntar imágenes del vehículo y documentos.",

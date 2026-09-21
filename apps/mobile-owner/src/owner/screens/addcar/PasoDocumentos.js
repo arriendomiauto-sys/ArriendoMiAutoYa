@@ -1,6 +1,5 @@
 import React from "react";
-import { ScrollView, StyleSheet } from "react-native";
-import { theme } from "@rentacar/mobile-shared";
+import { ScrollView } from "react-native";
 import { TituloPaso, BarraProgreso } from "./comun";
 import { RanuraDocumento } from "./RanuraDocumento";
 import { DOCS, DOCS_OBLIGATORIOS } from "./useCarWizard";
@@ -8,13 +7,9 @@ import { DOCS, DOCS_OBLIGATORIOS } from "./useCarWizard";
 export function PasoDocumentos({ wizard }) {
   const { form, validacionDocs, validandoDoc, uploadingDoc, subirDocumento, quitarDocumento, docsCargados } =
     wizard;
-  // NOTA (Limpieza de UI de GPS): la casilla "Autorizo la instalación del GPS"
-  // se ocultó hasta la nueva definición formal del módulo GPS. El
-  // consentimiento se sigue enviando por defecto en useCarWizard para no
-  // romper la publicación con el backend actual.
 
   return (
-    <ScrollView contentContainerStyle={estilos.scroll} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 12 }} showsVerticalScrollIndicator={false}>
       <TituloPaso
         titulo="Documentos del auto"
         bajada="Al subir cada uno lo leemos para confirmar que es de este auto y sigue vigente."
@@ -38,12 +33,3 @@ export function PasoDocumentos({ wizard }) {
     </ScrollView>
   );
 }
-
-const estilos = StyleSheet.create({
-  scroll: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    paddingBottom: 40,
-    gap: theme.spacing.md,
-  },
-});

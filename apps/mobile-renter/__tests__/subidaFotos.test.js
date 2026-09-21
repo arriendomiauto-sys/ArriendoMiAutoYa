@@ -23,11 +23,9 @@ jest.mock("expo-image-picker", () => ({
   requestMediaLibraryPermissionsAsync: (...a) => mockPermisoGaleria(...a),
 }));
 
-jest.mock("react-native", () => ({
-  Image: { getSize: (uri, ok) => ok(4000, 3000) },
-  Platform: { OS: "ios" },
-  Alert: { alert: jest.fn() },
-}));
+const { Image, Alert } = require("react-native");
+jest.spyOn(Image, "getSize").mockImplementation((uri, ok) => ok(4000, 3000));
+jest.spyOn(Alert, "alert").mockImplementation(jest.fn());
 
 const mockSubir = jest.fn();
 jest.mock("@rentacar/mobile-shared/api/client", () => ({

@@ -6,7 +6,7 @@
 export function inicializarSentry() {
   const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
   if (!dsn) {
-    console.warn(
+    console.log(
       "[sentry] EXPO_PUBLIC_SENTRY_DSN vacío; captura de errores desactivada. " +
         "Revisa la configuración antes de publicar un build de producción."
     );

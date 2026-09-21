@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   Modal,
@@ -12,8 +11,8 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon, Button, Badge, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
-import { CabeceraOwner, oc } from "../comun";
+import { colors, Icon, Button, Badge, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
+import { CabeceraOwner } from "../comun";
 
 function fmtFecha(iso) {
   if (!iso) return null;
@@ -24,28 +23,35 @@ function fmtFecha(iso) {
   }
 }
 
-// A nivel de módulo: si vive dentro del componente, cada tecleo en el modal
-// recrea el tipo y React desmonta y vuelve a montar las dos secciones enteras.
 function SeccionMantencion({ titulo, lista, render, onAdd, ctaLabel }) {
   return (
-    <View style={[oc.card, oc.cardPadded, styles.sec]}>
-      <Text style={oc.cardTitle}>{titulo}</Text>
+    <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-2 shadow-sm mb-4">
+      <Text className="text-base font-bold text-primary">{titulo}</Text>
       {lista.length === 0 ? (
-        <Text style={styles.empty}>Sin registros todavía.</Text>
+        <Text className="text-[13px] text-textMuted py-1.5">Sin registros todavía.</Text>
       ) : (
         lista.map((m, i) => (
-          <View key={m.id} style={[styles.row, i === lista.length - 1 && { borderBottomWidth: 0 }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowName}>{m.nombre}</Text>
-              <Text style={styles.rowMeta}>{render(m)}</Text>
+          <View
+            key={m.id}
+            className={`flex-row items-center justify-between gap-3 py-2.5 ${
+              i < lista.length - 1 ? "border-b border-gray-100" : ""
+            }`}
+          >
+            <View className="flex-1">
+              <Text className="text-sm font-semibold text-textDark">{m.nombre}</Text>
+              <Text className="text-xs text-textMuted mt-0.5">{render(m)}</Text>
             </View>
             <Badge variant="success" label="Registrado" />
           </View>
         ))
       )}
-      <TouchableOpacity style={styles.addBtn} onPress={onAdd} activeOpacity={0.85}>
+      <TouchableOpacity
+        className="flex-row items-center justify-center gap-1.5 mt-1 py-2.5 rounded-xl bg-surface-subtle border border-dashed border-gray-300"
+        onPress={onAdd}
+        activeOpacity={0.85}
+      >
         <Icon name="plus" size={15} color={colors.accentDark} />
-        <Text style={styles.addBtnText}>{ctaLabel}</Text>
+        <Text className="text-accent-700 text-[13px] font-semibold">{ctaLabel}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -56,7 +62,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState(null); // { tipo } | null
+  const [form, setForm] = useState(null);
   const [f, setF] = useState({ nombre: "", fecha: "", km: "", notas: "" });
   const [saving, setSaving] = useState(false);
 
@@ -102,8 +108,6 @@ export function CarMaintenanceScreen({ car, onBack }) {
       });
       setForm(null);
       setF({ nombre: "", fecha: "", km: "", notas: "" });
-      // El endpoint devuelve el registro creado: se antepone en vez de re-pedir
-      // toda la lista.
       if (nuevo?.id) setItems((p) => [nuevo, ...p]);
       else cargar();
     } catch (err) {
@@ -114,18 +118,18 @@ export function CarMaintenanceScreen({ car, onBack }) {
   };
 
   return (
-    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+    <View className="flex-1 bg-background" style={{ paddingTop: Math.max(insets.top, 12) }}>
       <CabeceraOwner
         titulo="Mantenimientos"
         subtitulo={car ? `${car.marca} ${car.modelo} · ${car.patente || "—"}` : "Selecciona un auto"}
         onBack={onBack}
       />
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 32 }} className="px-4" showsVerticalScrollIndicator={false}>
         {loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 30 }} />
+          <ActivityIndicator color={colors.primary} className="mt-8" />
         ) : error ? (
-          <Text style={styles.errorText}>{error}</Text>
+          <Text className="text-red-500 text-[13px] mt-5 text-center">{error}</Text>
         ) : (
           <>
             <SeccionMantencion
@@ -147,19 +151,19 @@ export function CarMaintenanceScreen({ car, onBack }) {
       </ScrollView>
 
       <Modal visible={!!form} transparent animationType="fade" onRequestClose={() => setForm(null)}>
-        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
+        <KeyboardAvoidingView className="flex-1 bg-[#061E1F]/50 justify-center p-5" behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View className="bg-white rounded-2xl p-5 border border-gray-100 gap-3 shadow-lg">
+            <Text className="text-[17px] font-bold text-textDark">
               {form?.tipo === "documento_legal" ? "Nuevo documento legal" : "Nueva mantención"}
             </Text>
             <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
+              className="max-h-[300px]"
+              contentContainerStyle={{ gap: 12, paddingVertical: 2 }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
               <TextInput
-                style={styles.input}
+                className="bg-white rounded-xl px-3.5 py-3 text-[15px] text-textDark border-[1.5px] border-gray-200"
                 placeholder={form?.tipo === "documento_legal" ? "ej. Revisión técnica" : "ej. Cambio de aceite"}
                 placeholderTextColor={colors.textPlaceholder}
                 value={f.nombre}
@@ -167,7 +171,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
               />
               {form?.tipo === "documento_legal" ? (
                 <TextInput
-                  style={styles.input}
+                  className="bg-white rounded-xl px-3.5 py-3 text-[15px] text-textDark border-[1.5px] border-gray-200"
                   placeholder="Vencimiento (AAAA-MM-DD)"
                   placeholderTextColor={colors.textPlaceholder}
                   value={f.fecha}
@@ -175,7 +179,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
                 />
               ) : (
                 <TextInput
-                  style={styles.input}
+                  className="bg-white rounded-xl px-3.5 py-3 text-[15px] text-textDark border-[1.5px] border-gray-200"
                   placeholder="Kilometraje (opcional)"
                   placeholderTextColor={colors.textPlaceholder}
                   value={f.km}
@@ -184,7 +188,8 @@ export function CarMaintenanceScreen({ car, onBack }) {
                 />
               )}
               <TextInput
-                style={[styles.input, { minHeight: 72, textAlignVertical: "top" }]}
+                className="bg-white rounded-xl px-3.5 py-3 text-[15px] text-textDark border-[1.5px] border-gray-200"
+                style={{ minHeight: 72, textAlignVertical: "top" }}
                 placeholder="Notas (opcional)"
                 placeholderTextColor={colors.textPlaceholder}
                 value={f.notas}
@@ -192,7 +197,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
                 multiline
               />
             </ScrollView>
-            <View style={styles.modalActions}>
+            <View className="flex-row gap-3 mt-1">
               <Button variant="secondary" label="Cancelar" onPress={() => setForm(null)} style={{ flex: 1 }} />
               <Button label="Guardar" onPress={guardar} loading={saving} style={{ flex: 1 }} />
             </View>
@@ -202,58 +207,3 @@ export function CarMaintenanceScreen({ car, onBack }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg, paddingBottom: theme.spacing.xxxl },
-  errorText: { color: colors.danger, fontSize: 13, marginTop: 20, textAlign: "center" },
-  sec: { gap: theme.spacing.sm },
-  empty: { fontSize: 13, color: colors.textMuted, paddingVertical: 6 },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing.md,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  rowName: { fontSize: 14, fontWeight: "600", color: colors.text },
-  rowMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  addBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 4,
-    paddingVertical: 11,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: colors.borderDark,
-    borderStyle: "dashed",
-  },
-  addBtnText: { color: colors.accentDark, fontSize: 13, fontWeight: "600" },
-  overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.45)", justifyContent: "center", padding: theme.spacing.xl },
-  modalCard: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: theme.spacing.md,
-  },
-  modalTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
-  modalScroll: { maxHeight: 300 },
-  modalScrollContent: { gap: theme.spacing.md, paddingVertical: 2 },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.field,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: colors.text,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  modalActions: { flexDirection: "row", gap: theme.spacing.md, marginTop: 4 },
-});

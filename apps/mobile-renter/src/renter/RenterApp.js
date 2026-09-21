@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 import {
   colors,
   useApp,
@@ -30,6 +30,7 @@ import {
   ChatListScreen,
   NotificationsScreen,
   SupportScreen,
+  AntecedentesScreen,
   ContractModal,
   KycScreen,
   CompletarLicenciaScreen,
@@ -77,6 +78,7 @@ export function RenterApp() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
+  const [showAntecedentes, setShowAntecedentes] = useState(false);
   const [showContract, setShowContract] = useState(false);
   const [showWallet, setShowWallet] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -367,6 +369,9 @@ export function RenterApp() {
     if (showSupport) {
       return <SupportScreen variant="renter" onBack={() => setShowSupport(false)} />;
     }
+    if (showAntecedentes) {
+      return <AntecedentesScreen onBack={() => setShowAntecedentes(false)} />;
+    }
 
     // 9. Contenido de las Pestañas Principales
     switch (activeTab) {
@@ -403,6 +408,7 @@ export function RenterApp() {
           <RentalHistoryScreen
             onSelectReservation={(res) => setActiveReservation(res)}
             onContinuarPago={(res) => setResumingReservation(res)}
+            onExplorar={() => setActiveTab("explore")}
             onBack={() => setActiveTab("explore")}
           />
         );
@@ -437,6 +443,7 @@ export function RenterApp() {
             onOpenFavorites={() => setShowFavorites(true)}
             onOpenNotifications={() => setShowNotifications(true)}
             onOpenSupport={() => setShowSupport(true)}
+            onOpenAntecedentes={() => setShowAntecedentes(true)}
             onOpenPromoterPanel={() => setShowPromoterPanel(true)}
           />
         );
@@ -461,6 +468,7 @@ export function RenterApp() {
     showCancelModal ||
     showNotifications ||
     showSupport ||
+    showAntecedentes ||
     showContract;
 
   // Back físico de Android: capas abiertas en orden de apilado (la primera es
@@ -483,6 +491,7 @@ export function RenterApp() {
   if (showCancelModal) capasAbiertas.push({ nivel: "cancelar-reserva", onCerrar: () => setShowCancelModal(false) });
   if (showNotifications) capasAbiertas.push({ nivel: "notificaciones", onCerrar: () => setShowNotifications(false) });
   if (showSupport) capasAbiertas.push({ nivel: "soporte", onCerrar: () => setShowSupport(false) });
+  if (showAntecedentes) capasAbiertas.push({ nivel: "antecedentes", onCerrar: () => setShowAntecedentes(false) });
   if (activeTab === "rentals") {
     if (activeReservation) {
       capasAbiertas.push({ nivel: "arriendo-activo", onCerrar: () => setActiveReservation(null) });
@@ -504,9 +513,9 @@ export function RenterApp() {
   useBackAndroid(capasAbiertas);
 
   return (
-    <View style={styles.appContainer}>
+    <View className="flex-1 bg-background">
       {/* Pantalla Activa */}
-      <View style={styles.screenContainer}>{renderContent()}</View>
+      <View className="flex-1">{renderContent()}</View>
 
       {/* Barra de Navegación Inferior Exclusiva del Arrendatario */}
       {!isModalOpen && (
@@ -538,13 +547,3 @@ export function RenterApp() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  appContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  screenContainer: {
-    flex: 1,
-  },
-});

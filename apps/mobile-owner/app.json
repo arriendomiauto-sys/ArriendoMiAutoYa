@@ -14,7 +14,7 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "ArriendoMiAutoYa Dueños usa tu ubicación para fijar el punto de entrega de tu auto en el mapa.",
+        "NSLocationWhenInUseUsageDescription": "ArriendoMiAutoYa Dueños usa tu ubicación para fijar el punto de entrega de tu auto en el mapa y verificar puntualmente tu llegada al punto de encuentro al entregar o recibir el vehículo.",
         "NSCameraUsageDescription": "ArriendoMiAutoYa Dueños necesita acceso a tu cámara para verificar tu identidad y fotografiar los documentos y fotos de tu auto.",
         "NSPhotoLibraryUsageDescription": "ArriendoMiAutoYa Dueños necesita acceso a tus fotos para publicar tu vehículo y sus documentos.",
         "NSPhotoLibraryAddUsageDescription": "ArriendoMiAutoYa Dueños guarda copias de seguridad de las fotos de entrega."

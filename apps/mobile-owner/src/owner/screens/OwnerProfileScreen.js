@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
@@ -15,13 +15,8 @@ import {
   LegalModal,
   ReadinessBand,
 } from "@rentacar/mobile-shared";
-import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
+import { CabeceraOwner } from "../comun";
 
-/**
- * Perfil del dueño. Mismo enfoque que el del arrendatario: primero "¿puedo
- * publicar?", después los ajustes en una lista. El bloque premium (teal casi
- * negro) es el hero, con los stats adentro — no una tarjeta suelta más.
- */
 export function OwnerProfileScreen({
   cars,
   noLeidos,
@@ -122,84 +117,89 @@ export function OwnerProfileScreen({
   };
 
   return (
-    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+    <View className="flex-1 bg-background" style={{ paddingTop: Math.max(insets.top, 12) }}>
       <CabeceraOwner titulo="Mi perfil" noLeidos={noLeidos} onMensajes={onOpenChat} />
 
       <ScrollView
-        contentContainerStyle={[oc.content, { paddingBottom: Math.max(insets.bottom, 16) + 32 }]}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 32 }}
+        className="px-4"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
-        {/* Hero premium: teal casi negro + hairline menta, con los stats dentro */}
-        <View style={styles.premium}>
-          <TouchableOpacity
-            style={styles.premiumHead}
-            onPress={onOpenEditProfile}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Editar perfil"
-          >
-            <AvatarFoto size={64} iconSize={26} style={styles.premiumAvatar} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.premiumName} numberOfLines={1}>
-                {nombre}
-              </Text>
-              <Text style={styles.premiumSub} numberOfLines={1}>
-                {user.estado_documentos === "verificado" ? "Anfitrión verificado" : "Cuenta de dueño"}
-              </Text>
-            </View>
-            <View style={styles.premiumEdit}>
-              <Icon name="pencil" size={15} color={colors.accent200} />
-            </View>
-          </TouchableOpacity>
+        <View className="flex-col gap-4">
+          {/* Hero premium: oscuro + hairline menta, con los stats dentro */}
+          <View className="bg-[#101928] rounded-2xl border border-white/10 overflow-hidden shadow-lg">
+            <TouchableOpacity
+              className="flex-row items-center gap-3 p-4"
+              onPress={onOpenEditProfile}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Editar perfil"
+            >
+              <AvatarFoto size={64} iconSize={26} className="border-2 border-accent/40" />
+              <View className="flex-1 min-w-0">
+                <Text className="text-xl font-bold text-white -tracking-tight" numberOfLines={1}>
+                  {nombre}
+                </Text>
+                <Text className="text-[12.5px] text-accent-200 mt-0.5" numberOfLines={1}>
+                  {user.estado_documentos === "verificado" ? "Anfitrión verificado" : "Cuenta de dueño"}
+                </Text>
+              </View>
+              <View className="w-9 h-9 rounded-xl bg-white/10 items-center justify-center">
+                <Icon name="pencil" size={15} color={colors.accent200} />
+              </View>
+            </TouchableOpacity>
 
-          <View style={styles.premiumHair} />
+            <View className="h-[1px] bg-white/10 mx-4" />
 
-          <View style={styles.premiumStats}>
-            <Stat value={String(totalAutos)} label={totalAutos === 1 ? "Auto" : "Autos"} />
-            <Stat value={String(calificaciones.length)} label="Calificaciones" bordered />
-            <Stat
-              value={ratingNum ? ratingNum.toFixed(1).replace(".", ",") : "—"}
-              label="Rating"
-              star={!!ratingNum}
-              bordered
-            />
+            <View className="flex-row py-4">
+              <Stat value={String(totalAutos)} label={totalAutos === 1 ? "Auto" : "Autos"} />
+              <Stat value={String(calificaciones.length)} label="Calificaciones" bordered />
+              <Stat
+                value={ratingNum ? ratingNum.toFixed(1).replace(".", ",") : "—"}
+                label="Rating"
+                star={!!ratingNum}
+                bordered
+              />
+            </View>
           </View>
+
+          <ReadinessBand
+            estadoDocumentos={user.estado_documentos}
+            tarjetaEstado={user.tarjeta_estado}
+            rol="owner"
+            onResolver={resolverEstado}
+            standalone
+          />
+
+          <View>
+            <Text className="text-[13px] font-bold text-textMuted mb-2 ml-1">Cuenta</Text>
+            <MenuList>
+              <MenuRow tile tileTone="menta" icon="shield" label="Identidad" meta={identidadMeta} onPress={handleKycPress} />
+              <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenTarjeta} />
+              <MenuRow tile icon="shield" label="Garantías y reclamos" onPress={onOpenDisputes} />
+              <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />
+              <MenuRow tile icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
+              <MenuRow tile icon="help" label="Soporte para anfitriones" onPress={onOpenSupport} />
+              <MenuRow tile icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
+              <MenuRow tile tileTone="danger" icon="logout" label="Cerrar sesión" danger onPress={handleLogout} />
+            </MenuList>
+          </View>
+
+          <TouchableOpacity
+            onPress={handleEliminarCuenta}
+            disabled={eliminando}
+            hitSlop={theme.control.hitSlop}
+            accessibilityRole="button"
+            accessibilityLabel="Eliminar mi cuenta"
+            className="self-center py-1.5 px-3"
+          >
+            <Text className="text-[13px] text-red-500 font-semibold">
+              {eliminando ? "Enviando solicitud…" : "Eliminar mi cuenta"}
+            </Text>
+          </TouchableOpacity>
         </View>
-
-        <ReadinessBand
-          estadoDocumentos={user.estado_documentos}
-          tarjetaEstado={user.tarjeta_estado}
-          rol="owner"
-          onResolver={resolverEstado}
-          standalone
-        />
-
-        <View>
-          <Text style={styles.section}>Cuenta</Text>
-          <MenuList>
-            <MenuRow tile tileTone="menta" icon="shield" label="Identidad" meta={identidadMeta} onPress={handleKycPress} />
-            <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenTarjeta} />
-            <MenuRow tile icon="shield" label="Garantías y reclamos" onPress={onOpenDisputes} />
-            <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />
-            <MenuRow tile icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
-            <MenuRow tile icon="help" label="Soporte para anfitriones" onPress={onOpenSupport} />
-            <MenuRow tile icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
-            <MenuRow tile tileTone="danger" icon="logout" label="Cerrar sesión" danger onPress={handleLogout} />
-          </MenuList>
-        </View>
-
-        <TouchableOpacity
-          onPress={handleEliminarCuenta}
-          disabled={eliminando}
-          hitSlop={theme.control.hitSlop}
-          accessibilityRole="button"
-          accessibilityLabel="Eliminar mi cuenta"
-          style={styles.deleteBtn}
-        >
-          <Text style={styles.deleteText}>{eliminando ? "Enviando solicitud…" : "Eliminar mi cuenta"}</Text>
-        </TouchableOpacity>
       </ScrollView>
 
       <LegalModal visible={showLegal} doc="terminos" onClose={() => setShowLegal(false)} />
@@ -209,57 +209,14 @@ export function OwnerProfileScreen({
 
 function Stat({ value, label, star, bordered }) {
   return (
-    <View style={[styles.stat, bordered && styles.statBordered]}>
-      <View style={styles.statValueRow}>
+    <View className={`flex-1 items-center px-1 gap-1 ${bordered ? "border-l border-accent/20" : ""}`}>
+      <View className="flex-row items-center gap-1">
         {star ? <Icon name="star" size={13} color={colors.accent500} fill={colors.accent500} /> : null}
-        <Text style={styles.statValue} numberOfLines={1}>
+        <Text className="text-[19px] font-bold text-white -tracking-tight" numberOfLines={1}>
           {value}
         </Text>
       </View>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text className="text-[10.5px] text-white/60 text-center">{label}</Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  premium: {
-    backgroundColor: OWNER_PREMIUM_BG,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-    borderColor: OWNER_PREMIUM_LINE,
-    overflow: "hidden",
-    ...theme.shadow.lg,
-  },
-  premiumHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    padding: theme.spacing.lg,
-  },
-  premiumAvatar: {
-    borderWidth: 2,
-    borderColor: "rgba(47,191,155,0.4)",
-  },
-  premiumName: { fontSize: 20, fontWeight: "700", color: "#FFFFFF", letterSpacing: -0.2 },
-  premiumSub: { fontSize: 12.5, color: colors.accent200, marginTop: 2 },
-  premiumEdit: {
-    width: 36,
-    height: 36,
-    borderRadius: theme.radius.field,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  premiumHair: { height: 1, backgroundColor: OWNER_PREMIUM_LINE, marginHorizontal: theme.spacing.lg },
-  premiumStats: { flexDirection: "row", paddingVertical: theme.spacing.lg },
-  stat: { flex: 1, alignItems: "center", paddingHorizontal: 4, gap: 3 },
-  statBordered: { borderLeftWidth: 1, borderLeftColor: "rgba(47,191,155,0.18)" },
-  statValueRow: { flexDirection: "row", alignItems: "center", gap: 3 },
-  statValue: { fontSize: 19, fontWeight: "700", color: "#FFFFFF", letterSpacing: -0.2 },
-  statLabel: { fontSize: 10.5, color: "rgba(255,255,255,0.56)", textAlign: "center" },
-
-  section: { fontSize: 13, fontWeight: "700", color: colors.textMuted, marginBottom: theme.spacing.sm, marginLeft: 4 },
-
-  deleteBtn: { alignSelf: "center", paddingVertical: 6, paddingHorizontal: theme.spacing.md },
-  deleteText: { fontSize: 13, color: colors.danger, fontWeight: "600" },
-});

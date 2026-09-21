@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
@@ -26,11 +27,17 @@ export function PreCheckinModal({
   onClose,
   onConfirmed,
 }) {
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch (e) {
+    // Si no está envuelto en SafeAreaProvider en tests
+  }
   const [loading, setLoading] = useState(false);
-  const [asistencia, setAsistencia] = useState(true);
-  const [lugarHora, setLugarHora] = useState(true);
-  const [licenciaOAuto, setLicenciaOAuto] = useState(true);
-  const [reglas, setReglas] = useState(true);
+  const [asistencia, setAsistencia] = useState(false);
+  const [lugarHora, setLugarHora] = useState(false);
+  const [licenciaOAuto, setLicenciaOAuto] = useState(false);
+  const [reglas, setReglas] = useState(false);
   const [notas, setNotas] = useState("");
 
   if (!reserva) return null;
@@ -39,10 +46,19 @@ export function PreCheckinModal({
   const isDriver = role === "dueno";
   const yaConfirmado = isDriver ? Boolean(reserva.precheck_dueno_confirmado) : Boolean(reserva.precheck_cliente_confirmado);
 
+  const todoMarcado = Boolean(asistencia && lugarHora && licenciaOAuto && reglas);
+  const msHastaRetiro = reserva.fecha_inicio ? new Date(reserva.fecha_inicio).getTime() - Date.now() : null;
+  const fueraDeVentana24h = msHastaRetiro !== null && msHastaRetiro > 24 * 3600000;
+  const checksMarcados = [asistencia, lugarHora, licenciaOAuto, reglas].filter(Boolean).length;
+
   const handleConfirmar = async () => {
     if (loading) return;
-    if (!asistencia || !lugarHora || !licenciaOAuto || !reglas) {
-      showAlert("Confirmación requerida", "Por favor marca todas las casillas de verificación para confirmar el viaje.");
+    if (fueraDeVentana24h) {
+      showAlert("Fuera de plazo", "El pre-checkin de confirmación se habilita 24 horas antes del retiro acordado.");
+      return;
+    }
+    if (!todoMarcado) {
+      showAlert("Confirmación requerida", "Por favor marca las 4 casillas de verificación para confirmar el viaje.");
       return;
     }
 
@@ -85,7 +101,8 @@ export function PreCheckinModal({
         // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
         // Detalle completo en LoginScreen.js.
       >
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
+          <View style={styles.handle} />
           <View style={styles.header}>
             <View style={styles.iconCircle}>
               <Icon name="check" size={24} color={colors.accent700} />
@@ -125,8 +142,23 @@ export function PreCheckinModal({
               </View>
             </View>
 
+            {/* Aviso si está fuera de la ventana de 24h */}
+            {fueraDeVentana24h && (
+              <View style={styles.warnCard}>
+                <Icon name="clock" size={16} color="#D97706" />
+                <Text style={styles.warnText}>
+                  Este pre-checkin estará disponible 24 horas antes de la entrega acordada.
+                </Text>
+              </View>
+            )}
+
             {/* Checklist interactivo */}
-            <Text style={styles.sectionTitle}>Checklist de confirmación</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Checklist de confirmación</Text>
+              <Text style={[styles.counterBadge, todoMarcado && styles.counterBadgeOk]}>
+                {checksMarcados}/4
+              </Text>
+            </View>
 
             <TouchableOpacity
               style={styles.checkRow}
@@ -202,9 +234,16 @@ export function PreCheckinModal({
               label={isDriver ? "Confirmar disponibilidad del auto" : "Confirmar viaje para mañana"}
               onPress={handleConfirmar}
               loading={loading}
+              disabled={!todoMarcado || fueraDeVentana24h}
               iconRight="check"
-              style={{ marginTop: 10 }}
+              style={{ marginTop: 10, opacity: (!todoMarcado || fueraDeVentana24h) ? 0.6 : 1 }}
             />
+
+            {!todoMarcado && !fueraDeVentana24h && (
+              <Text style={styles.helperText}>
+                Debes marcar las 4 casillas del checklist para poder confirmar.
+              </Text>
+            )}
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -223,7 +262,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: theme.radius.xl,
     borderTopRightRadius: theme.radius.xl,
     maxHeight: "88%",
-    paddingBottom: 24,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderDark,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 2,
   },
   header: {
     flexDirection: "row",
@@ -323,5 +370,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     minHeight: 56,
+  },
+  warnCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF3C7",
+    padding: 12,
+    borderRadius: theme.radius.card,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  warnText: {
+    fontSize: 13,
+    color: "#92400E",
+    fontWeight: "500",
+    flex: 1,
+    lineHeight: 18,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  counterBadge: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textMuted,
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  counterBadgeOk: {
+    color: "#065F46",
+    backgroundColor: "#D1FAE5",
+    borderColor: "#A7F3D0",
+  },
+  helperText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: 4,
   },
 });

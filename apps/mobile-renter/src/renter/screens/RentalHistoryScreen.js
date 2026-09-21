@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   StatusBar,
   ScrollView,
@@ -10,7 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { colors, theme, Icon, Badge, EmptyState, ScreenHeader, ApiClient, Button, RatingModal, msjError, useCuentaRegresiva } from "@rentacar/mobile-shared";
+import { Icon, Badge, EmptyState, ScreenHeader, ApiClient, RatingModal, msjError, useCuentaRegresiva } from "@rentacar/mobile-shared";
 
 function formatearRango(inicio, fin) {
   if (!inicio || !fin) return "—";
@@ -20,6 +19,7 @@ function formatearRango(inicio, fin) {
 
 const BADGE = {
   en_curso: { variant: "info", label: "En curso" },
+  pendiente: { variant: "warning", label: "Esperando al dueño" },
   confirmada: { variant: "warning", label: "Confirmada" },
   finalizada: { variant: "neutral", label: "Finalizada" },
   cancelada: { variant: "danger", label: "Cancelada" },
@@ -28,11 +28,11 @@ const BADGE = {
 const TABS = [
   { id: "pendientes", label: "Pendientes", estados: ["pendiente_pago"] },
   { id: "activas", label: "Activas", estados: ["en_curso"] },
-  { id: "proximas", label: "Próximas", estados: ["confirmada"] },
+  { id: "proximas", label: "Próximas", estados: ["pendiente", "confirmada"] },
   { id: "pasadas", label: "Pasadas", estados: ["finalizada", "cancelada"] },
 ];
 
-export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPago }) {
+export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPago, onExplorar }) {
   const [tab, setTab] = useState("activas");
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -96,37 +96,39 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
   }, [tab, filtradas.map((r) => r.id).join(",")]);
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Mis reservas" onBack={onBack} />
 
-      <View style={styles.tabs}>
+      <View className="flex-row gap-8 px-4 border-b border-border">
         {TABS.map((t) => (
           <TouchableOpacity
             key={t.id}
-            style={styles.tab}
+            className="pt-2"
             onPress={() => setTab(t.id)}
             activeOpacity={0.7}
             accessibilityRole="tab"
             accessibilityState={{ selected: tab === t.id }}
             accessibilityLabel={t.label}
           >
-            <Text style={[styles.tabText, tab === t.id && styles.tabTextOn]}>{t.label}</Text>
-            <View style={[styles.tabUnderline, tab === t.id && styles.tabUnderlineOn]} />
+            <Text className={`text-[15px] pb-2.5 ${tab === t.id ? "font-semibold text-textDark" : "text-textMuted"}`}>
+              {t.label}
+            </Text>
+            <View className={`h-[2.5px] rounded-full ${tab === t.id ? "bg-primary" : "bg-transparent"}`} />
           </TouchableOpacity>
         ))}
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        <ActivityIndicator color="#0F766E" className="mt-10" />
       ) : error ? (
         <EmptyState icon="warning" title="No se pudo cargar" message={error} action="Reintentar" onAction={cargar} />
       ) : (
         <ScrollView
-          contentContainerStyle={styles.list}
+          contentContainerClassName="p-4 gap-3"
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refrescando} onRefresh={() => cargar({ refresco: true })} tintColor={colors.primary} />
+            <RefreshControl refreshing={refrescando} onRefresh={() => cargar({ refresco: true })} tintColor="#0F766E" />
           }
         >
           {filtradas.map((r) => {
@@ -136,28 +138,28 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
             return (
               <TouchableOpacity
                 key={r.id}
-                style={styles.card}
+                className="bg-white border border-border rounded-2xl p-3 flex-row items-center gap-3 shadow-sm"
                 onPress={() => onSelectReservation(r)}
                 activeOpacity={0.85}
               >
-                <View style={styles.thumb}>
+                <View className="w-[76px] h-[60px] rounded-xl bg-teal-50 items-center justify-center overflow-hidden">
                   {auto.fotos?.[0] ? (
-                    <Image source={{ uri: auto.fotos[0] }} style={styles.thumbImg} />
+                    <Image source={{ uri: auto.fotos[0] }} className="w-full h-full" />
                   ) : (
-                    <Icon name="car" size={22} color={colors.primary} />
+                    <Icon name="car" size={22} color="#0F766E" />
                   )}
                 </View>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <View style={styles.cardHead}>
-                    <Text style={styles.carName} numberOfLines={1}>{nombre}</Text>
+                <View className="flex-1 gap-1">
+                  <View className="flex-row items-center justify-between gap-2">
+                    <Text className="text-[15px] font-bold text-textDark flex-1" numberOfLines={1}>{nombre}</Text>
                     <Badge variant={badge.variant} label={badge.label} />
                   </View>
-                  <Text style={styles.meta}>
+                  <Text className="text-[13px] text-textMuted">
                     {formatearRango(r.fecha_inicio, r.fecha_fin)}
                     {r.lugar_entrega_acordado ? ` · ${r.lugar_entrega_acordado}` : ""}
                   </Text>
                   {r.estado === "en_curso" && (
-                    <Text style={styles.guarantee}>
+                    <Text className="text-[13px] font-semibold text-amber-800">
                       Garantía retenida · ${(r.monto_hold || 0).toLocaleString("es-CL")}
                     </Text>
                   )}
@@ -166,12 +168,12 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
                   )}
                   {r.estado === "finalizada" && calificadas[r.id] === false && (
                     <TouchableOpacity
-                      style={styles.rateBtn}
+                      className="flex-row items-center gap-1 mt-0.5 self-start"
                       onPress={() => setReservaACalificar(r)}
-                      hitSlop={theme.control.hitSlop}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Icon name="star" size={14} color={colors.accent700} fill={colors.accent700} />
-                      <Text style={styles.rateBtnText}>Calificar este arriendo</Text>
+                      <Icon name="star" size={14} color="#B45309" fill="#B45309" />
+                      <Text className="text-[13px] font-semibold text-amber-800">Calificar este arriendo</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -189,9 +191,11 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
                   : tab === "activas"
                   ? "No tienes arriendos en curso ahora mismo."
                   : tab === "proximas"
-                  ? "No tienes reservas confirmadas próximas."
+                  ? "No tienes reservas próximas ni esperando al dueño."
                   : "Aún no tienes arriendos finalizados o cancelados."
               }
+              action={onExplorar ? "Explorar autos" : undefined}
+              onAction={onExplorar}
             />
           )}
         </ScrollView>
@@ -219,60 +223,21 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
 function PendienteRow({ reserva, onContinuar }) {
   const cuenta = useCuentaRegresiva(reserva.expira_en);
   return (
-    <View style={{ gap: 6, marginTop: 4 }}>
-      <Text style={[styles.guarantee, cuenta.vencido && { color: colors.dangerText }]}>
+    <View className="gap-1.5 mt-1">
+      <Text className={`text-[13px] font-semibold ${cuenta.vencido ? "text-red-600" : "text-amber-800"}`}>
         {cuenta.vencido ? "Expiró" : cuenta.etiqueta ? `Expira en ${cuenta.etiqueta}` : "Pendiente de pago"}
       </Text>
       {!cuenta.vencido && (
-        <TouchableOpacity style={styles.rateBtn} onPress={onContinuar} hitSlop={theme.control.hitSlop}>
-          <Icon name="arrow-right" size={14} color={colors.accent700} />
-          <Text style={styles.rateBtnText}>Continuar pago</Text>
+        <TouchableOpacity
+          className="flex-row items-center gap-1 mt-0.5 self-start"
+          onPress={onContinuar}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Icon name="arrow-right" size={14} color="#B45309" />
+          <Text className="text-[13px] font-semibold text-amber-800">Continuar pago</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  tabs: {
-    flexDirection: "row",
-    gap: theme.spacing.xxl,
-    paddingHorizontal: theme.spacing.screen,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tab: { paddingTop: theme.spacing.sm },
-  tabText: { fontSize: 15, color: colors.textMuted, paddingBottom: 10 },
-  tabTextOn: { fontWeight: "600", color: colors.text },
-  tabUnderline: { height: 2.5, borderRadius: 999, backgroundColor: "transparent" },
-  tabUnderlineOn: { backgroundColor: colors.primary },
-  list: { padding: theme.spacing.screen, gap: theme.spacing.md },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    ...theme.shadow.sm,
-  },
-  thumb: {
-    width: 76,
-    height: 60,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  thumbImg: { width: "100%", height: "100%" },
-  cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
-  carName: { fontSize: 15, fontWeight: "700", color: colors.text, flex: 1 },
-  meta: { fontSize: 13, color: colors.textMuted },
-  guarantee: { fontSize: 13, fontWeight: "600", color: colors.warningText },
-  rateBtn: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2, alignSelf: "flex-start" },
-  rateBtnText: { fontSize: 13, fontWeight: "600", color: colors.accent700 },
-});

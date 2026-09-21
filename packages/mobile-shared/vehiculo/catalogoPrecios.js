@@ -151,6 +151,17 @@ export function redondearATramo5000(monto) {
   return aTramo(monto);
 }
 
+// Reparto del arriendo que la app le muestra al dueño: la plataforma retiene
+// COMISION_PLATAFORMA y el resto es suyo. Es el número que ven las pantallas;
+// lo que se liquida de verdad lo calcula el backend (ConfiguracionPlataforma).
+export const COMISION_PLATAFORMA = 0.15;
+export const PORCENTAJE_DUENO = 0.85;
+
+/** Lo que le queda al dueño de un monto de arriendo (no incluye la garantía). */
+export function gananciaDelDueno(montoArriendo) {
+  return Math.round((montoArriendo || 0) * PORCENTAJE_DUENO);
+}
+
 /**
  * Desglose tributario y liquidación del dueño para una tarifa diaria bruta
  * (IVA incluido).
@@ -159,8 +170,8 @@ export function calcularDesgloseIva(tarifaConIva) {
   const bruta = aTramo(tarifaConIva);
   const neto = Math.round(bruta / 1.19);
   const iva = bruta - neto;
-  const comision = Math.round(bruta * 0.15);
-  const ganancia = Math.round(bruta * 0.85);
+  const comision = Math.round(bruta * COMISION_PLATAFORMA);
+  const ganancia = gananciaDelDueno(bruta);
   return {
     tarifaBruta: bruta,
     subtotalNeto: neto,

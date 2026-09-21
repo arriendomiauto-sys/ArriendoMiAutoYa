@@ -13,9 +13,11 @@ import { theme } from "../theme/tokens";
  */
 export function SignaturePad({ onChange, height = 180 }) {
   const [trazos, setTrazos] = useState([]); // Array<Array<{x,y}>>
+  const trazosRef = useRef([]);
   const trazoActual = useRef([]);
 
   const emitir = (siguientes) => {
+    trazosRef.current = siguientes;
     setTrazos(siguientes);
     const vacio = siguientes.length === 0 || siguientes.every((t) => t.length < 2);
     onChange && onChange(vacio ? null : aPathD(siguientes));
@@ -27,36 +29,27 @@ export function SignaturePad({ onChange, height = 180 }) {
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt) => {
         trazoActual.current = [{ x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY }];
-        setTrazos((prev) => [...prev, trazoActual.current]);
+        const siguientes = [...trazosRef.current, trazoActual.current];
+        trazosRef.current = siguientes;
+        setTrazos(siguientes);
       },
       onPanResponderMove: (evt) => {
         trazoActual.current = [
           ...trazoActual.current,
           { x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY },
         ];
-        // Redibuja en vivo: se ve el trazo mientras se dibuja, no recién al soltar.
-        setTrazos((prev) => [...prev.slice(0, -1), trazoActual.current]);
+        const siguientes = [...trazosRef.current.slice(0, -1), trazoActual.current];
+        trazosRef.current = siguientes;
+        setTrazos(siguientes);
       },
       onPanResponderRelease: () => {
-        setTrazos((prev) => {
-          const siguientes = [...prev.slice(0, -1), trazoActual.current];
-          const vacio = siguientes.every((t) => t.length < 2);
-          onChange && onChange(vacio ? null : aPathD(siguientes));
-          return siguientes;
-        });
+        const siguientes = [...trazosRef.current.slice(0, -1), trazoActual.current];
+        emitir(siguientes);
       },
-      // El pad vive dentro de un ScrollView: sin esto, un trazo con algo de
-      // componente vertical le puede "robar" el gesto al scroll a mitad de
-      // dibujo, cortando la firma. No cedemos el gesto y, si de todas
-      // formas nos lo quitan, cerramos el trazo en curso en vez de perderlo.
       onPanResponderTerminationRequest: () => false,
       onPanResponderTerminate: () => {
-        setTrazos((prev) => {
-          const siguientes = [...prev.slice(0, -1), trazoActual.current];
-          const vacio = siguientes.every((t) => t.length < 2);
-          onChange && onChange(vacio ? null : aPathD(siguientes));
-          return siguientes;
-        });
+        const siguientes = [...trazosRef.current.slice(0, -1), trazoActual.current];
+        emitir(siguientes);
       },
     })
   ).current;

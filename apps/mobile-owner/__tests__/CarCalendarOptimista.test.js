@@ -58,7 +58,10 @@ const estaBloqueada = (celda) => {
   if (!celda) return false;
   const texto = React.Children.toArray(celda.props.children)[0];
   const estilos = Array.isArray(texto.props.style) ? texto.props.style : [texto.props.style];
-  return estilos.some((s) => s && s.textDecorationLine === "line-through");
+  return (
+    estilos.some((s) => s && s.textDecorationLine === "line-through") ||
+    String(texto.props?.className || "").includes("line-through")
+  );
 };
 
 beforeEach(() => {

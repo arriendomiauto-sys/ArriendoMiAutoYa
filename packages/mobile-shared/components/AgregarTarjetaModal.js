@@ -9,12 +9,14 @@ import {
   Platform,
   TouchableOpacity,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 import { Button, Chip } from "./ui";
 import { FormularioTarjeta, validarFormularioTarjeta } from "./FormularioTarjeta";
-import { configMercadoPago } from "../api/mercadopago";
+import { VistaTarjeta } from "./VistaTarjeta";
+import { configMercadoPago, consultarMetodoPago } from "../api/mercadopago";
 
 const VACIO = { numero: "", vencimiento: "", cvv: "", nombre: "" };
 
@@ -39,12 +41,38 @@ export function AgregarTarjetaModal({
   rut,
   tipoPreferido,
 }) {
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Si corre fuera de SafeAreaProvider en tests
+  }
   const { puedeContactarMP, modoPrueba } = configMercadoPago();
   const [tarjeta, setTarjeta] = React.useState(VACIO);
   const [tipoManual, setTipoManual] = React.useState(tipoPreferido || "credito");
   const [intentado, setIntentado] = React.useState(false);
   const [guardando, setGuardando] = React.useState(false);
   const [errorRemoto, setErrorRemoto] = React.useState(null); // { campo, mensaje }
+  const [detectada, setDetectada] = React.useState(null); // "credito" | "debito" | null
+
+  // Con los primeros dígitos (BIN) Mercado Pago dice si la tarjeta es de crédito
+  // o de débito: se consulta una vez por BIN, no en cada tecla.
+  const bin = tarjeta.numero.replace(/\D/g, "").slice(0, 8);
+  React.useEffect(() => {
+    if (!puedeContactarMP || bin.length < 6) {
+      setDetectada(null);
+      return undefined;
+    }
+    let vivo = true;
+    consultarMetodoPago(bin).then((metodo) => {
+      if (!vivo) return;
+      setDetectada(metodo?.tipo || null);
+      if (metodo?.tipo) setTipoManual(metodo.tipo);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [bin, puedeContactarMP]);
 
   React.useEffect(() => {
     // Al abrir Y al cerrar se limpia todo: no queremos número ni CVV vivos en
@@ -112,7 +140,7 @@ export function AgregarTarjetaModal({
         style={styles.overlay}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, theme.spacing.xxl) }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <Text style={styles.title}>Agregar tarjeta</Text>
@@ -137,6 +165,12 @@ export function AgregarTarjetaModal({
               </View>
             ) : null}
 
+            <VistaTarjeta
+              numero={tarjeta.numero}
+              vencimiento={tarjeta.vencimiento}
+              titular={tarjeta.nombre || nombreTitular}
+            />
+
             <View style={{ gap: 6 }}>
               <Text style={styles.tipoLabel}>Tipo de tarjeta</Text>
               <View style={styles.tipoRow}>
@@ -151,6 +185,14 @@ export function AgregarTarjetaModal({
                   onPress={() => setTipoManual("debito")}
                 />
               </View>
+              {detectada ? (
+                <View style={styles.detectada}>
+                  <Icon name="check" size={13} color={colors.accentText} />
+                  <Text style={styles.detectadaTexto}>
+                    {detectada === "credito" ? "Crédito" : "Débito"} · detectado
+                  </Text>
+                </View>
+              ) : null}
               <Text style={styles.tipoAyuda}>
                 {tipoManual === "credito"
                   ? "Crédito: se usa para la garantía retenida (hold) y el arriendo."
@@ -178,6 +220,14 @@ export function AgregarTarjetaModal({
               }}
               nombreTitular={nombreTitular}
             />
+            {puedeContactarMP ? (
+              <View style={styles.nota}>
+                <Icon name="shield" size={14} color={colors.accentDark} />
+                <Text style={styles.notaTexto}>
+                  Tus datos viajan directo a Mercado Pago. Nuestros servidores solo reciben un código de un solo uso.
+                </Text>
+              </View>
+            ) : null}
           </ScrollView>
 
           <View style={styles.footer}>
@@ -221,6 +271,19 @@ const styles = StyleSheet.create({
   tipoLabel: { fontSize: 12, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.4 },
   tipoRow: { flexDirection: "row", gap: theme.spacing.sm },
   tipoAyuda: { fontSize: 11.5, color: colors.textMuted, lineHeight: 15 },
+  detectada: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    backgroundColor: colors.accentMuted,
+    borderRadius: theme.radius.pill,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+  },
+  detectadaTexto: { fontSize: 11.5, fontWeight: "600", color: colors.accentText },
+  nota: { flexDirection: "row", alignItems: "flex-start", gap: theme.spacing.sm },
+  notaTexto: { flex: 1, fontSize: 11.5, color: colors.textMuted, lineHeight: 16 },
   errorRemoto: {
     flexDirection: "row",
     alignItems: "flex-start",

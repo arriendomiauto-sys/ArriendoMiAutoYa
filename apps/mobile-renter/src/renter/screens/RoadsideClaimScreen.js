@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -15,7 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  colors, theme, useApp, Icon, Button, Card, ScreenHeader, SectionLabel, Chip,
+  useApp, Icon, Button, Card, ScreenHeader, SectionLabel, Chip,
   ApiClient, showAlert, msjError, elegirImagen, subirImagenOptimizada,
 } from "@rentacar/mobile-shared";
 
@@ -103,39 +102,40 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Auxilio en ruta" subtitle="Siniestros y asistencia 24/7" onBack={onBack} />
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.emergency}>
+      <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View className="flex-row gap-2">
           <Button variant="danger" label="Solicitar grúa" iconLeft="shield" onPress={solicitarGrua} style={{ flex: 1 }} />
           <Button label="Carabineros 133" onPress={() => Linking.openURL("tel:133")} style={{ flex: 1 }} />
         </View>
 
-        <Card padded style={{ gap: theme.spacing.md }}>
+        <Card padded style={{ gap: 12 }}>
           <SectionLabel>Tipo de incidente</SectionLabel>
-          <View style={styles.chips}>
+          <View className="flex-row flex-wrap gap-2">
             {TIPOS.map((t) => (
               <Chip key={t.id} label={t.label} selected={tipo === t.id} onPress={() => setTipo(t.id)} />
             ))}
           </View>
         </Card>
 
-        <Card padded style={{ gap: theme.spacing.sm }}>
+        <Card padded style={{ gap: 8 }}>
           <SectionLabel>Detalle de lo ocurrido</SectionLabel>
           <TextInput
-            style={styles.textarea}
+            className="min-h-[90px] border-[1.5px] border-border rounded-xl bg-white p-3.5 text-[15px] text-textDark"
             placeholder="Lugar exacto, calle, intersección y cómo ocurrió…"
-            placeholderTextColor={colors.textPlaceholder}
+            placeholderTextColor="#94A3B8"
             value={descripcion}
             onChangeText={setDescripcion}
             multiline
+            textAlignVertical="top"
           />
         </Card>
 
         {tipo === "colision" && (
-          <Card padded style={{ gap: theme.spacing.md }}>
+          <Card padded style={{ gap: 12 }}>
             <SectionLabel>Tercero involucrado (opcional)</SectionLabel>
             {[
               { k: "patente", label: "Patente del otro auto", cap: "characters" },
@@ -143,12 +143,12 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
               { k: "aseguradora", label: "Aseguradora del tercero" },
             ].map((f) => (
               <View key={f.k} style={{ gap: 6 }}>
-                <Text style={styles.fieldLabel}>{f.label}</Text>
+                <Text className="text-[13px] text-textMuted font-medium">{f.label}</Text>
                 <TextInput
-                  style={styles.input}
+                  className="h-10 border-[1.5px] border-border rounded-xl bg-white px-3.5 text-[15px] text-textDark"
                   value={tercero[f.k]}
                   onChangeText={(v) => setTercero((p) => ({ ...p, [f.k]: v }))}
-                  placeholderTextColor={colors.textPlaceholder}
+                  placeholderTextColor="#94A3B8"
                   autoCapitalize={f.cap || "sentences"}
                 />
               </View>
@@ -156,71 +156,26 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
           </Card>
         )}
 
-        <Card padded style={{ gap: theme.spacing.md }}>
+        <Card padded style={{ gap: 12 }}>
           <SectionLabel>Registro fotográfico del daño</SectionLabel>
-          <View style={styles.photos}>
+          <View className="flex-row flex-wrap gap-2">
             {fotos.map((p, i) => (
-              <Image key={i} source={{ uri: p }} style={styles.photo} />
+              <Image key={i} source={{ uri: p }} className="w-16 h-16 rounded-lg" />
             ))}
-            <TouchableOpacity style={styles.addPhoto} onPress={addFoto} disabled={subiendo}>
-              {subiendo ? <ActivityIndicator size="small" color={colors.primary} /> : <Icon name="camera" size={20} color={colors.primary} />}
+            <TouchableOpacity className="w-16 h-16 rounded-lg border-[1.5px] border-dashed border-teal-200 items-center justify-center bg-teal-50" onPress={addFoto} disabled={subiendo}>
+              {subiendo ? <ActivityIndicator size="small" color="#0F766E" /> : <Icon name="camera" size={20} color="#0F766E" />}
             </TouchableOpacity>
           </View>
         </Card>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View
+        className="px-4 pt-3 bg-white border-t border-border"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
+      >
         <Button label="Enviar reporte y activar seguro" iconRight="arrow-right" onPress={enviarReporte} loading={enviando} />
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  emergency: { flexDirection: "row", gap: theme.spacing.sm },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  textarea: {
-    minHeight: 90,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    padding: 14,
-    fontSize: 15,
-    color: colors.text,
-    textAlignVertical: "top",
-  },
-  fieldLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "500" },
-  input: {
-    height: theme.control.heightSm,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: colors.text,
-  },
-  photos: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  photo: { width: 64, height: 64, borderRadius: theme.radius.sm },
-  addPhoto: {
-    width: 64,
-    height: 64,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: colors.primary200,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary100,
-  },
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-});

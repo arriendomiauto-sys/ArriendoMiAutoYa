@@ -13,6 +13,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
@@ -67,6 +68,12 @@ export function SegundoConductorModal({
   onSaved,
   tone = "light",
 }) {
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Si corre fuera de SafeAreaProvider en tests
+  }
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [subiendoSlot, setSubiendoSlot] = useState(null);
@@ -354,7 +361,8 @@ export function SegundoConductorModal({
         style={styles.modalOverlay}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
+          <View style={styles.handle} />
           <ScreenHeader
             title="Segundo Conductor"
             subtitle="Identidad con Didit · Licencia con validación casera"
@@ -559,9 +567,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 10,
     maxHeight: "92%",
     flex: 1,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderDark,
+    alignSelf: "center",
+    marginBottom: 8,
   },
   body: {
     flex: 1,

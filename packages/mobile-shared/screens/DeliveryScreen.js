@@ -27,6 +27,7 @@ import { ApiClient } from "../api/client";
 import { elegirImagen, subirImagenOptimizada } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
 import { msjError } from "../utils/msjError";
+import { formatearMilesEnVivo } from "../utils/formato";
 import { hapticoExito, hapticoError } from "../utils/haptics";
 import { guardarColaFotos, leerColaFotos, borrarColaFotos } from "../utils/colaFotosOffline";
 import NetInfo from "@react-native-community/netinfo";
@@ -179,7 +180,8 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   // ---------------------------------------------------------------- handlers
   const handleValidarCodigo = async (codigoDirecto) => {
     // El escáner pasa el string leído directo; el botón manual usa el input.
-    const codigo = (typeof codigoDirecto === "string" ? codigoDirecto : codigoInput).trim();
+    const raw = (typeof codigoDirecto === "string" ? codigoDirecto : codigoInput) || "";
+    const codigo = raw.replace(/[-\s]/g, "").trim();
     if (!codigo || validando) return;
     setValidando(true);
     try {
@@ -917,8 +919,8 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
               <TextInput
                 testID="input-km"
                 style={styles.kmInput}
-                value={km}
-                onChangeText={setKm}
+                value={formatearMilesEnVivo(km)}
+                onChangeText={(t) => setKm(t.replace(/\D/g, ""))}
                 keyboardType="numeric"
                 placeholder="48320"
                 placeholderTextColor={colors.textPlaceholder}
@@ -980,7 +982,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
           <Card padded style={{ gap: theme.spacing.sm }}>
             <Text style={styles.cardTitle}>Contrato de arriendo · {auto.patente}</Text>
-            <InfoRow label="Kilometraje de salida" value={`${km} km`} />
+            <InfoRow label="Kilometraje de salida" value={`${formatearMilesEnVivo(km)} km`} />
             <InfoRow label="Garantía retenida" value={`$${formatCLP(reserva?.monto_hold)}`} />
           </Card>
 
@@ -1095,7 +1097,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           <Card padded style={{ gap: 0 }}>
             <View style={styles.deltaLine}>
               <Text style={styles.deltaLabel}>Kilometraje</Text>
-              <Text style={styles.deltaVal}>{km} km</Text>
+              <Text style={styles.deltaVal}>{formatearMilesEnVivo(km)} km</Text>
             </View>
             <View style={styles.deltaLine}>
               <Text style={styles.deltaLabel}>Combustible</Text>

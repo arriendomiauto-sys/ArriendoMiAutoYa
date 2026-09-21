@@ -18,6 +18,7 @@ export {
   BottomBar,
 } from "./components/ui";
 export { Icon } from "./components/Icon";
+export { LlegadaPorUbicacion } from "./components/LlegadaPorUbicacion";
 export { Skeleton } from "./components/Skeleton";
 export { PhotoViewer } from "./components/PhotoViewer";
 export { AvatarFoto } from "./components/AvatarFoto";
@@ -51,6 +52,8 @@ export {
   redondearATramo5000,
   obtenerConfiguracionTipo,
   calcularDesgloseIva,
+  gananciaDelDueno,
+  PORCENTAJE_DUENO,
 } from "./vehiculo/catalogoPrecios";
 export { useCatalogoPrecios } from "./vehiculo/useCatalogoPrecios";
 export {
@@ -116,6 +119,8 @@ export { NotificationsScreen } from "./screens/NotificationsScreen";
 export { ChatListScreen } from "./screens/ChatListScreen";
 export { RentalChatScreen } from "./screens/RentalChatScreen";
 export { SupportScreen } from "./screens/SupportScreen";
+export { AntecedentesScreen } from "./screens/AntecedentesScreen";
+export { CertificadoAutoScreen } from "./screens/CertificadoAutoScreen";
 export { SwitchingScreen } from "./screens/SwitchingScreen";
 export { DeliveryScreen } from "./screens/DeliveryScreen";
 export { PreCheckinModal } from "./screens/PreCheckinModal";
@@ -139,3 +144,6 @@ export {
   detenerTelemetriaBackground,
 } from "./utils/telemetriaBackgroundTask";
 export { urlWeb, baseWebUrl, WEB_URL_PRODUCCION } from "./utils/webUrl";
+export { SplashScreen } from "./auth/screens/SplashScreen";
+export { OnboardingScreen } from "./auth/screens/OnboardingScreen";
+export { formatearTelefonoInput, normalizarTelefonoCompleto } from "./utils/formato";

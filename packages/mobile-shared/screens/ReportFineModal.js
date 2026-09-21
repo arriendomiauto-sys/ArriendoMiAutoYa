@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
@@ -34,11 +35,21 @@ export function ReportFineModal({
   onClose,
   onApplied,
 }) {
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch (e) {
+    // Si corre fuera de SafeAreaProvider en tests
+  }
   const [tipo, setTipo] = useState("fumar");
   const [monto, setMonto] = useState("50000");
   const [motivo, setMotivo] = useState("");
   const [fotoUrl, setFotoUrl] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const formValido = Boolean(
+    monto && parseInt(monto, 10) > 0 && motivo.trim().length >= 4
+  );
 
   if (!reserva) return null;
 
@@ -90,7 +101,8 @@ export function ReportFineModal({
         // softwareKeyboardLayoutMode) — esto es lo que ahora la esquiva.
         // Detalle completo en LoginScreen.js.
       >
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
+          <View style={styles.handle} />
           <View style={styles.header}>
             <View style={styles.iconCircle}>
               <Icon name="alert" size={24} color={colors.warning} />
@@ -170,8 +182,9 @@ export function ReportFineModal({
               label="Aplicar cargo y notificar"
               onPress={handleAplicar}
               loading={loading}
+              disabled={!formValido || loading}
               variant="primary"
-              style={{ marginTop: 8 }}
+              style={{ marginTop: 8, opacity: (!formValido || loading) ? 0.6 : 1 }}
             />
           </ScrollView>
         </View>
@@ -191,7 +204,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: theme.radius.xl,
     borderTopRightRadius: theme.radius.xl,
     maxHeight: "90%",
-    paddingBottom: 24,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderDark,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 2,
   },
   header: {
     flexDirection: "row",

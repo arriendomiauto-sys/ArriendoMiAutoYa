@@ -52,7 +52,9 @@ export function useKycFlow({ role = "renter", prefill = null, onComplete, onBack
     rut: currentUser?.rut || prefill?.rut || "",
     birthDate: currentUser?.fecha_nacimiento || "",
     photoUrl: currentUser?.foto_perfil_verificada_url || null,
-    licenseValid: currentUser?.licencia_estado === "aprobada",
+    // "verificada" es el estado de licencia que escribe el backend; "aprobada"
+    // es del veredicto de Didit (`verificacion_externa_estado`), no de este campo.
+    licenseValid: currentUser?.licencia_estado === "verificada",
     licenseCategory: "Clase B",
     licenseExpiration: "",
   });

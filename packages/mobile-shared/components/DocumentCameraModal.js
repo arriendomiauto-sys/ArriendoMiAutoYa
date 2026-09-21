@@ -94,6 +94,29 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
   // donde está la guía y el usuario puede moverla tocando la imagen.
   const [censor, setCensor] = useState({ cx: BANDA_PATENTE.cx, cy: BANDA_PATENTE.cy });
 
+  // Control de Zoom (0.5x gran angular, 1x normal, 2x aproximado)
+  const ZOOM_DIGITAL_2X = 0.1;
+  const [nivelZoom, setNivelZoom] = useState("1x");
+  const [lenteUltraWide, setLenteUltraWide] = useState(null);
+
+  React.useEffect(() => {
+    if (!permission?.granted) return;
+    cameraRef.current
+      ?.getAvailableLensesAsync?.()
+      .then((lentes) => {
+        const ultraWide = (lentes || []).find((l) => /ultrawide/i.test(l));
+        setLenteUltraWide(ultraWide || null);
+      })
+      .catch(() => {});
+  }, [permission?.granted]);
+
+  const zoomProps =
+    nivelZoom === "0.5x" && lenteUltraWide
+      ? { zoom: 0, selectedLens: lenteUltraWide }
+      : nivelZoom === "2x"
+      ? { zoom: ZOOM_DIGITAL_2X }
+      : { zoom: 0 };
+
   // useWindowDimensions (reactivo) en vez de Dimensions.get("window") (una
   // sola foto tomada al montar): en Android edge-to-edge la medida inicial
   // puede llegar mal y dejaría el marco de guía con un ancho equivocado.
@@ -379,7 +402,7 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     // 4. Cámara en vivo con marco guía
     return (
       <View style={styles.flex}>
-        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cfg.facing} />
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cfg.facing} {...zoomProps} />
 
         {/* Máscara oscura (arriba / abajo / lados) con la ventana transparente
             centrada. Antes solo oscurecía los costados y el marco se
@@ -431,6 +454,38 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
           <Text style={styles.topTitle}>{cfg.titulo}</Text>
           <View style={styles.iconBtn} />
         </View>
+
+        {/* Selector de Zoom (0.5x gran angular, 1x normal, 2x acercado) */}
+        {cfg.facing !== "front" && (
+          <View style={[styles.zoomRow, { bottom: insets.bottom + 125 }]}>
+            {lenteUltraWide ? (
+              <TouchableOpacity
+                style={[styles.zoomChip, nivelZoom === "0.5x" && styles.zoomChipActivo]}
+                onPress={() => setNivelZoom("0.5x")}
+                accessibilityRole="button"
+                accessibilityLabel="Zoom gran angular 0.5x"
+              >
+                <Text style={[styles.zoomChipText, nivelZoom === "0.5x" && styles.zoomChipTextActivo]}>0.5x</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.zoomChip, nivelZoom === "1x" && styles.zoomChipActivo]}
+              onPress={() => setNivelZoom("1x")}
+              accessibilityRole="button"
+              accessibilityLabel="Zoom normal 1x"
+            >
+              <Text style={[styles.zoomChipText, nivelZoom === "1x" && styles.zoomChipTextActivo]}>1x</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.zoomChip, nivelZoom === "2x" && styles.zoomChipActivo]}
+              onPress={() => setNivelZoom("2x")}
+              accessibilityRole="button"
+              accessibilityLabel="Zoom acercado 2x"
+            >
+              <Text style={[styles.zoomChipText, nivelZoom === "2x" && styles.zoomChipTextActivo]}>2x</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Hint + shutter */}
         <View style={[styles.bottomArea, { bottom: insets.bottom + 40 }]}>
@@ -633,4 +688,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   useText: { color: colors.primary900, fontSize: 15, fontWeight: "800" },
+  zoomRow: {
+    position: "absolute",
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    zIndex: 10,
+  },
+  zoomChip: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  zoomChipActivo: { backgroundColor: colors.accent500 },
+  zoomChipText: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "700" },
+  zoomChipTextActivo: { color: colors.primary900 || "#000000" },
 });

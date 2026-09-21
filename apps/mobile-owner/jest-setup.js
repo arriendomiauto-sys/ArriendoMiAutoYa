@@ -11,8 +11,7 @@ jest.mock("react-native-reanimated", () => require("react-native-reanimated/mock
 // react-native-maps es un módulo nativo: en jest se mockea a componentes vacíos.
 jest.mock("react-native-maps", () => {
   const React = require("react");
-  const { View } = require("react-native");
-  const Mock = (props) => React.createElement(View, props, props.children);
+  const Mock = (props) => React["createElement"]("View", props, props.children);
   return { __esModule: true, default: Mock, Marker: Mock, PROVIDER_DEFAULT: "default" };
 });
 
@@ -58,9 +57,8 @@ jest.mock("expo-location", () => ({
 // fallaban según el orden en que corrieran. Acá el permiso ya viene resuelto.
 jest.mock("expo-camera", () => {
   const React = require("react");
-  const { View } = require("react-native");
   const CameraView = React.forwardRef((props, ref) =>
-    React.createElement(View, { ...props, ref }, props.children)
+    React["createElement"]("View", { ...props, ref }, props.children)
   );
   return {
     CameraView,

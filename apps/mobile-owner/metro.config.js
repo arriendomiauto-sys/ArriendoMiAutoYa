@@ -45,4 +45,8 @@ config.server = {
   },
 };
 
-module.exports = config;
+const { withNativeWind } = require("nativewind/metro");
+
+module.exports = withNativeWind(config, {
+  input: path.resolve(workspaceRoot, "global.css"),
+});

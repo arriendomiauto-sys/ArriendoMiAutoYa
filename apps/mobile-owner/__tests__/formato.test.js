@@ -3,6 +3,7 @@ import {
   formatearTelefonoInput,
   normalizarTelefonoCompleto,
   extraerMovilSinPrefijo,
+  formatearMilesEnVivo,
 } from "@rentacar/mobile-shared/utils/formato";
 
 describe("formato.js - Utilidades de formateo frontend", () => {
@@ -53,6 +54,29 @@ describe("formato.js - Utilidades de formateo frontend", () => {
       expect(extraerMovilSinPrefijo("+56932114494")).toBe("3211 4494");
       expect(extraerMovilSinPrefijo("932114494")).toBe("3211 4494");
       expect(extraerMovilSinPrefijo(null)).toBe("");
+    });
+  });
+
+  describe("formatearMilesEnVivo", () => {
+    it("agrupa los miles con punto mientras se escribe (BUG-013)", () => {
+      expect(formatearMilesEnVivo("2")).toBe("2");
+      expect(formatearMilesEnVivo("254")).toBe("254");
+      expect(formatearMilesEnVivo("2540")).toBe("2.540");
+      expect(formatearMilesEnVivo("25400")).toBe("25.400");
+      expect(formatearMilesEnVivo("1234567")).toBe("1.234.567");
+    });
+
+    it("acepta texto ya formateado y descarta lo que no son dígitos", () => {
+      expect(formatearMilesEnVivo("25.400")).toBe("25.400");
+      expect(formatearMilesEnVivo("25 400 km")).toBe("25.400");
+      expect(formatearMilesEnVivo("abc")).toBe("");
+    });
+
+    it("no deja ceros a la izquierda ni revienta con vacío o null", () => {
+      expect(formatearMilesEnVivo("007")).toBe("7");
+      expect(formatearMilesEnVivo("")).toBe("");
+      expect(formatearMilesEnVivo(null)).toBe("");
+      expect(formatearMilesEnVivo(undefined)).toBe("");
     });
   });
 });

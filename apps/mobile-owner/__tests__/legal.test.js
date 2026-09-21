@@ -46,6 +46,16 @@ describe("LegalModal", () => {
     expect(t).toContain("Convenio de Viena");
   });
 
+  it("la política de privacidad informa del tratamiento de los certificados de antecedentes", () => {
+    const tr = renderTree(<LegalModal visible doc="terminos" onClose={() => {}} />);
+    pressText(tr, "Privacidad");
+    const t = textOf(tr);
+    expect(t).toContain("certificado de antecedentes");
+    expect(t).toContain("hoja de vida del conductor");
+    expect(t).toContain("consentimiento");
+    expect(t).toContain("30 días");
+  });
+
   it("acepta desde el visor y lo cierra", () => {
     const onAccept = jest.fn();
     const onClose = jest.fn();

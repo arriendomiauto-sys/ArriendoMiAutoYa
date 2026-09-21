@@ -50,6 +50,7 @@ export const TIPO_POR_CAMPO = {
   doc_seguro_url: "seguro",
   doc_revision_tecnica_url: "revision_tecnica",
   doc_certificado_gases_url: "certificado_gases",
+  doc_historial_vehicular_url: "historial_vehicular",
 };
 
 export const DOCS = [
@@ -83,6 +84,13 @@ export const DOCS = [
     titulo: "Certificado de emisión de gases",
     ayuda: "Certificado de revisión de gases o de control de emisiones vigente.",
     icon: "gas",
+  },
+  {
+    key: "doc_historial_vehicular_url",
+    titulo: "Historial vehicular (Autofact / CAV)",
+    ayuda: "Certificado de anotaciones vigentes o informe vehicular para verificar multas y kilometraje.",
+    icon: "document",
+    opcional: true,
   },
   {
     key: "doc_seguro_url",

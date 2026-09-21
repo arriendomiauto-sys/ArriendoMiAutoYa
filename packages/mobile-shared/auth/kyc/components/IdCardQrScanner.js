@@ -1,25 +1,27 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { CameraView } from "expo-camera";
-import { colors } from "../../../theme/colors";
 
 // ============================================================================
 // Lector de QR del reverso de la cédula chilena
-// Extrae de forma rápida el número de serie / documento
+// Extrae de forma rápida el número de serie / documento (usando NativeWind)
 // ============================================================================
 export function IdCardQrScanner({ permission, onRequestPermission, onDetected, onSkip }) {
   // Manejo de permisos de cámara no otorgados
   if (!permission?.granted) {
     return (
-      <View style={styles.permissionBox}>
-        <Text style={styles.permissionText}>
+      <View className="flex-1 justify-center items-center p-6 bg-primary-900">
+        <Text className="text-white text-base text-center mb-5">
           Necesitamos acceso a la cámara para escanear el QR del carnet.
         </Text>
-        <TouchableOpacity style={styles.permissionBtn} onPress={onRequestPermission}>
-          <Text style={styles.permissionBtnText}>Permitir cámara</Text>
+        <TouchableOpacity
+          className="bg-accent-500 px-6 py-3 rounded-xl active:opacity-80"
+          onPress={onRequestPermission}
+        >
+          <Text className="text-primary-900 font-bold">Permitir cámara</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.skipBtn} onPress={onSkip}>
-          <Text style={styles.skipText}>Continuar sin escanear QR</Text>
+        <TouchableOpacity className="mt-6 p-2.5 active:opacity-70" onPress={onSkip}>
+          <Text className="text-white/70 text-sm underline">Continuar sin escanear QR</Text>
         </TouchableOpacity>
       </View>
     );
@@ -27,80 +29,21 @@ export function IdCardQrScanner({ permission, onRequestPermission, onDetected, o
 
   // Cámara activa detectando código de barras / QR
   return (
-    <View style={styles.cameraContainer}>
+    <View className="flex-1 bg-black">
       <CameraView
-        style={StyleSheet.absoluteFillObject}
+        className="absolute inset-0"
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
         onBarcodeScanned={onDetected}
       />
-      <View style={styles.overlay}>
-        <View style={styles.scanBox} />
-        <Text style={styles.scanLabel}>Apunta al código QR del reverso de tu carnet</Text>
-        <TouchableOpacity style={styles.skipBtn} onPress={onSkip}>
-          <Text style={styles.skipText}>Saltar este paso</Text>
+      <View className="absolute inset-0 justify-center items-center px-8 bg-primary-900/60">
+        <View className="w-[220px] h-[220px] border-2 border-accent-500 rounded-2xl bg-transparent" />
+        <Text className="text-white text-[15px] font-bold mt-5 text-center">
+          Apunta al código QR del reverso de tu carnet
+        </Text>
+        <TouchableOpacity className="mt-6 p-2.5 active:opacity-70" onPress={onSkip}>
+          <Text className="text-white/70 text-sm underline">Saltar este paso</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  cameraContainer: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-    backgroundColor: "rgba(6,30,31,0.6)",
-  },
-  scanBox: {
-    width: 220,
-    height: 220,
-    borderWidth: 2,
-    borderColor: colors.accent500,
-    borderRadius: 16,
-    backgroundColor: "transparent",
-  },
-  scanLabel: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
-    marginTop: 20,
-    textAlign: "center",
-  },
-  skipBtn: {
-    marginTop: 24,
-    padding: 10,
-  },
-  skipText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 14,
-    textDecorationLine: "underline",
-  },
-  permissionBox: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: colors.primary900,
-  },
-  permissionText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  permissionBtn: {
-    backgroundColor: colors.accent500,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  permissionBtnText: {
-    color: colors.primary900,
-    fontWeight: "700",
-  },
-});

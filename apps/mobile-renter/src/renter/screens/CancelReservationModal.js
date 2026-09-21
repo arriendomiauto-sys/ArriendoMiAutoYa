@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, StatusBar, ScrollView } from "react-native";
+import { View, Text, StatusBar, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Button, Card, ScreenHeader, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
+import { Button, Card, ScreenHeader, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
 
 export function CancelReservationModal({ reservation, onClose, onConfirmCancel }) {
   const insets = useSafeAreaInsets();
@@ -31,21 +31,21 @@ export function CancelReservationModal({ reservation, onClose, onConfirmCancel }
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Cancelar la reserva" onBack={onClose} />
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
         {menosDe24h && (
-          <View style={styles.warnBox}>
-            <Text style={styles.warnTitle}>Queda menos de 24 horas</Text>
-            <Text style={styles.warnText}>
+          <View className="bg-red-50 rounded-xl p-4 gap-1">
+            <Text className="text-[15px] font-bold text-red-600">Queda menos de 24 horas</Text>
+            <Text className="text-[13px] text-red-600 leading-[19px]">
               El retiro está agendado muy pronto. Habla con el dueño antes de cancelar.
             </Text>
           </View>
         )}
 
-        <Card padded style={{ gap: theme.spacing.md }}>
+        <Card padded style={{ gap: 12 }}>
           <Row label="Garantía retenida (hold)" value={`$${montoHold.toLocaleString("es-CL")}`} />
           {reservation?.fecha_inicio && (
             <Row
@@ -53,14 +53,18 @@ export function CancelReservationModal({ reservation, onClose, onConfirmCancel }
               value={new Date(reservation.fecha_inicio).toLocaleDateString("es-CL")}
             />
           )}
-          <Text style={styles.note}>
-            Al cancelar, tu garantía queda liberada. Si el retiro es en menos de 24 horas, soporte se
-            comunicará contigo para coordinar cualquier ajuste según la política de cancelación.
+          <Text className="text-[13px] text-textMuted leading-[19px] border-t border-border pt-3">
+            Al cancelar, liberamos tu garantía. Si faltan 24 horas o más para el retiro, también te
+            devolvemos el arriendo completo. Si falta menos, soporte se comunicará contigo para
+            coordinar el cobro del arriendo según la política de cancelación.
           </Text>
         </Card>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View
+        className="px-4 pt-3 bg-white border-t border-border gap-2"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
+      >
         <Button label="Confirmar cancelación" variant="danger" onPress={handleCancelar} loading={cancelling} />
         <Button variant="ghost" size="sm" label="Mantener mi reserva" onPress={onClose} />
       </View>
@@ -70,36 +74,10 @@ export function CancelReservationModal({ reservation, onClose, onConfirmCancel }
 
 function Row({ label, value }) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+    <View className="flex-row justify-between items-center gap-3">
+      <Text className="text-sm text-textMuted">{label}</Text>
+      <Text className="text-sm text-textDark font-medium">{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  warnBox: { backgroundColor: colors.dangerBg, borderRadius: theme.radius.field, padding: theme.spacing.lg, gap: 4 },
-  warnTitle: { fontSize: 15, fontWeight: "700", color: colors.dangerText },
-  warnText: { fontSize: 13, color: colors.dangerText, lineHeight: 19 },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },
-  rowLabel: { fontSize: 14, color: colors.textMuted },
-  rowValue: { fontSize: 14, color: colors.text, fontWeight: "500" },
-  note: {
-    fontSize: 13,
-    color: colors.textMuted,
-    lineHeight: 19,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: theme.spacing.md,
-  },
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: theme.spacing.sm,
-  },
-});

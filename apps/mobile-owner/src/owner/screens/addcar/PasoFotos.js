@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator } from "react-native";
 import { colors, theme, Icon, FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "@rentacar/mobile-shared";
 import { TituloPaso, BarraProgreso } from "./comun";
 import { EncuadreAuto } from "./encuadres";
@@ -10,7 +10,7 @@ export function PasoFotos({ wizard }) {
   const completas = listas === TOTAL_FOTOS_AUTO;
 
   return (
-    <ScrollView contentContainerStyle={estilos.scroll} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 12 }} showsVerticalScrollIndicator={false}>
       <TituloPaso
         titulo="9 fotos, guiadas una por una"
         bajada="Copia el encuadre de cada ejemplo para que tu ficha se vea pareja."
@@ -19,13 +19,13 @@ export function PasoFotos({ wizard }) {
       <BarraProgreso hechos={listas} total={TOTAL_FOTOS_AUTO} etiqueta="listas" />
 
       {/* Instructivo */}
-      <View style={estilos.instructivo}>
-        <View style={estilos.instructivoRef}>
+      <View className="flex-row gap-3.5 bg-primary rounded-2xl p-3.5 shadow-md">
+        <View className="w-[92px] h-[72px] rounded-xl bg-white/10 border border-dashed border-white/35 items-center justify-center">
           <EncuadreAuto tipo="lateral" size={64} color="#FFFFFF" />
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={estilos.instructivoTitulo}>Antes de empezar</Text>
-          <Text style={estilos.instructivoTexto}>
+        <View className="flex-1">
+          <Text className="text-sm font-bold text-white">Antes de empezar</Text>
+          <Text className="text-xs text-white/80 leading-[17px] mt-1">
             Luz de día · auto limpio · a 3 metros · auto completo dentro del marco · sin personas ni
             otros autos detrás. En el frontal y la trasera tapamos la patente antes de publicar.
           </Text>
@@ -36,16 +36,16 @@ export function PasoFotos({ wizard }) {
         const url = fotosPorSlot[slot.key];
         const subiendo = slotEnSubida === slot.key;
         return (
-          <View key={slot.key} style={estilos.shot}>
+          <View key={slot.key} className="flex-row items-center gap-3 bg-white border border-gray-200 rounded-2xl p-3">
             {url ? (
-              <View style={estilos.thumbWrap}>
-                <Image source={{ uri: url }} style={estilos.thumb} />
-                <View style={estilos.thumbCheck}>
+              <View className="w-[78px] h-[58px]">
+                <Image source={{ uri: url }} className="w-[78px] h-[58px] rounded-xl bg-gray-100" />
+                <View className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-accent border-2 border-white items-center justify-center">
                   <Icon name="check" size={10} color="#FFFFFF" />
                 </View>
               </View>
             ) : (
-              <View style={estilos.ref}>
+              <View className="w-[78px] h-[58px] rounded-xl bg-surface-subtle border border-dashed border-primary-200 items-center justify-center">
                 {subiendo ? (
                   <ActivityIndicator color={colors.primary} />
                 ) : (
@@ -54,16 +54,16 @@ export function PasoFotos({ wizard }) {
               </View>
             )}
 
-            <View style={{ flex: 1 }}>
-              <Text style={estilos.nombre}>{`${i + 1} · ${slot.titulo}`}</Text>
-              <Text style={estilos.hint} numberOfLines={2}>
+            <View className="flex-1">
+              <Text className="text-sm font-bold text-textDark">{`${i + 1} · ${slot.titulo}`}</Text>
+              <Text className="text-[11.5px] text-textMuted leading-[15px] mt-0.5" numberOfLines={2}>
                 {slot.camara?.hint || slot.ayuda}
               </Text>
             </View>
 
             {url ? (
               <TouchableOpacity
-                style={estilos.accionListo}
+                className="w-[34px] h-[34px] rounded-full bg-accent/20 items-center justify-center"
                 onPress={() => quitarFoto(slot.key)}
                 hitSlop={theme.control.hitSlop}
                 accessibilityLabel={`Rehacer foto ${slot.titulo}`}
@@ -72,7 +72,7 @@ export function PasoFotos({ wizard }) {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={estilos.accion}
+                className="w-[34px] h-[34px] rounded-full bg-primary items-center justify-center"
                 onPress={() => setCamaraSlot(slot)}
                 disabled={subiendo || uploadingPhoto}
                 accessibilityLabel={`Tomar foto ${slot.titulo}`}
@@ -85,7 +85,7 @@ export function PasoFotos({ wizard }) {
       })}
 
       <TouchableOpacity
-        style={estilos.galeria}
+        className="flex-row items-center justify-center gap-2 p-3.5 rounded-xl border border-dashed border-primary-200"
         onPress={wizard.fotosDesdeGaleria}
         disabled={uploadingPhoto || completas}
         activeOpacity={0.85}
@@ -93,7 +93,7 @@ export function PasoFotos({ wizard }) {
         {uploadingPhoto ? (
           <>
             <ActivityIndicator color={colors.primary} />
-            <Text style={estilos.galeriaTexto}>
+            <Text className="text-[13px] font-semibold text-primary">
               {progresoGaleria
                 ? `Subiendo ${progresoGaleria.listas} de ${progresoGaleria.total}…`
                 : "Subiendo…"}
@@ -102,7 +102,7 @@ export function PasoFotos({ wizard }) {
         ) : (
           <>
             <Icon name="camera" size={16} color={colors.primary} />
-            <Text style={estilos.galeriaTexto}>
+            <Text className="text-[13px] font-semibold text-primary">
               {completas ? "Fotos completas" : "Ya las tengo: elegir de la galería"}
             </Text>
           </>
@@ -111,99 +111,3 @@ export function PasoFotos({ wizard }) {
     </ScrollView>
   );
 }
-
-const estilos = StyleSheet.create({
-  scroll: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    paddingBottom: 40,
-    gap: theme.spacing.md,
-  },
-  instructivo: {
-    flexDirection: "row",
-    gap: 14,
-    backgroundColor: colors.primary,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.md,
-    ...theme.shadow.md,
-  },
-  instructivoRef: {
-    width: 92,
-    height: 72,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  instructivoTitulo: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
-  instructivoTexto: { fontSize: 12, color: "rgba(255,255,255,0.82)", lineHeight: 17, marginTop: 4 },
-  shot: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 12,
-  },
-  ref: {
-    width: 78,
-    height: 58,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: colors.primary200,
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  thumbWrap: { width: 78, height: 58 },
-  thumb: { width: 78, height: 58, borderRadius: 10, backgroundColor: colors.surfaceSecondary },
-  thumbCheck: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.accent,
-    borderWidth: 2,
-    borderColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nombre: { fontSize: 14, fontWeight: "700", color: colors.text },
-  hint: { fontSize: 11.5, color: colors.textMuted, lineHeight: 15, marginTop: 2 },
-  accion: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  accionListo: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  galeria: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: 14,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.primary200,
-    borderStyle: "dashed",
-  },
-  galeriaTexto: { fontSize: 13, fontWeight: "600", color: colors.primary },
-});

@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Linking, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { useApp } from "../context/AppContext";
@@ -11,11 +12,11 @@ import { showAlert } from "../utils/alert";
 const CLAUSULAS = [
   {
     h: "Primera — objeto y entrega",
-    t: "El Arrendador entrega en arriendo el vehículo individualizado. La entrega y restitución se perfecciona mediante la validación del código QR y el registro fotográfico obligatorio de 8 imágenes del checklist inicial y final.",
+    t: "El Arrendador entrega en arriendo el vehículo individualizado. La entrega y restitución se perfecciona mediante la validación del código QR y el registro fotográfico obligatorio de 9 imágenes del checklist inicial y final.",
   },
   {
     h: "Segunda — seguro y deducible",
-    t: "El vehículo cuenta con Seguro Full Cobertura con deducible de 15 UF (~$562.500). En caso de siniestro culpable o daño imputable, el deducible se distribuye 50% al Arrendatario y 50% a la Empresa.",
+    t: "El vehículo cuenta con programa de protección frente a siniestros con deducible de 15 UF. En caso de siniestro cubierto, el deducible se absorbe 50% por ARRIENDO MI AUTO SpA y 50% por el Arrendador, quedando exento el Arrendatario salvo dolo, negligencia grave o exclusiones.",
   },
   {
     h: "Tercera — devolución y limpieza",
@@ -24,6 +25,12 @@ const CLAUSULAS = [
 ];
 
 export function ContractModal({ visible, onClose, reservation }) {
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Si corre fuera de SafeAreaProvider en tests
+  }
   const { currentUser } = useApp();
 
   const [descargando, setDescargando] = React.useState(false);
@@ -94,7 +101,7 @@ export function ContractModal({ visible, onClose, reservation }) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
@@ -146,7 +153,7 @@ export function ContractModal({ visible, onClose, reservation }) {
                     <Text style={styles.b}>Vehículo:</Text> {auto.marca || "—"} {auto.modelo || ""}, patente{" "}
                     {auto.patente || "—"}, año {auto.anio || "—"}.
                     {"\n"}
-                    <Text style={styles.b}>Plataforma:</Text> ArriendoMiAutoYa Chile SpA, RUT 77.892.120-K.
+                    <Text style={styles.b}>Plataforma:</Text> ARRIENDO MI AUTO SpA, RUT 78.493.457-8.
                   </Text>
 
                   {CLAUSULAS.map((c) => (

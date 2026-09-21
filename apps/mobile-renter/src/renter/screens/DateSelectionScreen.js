@@ -1,8 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, StatusBar } from "react-native";
+import { View, Text, ScrollView, StatusBar } from "react-native";
 import {
-  colors,
-  theme,
   Card,
   ScreenHeader,
   Button,
@@ -36,20 +34,20 @@ export function DateSelectionScreen({
   const nombreAuto = [car?.marca, car?.modelo, car?.anio].filter(Boolean).join(" ");
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Elige tus fechas" subtitle={nombreAuto || "Vehículo"} onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
         {disponibilidadError && (
-          <View style={styles.warnBox}>
-            <Text style={styles.warnTitle}>No pudimos verificar disponibilidad</Text>
-            <Text style={styles.warnText}>
+          <View className="bg-amber-50 rounded-xl p-4 gap-1">
+            <Text className="text-sm font-bold text-amber-800">No pudimos verificar disponibilidad</Text>
+            <Text className="text-[13px] text-amber-800 leading-[19px]">
               Reintenta antes de elegir fechas — así evitamos que reserves un día ya tomado.
             </Text>
           </View>
         )}
 
-        <View style={styles.datesRow}>
+        <View className="flex-row gap-3">
           <DateTimeField
             label="Retiro"
             value={fechaInicio}
@@ -69,28 +67,28 @@ export function DateSelectionScreen({
         </View>
 
         {dateError && (
-          <View style={styles.warnBox}>
-            <Text style={styles.warnTitle}>Fechas inválidas</Text>
-            <Text style={styles.warnText}>{dateError}</Text>
+          <View className="bg-amber-50 rounded-xl p-4 gap-1">
+            <Text className="text-sm font-bold text-amber-800">Fechas inválidas</Text>
+            <Text className="text-[13px] text-amber-800 leading-[19px]">{dateError}</Text>
           </View>
         )}
 
-        <Card style={styles.subtotalCard} padded>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.subtotalTitle}>
+        <Card className="flex-row items-center gap-3" padded>
+          <View className="flex-1">
+            <Text className="text-[15px] font-semibold text-textDark">
               {dias > 0 ? `${dias} ${dias === 1 ? "día" : "días"} de arriendo` : "Elige fechas válidas"}
             </Text>
             {dias > 0 && (
-              <Text style={styles.subtotalRange}>
+              <Text className="text-[13px] text-textMuted mt-0.5">
                 {formatearFechaHora(fechaInicio)} → {formatearFechaHora(fechaFin)}
               </Text>
             )}
           </View>
-          <Text style={styles.subtotalValue}>{precioCLP(montoCobro)}</Text>
+          <Text className="text-lg font-bold text-textDark">{precioCLP(montoCobro)}</Text>
         </Card>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View className="px-4 pt-3 pb-4 bg-white border-t border-border">
         <Button
           label="Confirmar fechas"
           iconRight="arrow-right"
@@ -102,26 +100,3 @@ export function DateSelectionScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-
-  datesRow: { flexDirection: "row", gap: theme.spacing.md },
-  warnBox: { backgroundColor: colors.warningBg, borderRadius: theme.radius.field, padding: theme.spacing.lg, gap: 4 },
-  warnTitle: { fontSize: 14, fontWeight: "700", color: colors.warningText },
-  warnText: { fontSize: 13, color: colors.warningText, lineHeight: 19 },
-
-  subtotalCard: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  subtotalTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
-  subtotalRange: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  subtotalValue: { fontSize: 18, fontWeight: "700", color: colors.text },
-
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.lg,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-});

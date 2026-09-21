@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, useApp, Button, Card, ScreenHeader, SectionLabel, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
+import { useApp, Button, Card, ScreenHeader, SectionLabel, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
 
 const DIA_MS = 86400000;
 
@@ -72,7 +72,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
       setActiveReservation({ ...actualizada, auto: res.auto });
       showAlert(
         "Arriendo extendido",
-        `Ahora termina el ${fmt(new Date(actualizada.fecha_fin))}. Se retuvo un hold adicional de $${adicional.toLocaleString("es-CL")}.`,
+        `Ahora termina el ${fmt(new Date(actualizada.fecha_fin))}. Se cobraron $${adicional.toLocaleString("es-CL")} a tu tarjeta por los días adicionales.`,
         [{ text: "Entendido", onPress: onComplete || onBack }]
       );
     } catch (err) {
@@ -83,78 +83,81 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Extender arriendo" subtitle="Añade días a tu arriendo activo" onBack={onBack} />
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        <Card padded style={{ gap: theme.spacing.md }}>
-          <View style={styles.carRow}>
+      <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+        <Card padded style={{ gap: 12 }}>
+          <View className="flex-row justify-between items-center gap-3">
             <View>
-              <Text style={styles.carName}>{auto.marca} {auto.modelo}</Text>
-              <Text style={styles.carMeta}>Patente {auto.patente || "—"}</Text>
+              <Text className="text-[15px] font-bold text-textDark">{auto.marca} {auto.modelo}</Text>
+              <Text className="text-[13px] text-textMuted mt-0.5">Patente {auto.patente || "—"}</Text>
             </View>
-            <Text style={styles.rate}>${tarifa.toLocaleString("es-CL")} / día</Text>
+            <Text className="text-[13px] font-bold text-primary">${tarifa.toLocaleString("es-CL")} / día</Text>
           </View>
-          <View style={styles.dateRow}>
-            <Text style={styles.dateLabel}>Devolución actual</Text>
-            <Text style={styles.dateValue}>{fmt(finActual)} · 18:00</Text>
+          <View className="border-t border-border pt-3 flex-row justify-between">
+            <Text className="text-[13px] text-textMuted">Devolución actual</Text>
+            <Text className="text-[13px] font-semibold text-textDark">{fmt(finActual)} · 18:00</Text>
           </View>
         </Card>
 
-        <Card padded style={{ gap: theme.spacing.md }}>
+        <Card padded style={{ gap: 12 }}>
           <SectionLabel>Tiempo adicional</SectionLabel>
-          <View style={styles.picker}>
-            <TouchableOpacity style={styles.pickerBtn} onPress={() => setDias(Math.max(1, dias - 1))}>
-              <Text style={styles.pickerSign}>−</Text>
+          <View className="flex-row items-center bg-gray-50 rounded-xl border border-border overflow-hidden">
+            <TouchableOpacity className="w-[52px] h-14 items-center justify-center bg-white" onPress={() => setDias(Math.max(1, dias - 1))}>
+              <Text className="text-2xl font-bold text-primary">−</Text>
             </TouchableOpacity>
-            <View style={styles.pickerMid}>
-              <Text style={styles.pickerNum}>+{dias} {dias === 1 ? "día" : "días"}</Text>
-              <Text style={styles.pickerSub}>Nueva fecha: {fmt(finNuevo)}</Text>
+            <View className="flex-1 items-center gap-0.5">
+              <Text className="text-base font-bold text-textDark">+{dias} {dias === 1 ? "día" : "días"}</Text>
+              <Text className="text-xs text-textMuted">Nueva fecha: {fmt(finNuevo)}</Text>
             </View>
             <TouchableOpacity
-              style={[styles.pickerBtn, dias >= topeDias && styles.pickerBtnOff]}
+              className={`w-[52px] h-14 items-center justify-center bg-white ${dias >= topeDias ? "opacity-35" : ""}`}
               onPress={() => setDias((d) => Math.min(d + 1, topeDias))}
               disabled={dias >= topeDias}
             >
-              <Text style={styles.pickerSign}>+</Text>
+              <Text className="text-2xl font-bold text-primary">+</Text>
             </TouchableOpacity>
           </View>
           {sinMargen ? (
-            <Text style={styles.avisoBloqueo}>
+            <Text className="text-[12.5px] text-danger font-semibold leading-[17px]">
               El auto ya tiene otra reserva justo después de tu devolución. No se puede extender.
             </Text>
           ) : proximaReserva ? (
-            <Text style={styles.avisoTope}>
+            <Text className="text-xs text-textMuted leading-[17px]">
               Máximo hasta el {fmt(proximaReserva)}: el auto está reservado desde esa fecha.
             </Text>
           ) : null}
         </Card>
 
-        <Card padded style={{ gap: theme.spacing.sm }}>
+        <Card padded style={{ gap: 8 }}>
           <SectionLabel>Monto adicional</SectionLabel>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>
+          <View className="flex-row justify-between">
+            <Text className="text-[13px] text-textMuted">
               {dias} {dias === 1 ? "día" : "días"} × ${tarifa.toLocaleString("es-CL")}
             </Text>
-            <Text style={styles.priceValue}>${adicional.toLocaleString("es-CL")}</Text>
+            <Text className="text-[13px] font-semibold text-textDark">${adicional.toLocaleString("es-CL")}</Text>
           </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Seguro Full Cobertura</Text>
-            <Text style={[styles.priceValue, { color: colors.success }]}>Incluido</Text>
+          <View className="flex-row justify-between">
+            <Text className="text-[13px] text-textMuted">Seguro Full Cobertura</Text>
+            <Text className="text-[13px] font-semibold text-emerald-600">Incluido</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.priceRow}>
-            <Text style={styles.totalLabel}>Hold adicional a pre-autorizar</Text>
-            <Text style={styles.totalValue}>${adicional.toLocaleString("es-CL")}</Text>
+          <View className="h-px bg-border my-0.5" />
+          <View className="flex-row justify-between">
+            <Text className="text-sm font-bold text-textDark">Se cobra ahora</Text>
+            <Text className="text-base font-extrabold text-primary">${adicional.toLocaleString("es-CL")}</Text>
           </View>
-          <Text style={styles.note}>
-            El monto adicional se retiene de inmediato como hold, igual que en tu reserva original.
+          <Text className="text-xs text-textMuted leading-[17px] mt-1">
+            El monto adicional se cobra de inmediato a la tarjeta con la que pagaste el arriendo. Tu garantía no cambia.
           </Text>
         </Card>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View
+        className="px-4 pt-3 bg-white border-t border-border"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
+      >
         <Button
           label={
             sinMargen || colisiona
@@ -170,51 +173,3 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  carRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },
-  carName: { fontSize: 15, fontWeight: "700", color: colors.text },
-  carMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  rate: { fontSize: 13, fontWeight: "700", color: colors.primary },
-  dateRow: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: theme.spacing.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  dateLabel: { fontSize: 13, color: colors.textMuted },
-  dateValue: { fontSize: 13, fontWeight: "600", color: colors.text },
-  picker: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  pickerBtn: { width: 52, height: 56, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-  pickerBtnOff: { opacity: 0.35 },
-  avisoTope: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
-  avisoBloqueo: { fontSize: 12.5, color: colors.danger, fontWeight: "600", lineHeight: 17 },
-  pickerSign: { fontSize: 24, fontWeight: "700", color: colors.primary },
-  pickerMid: { flex: 1, alignItems: "center", gap: 2 },
-  pickerNum: { fontSize: 16, fontWeight: "700", color: colors.text },
-  pickerSub: { fontSize: 12, color: colors.textMuted },
-  priceRow: { flexDirection: "row", justifyContent: "space-between" },
-  priceLabel: { fontSize: 13, color: colors.textMuted },
-  priceValue: { fontSize: 13, fontWeight: "600", color: colors.text },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 2 },
-  totalLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
-  totalValue: { fontSize: 16, fontWeight: "800", color: colors.primary },
-  note: { fontSize: 12, color: colors.textMuted, lineHeight: 17, marginTop: 4 },
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-});

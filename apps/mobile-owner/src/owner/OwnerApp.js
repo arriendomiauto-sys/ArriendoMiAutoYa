@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 import {
   colors,
   useApp,
@@ -21,6 +21,7 @@ import {
   verificarMandatoAceptado,
   ChatListScreen,
   PromoterPanelScreen,
+  CertificadoAutoScreen,
 } from "@rentacar/mobile-shared";
 
 // Screens del Dueño
@@ -79,6 +80,7 @@ export function OwnerApp() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showMaintenance, setShowMaintenance] = useState(false);
+  const [showVerificacionAuto, setShowVerificacionAuto] = useState(false);
   const [showDeliveryFlow, setShowDeliveryFlow] = useState(false);
   const [showDisputes, setShowDisputes] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -221,6 +223,10 @@ export function OwnerApp() {
       return <CarMaintenanceScreen car={selectedCarForModal} onBack={() => setShowMaintenance(false)} />;
     }
 
+    if (showVerificacionAuto) {
+      return <CertificadoAutoScreen auto={selectedCarForModal} onBack={() => setShowVerificacionAuto(false)} />;
+    }
+
     if (showDisputes) {
       return <DisputesScreen onBack={() => setShowDisputes(false)} />;
     }
@@ -303,6 +309,10 @@ export function OwnerApp() {
               setSelectedCarForModal(car);
               setShowMaintenance(true);
             }}
+            onOpenVerificacion={(car) => {
+              setSelectedCarForModal(car);
+              setShowVerificacionAuto(true);
+            }}
           />
         );
 
@@ -360,6 +370,7 @@ export function OwnerApp() {
     showDeliveryFlow ||
     showCalendar ||
     showMaintenance ||
+    showVerificacionAuto ||
     showDisputes ||
     showAddCar ||
     showNotifications ||
@@ -379,6 +390,7 @@ export function OwnerApp() {
   if (showDeliveryFlow) capasAbiertas.push({ nivel: "entrega", onCerrar: () => setShowDeliveryFlow(false) });
   if (showCalendar) capasAbiertas.push({ nivel: "calendario", onCerrar: () => setShowCalendar(false) });
   if (showMaintenance) capasAbiertas.push({ nivel: "mantencion", onCerrar: () => setShowMaintenance(false) });
+  if (showVerificacionAuto) capasAbiertas.push({ nivel: "verificacion-auto", onCerrar: () => setShowVerificacionAuto(false) });
   if (showDisputes) capasAbiertas.push({ nivel: "disputas", onCerrar: () => setShowDisputes(false) });
   if (showAddCar) capasAbiertas.push({ nivel: "alta-auto", onCerrar: () => setShowAddCar(false) });
   if (showNotifications) capasAbiertas.push({ nivel: "notificaciones", onCerrar: () => setShowNotifications(false) });
@@ -396,8 +408,8 @@ export function OwnerApp() {
   useBackAndroid(capasAbiertas);
 
   return (
-    <View style={styles.appContainer}>
-      <View style={styles.screenContainer}>{renderContent()}</View>
+    <View className="flex-1 bg-background">
+      <View className="flex-1">{renderContent()}</View>
 
       {!barraOculta && (
         <TabBar
@@ -436,12 +448,3 @@ export function OwnerApp() {
   );
 }
 
-const styles = StyleSheet.create({
-  appContainer: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  screenContainer: {
-    flex: 1,
-  },
-});

@@ -111,3 +111,15 @@ export function extraerMovilSinPrefijo(tel) {
 
   return formatearTelefonoInput(movil);
 }
+
+/**
+ * Agrupa los miles con punto mientras el usuario escribe (25400 -> 25.400),
+ * como se lee un kilometraje en Chile. Devuelve solo lo formateado: para
+ * enviar al backend hay que volver a quedarse con los dígitos.
+ * @param {string} texto
+ * @returns {string}
+ */
+export function formatearMilesEnVivo(texto) {
+  const digitos = String(texto ?? "").replace(/\D/g, "").replace(/^0+/, "");
+  return digitos.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}

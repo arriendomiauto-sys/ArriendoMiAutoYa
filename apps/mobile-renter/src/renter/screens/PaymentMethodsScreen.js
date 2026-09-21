@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, StatusBar, ScrollView, Image } from "react-native";
+import { View, Text, StatusBar, ScrollView, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  colors,
-  theme,
   Icon,
   Button,
   Card,
@@ -171,6 +169,13 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         onPaymentSuccess({ ...r, car, estado: "confirmada", pagoSimulado });
         return;
       }
+      // Pagada, pero el dueño todavía tiene que confirmar (plazo de 24 h): la reserva queda "pendiente".
+      if (res?.estado === "esperando_dueno") {
+        onPaymentSuccess({
+          ...r, car, estado: "pendiente", confirmar_dueno_antes_de: res.confirmar_antes_de, pagoSimulado,
+        });
+        return;
+      }
       // "pendiente": el cobro quedó en proceso; se guarda la reserva.
       setPendiente({ expira_en: res?.expira_en || r.expira_en, motivo: res?.motivo });
     } catch (e) {
@@ -187,18 +192,21 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         return raw;
       })();
 
-      if (e?.codigo === "SIN_CUPO") {
+      const codigo = e?.codigo || e?.detail?.codigo;
+      const campo = e?.campo || e?.detail?.campo;
+
+      if (codigo === "SIN_CUPO") {
         setErrorGarantia(
-          `Esta tarjeta no tiene cupo para la garantía de ${clp(garantia)}. Elige otra o agrega una.`
+          `Esta tarjeta no tiene cupo disponible para la retención de garantía (${clp(garantia)}). Puedes seleccionar otra o agregar una tarjeta de crédito con cupo.`
         );
-      } else if (e?.codigo === "COBRO_RECHAZADO") {
+      } else if (codigo === "COBRO_RECHAZADO") {
         setErrorCobro(mensajeLimpio || "El cobro fue rechazado. Prueba con otra tarjeta.");
-      } else if (e?.codigo === "TARJETA_TIPO_INVALIDO") {
-        if (e?.campo === "cobro") {
+      } else if (codigo === "TARJETA_TIPO_INVALIDO") {
+        if (campo === "cobro") {
           setErrorCobro(
             mensajeLimpio || "El arriendo requiere una tarjeta de débito o crédito validada, distinta de la garantía."
           );
-        } else if (e?.campo === "garantia") {
+        } else if (campo === "garantia") {
           setErrorGarantia(mensajeLimpio || "La garantía requiere una tarjeta de crédito validada.");
         } else {
           showAlert(
@@ -207,7 +215,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
           );
         }
         recargar();
-      } else if (e?.codigo === "RESERVA_EXPIRADA") {
+      } else if (codigo === "RESERVA_EXPIRADA") {
         showAlert("Tu reserva venció", "Pasó demasiado tiempo. Vuelve a elegir las fechas.", [
           { text: "Entendido", onPress: onBack },
         ]);
@@ -223,33 +231,33 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
   // ── Panel de reserva pendiente ──────────────────────────────────────────
   if (pendiente) {
     return (
-      <View style={styles.container}>
+      <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Reserva pendiente" onBack={onBack} />
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.pendienteBox}>
-            <Icon name="clock" size={22} color={colors.warningText} />
-            <Text style={styles.pendienteTitulo}>Tu reserva quedó pendiente</Text>
-            <Text style={styles.pendienteTexto}>
+        <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+          <View className="items-center gap-1.5 bg-amber-50 border border-amber-300 rounded-2xl p-4">
+            <Icon name="clock" size={22} color="#B45309" />
+            <Text className="text-base font-extrabold text-textDark">Tu reserva quedó pendiente</Text>
+            <Text className="text-[13px] text-amber-800 leading-[19px] text-center">
               {pendiente.motivo ||
                 "Mercado Pago no confirmó el pago al instante."}{" "}
               Guardamos la reserva y no se cobró nada todavía.
             </Text>
           </View>
 
-          <Card padded style={styles.reservaGuardada}>
-            <Text style={styles.reservaGuardadaTitulo}>{nombreAuto || "Vehículo"}</Text>
-            <Text style={styles.reservaGuardadaMeta}>
+          <Card padded className="gap-1">
+            <Text className="text-[15px] font-bold text-textDark">{nombreAuto || "Vehículo"}</Text>
+            <Text className="text-[13px] text-textMuted">
               {dias} {dias === 1 ? "día" : "días"} · {clp(cobro)} + garantía {clp(garantia)}
             </Text>
             {cuenta.etiqueta ? (
-              <Text style={[styles.expira, cuenta.vencido && styles.expiraVencido]}>
+              <Text className={`text-[13px] font-bold mt-1 ${cuenta.vencido ? "text-red-600" : "text-primary"}`}>
                 {cuenta.vencido ? "La reserva venció" : `Expira en ${cuenta.etiqueta}`}
               </Text>
             ) : null}
           </Card>
 
-          <View style={{ gap: theme.spacing.sm }}>
+          <View className="gap-2">
             <Button
               label="Reintentar el pago"
               onPress={() => {
@@ -268,7 +276,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
             <Button
               variant="ghost"
               label="Ver mis reservas"
-              onPress={() => onPaymentSuccess({ ...reserva, car, estado: "pendiente" })}
+              onPress={() => onPaymentSuccess({ ...reserva, car, estado: "pendiente_pago" })}
               disabled={pagando}
             />
           </View>
@@ -278,23 +286,23 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
   }
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Confirmar y pagar" onBack={onBack} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
         {esReservaReal && (
-          <Card padded style={styles.carRow}>
+          <Card padded className="flex-row items-center gap-3">
             {car.fotos?.[0] ? (
-              <Image source={{ uri: car.fotos[0] }} style={styles.carThumb} />
+              <Image source={{ uri: car.fotos[0] }} className="w-[76px] h-[58px] rounded-xl bg-teal-50" />
             ) : (
-              <View style={[styles.carThumb, styles.carThumbEmpty]}>
-                <Icon name="car" size={22} color={colors.primary300} />
+              <View className="w-[76px] h-[58px] rounded-xl bg-amber-50 items-center justify-center">
+                <Icon name="car" size={22} color="#5EEAD4" />
               </View>
             )}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.carName}>{nombreAuto || "Vehículo"}</Text>
-              <Text style={styles.carMeta}>
+            <View className="flex-1">
+              <Text className="text-[15px] font-bold text-textDark">{nombreAuto || "Vehículo"}</Text>
+              <Text className="text-[13px] text-textMuted mt-0.5">
                 {dias} {dias === 1 ? "día" : "días"} · {car.ubicacion_base || "Los Ángeles"}
               </Text>
             </View>
@@ -302,11 +310,21 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         )}
 
         {pagoSimulado ? (
-          <View style={styles.pruebaRow}>
-            <Icon name="alert" size={18} color={colors.warningText} />
-            <Text style={styles.pruebaTexto}>
-              <Text style={{ fontWeight: "700" }}>Modo de prueba.</Text> No se cobra ni se retiene
+          <View className="flex-row items-start gap-2 p-3 rounded-xl border border-amber-300 bg-amber-50">
+            <Icon name="alert" size={18} color="#B45309" />
+            <Text className="flex-1 text-[12.5px] text-amber-800 leading-[18px]">
+              <Text className="font-bold">Modo de prueba.</Text> No se cobra ni se retiene
               nada real: la reserva avanza como si el pago hubiera sido exitoso.
+            </Text>
+          </View>
+        ) : null}
+
+        {(errorCobro || errorGarantia) && cuenta.etiqueta && !cuenta.vencido ? (
+          <View className="flex-row items-start gap-2 p-3 rounded-xl border border-red-200 bg-red-50">
+            <Icon name="clock" size={16} color="#B91C1C" />
+            <Text className="flex-1 text-[12.5px] text-red-800 leading-[18px]">
+              <Text className="font-bold">Tu reserva vence en {cuenta.etiqueta}.</Text> Guardamos el auto para ti
+              mientras eliges otra tarjeta.
             </Text>
           </View>
         ) : null}
@@ -314,6 +332,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         <SelectorTarjeta
           titulo="Cobro del arriendo"
           subtitulo="Se cobra hoy a una tarjeta de débito o crédito."
+          insignia={pagoSimulado ? undefined : "Mercado Pago"}
           tarjetas={tarjetasCobro}
           seleccionadaId={tarjetaCobroId}
           onSeleccionar={(id) => {
@@ -327,7 +346,8 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
 
         <SelectorTarjeta
           titulo="Garantía"
-          subtitulo="Queda bloqueada en una tarjeta de crédito, no se cobra."
+          subtitulo="Retención temporal en tarjeta de crédito. No genera cargo si el auto se restituye conforme."
+          insignia="Solo crédito"
           tarjetas={tarjetasCredito}
           seleccionadaId={tarjetaGarantiaId}
           onSeleccionar={(id) => {
@@ -339,35 +359,38 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
           tipoVacio="crédito"
         />
 
-        <Card padded style={{ gap: theme.spacing.md }}>
-          <View style={styles.bdRow}>
-            <Text style={styles.bdLabel}>Arriendo · {dias} {dias === 1 ? "día" : "días"}</Text>
-            <Text style={styles.bdValue}>{clp(neto)}</Text>
+        <Card padded style={{ gap: 12 }}>
+          <View className="flex-row justify-between items-center">
+            <Text className="text-[15px] text-textMuted">Arriendo · {dias} {dias === 1 ? "día" : "días"}</Text>
+            <Text className="text-[15px] text-textDark font-medium">{clp(neto)}</Text>
           </View>
-          <View style={styles.bdRow}>
-            <Text style={styles.bdLabel}>IVA 19%</Text>
-            <Text style={styles.bdValue}>{clp(iva)}</Text>
+          <View className="flex-row justify-between items-center">
+            <Text className="text-[15px] text-textMuted">IVA 19%</Text>
+            <Text className="text-[15px] text-textDark font-medium">{clp(iva)}</Text>
           </View>
-          <View style={styles.bdRow}>
-            <Text style={styles.bdLabelGris}>Garantía retenida</Text>
-            <Text style={styles.bdValueGris}>{clp(garantia)}</Text>
+          <View className="flex-row justify-between items-center">
+            <Text className="text-sm text-textMuted">Garantía (no es un cobro)</Text>
+            <Text className="text-sm text-textMuted">{clp(garantia)}</Text>
           </View>
-          <View style={[styles.bdRow, styles.bdTotal]}>
-            <Text style={styles.bdTotalLabel}>Se cobra hoy</Text>
-            <Text style={styles.bdTotalValue}>{clp(cobro)}</Text>
+          <View className="flex-row justify-between items-center border-t border-border pt-3">
+            <Text className="text-[17px] font-bold text-textDark">Se cobra hoy</Text>
+            <Text className="text-xl font-extrabold text-primary tracking-[-0.5px]">{clp(cobro)}</Text>
           </View>
         </Card>
 
-        <View style={styles.secure}>
-          <Icon name="shield" size={16} color={colors.accent700} />
-          <Text style={styles.secureText}>
+        <View className="flex-row items-start gap-2">
+          <Icon name="shield" size={16} color="#B45309" />
+          <Text className="flex-1 text-[12.5px] text-textMuted leading-[18px]">
             La garantía es una retención sobre el cupo de tu tarjeta de crédito, no un cobro. Se
-            libera al devolver el auto sin daños, menos cargos justificados.
+            libera al devolver el auto sin daños (la reversa en tu banco tarda entre 24 y 72 hrs hábiles).
           </Text>
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View
+        className="px-4 pt-3 bg-white border-t border-border gap-2"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
+      >
         {(() => {
           const yaFirmo = Boolean(reserva?.fecha_firma_biometrica) || (reserva?.firmas || []).some((f) => f.rol === "arrendatario");
           return (
@@ -388,7 +411,13 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
                 loading={pagando}
                 disabled={!listo}
               />
-              <Text style={styles.footerHelp}>
+              {pagoSimulado ? null : (
+                <View className="flex-row items-center justify-center gap-1.5">
+                  <Icon name="lock" size={12} color="#125A49" />
+                  <Text className="text-[11px] font-semibold text-accent-800">Pago procesado por Mercado Pago</Text>
+                </View>
+              )}
+              <Text className="text-xs text-textMuted text-center leading-[17px]">
                 {yaFirmo
                   ? "Contrato ya firmado digitalmente. Al continuar autorizas la retención de la garantía."
                   : "Al continuar firmas el contrato de arriendo y autorizas la retención de la garantía."}
@@ -406,7 +435,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         onVerContrato={() => setShowContractPreview(true)}
         onClose={() => {
           setFirmando(false);
-          if (reserva) onPaymentSuccess({ ...reserva, car, estado: "pendiente" });
+          if (reserva) onPaymentSuccess({ ...reserva, car, estado: "pendiente_pago" });
         }}
         onSigned={async () => {
           setFirmando(false);
@@ -426,8 +455,14 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         onAgregar={agregar}
         onAgregada={(tarjeta) => {
           setModalAgregar(null);
-          if (tarjeta?.tipo === "debito") setTarjetaCobroId(tarjeta.id);
-          if (tarjeta?.tipo === "credito") setTarjetaGarantiaId(tarjeta.id);
+          if (tarjeta?.tipo === "debito") {
+            setTarjetaCobroId(tarjeta.id);
+            setErrorCobro(null);
+          }
+          if (tarjeta?.tipo === "credito") {
+            setTarjetaGarantiaId(tarjeta.id);
+            setErrorGarantia(null);
+          }
         }}
         nombreTitular={currentUser?.nombre}
         rut={currentUser?.rut}
@@ -437,65 +472,3 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-
-  carRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  carThumb: { width: 76, height: 58, borderRadius: theme.radius.field, backgroundColor: colors.primary100 },
-  carThumbEmpty: { backgroundColor: colors.accent100, alignItems: "center", justifyContent: "center" },
-  carName: { fontSize: 15, fontWeight: "700", color: colors.text },
-  carMeta: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-
-  pruebaRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: theme.spacing.sm,
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    backgroundColor: colors.warningBg,
-  },
-  pruebaTexto: { flex: 1, fontSize: 12.5, color: colors.warningText, lineHeight: 18 },
-
-  bdRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  bdLabel: { fontSize: 15, color: colors.textMuted },
-  bdValue: { fontSize: 15, color: colors.text, fontWeight: "500" },
-  bdLabelGris: { fontSize: 14, color: colors.textMuted },
-  bdValueGris: { fontSize: 14, color: colors.textMuted },
-  bdTotal: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: theme.spacing.md },
-  bdTotalLabel: { fontSize: 17, fontWeight: "700", color: colors.text },
-  bdTotalValue: { fontSize: 20, fontWeight: "800", color: colors.primary, letterSpacing: -0.5 },
-
-  secure: { flexDirection: "row", alignItems: "flex-start", gap: theme.spacing.sm },
-  secureText: { flex: 1, fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
-
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: theme.spacing.sm,
-  },
-  footerHelp: { fontSize: 12, color: colors.textMuted, textAlign: "center", lineHeight: 17 },
-
-  // Panel pendiente
-  pendienteBox: {
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.warningBg,
-    borderColor: colors.warningBorder,
-    borderWidth: 1,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-  },
-  pendienteTitulo: { fontSize: 16, fontWeight: "800", color: colors.text },
-  pendienteTexto: { fontSize: 13, color: colors.warningText, lineHeight: 19, textAlign: "center" },
-  reservaGuardada: { gap: 4 },
-  reservaGuardadaTitulo: { fontSize: 15, fontWeight: "700", color: colors.text },
-  reservaGuardadaMeta: { fontSize: 13, color: colors.textMuted },
-  expira: { fontSize: 13, fontWeight: "700", color: colors.primary, marginTop: 4, fontVariant: ["tabular-nums"] },
-  expiraVencido: { color: colors.dangerText },
-});

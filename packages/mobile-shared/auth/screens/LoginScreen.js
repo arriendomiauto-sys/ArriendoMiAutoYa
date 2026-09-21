@@ -54,7 +54,7 @@ export function LoginScreen({ onNavigate }) {
     >
       <StatusBar barStyle="dark-content" />
 
-      <ScreenHeader title="Iniciar sesión" onBack={() => onNavigate("welcome")} />
+      <ScreenHeader title="" onBack={() => onNavigate("welcome")} />
 
       <ScrollView
         style={styles.scroll}
@@ -63,10 +63,11 @@ export function LoginScreen({ onNavigate }) {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {/* Bloque marca */}
-        <View style={styles.logoBox}>
-          <BrandLogo size={56} />
-          <Text style={styles.logoTitle}>Arriendo Mi Auto Ya</Text>
+        {/* Bloque marca + saludo */}
+        <View style={styles.hero}>
+          <BrandLogo size={44} />
+          <Text style={styles.title}>Hola de nuevo</Text>
+          <Text style={styles.subtitle}>Ingresa para retomar tu próximo arriendo.</Text>
         </View>
 
         {/* Bloque credenciales: el "Siguiente" del teclado salta al campo que sigue */}
@@ -74,6 +75,7 @@ export function LoginScreen({ onNavigate }) {
           <Field
             testID="input-email"
             label="Correo"
+            iconLeft="mail"
             value={email}
             onChangeText={setEmail}
             placeholder="nombre@correo.com"
@@ -89,10 +91,12 @@ export function LoginScreen({ onNavigate }) {
             testID="input-password"
             ref={passwordRef}
             label="Contraseña"
+            iconLeft="lock"
             value={password}
             onChangeText={setPassword}
             placeholder="••••••••••"
             secure
+            revealIcon
             autoComplete="password"
             returnKeyType="go"
             onSubmitEditing={handleLogin}
@@ -114,7 +118,7 @@ export function LoginScreen({ onNavigate }) {
         {/* Bloque acciones */}
         <Button testID="btn-login" label="Entrar" onPress={handleLogin} loading={loading} />
 
-        <BotonesOAuth />
+        <BotonesOAuth compact />
 
         <TouchableOpacity
           style={styles.registerLink}
@@ -144,14 +148,18 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     gap: theme.spacing.lg,
   },
-  logoBox: {
-    alignItems: "center",
+  hero: {
+    alignItems: "flex-start",
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
   },
-  logoTitle: {
-    ...theme.typography.title,
-    color: colors.primary,
+  title: {
+    ...theme.typography.display,
+    color: colors.text,
+    marginTop: theme.spacing.xs,
+  },
+  subtitle: {
+    ...theme.typography.body,
+    color: colors.textMuted,
   },
   form: {
     gap: theme.spacing.lg,

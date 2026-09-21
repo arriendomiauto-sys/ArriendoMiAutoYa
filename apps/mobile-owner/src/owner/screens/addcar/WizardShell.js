@@ -2,14 +2,13 @@ import React from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon, BackButton } from "@rentacar/mobile-shared";
+import { theme, Icon, BackButton } from "@rentacar/mobile-shared";
 
 const PASOS = ["Auto", "Tarifa", "Fotos", "Docs"];
 
@@ -18,29 +17,23 @@ function Nodo({ indice, actual }) {
   const activo = indice === actual;
   return (
     <View
-      style={[
-        styles.nodo,
-        hecho && styles.nodoHecho,
-        activo && styles.nodoActivo,
-        !hecho && !activo && styles.nodoFuturo,
-      ]}
+      className={`w-7 h-7 rounded-full items-center justify-center ${
+        hecho || activo ? "bg-primary" : "bg-white border-[1.5px] border-gray-200"
+      }`}
     >
       {hecho ? (
         <Icon name="check" size={13} color="#FFFFFF" />
       ) : (
-        <Text style={[styles.nodoNum, (activo || hecho) && styles.nodoNumOn]}>{indice + 1}</Text>
+        <Text className={`text-[13px] font-bold ${activo || hecho ? "text-white" : "text-gray-400"}`}>
+          {indice + 1}
+        </Text>
       )}
     </View>
   );
 }
 
-/**
- * Cromo compartido de los 4 pasos: barra superior con "volver" + contador,
- * el stepper, y abajo la barra de acción fija. El contenido de cada paso
- * (con su propio ScrollView) se pasa como `children`.
- */
 export function WizardShell({
-  paso, // 1..4
+  paso,
   onBack,
   onNext,
   siguienteLabel,
@@ -53,30 +46,36 @@ export function WizardShell({
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      className="flex-1 bg-background"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
-        <View style={styles.topBar}>
+      <View className="px-4 pb-3 gap-3 bg-background" style={{ paddingTop: Math.max(insets.top, 12) + 8 }}>
+        <View className="flex-row items-center gap-3">
           <BackButton onPress={onBack} />
-          <Text style={styles.contador}>{`Paso ${paso} de 4`}</Text>
+          <Text className="text-[13px] font-semibold text-textMuted">{`Paso ${paso} de 4`}</Text>
         </View>
 
-        <View style={styles.stepper}>
+        <View className="flex-row items-center">
           {PASOS.map((label, i) => (
             <React.Fragment key={label}>
               {i > 0 ? (
-                <View style={[styles.linea, i <= indice && styles.lineaHecha]} />
+                <View className={`flex-1 h-0.5 ${i <= indice ? "bg-primary" : "bg-gray-200"}`} />
               ) : null}
               <Nodo indice={i} actual={indice} />
             </React.Fragment>
           ))}
         </View>
-        <View style={styles.labelsRow}>
+        <View className="flex-row -mt-1">
           {PASOS.map((label, i) => (
             <Text
               key={label}
-              style={[styles.stepLabel, i <= indice && styles.stepLabelOn, i === indice && styles.stepLabelActivo]}
+              className={`flex-1 text-center text-[11px] ${
+                i <= indice
+                  ? i === indice
+                    ? "text-primary font-bold"
+                    : "text-primary font-semibold"
+                  : "text-gray-400"
+              }`}
             >
               {label}
             </Text>
@@ -84,14 +83,19 @@ export function WizardShell({
         </View>
       </View>
 
-      <View style={styles.body}>{children}</View>
+      <View className="flex-1">{children}</View>
 
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) + 12 }]}>
+      <View
+        className="flex-row items-center gap-3 px-4 pt-3 border-t border-gray-200 bg-white"
+        style={{ paddingBottom: Math.max(insets.bottom, 14) + 12 }}
+      >
         <TouchableOpacity onPress={onBack} hitSlop={theme.control.hitSlop} accessibilityRole="button">
-          <Text style={styles.atras}>Atrás</Text>
+          <Text className="text-sm font-semibold text-primary py-2 pr-1">Atrás</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.cta, !siguienteHabilitado && styles.ctaOff]}
+          className={`flex-1 h-12 rounded-xl flex-row items-center justify-center gap-2 ${
+            !siguienteHabilitado ? "bg-gray-200" : "bg-primary"
+          }`}
           onPress={onNext}
           disabled={!siguienteHabilitado || cargando}
           activeOpacity={0.85}
@@ -103,7 +107,7 @@ export function WizardShell({
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Text style={styles.ctaText}>{siguienteLabel}</Text>
+              <Text className="text-[15px] font-bold text-white">{siguienteLabel}</Text>
               <Icon name={paso === 4 ? "check" : "arrow-right"} size={18} color="#FFFFFF" />
             </>
           )}
@@ -112,58 +116,3 @@ export function WizardShell({
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingBottom: theme.spacing.md,
-    gap: theme.spacing.md,
-    backgroundColor: colors.background,
-  },
-  topBar: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  contador: { fontSize: 13, fontWeight: "600", color: colors.textMuted },
-  stepper: { flexDirection: "row", alignItems: "center" },
-  nodo: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nodoHecho: { backgroundColor: colors.primary },
-  nodoActivo: { backgroundColor: colors.primary },
-  nodoFuturo: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border },
-  nodoNum: { fontSize: 13, fontWeight: "700", color: colors.textPlaceholder },
-  nodoNumOn: { color: "#FFFFFF" },
-  linea: { flex: 1, height: 2, backgroundColor: colors.border },
-  lineaHecha: { backgroundColor: colors.primary },
-  labelsRow: { flexDirection: "row", marginTop: -4 },
-  stepLabel: { flex: 1, textAlign: "center", fontSize: 11, color: colors.textPlaceholder },
-  stepLabelOn: { color: colors.primary, fontWeight: "600" },
-  stepLabelActivo: { fontWeight: "700" },
-  body: { flex: 1 },
-  bottomBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  atras: { fontSize: 14, fontWeight: "600", color: colors.primary, paddingVertical: 8, paddingRight: 4 },
-  cta: {
-    flex: 1,
-    height: theme.control.height,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.sm,
-  },
-  ctaOff: { backgroundColor: colors.borderLight },
-  ctaText: { fontSize: 15, fontWeight: "700", color: "#FFFFFF" },
-});

@@ -282,12 +282,20 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
 
           {fase === "intro" ? (
             <>
+              <View style={styles.avisoLegalBio}>
+                <Icon name="shield" size={16} color={colors.accent400} />
+                <Text style={styles.avisoLegalBioTexto}>
+                  <Text style={{ fontWeight: "700" }}>Protección de Datos (Ley N° 19.628): </Text>
+                  Tus rasgos faciales se procesan exclusivamente para validar tu identidad y prevenir suplantaciones
+                  en el contrato de arriendo. Se almacenan cifrados y no se ceden a terceros.
+                </Text>
+              </View>
               <Text style={styles.hint}>
-                Vamos a tomar dos fotos: una de frente y otra girando la cabeza. Se
-                capturan solas con una cuenta regresiva.
+                Tomaremos dos fotos: una de frente y otra girando la cabeza despacio. Se
+                capturan automáticamente con una cuenta regresiva.
               </Text>
               <TouchableOpacity style={styles.empezarBtn} onPress={empezar} activeOpacity={0.85}>
-                <Text style={styles.empezarText}>Empezar</Text>
+                <Text style={styles.empezarText}>Aceptar y empezar verificación</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -406,6 +414,23 @@ const styles = StyleSheet.create({
   pasoPillActivo: { backgroundColor: "#FFFFFF" },
   pasoPillHecho: { backgroundColor: colors.accent500 },
   instruccion: { color: "#FFFFFF", fontSize: 17, fontWeight: "800", textAlign: "center" },
+  avisoLegalBio: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(6,30,31,0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(34,211,238,0.3)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  avisoLegalBioTexto: {
+    flex: 1,
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 12,
+    lineHeight: 16,
+  },
   hint: {
     color: "rgba(255,255,255,0.92)",
     fontSize: 13,

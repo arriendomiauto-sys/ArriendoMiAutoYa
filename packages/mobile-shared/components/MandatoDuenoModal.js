@@ -61,7 +61,7 @@ export function MandatoDuenoModal({
                 Autorización para arrendar tu vehículo
               </Text>
               <Text style={styles.bannerSubtitle}>
-                Al operar como dueño en nuestra plataforma, nos otorgas el mandato para intermediar el arriendo de tu vehículo con total seguridad.
+                Mandato especial de administración e intermediación a ARRIENDO MI AUTO SpA (RUT 78.493.457-8) bajo las siguientes condiciones:
               </Text>
             </View>
 
@@ -72,7 +72,7 @@ export function MandatoDuenoModal({
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemTitle}>Recibes el 85% neto de cada arriendo</Text>
                   <Text style={styles.itemDesc}>
-                    El 85% del valor diario acordado se transfiere directamente a tu cuenta bancaria. Tu ganancia neta es clara y garantizada.
+                    ARRIENDO MI AUTO SpA percibe el valor del arriendo a tu nombre y transfiere el 85% neto acordado directamente a tu cuenta bancaria registrada.
                   </Text>
                 </View>
               </View>
@@ -82,9 +82,9 @@ export function MandatoDuenoModal({
               <View style={styles.row}>
                 <View style={styles.badgeNumber}><Text style={styles.badgeText}>2</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitle}>15% Comisión de la plataforma</Text>
+                  <Text style={styles.itemTitle}>15% Comisión de intermediación</Text>
                   <Text style={styles.itemDesc}>
-                    La comisión del 15% financia la plataforma, soporte 24/7, verificación de identidad biométrica KYC y la cobertura de seguro en cada viaje.
+                    La comisión del 15% financia la plataforma, soporte operativo, verificación biométrica KYC de conductores y el programa de protección frente a siniestros.
                   </Text>
                 </View>
               </View>
@@ -96,7 +96,7 @@ export function MandatoDuenoModal({
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemTitle}>100% de los cargos adicionales para ti</Text>
                   <Text style={styles.itemDesc}>
-                    Si el auto es devuelto con retraso, falta de combustible o suciedad, el 100% de esos cargos se transfiere íntegro a tu cuenta.
+                    El 100% de los cobros accesorios por atraso, combustible faltante o suciedad/lavado se transfiere íntegro a tu cuenta para costear los gastos incurridos.
                   </Text>
                 </View>
               </View>
@@ -106,9 +106,21 @@ export function MandatoDuenoModal({
               <View style={styles.row}>
                 <View style={styles.badgeNumber}><Text style={styles.badgeText}>4</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitle}>Garantía retenida y seguro activo</Text>
+                  <Text style={styles.itemTitle}>Deducible 15 UF (50/50) y Garantía</Text>
                   <Text style={styles.itemDesc}>
-                    Ningún arrendatario puede retirar tu auto sin una garantía autorizada de $800.000 a $1.200.000 y contrato digital firmado.
+                    Ningún arrendatario retira tu auto sin garantía retenida ($800.000) y contrato digital firmado. Ante siniestros cubiertos, el deducible de 15 UF se absorbe 50% por la plataforma y 50% por el dueño.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.row}>
+                <View style={styles.badgeNumber}><Text style={styles.badgeText}>5</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemTitle}>Cobro y gestión de peajes TAG y multas</Text>
+                  <Text style={styles.itemDesc}>
+                    Facultas expresamente a ARRIENDO MI AUTO SpA para cobrar y percibir del arrendatario los peajes, pasadas por pórticos TAG y multas de tránsito generadas durante el arriendo, transfiriéndolos a tu cuenta previa acreditación del comprobante.
                   </Text>
                 </View>
               </View>
@@ -124,7 +136,7 @@ export function MandatoDuenoModal({
                 {checked && <Icon name="check" size={16} color="#FFFFFF" />}
               </View>
               <Text style={styles.checkText}>
-                He leído y autorizo a la plataforma a intermediar el arriendo de mi vehículo bajo estas condiciones (85% para mí como dueño / 15% comisión plataforma).
+                He leído y confiero mandato especial de administración e intermediación a ARRIENDO MI AUTO SpA (RUT 78.493.457-8) bajo las condiciones aquí estipuladas.
               </Text>
             </TouchableOpacity>
 

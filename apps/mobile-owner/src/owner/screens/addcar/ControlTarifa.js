@@ -1,15 +1,9 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { colors, theme, Icon, PASO_PRECIO_CLP } from "@rentacar/mobile-shared";
+import { View, Text, TouchableOpacity } from "react-native";
+import { colors, Icon, PASO_PRECIO_CLP } from "@rentacar/mobile-shared";
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
 
-/**
- * Control de tarifa: el dueño parte del precio `base` que fija RentACar y
- * solo puede bajarlo, de $5.000 en $5.000, hasta el piso `min` de su
- * categoría. Sin campo de texto libre: stepper + píldoras con montos
- * cerrados. Debajo, cuánto recibe con el desglose de IVA y comisión.
- */
 export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
   const enPiso = valor <= tipo.min;
   const enTope = valor >= tipo.base;
@@ -17,23 +11,27 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
 
   return (
     <>
-      <View style={styles.card}>
-        <View style={styles.cabecera}>
-          <Text style={styles.cabeceraLabel}>Precio de tu categoría</Text>
-          <View style={styles.candado}>
+      <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-3 shadow-sm mb-4">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-[13px] text-textMuted">Precio de tu categoría</Text>
+          <View className="flex-row items-center gap-1 bg-surface-secondary rounded-full py-1 px-2">
             <Icon name="lock" size={11} color={colors.textMuted} />
-            <Text style={styles.candadoText}>Fijado por RentACar</Text>
+            <Text className="text-[11px] font-bold text-textMuted">Fijado por RentACar</Text>
           </View>
         </View>
-        <Text style={[styles.base, conDescuento && styles.baseTachado]}>{fmt(tipo.base)}</Text>
+        <Text className={`text-base font-bold ${conDescuento ? "line-through text-gray-400" : "text-textDark"}`}>
+          {fmt(tipo.base)}
+        </Text>
 
-        <View style={styles.divisor} />
+        <View className="h-[1px] bg-gray-200" />
 
-        <Text style={styles.tuTarifaLabel}>Tu tarifa por día</Text>
+        <Text className="text-xs font-semibold tracking-wider uppercase text-textMuted">Tu tarifa por día</Text>
 
-        <View style={styles.stepper}>
+        <View className="flex-row items-center gap-3">
           <TouchableOpacity
-            style={[styles.stepBtn, enPiso && styles.stepBtnOff]}
+            className={`w-[52px] h-[52px] rounded-xl border-[1.5px] items-center justify-center ${
+              enPiso ? "border-gray-200 bg-gray-100" : "border-primary-200 bg-primary-100"
+            }`}
             onPress={() => onAjustar(-PASO_PRECIO_CLP)}
             disabled={enPiso}
             accessibilityRole="button"
@@ -43,12 +41,14 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
             <Icon name="minus" size={20} color={enPiso ? colors.textPlaceholder : colors.primary} />
           </TouchableOpacity>
 
-          <View style={styles.montoWrap}>
-            <Text style={styles.monto}>{fmt(valor)}</Text>
+          <View className="flex-1 items-center">
+            <Text className="text-[30px] font-extrabold -tracking-tight text-primary">{fmt(valor)}</Text>
           </View>
 
           <TouchableOpacity
-            style={[styles.stepBtn, enTope && styles.stepBtnOff]}
+            className={`w-[52px] h-[52px] rounded-xl border-[1.5px] items-center justify-center ${
+              enTope ? "border-gray-200 bg-gray-100" : "border-primary-200 bg-primary-100"
+            }`}
             onPress={() => onAjustar(PASO_PRECIO_CLP)}
             disabled={enTope}
             accessibilityRole="button"
@@ -59,47 +59,51 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.pills}>
+        <View className="flex-row flex-wrap gap-1.5">
           {tipo.escalones.map((precio) => {
             const activo = precio === valor;
             return (
               <TouchableOpacity
                 key={precio}
-                style={[styles.pill, activo && styles.pillOn]}
+                className={`py-2 px-3 rounded-full border ${
+                  activo ? "bg-primary border-primary" : "border-gray-200 bg-white"
+                }`}
                 onPress={() => onFijar(precio)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: activo }}
               >
-                <Text style={[styles.pillText, activo && styles.pillTextOn]}>{fmt(precio)}</Text>
+                <Text className={`text-[13px] font-semibold ${activo ? "text-white" : "text-textMuted"}`}>
+                  {fmt(precio)}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <View style={styles.tip}>
+        <View className="flex-row items-start gap-2 bg-emerald-50 rounded-xl p-2.5">
           <Icon name="star" size={13} color={colors.accent} fill={colors.accent} />
-          <Text style={styles.tipText}>
+          <Text className="flex-1 text-xs text-accent-700 leading-[17px]">
             Bajar tu tarifa te posiciona más arriba en las búsquedas y llena más días.
           </Text>
         </View>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.recibeFila}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.recibeLabel}>Recibes por día (85%)</Text>
-            <Text style={styles.recibeMonto}>{fmt(desglose.gananciaDueno)}</Text>
+      <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-3 shadow-sm mb-4">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1">
+            <Text className="text-xs font-semibold tracking-wider uppercase text-textMuted">Recibes por día (85%)</Text>
+            <Text className="text-[26px] font-extrabold -tracking-tight text-accent-700 mt-0.5">{fmt(desglose.gananciaDueno)}</Text>
           </View>
-          <View style={styles.ivaBadge}>
-            <Text style={styles.ivaBadgeText}>IVA 19% incl.</Text>
+          <View className="bg-emerald-50 border border-emerald-200 rounded-md py-1 px-2">
+            <Text className="text-[10px] font-bold uppercase tracking-wider text-accent-700">IVA 19% incl.</Text>
           </View>
         </View>
-        <View style={styles.divisor} />
+        <View className="h-[1px] bg-gray-200" />
         <Fila k="Tarifa al cliente" v={fmt(desglose.tarifaBruta)} fuerte />
         <Fila k="Valor neto" v={fmt(desglose.subtotalNeto)} />
         <Fila k="IVA (19%)" v={fmt(desglose.ivaMonto)} />
         <Fila k="Comisión plataforma (15%)" v={`-${fmt(desglose.comisionPlataforma)}`} />
-        <Text style={styles.recibeNota}>
+        <Text className="text-[11px] text-gray-400 leading-[15px] mt-1">
           La plataforma retiene 15% por seguro, verificación de identidad y soporte 24/7.
         </Text>
       </View>
@@ -109,101 +113,9 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
 
 function Fila({ k, v, fuerte }) {
   return (
-    <View style={styles.fila}>
-      <Text style={[styles.filaK, fuerte && styles.filaFuerte]}>{k}</Text>
-      <Text style={[styles.filaV, fuerte && styles.filaFuerte]}>{v}</Text>
+    <View className="flex-row justify-between items-center py-0.5">
+      <Text className={fuerte ? "text-xs font-bold text-textDark" : "text-[11px] text-textMuted"}>{k}</Text>
+      <Text className={fuerte ? "text-xs font-bold text-textDark" : "text-[11px] text-textMuted"}>{v}</Text>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.md,
-    ...theme.shadow.sm,
-  },
-  cabecera: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cabeceraLabel: { fontSize: 13, color: colors.textMuted },
-  candado: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 9,
-  },
-  candadoText: { fontSize: 11, fontWeight: "700", color: colors.textMuted },
-  base: { fontSize: 16, fontWeight: "700", color: colors.textPlaceholder },
-  baseTachado: { textDecorationLine: "line-through" },
-  divisor: { height: 1, backgroundColor: colors.border },
-  tuTarifaLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: colors.textMuted,
-  },
-  stepper: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  stepBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.primary200,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepBtnOff: { borderColor: colors.border, backgroundColor: colors.surfaceSecondary },
-  montoWrap: { flex: 1, alignItems: "center" },
-  monto: { fontSize: 30, fontWeight: "800", letterSpacing: -0.8, color: colors.primary },
-  pills: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  pill: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  pillOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  pillText: { fontSize: 13, fontWeight: "600", color: colors.textMuted },
-  pillTextOn: { color: "#FFFFFF" },
-  tip: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    backgroundColor: colors.accent100,
-    borderRadius: 10,
-    padding: 10,
-  },
-  tipText: { flex: 1, fontSize: 12, color: colors.accentDark, lineHeight: 17 },
-  recibeFila: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  recibeLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-    color: colors.textMuted,
-  },
-  recibeMonto: { fontSize: 26, fontWeight: "800", letterSpacing: -0.5, color: colors.accentDark, marginTop: 2 },
-  ivaBadge: {
-    backgroundColor: colors.accent100,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  ivaBadgeText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, color: colors.accentText },
-  fila: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 1 },
-  filaK: { fontSize: 11, color: colors.textMuted },
-  filaV: { fontSize: 11, color: colors.textMuted },
-  filaFuerte: { fontSize: 12, fontWeight: "700", color: colors.text },
-  recibeNota: { fontSize: 11, color: colors.textPlaceholder, lineHeight: 15, marginTop: 4 },
-});

@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
@@ -32,6 +33,12 @@ export function RatingModal({
   destinatarioNombre,
   onSubmitted,
 }) {
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch (e) {
+    // Si corre fuera de SafeAreaProvider en tests
+  }
   const [puntaje, setPuntaje] = useState(5);
   const [comentario, setComentario] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -71,7 +78,8 @@ export function RatingModal({
         style={styles.overlay}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
+          <View style={styles.handle} />
           <View style={styles.header}>
             <View style={styles.iconCircle}>
               <Icon name="star" size={22} color={colors.accent700} fill={colors.accent700} />
@@ -135,7 +143,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopLeftRadius: theme.radius.xl,
     borderTopRightRadius: theme.radius.xl,
-    paddingBottom: 24,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderDark,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 2,
   },
   header: {
     flexDirection: "row",

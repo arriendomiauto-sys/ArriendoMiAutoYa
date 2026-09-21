@@ -1,8 +1,7 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, Image, TouchableOpacity, ActivityIndicator } from "react-native";
 import { colors, theme, Icon } from "@rentacar/mobile-shared";
 
-// Veredicto del motor de documentos del backend → tono visual.
 const TONO = {
   vigente: "ok",
   sin_vencimiento: "ok",
@@ -28,31 +27,42 @@ export function RanuraDocumento({ doc, uri, uploading, validando, validacion, on
   const colorTono =
     tono === "error" ? colors.danger : tono === "ok" ? colors.accentDark : colors.warning;
 
+  const borderClass =
+    tono === "error"
+      ? "border-red-300"
+      : tono === "aviso"
+        ? "border-amber-300"
+        : uri
+          ? "border-emerald-300 bg-surface-subtle"
+          : doc.opcional
+            ? "border-dashed border-gray-300 bg-white"
+            : "border-gray-200 bg-white";
+
   return (
-    <View
-      style={[
-        styles.slot,
-        doc.opcional && styles.slotOpcional,
-        uri && styles.slotListo,
-        tono === "error" && styles.slotError,
-        tono === "aviso" && styles.slotAviso,
-      ]}
-    >
-      <View style={styles.cabeza}>
+    <View className={`rounded-2xl border p-3.5 gap-2.5 ${borderClass}`}>
+      <View className="flex-row items-center gap-3">
         {uri ? (
-          <Image source={{ uri }} style={styles.miniatura} />
+          <Image source={{ uri }} className="w-11 h-11 rounded-xl bg-gray-100 border border-emerald-300" />
         ) : (
-          <View style={[styles.icono, doc.opcional && styles.iconoOpcional]}>
+          <View className={`w-[42px] h-[42px] rounded-xl items-center justify-center ${doc.opcional ? "bg-surface-subtle" : "bg-primary-100"}`}>
             <Icon name={doc.icon} size={19} color={doc.opcional ? colors.textMuted : colors.primary} />
           </View>
         )}
 
-        <View style={{ flex: 1 }}>
-          <View style={styles.tituloFila}>
-            <Text style={styles.titulo}>{doc.titulo}</Text>
-            {doc.opcional ? <Text style={styles.opcionalTag}>Opcional</Text> : null}
+        <View className="flex-1">
+          <View className="flex-row items-center gap-1.5">
+            <Text className="text-sm font-bold text-textDark flex-shrink">{doc.titulo}</Text>
+            {doc.opcional ? (
+              <Text className="text-[10px] font-bold uppercase tracking-wider text-textMuted bg-gray-100 rounded px-1.5 py-0.5 overflow-hidden">
+                Opcional
+              </Text>
+            ) : null}
           </View>
-          <Text style={[styles.ayuda, uri && !texto && { color: colors.accentDark, fontWeight: "600" }]}>
+          <Text
+            className={`text-[11.5px] leading-[15px] mt-0.5 ${
+              uri && !texto ? "text-accent-700 font-semibold" : "text-textMuted"
+            }`}
+          >
             {uri && !texto ? "Documento listo" : doc.ayuda}
           </Text>
         </View>
@@ -67,92 +77,38 @@ export function RanuraDocumento({ doc, uri, uploading, validando, validacion, on
       </View>
 
       {texto ? (
-        <View style={styles.veredicto}>
+        <View className="flex-row items-start gap-1.5">
           <Icon
             name={tono === "error" ? "alert" : tono === "ok" ? "check" : "clock"}
             size={13}
             color={colorTono}
           />
-          <Text style={[styles.veredictoTexto, { color: colorTono }]}>{texto}</Text>
+          <Text style={{ color: colorTono }} className="flex-1 text-[11.5px] leading-4">
+            {texto}
+          </Text>
         </View>
       ) : null}
 
       {!uri && !uploading ? (
-        <View style={styles.acciones}>
-          <TouchableOpacity style={styles.btn} onPress={onCamera} activeOpacity={0.85}>
+        <View className="flex-row gap-2">
+          <TouchableOpacity
+            className="flex-1 flex-row items-center justify-center gap-1.5 h-[42px] rounded-xl border border-primary-200 bg-primary-100"
+            onPress={onCamera}
+            activeOpacity={0.85}
+          >
             <Icon name="camera" size={15} color={colors.primary} />
-            <Text style={styles.btnText}>Fotografiar</Text>
+            <Text className="text-[13px] font-bold text-primary">Fotografiar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btn} onPress={onFile} activeOpacity={0.85}>
+          <TouchableOpacity
+            className="flex-1 flex-row items-center justify-center gap-1.5 h-[42px] rounded-xl border border-primary-200 bg-primary-100"
+            onPress={onFile}
+            activeOpacity={0.85}
+          >
             <Icon name="document" size={15} color={colors.primary} />
-            <Text style={styles.btnText}>Galería</Text>
+            <Text className="text-[13px] font-bold text-primary">Galería</Text>
           </TouchableOpacity>
         </View>
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  slot: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    gap: 10,
-  },
-  slotOpcional: { borderStyle: "dashed" },
-  slotListo: { borderColor: colors.successBorder, backgroundColor: colors.surfaceSubtle },
-  slotError: { borderColor: colors.dangerBorder },
-  slotAviso: { borderColor: colors.warningBorder },
-  cabeza: { flexDirection: "row", alignItems: "center", gap: 12 },
-  miniatura: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
-  },
-  icono: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconoOpcional: { backgroundColor: colors.surfaceSubtle },
-  tituloFila: { flexDirection: "row", alignItems: "center", gap: 6 },
-  titulo: { fontSize: 14, fontWeight: "700", color: colors.text, flexShrink: 1 },
-  opcionalTag: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-    color: colors.textMuted,
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    overflow: "hidden",
-  },
-  ayuda: { fontSize: 11.5, color: colors.textMuted, lineHeight: 15, marginTop: 2 },
-  veredicto: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  veredictoTexto: { flex: 1, fontSize: 11.5, lineHeight: 16 },
-  acciones: { flexDirection: "row", gap: 8 },
-  btn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    height: 42,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.primary200,
-    backgroundColor: colors.primary100,
-  },
-  btnText: { fontSize: 13, fontWeight: "700", color: colors.primary },
-});

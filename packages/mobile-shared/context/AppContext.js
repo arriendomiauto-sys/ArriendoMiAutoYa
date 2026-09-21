@@ -349,17 +349,10 @@ export function AppProvider({ children, initialMode }) {
   }, [syncProfile, sincronizarSesionConTransicion]);
 
   // Si un admin cambia el rol/KYC/perfil de este usuario mientras ya está
-  // adentro de la app, nada dispara syncProfile hasta el próximo login: el
-  // onAuthStateChange de arriba solo reacciona a eventos de Supabase Auth
-  // (login/logout/refresh), no a cambios de fila en `usuarios`. Se resuelve
-  // con un polling liviano al volver a primer plano en vez de Supabase
-  // Realtime o un endpoint "hay cambios pendientes": el caso que importa es
-  // que el usuario vea el cambio la próxima vez que USA la app, no mientras
-  // está en segundo plano, así que no hace falta empuje en tiempo real —
-  // y evita mantener una suscripción/canal vivo (y su reconexión) solo para
-  // esto. INTERVALO_RESYNC_PERFIL_MS evita repreguntar /usuarios/me si el
-  // usuario alterna entre apps seguido.
-  const INTERVALO_RESYNC_PERFIL_MS = 5 * 60 * 1000;
+  // adentro de la app, syncProfile se ejecuta silenciosamente (sin modales ni
+  // interrupciones) al volver a primer plano o periódicamente cada 25s,
+  // manteniendo currentUser y el estado de la app siempre sincronizado.
+  const INTERVALO_RESYNC_PERFIL_MS = 5 * 1000;
   useEffect(() => {
     let estadoPrevio = AppState.currentState;
     const sub = AppState.addEventListener("change", (nuevoEstado) => {
@@ -369,9 +362,23 @@ export function AppProvider({ children, initialMode }) {
       estadoPrevio = nuevoEstado;
       if (!volvioAPrimerPlano || !isLoggedIn) return;
       if (Date.now() - ultimoSyncPerfilRef.current < INTERVALO_RESYNC_PERFIL_MS) return;
-      syncProfile();
+      syncProfile().catch(() => {});
     });
-    return () => sub?.remove?.();
+
+    // Polling suave en primer plano para detectar cambios sin interacción del usuario
+    let timerPolling = null;
+    if (isLoggedIn) {
+      timerPolling = setInterval(() => {
+        if (AppState.currentState === "active") {
+          syncProfile().catch(() => {});
+        }
+      }, 25000);
+    }
+
+    return () => {
+      sub?.remove?.();
+      if (timerPolling) clearInterval(timerPolling);
+    };
   }, [isLoggedIn, syncProfile]);
 
   useEffect(() => {

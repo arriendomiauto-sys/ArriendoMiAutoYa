@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
@@ -14,6 +15,12 @@ import { showAlert } from "../utils/alert";
  * ANTES de marcar la casilla; `onAccept` deja aceptar desde acá mismo.
  */
 export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Si corre fuera de SafeAreaProvider en tests
+  }
   const [activo, setActivo] = useState(doc);
   const [ultimoDoc, setUltimoDoc] = useState(doc);
   // Al reabrirlo desde otro link se muestra el documento que se pidió.
@@ -35,7 +42,7 @@ export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
           <View style={styles.handle} />
 
           <View style={styles.header}>

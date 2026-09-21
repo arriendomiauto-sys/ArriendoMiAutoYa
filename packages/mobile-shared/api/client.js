@@ -363,6 +363,16 @@ export class ApiClient {
     });
   }
 
+  // Llegada al punto de encuentro (arrendatario o dueño), comprobada por ubicación: el backend calcula la
+  // distancia al auto y NO guarda las coordenadas. Es la señal con la que decide solo, pasadas 2 h del
+  // inicio, quién no se presentó y paga la multa (un día de arriendo). Vale desde 2 h antes de la entrega;
+  // antes responde 409, y 409/422 si la ubicación no demuestra que llegó. Devuelve la reserva actualizada.
+  static async avisarLlegada(reservaId, ubicacion) {
+    const opciones = { method: "POST" };
+    if (ubicacion) opciones.body = JSON.stringify(ubicacion);
+    return this.request(`/reservas/${reservaId}/llegada`, opciones);
+  }
+
   // Firma del contrato de arriendo por una de las partes. `metodo` es
   // "huella" | "facial" | "escrita"; `firma_svg` solo va con "escrita".
   // El backend deduce el rol (arrendatario/arrendador) del usuario autenticado.
@@ -475,6 +485,22 @@ export class ApiClient {
 
   static async eliminarBloqueoCalendario(bloqueoId) {
     return this.request(`/bloqueos/${bloqueoId}`, { method: "DELETE" });
+  }
+
+  // Mensajería de coordinación por reserva
+  static async getConversaciones() {
+    return this.request("/reservas/conversaciones");
+  }
+
+  static async getMensajes(reservaId) {
+    return this.request(`/reservas/${reservaId}/mensajes`);
+  }
+
+  static async enviarMensaje(reservaId, texto, clientId = null) {
+    return this.request(`/reservas/${reservaId}/mensajes`, {
+      method: "POST",
+      body: JSON.stringify({ texto, client_id: clientId }),
+    });
   }
 
   // GPS: última posición conocida (solo dueño del auto o admin; el backend
@@ -880,6 +906,49 @@ export class ApiClient {
     formData.append("bucket", bucket);
 
     return this.request("/storage/upload", { method: "POST", body: formData }, { esSubida: true });
+  }
+
+  // ── Antecedentes: certificados oficiales del Registro Civil (PDF) ──────────
+  static async getEstadoAntecedentes() {
+    return this.request("/antecedentes/mi-estado");
+  }
+
+  // `archivo` = { uri, name } del selector de PDF. El backend recibe el archivo (no una URL) y lo
+  // guarda en un bucket privado; sin `consentimiento` no lo acepta.
+  static async subirCertificadoAntecedente({ tipo, archivo, consentimiento }) {
+    return this.request("/antecedentes/certificados", {
+      method: "POST",
+      body: await this._formDePdf(archivo, { tipo, consentimiento: consentimiento ? "true" : "false" }),
+    }, { esSubida: true });
+  }
+
+  // El dueño sube el certificado de anotaciones vigentes de su auto.
+  static async subirCertificadoAnotaciones(autoId, { archivo, consentimiento }) {
+    return this.request(`/autos/${autoId}/certificado-anotaciones`, {
+      method: "POST",
+      body: await this._formDePdf(archivo, { consentimiento: consentimiento ? "true" : "false" }),
+    }, { esSubida: true });
+  }
+
+  // Titular que sube el certificado de su segundo conductor.
+  static async subirCertificadoSegundoConductor(reservaId, { tipo, archivo, consentimiento }) {
+    return this.request(`/reservas/${reservaId}/segundo-conductor/certificados`, {
+      method: "POST",
+      body: await this._formDePdf(archivo, { tipo, consentimiento: consentimiento ? "true" : "false" }),
+    }, { esSubida: true });
+  }
+
+  static async _formDePdf(archivo, campos) {
+    const formData = new FormData();
+    if (Platform.OS === "web") {
+      // En web el FormData es el real: el truco de RN {uri, name, type} no sirve.
+      const blob = await fetch(archivo.uri).then((r) => r.blob());
+      formData.append("archivo", blob, archivo.name || "certificado.pdf");
+    } else {
+      formData.append("archivo", { uri: archivo.uri, name: archivo.name || "certificado.pdf", type: "application/pdf" });
+    }
+    Object.entries(campos).forEach(([k, v]) => formData.append(k, v));
+    return formData;
   }
 
   static getContratoPdfUrl(reservaId) {

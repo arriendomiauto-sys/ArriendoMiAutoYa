@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
@@ -18,7 +17,7 @@ import {
   msjError,
   useApp,
 } from "@rentacar/mobile-shared";
-import { CabeceraOwner, oc, OWNER_PREMIUM_BG, OWNER_PREMIUM_LINE } from "../comun";
+import { CabeceraOwner, oc } from "../comun";
 import { CuentaCobroModal } from "./CuentaCobroModal";
 
 const DIAS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -43,8 +42,6 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
     }
   }, []);
 
-  // Estas dos acciones mueven adónde va la plata del dueño: si el request
-  // falla tiene que enterarse, no quedarse creyendo que cambió algo.
   const usarCuenta = useCallback(
     async (cuentaId) => {
       try {
@@ -101,8 +98,11 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
     }
   }, []);
 
+  // Se muestra el caché al instante y se revalida siempre: el saldo cambia
+  // fuera de esta pantalla (devoluciones, depósitos automáticos) y el caché de
+  // 30 s dejaba el valor viejo a la vista sin que nada lo refrescara.
   useEffect(() => {
-    cargar();
+    cargar(true);
   }, [cargar]);
 
   useEffect(() => {
@@ -133,7 +133,7 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
   const maxBarra = Math.max(...barras.map((b) => b.monto), 1);
 
   return (
-    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+    <View className="flex-1 bg-background" style={{ paddingTop: Math.max(insets.top, 12) }}>
       <CabeceraOwner
         titulo="Ganancias"
         subtitulo="85% neto de arriendos + 100% de compensaciones"
@@ -141,16 +141,21 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
         onMensajes={onOpenChat}
         right={
           onOpenDisputes ? (
-            <TouchableOpacity onPress={onOpenDisputes} style={styles.disputesBtn} activeOpacity={0.8}>
+            <TouchableOpacity
+              onPress={onOpenDisputes}
+              className="flex-row items-center gap-1.5 h-10 px-3 rounded-xl border border-gray-200 bg-white"
+              activeOpacity={0.8}
+            >
               <Icon name="shield" size={15} color={colors.primary} />
-              <Text style={styles.disputesText}>Disputas</Text>
+              <Text className="text-xs font-bold text-primary">Disputas</Text>
             </TouchableOpacity>
           ) : null
         }
       />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 24 }}
+        className="px-4"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -165,204 +170,232 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
           />
         }
       >
-        {/* Saldo y Depósito Automático — el bloque teal de la pantalla. */}
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Total generado</Text>
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" style={{ marginVertical: 10, alignSelf: "flex-start" }} />
-          ) : (
-            <Text style={styles.balanceAmount}>{fmt(totalGanado)}</Text>
-          )}
-          <Text style={styles.balanceSub}>
-            {ganancias
-              ? `${ganancias.cantidad_liquidaciones} arriendo(s) liquidado(s) · Depósito directo a tu cuenta`
-              : loading
-                ? "Cargando…"
-                : error
-                  ? "Sin datos por el momento"
-                  : "Aún no hay movimiento"}
-          </Text>
-          {bonoReferidoPendiente > 0 ? (
-            <View style={styles.bonoReferidoRow}>
-              <Icon name="star" size={13} color="#FFFFFF" />
-              <Text style={styles.bonoReferidoTexto}>
-                + {fmt(bonoReferidoPendiente)} de bono por invitación incluido
+        <View className="flex-col gap-4">
+          {/* Saldo y Depósito Automático — el bloque oscuro/premium de la pantalla */}
+          <View className="bg-[#101928] rounded-2xl border border-white/10 p-5 gap-1 shadow-lg">
+            <Text className="text-xs font-semibold text-white/70 uppercase tracking-wider">
+              Total generado
+            </Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" className="my-2.5 self-start" />
+            ) : (
+              <Text className="text-[32px] font-extrabold text-accent -tracking-tight">
+                {fmt(totalGanado)}
               </Text>
+            )}
+            <Text className="text-xs text-white/75 mb-3">
+              {ganancias
+                ? `${ganancias.cantidad_liquidaciones} arriendo(s) liquidado(s) · Depósito directo a tu cuenta`
+                : loading
+                  ? "Cargando…"
+                  : error
+                    ? "Sin datos por el momento"
+                    : "Aún no hay movimiento"}
+            </Text>
+            {bonoReferidoPendiente > 0 ? (
+              <View className="flex-row items-center gap-1.5 -mt-1.5 mb-3">
+                <Icon name="star" size={13} color="#FFFFFF" />
+                <Text className="text-xs text-white/90 font-semibold">
+                  + {fmt(bonoReferidoPendiente)} de bono por invitación incluido
+                </Text>
+              </View>
+            ) : null}
+
+            {cargandoCuentas ? (
+              <View className="h-[54px] rounded-xl bg-white/10 mt-2" />
+            ) : predeterminada ? (
+              <TouchableOpacity
+                className="flex-row items-center gap-2.5 bg-accent/15 rounded-xl border border-accent/35 py-2.5 px-3.5 mt-2"
+                onPress={() => setCuentaModal(true)}
+                activeOpacity={0.85}
+              >
+                <View className="w-2 h-2 rounded-full bg-accent" />
+                <View className="flex-1">
+                  <Text className="text-[13px] font-bold text-white">Depósito automático activo</Text>
+                  <Text className="text-xs text-white/80 mt-0.5" numberOfLines={1}>
+                    {predeterminada.banco} · {predeterminada.tipo_cuenta} (N° {predeterminada.numero})
+                  </Text>
+                </View>
+                <Text className="text-[13px] font-bold text-accent">Cambiar</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                className="flex-row items-center gap-2.5 bg-amber-500/15 rounded-xl border border-amber-500/40 py-2.5 px-3.5 mt-2"
+                onPress={() => setCuentaModal(true)}
+                activeOpacity={0.85}
+              >
+                <Icon name="alert" size={16} color="#FFFFFF" />
+                <View className="flex-1">
+                  <Text className="text-[13px] font-bold text-yellow-300">Falta tu cuenta de cobro</Text>
+                  <Text className="text-[11.5px] text-white/85 mt-0.5">
+                    Agrégala para recibir tus depósitos automáticos.
+                  </Text>
+                </View>
+                <Text className="text-[13px] font-bold text-yellow-300">Configurar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {error ? (
+            <View className="flex-row items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <View className="flex-1">
+                <Text className="text-[13px] font-bold text-amber-800">No pudimos cargar tus ganancias</Text>
+                <Text className="text-xs text-textMuted mt-0.5 leading-[17px]">{error}</Text>
+              </View>
+              <TouchableOpacity
+                className="flex-row items-center gap-1.5 bg-primary py-2 px-3 rounded-lg"
+                onPress={() => {
+                  setLoading(true);
+                  cargar(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <Icon name="refresh" size={14} color="#FFFFFF" />
+                <Text className="text-xs font-bold text-white">Reintentar</Text>
+              </TouchableOpacity>
             </View>
           ) : null}
 
-          {cargandoCuentas ? (
-            // Todavía no sabemos si tiene cuenta o no — mejor no mostrar
-            // nada que pueda ser al revés de la realidad por una fracción
-            // de segundo (o más, con red lenta).
-            <View style={styles.accountBannerSkeleton} />
-          ) : predeterminada ? (
-            <TouchableOpacity style={styles.autoPayoutBanner} onPress={() => setCuentaModal(true)} activeOpacity={0.85}>
-              <View style={styles.autoPayoutDot} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.autoPayoutTitle}>Depósito automático activo</Text>
-                <Text style={styles.autoPayoutSub} numberOfLines={1}>
-                  {predeterminada.banco} · {predeterminada.tipo_cuenta} (N° {predeterminada.numero})
-                </Text>
+          {/* Cuentas de Cobro */}
+          <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-3 shadow-sm">
+            <View className="flex-row justify-between items-center">
+              <View className="flex-row items-center gap-1.5">
+                <Icon name="wallet" size={15} color={colors.accentDark} />
+                <Text className="text-base font-bold text-primary">Cuentas de cobro</Text>
               </View>
-              <Text style={styles.autoPayoutLink}>Cambiar</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.missingBankBanner} onPress={() => setCuentaModal(true)} activeOpacity={0.85}>
-              <Icon name="alert" size={16} color="#FFFFFF" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.missingBankTitle}>Falta tu cuenta de cobro</Text>
-                <Text style={styles.missingBankSub}>Agrégala para recibir tus depósitos automáticos.</Text>
-              </View>
-              <Text style={styles.missingBankLink}>Configurar</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {error ? (
-          <View style={styles.errorCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.errorTitle}>No pudimos cargar tus ganancias</Text>
-              <Text style={styles.errorMsg}>{error}</Text>
+              <TouchableOpacity onPress={() => setCuentaModal(true)}>
+                <Text className="text-[13px] font-bold text-accent-700">Agregar cuenta</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.errorRetryBtn}
-              onPress={() => {
-                setLoading(true);
-                cargar(true);
-              }}
-              activeOpacity={0.85}
-            >
-              <Icon name="refresh" size={14} color="#FFFFFF" />
-              <Text style={styles.errorRetryText}>Reintentar</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        <View style={[oc.card, oc.cardPadded, styles.cardBody]}>
-          <View style={styles.rowBetween}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Icon name="wallet" size={15} color={colors.accentDark} />
-              <Text style={oc.cardTitle}>Cuentas de cobro</Text>
-            </View>
-            <TouchableOpacity onPress={() => setCuentaModal(true)}>
-              <Text style={styles.link}>Agregar cuenta</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.bankExplain}>
-            El 85% neto del arriendo y el 100% de compensaciones se depositan automáticamente en tu cuenta predeterminada al devolver el vehículo.
-          </Text>
-          {cuentas.length === 0 ? (
-            <Text style={styles.bankLineMuted}>Aún no agregas una cuenta de cobro.</Text>
-          ) : (
-            cuentas.map((c) => (
-              <View key={c.id} style={styles.cuentaRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.bankName}>{c.banco}</Text>
-                  <Text style={styles.bankLine}>
-                    {c.tipo_cuenta} · {c.numero}
-                  </Text>
-                </View>
-                {c.predeterminada ? (
-                  <Text style={styles.badgePred}>Predeterminada</Text>
-                ) : (
-                  <TouchableOpacity onPress={() => usarCuenta(c.id)}>
-                    <Text style={styles.link}>Usar esta</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  onPress={() => eliminarCuenta(c.id)}
-                  hitSlop={theme.control.hitSlop}
-                  style={{ marginLeft: 10 }}
-                >
-                  <Icon name="trash" size={15} color={colors.textMuted} />
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={[oc.card, oc.cardPadded, styles.cardBody]}>
-          <Text style={oc.cardTitle}>Últimos 7 días</Text>
-          <View style={styles.bars}>
-            {barras.map((b, i) => (
-              <View key={i} style={styles.barCol}>
-                <View style={[styles.bar, { height: Math.max((b.monto / maxBarra) * 96, b.monto > 0 ? 6 : 2) }]} />
-                <Text style={styles.barDay}>{b.dia}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {porAuto.length > 0 && (
-          <View style={[oc.card, oc.cardPadded, styles.cardBody]}>
-            <Text style={oc.cardTitle}>Rendimiento de tu flota</Text>
-            {porAuto.map((a, i) => (
-              <View key={a.auto_id} style={[styles.fleetRow, i === porAuto.length - 1 && { borderBottomWidth: 0 }]}>
-                <View style={styles.rowBetween}>
-                  <Text style={styles.fleetName} numberOfLines={1}>
-                    {a.marca} {a.modelo} · {a.patente}
-                  </Text>
-                  <Text style={styles.fleetEarnings}>{fmt(a.ganancia_total_clp)}</Text>
-                </View>
-                <View style={styles.occupancyTrack}>
-                  <View
-                    style={[
-                      styles.occupancyFill,
-                      { width: `${Math.max(a.tasa_ocupacion_pct, a.tasa_ocupacion_pct > 0 ? 4 : 0)}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.fleetMeta}>
-                  {a.tasa_ocupacion_pct}% de ocupación · {a.reservas_finalizadas} arriendo{a.reservas_finalizadas === 1 ? "" : "s"} finalizado{a.reservas_finalizadas === 1 ? "" : "s"}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <View style={[oc.card, oc.cardPadded, styles.cardBody]}>
-          <Text style={oc.cardTitle}>Últimas liquidaciones</Text>
-          {loading ? (
-            <ActivityIndicator color={colors.accentDark} style={{ marginVertical: 10 }} />
-          ) : historial.length === 0 ? (
-            <Text style={styles.bankLineMuted}>
-              Aparecerán aquí cuando termines tu primer arriendo.
+            <Text className="text-xs text-textMuted leading-[17px] -mt-1">
+              El 85% neto del arriendo y el 100% de compensaciones se depositan automáticamente en tu cuenta predeterminada al devolver el vehículo.
             </Text>
-          ) : (
-            historial.map((item, i) => {
-              return (
-                <View key={item.id} style={[styles.histRow, i === historial.length - 1 && { borderBottomWidth: 0 }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.histConcept}>
-                      Liquidación de arriendo
-                      {item.reserva_id ? ` · ${item.reserva_id.slice(0, 8)}` : ""}
-                    </Text>
-                    <Text style={styles.histDate}>
-                      {fmtFecha(item.timestamp)} ·{" "}
-                      {item.estado === "pagado"
-                        ? "Transferido a tu cuenta"
-                        : item.estado === "procesando"
-                          ? "Depósito en proceso"
-                          : item.estado === "fallido"
-                            ? "No se pudo depositar — revisa tu cuenta"
-                            : predeterminada
-                              ? "Depósito en camino"
-                              : "Falta cuenta de cobro"}
+            {cuentas.length === 0 ? (
+              <Text className="text-[13px] text-textMuted leading-[18px]">
+                Aún no agregas una cuenta de cobro.
+              </Text>
+            ) : (
+              cuentas.map((c) => (
+                <View key={c.id} className="flex-row items-center py-2.5 border-t border-gray-100">
+                  <View className="flex-1">
+                    <Text className="text-[15px] font-bold text-textDark">{c.banco}</Text>
+                    <Text className="text-[13px] text-textMuted">
+                      {c.tipo_cuenta} · {c.numero}
                     </Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.histAmount,
-                      { color: item.estado === "pagado" ? colors.accentDark : colors.textMuted },
-                    ]}
+                  {c.predeterminada ? (
+                    <Text className="text-[11px] font-bold text-accent-700 bg-accent/20 px-2 py-0.5 rounded-full">
+                      Predeterminada
+                    </Text>
+                  ) : (
+                    <TouchableOpacity onPress={() => usarCuenta(c.id)}>
+                      <Text className="text-[13px] font-bold text-accent-700">Usar esta</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => eliminarCuenta(c.id)}
+                    hitSlop={theme.control.hitSlop}
+                    className="ml-2.5"
                   >
-                    +{fmt(item.monto)}
+                    <Icon name="trash" size={15} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </View>
+
+          {/* Últimos 7 días */}
+          <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-3 shadow-sm">
+            <Text className="text-base font-bold text-primary">Últimos 7 días</Text>
+            <View className="flex-row justify-between items-end h-[120px] pt-2">
+              {barras.map((b, i) => (
+                <View key={i} className="items-center flex-1 gap-1.5">
+                  <View
+                    className="w-4 bg-accent rounded"
+                    style={{ height: Math.max((b.monto / maxBarra) * 96, b.monto > 0 ? 6 : 2) }}
+                  />
+                  <Text className="text-[11px] text-textMuted font-semibold">{b.dia}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Rendimiento de tu flota */}
+          {porAuto.length > 0 && (
+            <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-3 shadow-sm">
+              <Text className="text-base font-bold text-primary">Rendimiento de tu flota</Text>
+              {porAuto.map((a, i) => (
+                <View
+                  key={a.auto_id}
+                  className={`gap-1.5 py-3 ${i < porAuto.length - 1 ? "border-b border-gray-100" : ""}`}
+                >
+                  <View className="flex-row justify-between items-center">
+                    <Text className="flex-1 text-[13px] font-semibold text-textDark" numberOfLines={1}>
+                      {a.marca} {a.modelo} · {a.patente}
+                    </Text>
+                    <Text className="text-sm font-extrabold text-accent-700">
+                      {fmt(a.ganancia_total_clp)}
+                    </Text>
+                  </View>
+                  <View className="h-1.5 rounded-full bg-emerald-50 overflow-hidden">
+                    <View
+                      className="h-full rounded-full bg-accent"
+                      style={{ width: `${Math.max(a.tasa_ocupacion_pct, a.tasa_ocupacion_pct > 0 ? 4 : 0)}%` }}
+                    />
+                  </View>
+                  <Text className="text-[11px] text-textMuted">
+                    {a.tasa_ocupacion_pct}% de ocupación · {a.reservas_finalizadas} arriendo{a.reservas_finalizadas === 1 ? "" : "s"} finalizado{a.reservas_finalizadas === 1 ? "" : "s"}
                   </Text>
                 </View>
-              );
-            })
+              ))}
+            </View>
           )}
+
+          {/* Últimas liquidaciones */}
+          <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-3 shadow-sm mb-6">
+            <Text className="text-base font-bold text-primary">Últimas liquidaciones</Text>
+            {loading ? (
+              <ActivityIndicator color={colors.accentDark} className="my-2.5" />
+            ) : historial.length === 0 ? (
+              <Text className="text-[13px] text-textMuted leading-[18px]">
+                Aparecerán aquí cuando termines tu primer arriendo.
+              </Text>
+            ) : (
+              historial.map((item, i) => {
+                const isPaid = item.estado === "pagado";
+                return (
+                  <View
+                    key={item.id}
+                    className={`flex-row items-center justify-between gap-3 py-2.5 ${
+                      i < historial.length - 1 ? "border-b border-gray-100" : ""
+                    }`}
+                  >
+                    <View className="flex-1">
+                      <Text className="text-[13px] font-semibold text-textDark">
+                        Liquidación de arriendo
+                        {item.reserva_id ? ` · ${item.reserva_id.slice(0, 8)}` : ""}
+                      </Text>
+                      <Text className="text-[11px] text-textMuted mt-0.5">
+                        {fmtFecha(item.timestamp)} ·{" "}
+                        {isPaid
+                          ? "Transferido a tu cuenta"
+                          : item.estado === "procesando"
+                            ? "Depósito en proceso"
+                            : item.estado === "fallido"
+                              ? "No se pudo depositar — revisa tu cuenta"
+                              : predeterminada
+                                ? "Depósito en camino"
+                                : "Falta cuenta de cobro"}
+                      </Text>
+                    </View>
+                    <Text className={`text-sm font-extrabold ${isPaid ? "text-accent-700" : "text-textMuted"}`}>
+                      +{fmt(item.monto)}
+                    </Text>
+                  </View>
+                );
+              })
+            )}
+          </View>
         </View>
       </ScrollView>
 
@@ -380,158 +413,3 @@ export function EarningsScreen({ onOpenDisputes, onOpenChat, noLeidos }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { paddingHorizontal: theme.spacing.screen, gap: theme.spacing.lg },
-  disputesBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    height: 40,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  disputesText: { fontSize: 12, fontWeight: "700", color: colors.primary },
-
-  cardBody: { gap: theme.spacing.md },
-
-  balanceCard: {
-    backgroundColor: OWNER_PREMIUM_BG,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-    borderColor: OWNER_PREMIUM_LINE,
-    padding: theme.spacing.xl,
-    gap: 4,
-    ...theme.shadow.lg,
-  },
-  balanceLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.66)",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  // El monto en menta sobre el casi-negro: la firma "premium" del saldo.
-  balanceAmount: { fontSize: 32, fontWeight: "800", color: colors.accent, letterSpacing: -0.5 },
-  balanceSub: { fontSize: 12, color: "rgba(255,255,255,0.75)", marginBottom: theme.spacing.md },
-  bonoReferidoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: -6, marginBottom: theme.spacing.md },
-  bonoReferidoTexto: { fontSize: 12, color: "rgba(255,255,255,0.85)", fontWeight: "600" },
-  autoPayoutBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "rgba(47,191,155,0.14)",
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: "rgba(47,191,155,0.35)",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginTop: theme.spacing.sm,
-  },
-  autoPayoutDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
-  autoPayoutTitle: { fontSize: 13, fontWeight: "700", color: "#FFFFFF" },
-  autoPayoutSub: { fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 1 },
-  autoPayoutLink: { fontSize: 13, fontWeight: "700", color: colors.accent },
-  missingBankBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "rgba(234,179,8,0.15)",
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: "rgba(234,179,8,0.4)",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginTop: theme.spacing.sm,
-  },
-  missingBankTitle: { fontSize: 13, fontWeight: "700", color: "#FDE047" },
-  missingBankSub: { fontSize: 11.5, color: "rgba(255,255,255,0.85)", marginTop: 1 },
-  missingBankLink: { fontSize: 13, fontWeight: "700", color: "#FDE047" },
-  accountBannerSkeleton: {
-    height: 54,
-    borderRadius: theme.radius.field,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    marginTop: theme.spacing.sm,
-  },
-  bankExplain: { fontSize: 12, color: colors.textMuted, lineHeight: 17, marginBottom: 2 },
-
-  errorCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-  },
-  errorTitle: { fontSize: 13, fontWeight: "700", color: colors.warningText },
-  errorMsg: { fontSize: 12, color: colors.textMuted, marginTop: 2, lineHeight: 17 },
-  errorRetryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: colors.primary,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.sm,
-  },
-  errorRetryText: { fontSize: 12, fontWeight: "700", color: "#FFFFFF" },
-
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  link: { fontSize: 13, fontWeight: "700", color: colors.accentDark },
-  bankName: { fontSize: 15, fontWeight: "700", color: colors.text },
-  bankLine: { fontSize: 13, color: colors.textMuted },
-  bankLineMuted: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
-  cuentaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  badgePred: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.accentDark,
-    backgroundColor: colors.accent100,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  bars: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", height: 120, paddingTop: 8 },
-  barCol: { alignItems: "center", flex: 1, gap: 6 },
-  bar: { width: 16, backgroundColor: colors.accent, borderRadius: 4 },
-  barDay: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
-  histRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing.md,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  histConcept: { fontSize: 13, fontWeight: "600", color: colors.text },
-  histDate: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  histAmount: { fontSize: 14, fontWeight: "800" },
-  fleetRow: {
-    gap: 6,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  fleetName: { flex: 1, fontSize: 13, fontWeight: "600", color: colors.text },
-  fleetEarnings: { fontSize: 14, fontWeight: "800", color: colors.accentDark },
-  occupancyTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.surfaceSubtle,
-    overflow: "hidden",
-  },
-  occupancyFill: { height: "100%", borderRadius: 3, backgroundColor: colors.accent },
-  fleetMeta: { fontSize: 11, color: colors.textMuted },
-});

@@ -505,7 +505,9 @@ export const Field = React.forwardRef(function Field(
     helper,
     error,
     prefix,
+    iconLeft,
     secure = false,
+    revealIcon = false,
     tone = "light",
     style,
     format,
@@ -556,6 +558,7 @@ export const Field = React.forwardRef(function Field(
           focused && !error && styles.fieldBoxFocused,
         ]}
       >
+        {iconLeft ? <Icon name={iconLeft} size={18} color={p.textMuted} /> : null}
         {prefix ? (
           <Text style={[styles.fieldPrefix, { color: p.textMuted }]}>{prefix}</Text>
         ) : null}
@@ -584,9 +587,13 @@ export const Field = React.forwardRef(function Field(
             accessibilityRole="button"
             accessibilityLabel={revealed ? "Ocultar la contraseña" : "Mostrar la contraseña"}
           >
-            <Text style={[styles.fieldReveal, { color: p.accent }]}>
-              {revealed ? "Ocultar" : "Ver"}
-            </Text>
+            {revealIcon ? (
+              <Icon name={revealed ? "eye-off" : "eye"} size={19} color={p.textMuted} />
+            ) : (
+              <Text style={[styles.fieldReveal, { color: p.accent }]}>
+                {revealed ? "Ocultar" : "Ver"}
+              </Text>
+            )}
           </TouchableOpacity>
         ) : null}
       </View>

@@ -15,7 +15,7 @@ import { BrandLogo } from "../../components/BrandLogo";
  * `duracionMs` se acorta en los arranques siguientes al primero: la marca ya
  * se vio y alargar cada apertura de la app no aporta nada.
  */
-export function SplashScreen({ onFinish, duracionMs = 1800 }) {
+export function SplashScreen({ onFinish, duracionMs = 1800, logoSource, logoZoom = 1 }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onFinish();
@@ -43,7 +43,7 @@ export function SplashScreen({ onFinish, duracionMs = 1800 }) {
       <Animated.View style={[styles.centerContent, estiloEntrada]}>
         {/* Logo oficial */}
         <View style={styles.logoBox}>
-          <BrandLogo size={96} />
+          <BrandLogo size={96} source={logoSource} zoom={logoZoom} />
         </View>
 
         <View style={styles.brandTextBox}>

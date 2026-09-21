@@ -3,8 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
-  StyleSheet,
-TextInput,
+  TextInput,
   ScrollView,
   FlatList,
   TouchableOpacity,
@@ -13,8 +12,6 @@ TextInput,
   Modal,
 } from "react-native";
 import {
-  colors,
-  theme,
   useApp,
   Icon,
   Chip,
@@ -165,13 +162,13 @@ function SliderPrecio({ min, max, valor, onChange }) {
 
   return (
     <View>
-      <View style={styles.sliderCabecera}>
-        <Text style={styles.sliderValor}>
+      <View className="mt-2">
+        <Text className="text-[15px] font-bold text-textDark">
           {sinLimite ? "Sin límite" : `Hasta $${actual.toLocaleString("es-CL")}`}
         </Text>
       </View>
       <View
-        style={styles.sliderZona}
+        className="py-3"
         testID="filtro-slider-precio"
         onLayout={(e) => {
           anchoRef.current = e.nativeEvent.layout.width;
@@ -179,14 +176,14 @@ function SliderPrecio({ min, max, valor, onChange }) {
         }}
         {...responder}
       >
-        <View style={styles.sliderTrack}>
-          <View style={[styles.sliderFill, { width: `${pos}%` }]} />
-          {ancho > 0 && <View style={[styles.sliderThumb, { left: `${pos}%` }]} />}
+        <View className="h-2 rounded-full bg-slate-200 justify-center relative">
+          <View className="absolute left-0 top-0 bottom-0 rounded-full bg-primary" style={{ width: `${pos}%` }} />
+          {ancho > 0 && <View className="absolute w-[26px] h-[26px] rounded-full -ml-[13px] bg-white border-[3px] border-primary shadow-sm" style={{ left: `${pos}%` }} />}
         </View>
       </View>
-      <View style={styles.sliderExtremos}>
-        <Text style={styles.sliderExtremo}>${min.toLocaleString("es-CL")}</Text>
-        <Text style={styles.sliderExtremo}>${max.toLocaleString("es-CL")}+</Text>
+      <View className="flex-row justify-between">
+        <Text className="text-xs text-textMuted">${min.toLocaleString("es-CL")}</Text>
+        <Text className="text-xs text-textMuted">${max.toLocaleString("es-CL")}+</Text>
       </View>
     </View>
   );
@@ -212,19 +209,19 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar,
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCerrar}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Filtros y orden</Text>
-            <TouchableOpacity onPress={onCerrar} hitSlop={theme.control.hitSlop}>
-              <Icon name="close" size={18} color={colors.textMuted} />
+      <View className="flex-1 bg-black/80 justify-end">
+        <View className="bg-white rounded-t-2xl max-h-[85%] p-5 pb-8 gap-3">
+          <View className="w-10 h-1 rounded-full bg-border self-center" />
+          <View className="flex-row items-center justify-between pb-3 border-b border-border">
+            <Text className="text-[17px] font-bold text-textDark">Filtros y orden</Text>
+            <TouchableOpacity onPress={onCerrar} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name="close" size={18} color="#64748B" />
             </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
             <SectionLabel>Ordenar por</SectionLabel>
-            <View style={styles.chipsRow}>
+            <View className="flex-row flex-wrap gap-2 mt-2">
               {ORDENES.map((o) => (
                 <Chip
                   key={o.v}
@@ -235,7 +232,7 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar,
               ))}
             </View>
 
-            <SectionLabel style={{ marginTop: theme.spacing.lg }}>Tarifa máxima por día</SectionLabel>
+            <SectionLabel style={{ marginTop: 16 }}>Tarifa máxima por día</SectionLabel>
             <SliderPrecio
               min={min}
               max={max}
@@ -243,8 +240,8 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar,
               onChange={(t) => setBorrador((p) => ({ ...p, tarifaMax: t }))}
             />
 
-            <SectionLabel style={{ marginTop: theme.spacing.lg }}>Transmisión</SectionLabel>
-            <View style={styles.chipsRow}>
+            <SectionLabel style={{ marginTop: 16 }}>Transmisión</SectionLabel>
+            <View className="flex-row flex-wrap gap-2 mt-2">
               {TRANSMISIONES.map((o) => (
                 <Chip
                   key={o.label}
@@ -255,8 +252,8 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar,
               ))}
             </View>
 
-            <SectionLabel style={{ marginTop: theme.spacing.lg }}>Combustible</SectionLabel>
-            <View style={styles.chipsRow}>
+            <SectionLabel style={{ marginTop: 16 }}>Combustible</SectionLabel>
+            <View className="flex-row flex-wrap gap-2 mt-2">
               {COMBUSTIBLES.map((o) => (
                 <Chip
                   key={o.label}
@@ -268,7 +265,7 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar,
             </View>
           </ScrollView>
 
-          <View style={styles.sheetFooter}>
+          <View className="flex-row gap-3 pt-2">
             <Button
               variant="secondary"
               label="Limpiar"
@@ -393,7 +390,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
   // evite redibujar toda la lista cuando cambia el contexto.
   const renderCar = useCallback(
     ({ item }) => (
-      <View style={{ marginBottom: theme.spacing.md }}>
+      <View className="mb-3">
         <CarCard
           car={item}
           onPress={() => onSelectCar(item)}
@@ -410,73 +407,75 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
   // Depende del alto medido del header porque este va dentro de
   // ListHeaderComponent (banner de arriendo activo / verificación / contador,
   // que cambian de alto según el estado del usuario).
-  const ROW_ALTURA = 104 + theme.spacing.md;
+  const ROW_ALTURA = 104 + 12;
   const getItemLayout = useCallback(
     (_data, index) => ({
       length: ROW_ALTURA,
-      offset: theme.spacing.screen + headerAltura + ROW_ALTURA * index,
+      offset: 16 + headerAltura + ROW_ALTURA * index,
       index,
     }),
     [headerAltura, ROW_ALTURA]
   );
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.header}>
-        <View style={styles.greetRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.greetHi}>
+      <View className="px-4 pt-2 pb-3 gap-3 border-b border-border">
+        <View className="flex-row items-center gap-3">
+          <View className="flex-1">
+            <Text className="text-[22px] font-bold text-textDark tracking-[-0.3px]">
               {primerNombre ? `Hola, ${primerNombre}` : "Explorar autos"}
             </Text>
-            <Text style={styles.greetSub}>¿A dónde vas esta vez?</Text>
+            <Text className="text-sm text-textMuted mt-0.5">¿A dónde vas esta vez?</Text>
           </View>
           {onOpenFavorites ? (
             <TouchableOpacity
-              style={styles.favIconBtn}
+              className="w-10 h-10 rounded-full mr-2 items-center justify-center bg-teal-50"
               onPress={onOpenFavorites}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Ver mis favoritos"
-              hitSlop={theme.control.hitSlop}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Icon name="heart" size={18} color={colors.primary} />
+              <Icon name="heart" size={18} color="#0F766E" />
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity
-            style={styles.mapBtn}
+            className="flex-row items-center gap-1 py-2 px-3.5 rounded-full bg-teal-50"
             onPress={onOpenMap}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel="Abrir el mapa"
-            hitSlop={theme.control.hitSlop}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Icon name="pin" size={16} color={colors.primary} />
-            <Text style={styles.mapBtnText}>Mapa</Text>
+            <Icon name="pin" size={16} color="#0F766E" />
+            <Text className="text-sm font-semibold text-primary">Mapa</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.searchRow}>
-          <View style={[styles.searchBar, { flex: 1 }]}>
-            <Icon name="search" size={17} color={colors.textMuted} />
+        <View className="flex-row items-center gap-2">
+          <View className="h-11 border-[1.5px] border-border rounded-full bg-white flex-row items-center gap-2 px-4 flex-1">
+            <Icon name="search" size={17} color="#64748B" />
             <TextInput
-              style={styles.searchInput}
+              className="flex-1 text-[15px] text-textDark"
               value={query}
               onChangeText={setQuery}
               placeholder="Marca, modelo o comuna"
-              placeholderTextColor={colors.textPlaceholder}
+              placeholderTextColor="#94A3B8"
               returnKeyType="search"
             />
             {query ? (
-              <TouchableOpacity onPress={() => setQuery("")} hitSlop={theme.control.hitSlop}>
-                <Icon name="close" size={16} color={colors.textMuted} />
+              <TouchableOpacity onPress={() => setQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name="close" size={16} color="#64748B" />
               </TouchableOpacity>
             ) : null}
           </View>
 
           <TouchableOpacity
-            style={[styles.filterBtn, hayFiltrosOOrden && styles.filterBtnActivo]}
+            className={`w-11 h-11 rounded-full border-[1.5px] items-center justify-center relative ${
+              hayFiltrosOOrden ? "bg-primary border-primary" : "border-border bg-white"
+            }`}
             onPress={() => setModalAbierto(true)}
             activeOpacity={0.85}
             accessibilityRole="button"
@@ -484,10 +483,10 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
               filtrosActivos > 0 ? `Filtros, ${filtrosActivos} activos` : "Filtros y orden"
             }
           >
-            <Icon name="filter" size={18} color={hayFiltrosOOrden ? "#FFFFFF" : colors.primary} />
+            <Icon name="filter" size={18} color={hayFiltrosOOrden ? "#FFFFFF" : "#0F766E"} />
             {filtrosActivos > 0 ? (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{filtrosActivos}</Text>
+              <View className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full px-1 bg-danger items-center justify-center border-2 border-background">
+                <Text className="text-[10px] font-bold text-white">{filtrosActivos}</Text>
               </View>
             ) : null}
           </TouchableOpacity>
@@ -497,7 +496,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
           horizontal
           showsHorizontalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.chips}
+          contentContainerClassName="gap-2 pr-4"
         >
           {CATEGORIES.map((c) => (
             <Chip key={c.id} label={c.id} selected={category === c.id} onPress={() => setCategory(c.id)} />
@@ -509,74 +508,74 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.chips}
+            contentContainerClassName="gap-2 pr-4"
           >
             {orden !== "recientes" && (
               <TouchableOpacity
-                style={styles.activeChip}
+                className="flex-row items-center gap-1.5 py-1.5 px-3 rounded-full bg-teal-50"
                 onPress={() => setOrden("recientes")}
                 activeOpacity={0.8}
-                hitSlop={theme.control.hitSlop}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Quitar el orden: ${ORDENES.find((o) => o.v === orden)?.label}`}
               >
-                <Text style={styles.activeChipText}>{ORDENES.find((o) => o.v === orden)?.label}</Text>
-                <Icon name="close" size={12} color={colors.primary} />
+                <Text className="text-xs font-semibold text-primary">{ORDENES.find((o) => o.v === orden)?.label}</Text>
+                <Icon name="close" size={12} color="#0F766E" />
               </TouchableOpacity>
             )}
             {filtros.tarifaMax ? (
               <TouchableOpacity
-                style={styles.activeChip}
+                className="flex-row items-center gap-1.5 py-1.5 px-3 rounded-full bg-teal-50"
                 onPress={() => setFiltros((p) => ({ ...p, tarifaMax: "" }))}
                 activeOpacity={0.8}
-                hitSlop={theme.control.hitSlop}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Quitar el filtro: hasta $${parseInt(filtros.tarifaMax, 10).toLocaleString("es-CL")}`}
               >
-                <Text style={styles.activeChipText}>
+                <Text className="text-xs font-semibold text-primary">
                   Hasta ${parseInt(filtros.tarifaMax, 10).toLocaleString("es-CL")}
                 </Text>
-                <Icon name="close" size={12} color={colors.primary} />
+                <Icon name="close" size={12} color="#0F766E" />
               </TouchableOpacity>
             ) : null}
             {filtros.transmision ? (
               <TouchableOpacity
-                style={styles.activeChip}
+                className="flex-row items-center gap-1.5 py-1.5 px-3 rounded-full bg-teal-50"
                 onPress={() => setFiltros((p) => ({ ...p, transmision: null }))}
                 activeOpacity={0.8}
-                hitSlop={theme.control.hitSlop}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel="Quitar el filtro de transmisión"
               >
-                <Text style={styles.activeChipText}>
+                <Text className="text-xs font-semibold text-primary">
                   {TRANSMISIONES.find((t) => t.v === filtros.transmision)?.label}
                 </Text>
-                <Icon name="close" size={12} color={colors.primary} />
+                <Icon name="close" size={12} color="#0F766E" />
               </TouchableOpacity>
             ) : null}
             {filtros.combustible ? (
               <TouchableOpacity
-                style={styles.activeChip}
+                className="flex-row items-center gap-1.5 py-1.5 px-3 rounded-full bg-teal-50"
                 onPress={() => setFiltros((p) => ({ ...p, combustible: null }))}
                 activeOpacity={0.8}
-                hitSlop={theme.control.hitSlop}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel="Quitar el filtro de combustible"
               >
-                <Text style={styles.activeChipText}>
+                <Text className="text-xs font-semibold text-primary">
                   {COMBUSTIBLES.find((c) => c.v === filtros.combustible)?.label}
                 </Text>
-                <Icon name="close" size={12} color={colors.primary} />
+                <Icon name="close" size={12} color="#0F766E" />
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
               onPress={limpiarTodo}
-              style={styles.limpiarTodoBtn}
-              hitSlop={theme.control.hitSlop}
+              className="justify-center px-1"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
               accessibilityLabel="Limpiar todos los filtros"
             >
-              <Text style={styles.limpiarTodoText}>Limpiar todo</Text>
+              <Text className="text-xs font-semibold text-textMuted underline">Limpiar todo</Text>
             </TouchableOpacity>
           </ScrollView>
         )}
@@ -591,31 +590,31 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
           <View onLayout={(e) => setHeaderAltura(e.nativeEvent.layout.height)}>
             {activeReservation && (activeReservation.estado === "en_curso" || activeReservation.estado === "confirmada") && (
               <TouchableOpacity
-                style={styles.activeRentalBanner}
+                className="flex-row items-center gap-3 bg-teal-950 rounded-2xl p-4 mb-4"
                 onPress={onOpenActiveRental}
                 activeOpacity={0.9}
                 accessibilityRole="button"
                 accessibilityLabel="Ver mi arriendo"
               >
                 <Icon name="key" size={18} color="#FFFFFF" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activeRentalBannerTitle}>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-white">
                     {activeReservation.estado === "en_curso" ? "Tienes un arriendo en curso" : "Tienes una reserva confirmada"}
                   </Text>
-                  <Text style={styles.activeRentalBannerSub}>Toca para ver los detalles</Text>
+                  <Text className="text-xs text-teal-200 mt-0.5">Toca para ver los detalles</Text>
                 </View>
                 <Icon name="chevron-right" size={18} color="#FFFFFF" />
               </TouchableOpacity>
             )}
 
             {!identidadVerificada && (
-              <View style={{ marginBottom: theme.spacing.lg }}>
+              <View className="mb-4">
                 <VerifyIdentityBanner role="renter" onPress={onVerifyIdentity} />
               </View>
             )}
 
             {filteredCars.length > 0 && (
-              <Text style={styles.count}>
+              <Text className="text-[13px] text-textMuted mb-3 font-medium">
                 {filteredCars.length} {filteredCars.length === 1 ? "auto disponible" : "autos disponibles"}
               </Text>
             )}
@@ -626,20 +625,20 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
             // Primera carga sin datos aún: silueta de la lista.
             <>
               {[0, 1, 2, 3].map((i) => (
-                <View key={i} style={{ marginBottom: theme.spacing.lg }}>
+                <View key={i} className="mb-4">
                   <CarCardSkeleton />
                 </View>
               ))}
             </>
           ) : carsError && !(cars || []).length ? (
             // El backend respondió con error: los filtros quedan guardados.
-            <View style={styles.errorCard}>
-              <Text style={styles.errorTitle}>No pudimos cargar los autos</Text>
-              <Text style={styles.errorBody}>
+            <View className="rounded-2xl bg-red-50 border border-red-200 p-4 gap-2">
+              <Text className="text-[15px] font-bold text-red-700">No pudimos cargar los autos</Text>
+              <Text className="text-sm leading-5 text-red-700">
                 {carsError} Revisa tu conexión; tus filtros quedan guardados.
               </Text>
-              <TouchableOpacity style={styles.errorBtn} onPress={loadData} activeOpacity={0.85}>
-                <Text style={styles.errorBtnText}>Reintentar</Text>
+              <TouchableOpacity className="self-start mt-1 px-4 py-2.5 rounded-xl bg-danger" onPress={loadData} activeOpacity={0.85}>
+                <Text className="text-sm font-bold text-white">Reintentar</Text>
               </TouchableOpacity>
             </View>
           ) : hayResultadosSinFiltros ? (
@@ -666,12 +665,12 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
             />
           )
         }
-        contentContainerStyle={styles.list}
+        contentContainerClassName="p-4 pb-12"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         refreshControl={
-          <RefreshControl refreshing={!!loading} onRefresh={loadData} tintColor={colors.primary} />
+          <RefreshControl refreshing={!!loading} onRefresh={loadData} tintColor="#0F766E" />
         }
         initialNumToRender={6}
         windowSize={10}
@@ -700,161 +699,3 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  activeRentalBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    backgroundColor: colors.primary900,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-  },
-  activeRentalBannerTitle: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
-  activeRentalBannerSub: { fontSize: 12, color: colors.accent200, marginTop: 2 },
-  container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.md,
-    gap: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  greetRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  greetHi: { fontSize: 22, fontWeight: "700", color: colors.text, letterSpacing: -0.3 },
-  greetSub: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
-  mapBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: theme.radius.pill,
-    backgroundColor: colors.primary100,
-  },
-  mapBtnText: { fontSize: 14, fontWeight: "600", color: colors.primary },
-  favIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: theme.spacing.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary100,
-  },
-  searchRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
-  searchBar: {
-    height: theme.control.height,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.pill,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  searchInput: { flex: 1, fontSize: 15, color: colors.text },
-  filterBtn: {
-    width: theme.control.height,
-    height: theme.control.height,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterBtnActivo: { backgroundColor: colors.primary, borderColor: colors.primary },
-  filterBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    backgroundColor: colors.danger,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: colors.background,
-  },
-  filterBadgeText: { fontSize: 10, fontWeight: "700", color: "#FFFFFF" },
-  chips: { gap: theme.spacing.sm, paddingRight: theme.spacing.screen },
-  activeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.pill,
-    backgroundColor: colors.primary100,
-  },
-  activeChipText: { fontSize: 12, fontWeight: "600", color: colors.primary },
-  limpiarTodoBtn: { justifyContent: "center", paddingHorizontal: 4 },
-  limpiarTodoText: { fontSize: 12, fontWeight: "600", color: colors.textMuted, textDecorationLine: "underline" },
-  list: { padding: theme.spacing.screen, paddingBottom: theme.spacing.xxxl },
-  count: { fontSize: 13, color: colors.textMuted, marginBottom: theme.spacing.md, fontWeight: "500" },
-  errorCard: {
-    borderRadius: theme.radius.card,
-    backgroundColor: colors.dangerBg,
-    borderWidth: 1,
-    borderColor: colors.dangerBorder,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  errorTitle: { fontSize: 15, fontWeight: "700", color: colors.dangerText },
-  errorBody: { fontSize: 14, lineHeight: 20, color: colors.dangerText },
-  errorBtn: {
-    alignSelf: "flex-start",
-    marginTop: 4,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.danger,
-  },
-  errorBtnText: { fontSize: 14, fontWeight: "700", color: colors.textWhite },
-  overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.8)", justifyContent: "flex-end" },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
-    maxHeight: "85%",
-    padding: theme.spacing.xl,
-    paddingBottom: theme.spacing.xxl,
-    gap: theme.spacing.md,
-  },
-  handle: { width: 40, height: 4, borderRadius: 999, backgroundColor: colors.border, alignSelf: "center" },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  sheetTitle: { fontSize: 17, fontWeight: "700", color: colors.text },
-  sliderCabecera: { marginTop: theme.spacing.sm },
-  sliderValor: { fontSize: 15, fontWeight: "700", color: colors.text },
-  sliderZona: { paddingVertical: 12 },
-  sliderTrack: { height: 8, borderRadius: 999, backgroundColor: colors.surfaceSecondary, justifyContent: "center" },
-  sliderFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 999, backgroundColor: colors.primary },
-  sliderThumb: {
-    position: "absolute",
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    marginLeft: -13,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 3,
-    borderColor: colors.primary,
-    ...theme.shadow.sm,
-  },
-  sliderExtremos: { flexDirection: "row", justifyContent: "space-between" },
-  sliderExtremo: { fontSize: 12, color: colors.textMuted },
-  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm, marginTop: theme.spacing.sm },
-  sheetFooter: { flexDirection: "row", gap: theme.spacing.md, paddingTop: theme.spacing.sm },
-});

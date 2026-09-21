@@ -140,7 +140,8 @@ describe("DeliveryScreen · feedback al escanear y verificar", () => {
       await asentar();
     });
 
-    expect(mockValidarCodigoQR).toHaveBeenCalledWith("QR-DESDE-CAMARA");
+    // BUG-016: el código se normaliza (sin guiones ni espacios) antes de validarlo.
+    expect(mockValidarCodigoQR).toHaveBeenCalledWith("QRDESDECAMARA");
     expect(mockNotificationAsync).toHaveBeenCalledWith("success");
     expect(textOf(tr)).toContain("Confirmar identidad");
   });

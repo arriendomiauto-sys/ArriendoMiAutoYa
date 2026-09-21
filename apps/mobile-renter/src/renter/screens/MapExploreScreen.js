@@ -2,14 +2,13 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   StatusBar,
   Image,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, useApp, Icon, Button, BackButton, Rating } from "@rentacar/mobile-shared";
+import { useApp, Icon, Button, BackButton, Rating } from "@rentacar/mobile-shared";
 
 // react-native-maps es un módulo nativo: no existe en web ni en Expo Go sin
 // dev build. Se carga de forma tolerante para que el bundle no se caiga y la
@@ -35,15 +34,15 @@ const DEFAULT_REGION = {
 // Colores del pin según la categoría, para leer el mapa de un vistazo sin
 // tocar cada punto.
 const COLOR_CATEGORIA = {
-  economico: colors.accent700,
-  sedan: colors.primary,
+  economico: "#B45309",
+  sedan: "#0F766E",
   suv: "#7A4FBF",
   camioneta: "#B4642A",
   premium: "#1F2937",
 };
 
 function colorDeCategoria(categoria) {
-  return COLOR_CATEGORIA[categoria] || colors.primary;
+  return COLOR_CATEGORIA[categoria] || "#0F766E";
 }
 
 export function MapExploreScreen({ onBack, onSelectCar }) {
@@ -128,30 +127,30 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
   // --- Sin módulo de mapa (web / Expo Go): alternativa utilizable ---
   if (!MapView || Platform.OS === "web") {
     return (
-      <View style={styles.container}>
+      <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
-        <View style={[styles.fallback, { paddingTop: insets.top + 40 }]}>
-          <View style={styles.fallbackIcon}>
-            <Icon name="pin" size={30} color={colors.primary} />
+        <View className="flex-1 items-center px-8 gap-3" style={{ paddingTop: insets.top + 40 }}>
+          <View className="w-16 h-16 rounded-full bg-teal-50 items-center justify-center">
+            <Icon name="pin" size={30} color="#0F766E" />
           </View>
-          <Text style={styles.fallbackTitle}>El mapa necesita la app instalada</Text>
-          <Text style={styles.fallbackText}>
+          <Text className="text-lg font-bold text-textDark text-center">El mapa necesita la app instalada</Text>
+          <Text className="text-sm text-textMuted text-center leading-5">
             La vista de mapa usa mapas nativos y no está disponible en la versión web.
             Abre la app en tu teléfono para explorar los autos en el mapa.
           </Text>
-          <Button label="Volver al listado" onPress={onBack} fullWidth={false} style={{ marginTop: theme.spacing.md }} />
+          <Button label="Volver al listado" onPress={onBack} fullWidth={false} style={{ marginTop: 12 }} />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
 
       <MapView
         ref={mapRef}
-        style={StyleSheet.absoluteFill}
+        className="absolute inset-0"
         initialRegion={initialRegion}
         showsUserLocation={!!userCoords}
         showsMyLocationButton={false}
@@ -173,22 +172,25 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
               anchor={{ x: 0.5, y: 1 }}
               accessibilityLabel={`${car.marca} ${car.modelo}, ${precio(car.tarifa_dia)} por día`}
             >
-              <View style={styles.pinWrap}>
+              <View className="items-center">
                 <View
-                  style={[
-                    styles.pin,
+                  className="py-1.5 px-3 rounded-full border-2 shadow-sm"
+                  style={
                     active
                       ? { backgroundColor: color, borderColor: "#FFFFFF" }
-                      : { backgroundColor: colors.surface, borderColor: color },
-                  ]}
+                      : { backgroundColor: "#FFFFFF", borderColor: color }
+                  }
                 >
-                  <Text style={[styles.pinText, { color: active ? "#FFFFFF" : color }]}>
+                  <Text className="text-[13px] font-bold" style={{ color: active ? "#FFFFFF" : color }}>
                     {precio(car.tarifa_dia)}
                   </Text>
                 </View>
                 {/* La punta ancla el globo al punto exacto: sin ella el precio
                     flota y no se sabe a qué coordenada corresponde. */}
-                <View style={[styles.pinTip, { borderTopColor: active ? color : colors.surface }]} />
+                <View
+                  className="w-0 h-0 -mt-px border-l-[5px] border-r-[5px] border-t-[7px] border-l-transparent border-r-transparent"
+                  style={{ borderTopColor: active ? color : "#FFFFFF" }}
+                />
               </View>
             </Marker>
           );
@@ -196,11 +198,11 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
       </MapView>
 
       {/* Barra superior flotante */}
-      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-        <BackButton variant="overlay" onPress={onBack} style={styles.roundBtn} />
-        <View style={styles.searchPill}>
-          <Icon name="search" size={16} color={colors.textMuted} />
-          <Text style={styles.searchPillText} numberOfLines={1}>
+      <View className="absolute top-0 left-0 right-0 flex-row items-center gap-2 px-4" style={{ paddingTop: insets.top + 8 }}>
+        <BackButton variant="overlay" onPress={onBack} className="shadow-md" />
+        <View className="flex-1 h-11 rounded-full bg-white flex-row items-center gap-2 px-4 shadow-md">
+          <Icon name="search" size={16} color="#64748B" />
+          <Text className="text-sm text-textDark font-medium flex-1" numberOfLines={1}>
             {puntos.length === 1 ? "1 auto en el mapa" : `${puntos.length} autos en el mapa`}
             {sinUbicacion > 0
               ? ` · ${sinUbicacion} sin ubicación exacta`
@@ -212,48 +214,52 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
       {/* Botón mi ubicación */}
       {userCoords ? (
         <TouchableOpacity
-          style={[styles.locateBtn, { bottom: (selected ? 208 : 40) + insets.bottom }]}
+          className="absolute right-4 w-11 h-11 rounded-full bg-white items-center justify-center shadow-md"
+          style={{ bottom: (selected ? 208 : 40) + insets.bottom }}
           onPress={centrarEnUsuario}
           activeOpacity={0.85}
         >
-          <Icon name="location" size={20} color={colors.primary} />
+          <Icon name="location" size={20} color="#0F766E" />
         </TouchableOpacity>
       ) : null}
 
       {/* Tarjeta del auto seleccionado */}
       {selected ? (
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>
-          <View style={styles.sheetHandle} />
+        <View
+          className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl p-4 gap-3 shadow-lg"
+          style={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
+        >
+          <View className="w-10 h-1 rounded-full bg-border self-center" />
           <TouchableOpacity
-            style={styles.sheetRow}
+            className="flex-row gap-3 items-center"
             activeOpacity={0.9}
             onPress={() => onSelectCar(selected.car)}
           >
             {selected.car.fotos?.[0] ? (
-              <Image source={{ uri: selected.car.fotos[0] }} style={styles.sheetThumb} />
+              <Image source={{ uri: selected.car.fotos[0] }} className="w-[92px] h-[70px] rounded-xl bg-teal-50" />
             ) : (
-              <View style={[styles.sheetThumb, styles.sheetThumbEmpty]}>
-                <Icon name="car" size={24} color={colors.primary300} />
+              <View className="w-[92px] h-[70px] rounded-xl bg-amber-50 items-center justify-center">
+                <Icon name="car" size={24} color="#5EEAD4" />
               </View>
             )}
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.sheetTitle} numberOfLines={1}>
+            <View className="flex-1 gap-0.5">
+              <Text className="text-base font-bold text-textDark" numberOfLines={1}>
                 {selected.car.marca} {selected.car.modelo} {selected.car.anio || ""}
               </Text>
-              <View style={styles.sheetMetaRow}>
+              <View className="flex-row items-center">
                 <Rating
                   value={selected.car.rating_promedio}
                   count={selected.car.rating_cantidad}
                   size="sm"
                 />
                 {selected.car.ubicacion_base ? (
-                  <Text style={styles.sheetMeta} numberOfLines={1}>
+                  <Text className="text-[13px] text-textMuted shrink" numberOfLines={1}>
                     {` · ${selected.car.ubicacion_base}`}
                   </Text>
                 ) : null}
               </View>
-              <Text style={styles.sheetPrice}>
-                {precio(selected.car.tarifa_dia)} <Text style={styles.sheetPer}>/ día</Text>
+              <Text className="text-base font-bold text-textDark mt-0.5">
+                {precio(selected.car.tarifa_dia)} <Text className="text-[13px] font-normal text-textMuted">/ día</Text>
               </Text>
             </View>
           </TouchableOpacity>
@@ -264,111 +270,3 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  topBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.screen,
-  },
-  // Solo iguala la sombra alta del pill de búsqueda vecino; el tamaño, forma y
-  // fondo translúcido los pone <BackButton variant="overlay" />.
-  roundBtn: {
-    ...theme.shadow.md,
-  },
-  searchPill: {
-    flex: 1,
-    height: 44,
-    borderRadius: theme.radius.pill,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    ...theme.shadow.md,
-  },
-  searchPillText: { fontSize: 14, color: colors.text, fontWeight: "500", flex: 1 },
-  pinWrap: { alignItems: "center" },
-  pin: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.pill,
-    borderWidth: 2,
-    ...theme.shadow.sm,
-  },
-  pinTip: {
-    width: 0,
-    height: 0,
-    marginTop: -1,
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
-    borderTopWidth: 7,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-  },
-  pinText: { fontSize: 13, fontWeight: "700" },
-  locateBtn: {
-    position: "absolute",
-    right: theme.spacing.screen,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    ...theme.shadow.md,
-  },
-  sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.md,
-    ...theme.shadow.lg,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: colors.border,
-    alignSelf: "center",
-  },
-  sheetRow: { flexDirection: "row", gap: theme.spacing.md, alignItems: "center" },
-  sheetThumb: {
-    width: 92,
-    height: 70,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.primary100,
-  },
-  sheetThumbEmpty: { backgroundColor: colors.accent100, alignItems: "center", justifyContent: "center" },
-  sheetTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-  sheetMetaRow: { flexDirection: "row", alignItems: "center" },
-  sheetMeta: { fontSize: 13, color: colors.textMuted, flexShrink: 1 },
-  sheetPrice: { fontSize: 16, fontWeight: "700", color: colors.text, marginTop: 2 },
-  sheetPer: { fontSize: 13, fontWeight: "400", color: colors.textMuted },
-  fallback: {
-    flex: 1,
-    alignItems: "center",
-    paddingHorizontal: theme.spacing.xxl,
-    gap: theme.spacing.md,
-  },
-  fallbackIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fallbackTitle: { fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-  fallbackText: { fontSize: 14, color: colors.textMuted, textAlign: "center", lineHeight: 20 },
-});

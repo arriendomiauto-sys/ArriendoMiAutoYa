@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Platform } from "react-native";
+import { View } from "react-native";
 let GestureHandlerRootView = View;
 try {
   const gh = require("react-native-gesture-handler");
@@ -19,7 +19,6 @@ import {
   AppProvider,
   useApp,
   colors,
-  AuthFlow,
   SwitchingScreen,
   NetworkBanner,
   useNetworkStatus,
@@ -29,6 +28,7 @@ import {
   verificarMandatoAceptado,
 } from "@rentacar/mobile-shared";
 import { OwnerApp } from "./src/owner/OwnerApp";
+import { OwnerAuthFlow } from "./src/owner/auth/OwnerAuthFlow";
 
 // App del Dueño, separada de la de Arrendatario (mobile-renter). Antes de
 // entrar al home de dueño se exige el mandato de intermediación (mismo
@@ -79,7 +79,7 @@ function Root() {
           <OwnerApp />
         )
       ) : (
-        <AuthFlow fixedRole="owner" />
+        <OwnerAuthFlow />
       )}
       {transition ? (
         <SwitchingScreen
@@ -98,12 +98,12 @@ function ThemedFrame() {
   return (
     <>
       <StatusBar style="dark" translucent />
-      <View style={styles.outerFrame}>
+      <View className="flex-1 bg-background web:bg-appOuter web:items-center web:justify-center">
         <SafeAreaView
-          style={styles.appContainer}
+          className="flex-1 w-full bg-background web:max-w-[440px] web:shadow-lg"
           edges={["top", "left", "right"]}
         >
-          <View style={styles.bodyContainer}>
+          <View className="flex-1">
             <Root />
             <NetworkBanner visible={!isConnected} />
           </View>
@@ -115,7 +115,7 @@ function ThemedFrame() {
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <AppProvider initialMode="owner">
           <ThemedFrame />
@@ -124,31 +124,3 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
-
-const isWeb = Platform.OS === "web";
-
-const styles = StyleSheet.create({
-  outerFrame: {
-    flex: 1,
-    backgroundColor: isWeb ? colors.appOuter : colors.background,
-    ...(isWeb
-      ? {
-          alignItems: "center",
-          justifyContent: "center",
-        }
-      : {}),
-  },
-  appContainer: {
-    flex: 1,
-    width: "100%",
-    backgroundColor: colors.background,
-    ...(isWeb
-      ? {
-          maxWidth: 440,
-          boxShadow: "0px 10px 28px rgba(15, 61, 62, 0.14)",
-          elevation: 8,
-        }
-      : {}),
-  },
-  bodyContainer: { flex: 1 },
-});

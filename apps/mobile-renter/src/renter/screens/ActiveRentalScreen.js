@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, StatusBar, ScrollView, Image } from "react-native";
+import { View, Text, StatusBar, ScrollView, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Linking from "expo-linking";
 
@@ -13,8 +13,6 @@ try {
   MapView = null;
 }
 import {
-  colors,
-  theme,
   Icon,
   Button,
   Card,
@@ -26,6 +24,7 @@ import {
   PreCheckinModal,
   SegundoConductorModal,
   useTelemetriaArriendo,
+  LlegadaPorUbicacion,
 } from "@rentacar/mobile-shared";
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
@@ -44,6 +43,8 @@ function restanteHasta(iso) {
   const texto = dias >= 1 ? `${dias}d ${horas}h` : horas >= 1 ? `${horas}h ${mins}m` : `${mins}m`;
   return { texto, vencido };
 }
+
+const clp = (n) => `$${(n || 0).toLocaleString("es-CL")}`;
 
 function fechaHora(iso, largo = false) {
   if (!iso) return "—";
@@ -97,8 +98,17 @@ export function ActiveRentalScreen({
   const duenoNombre = car.dueno_nombre || res.dueno_nombre || "Dueño del vehículo";
   const duenoFoto = car.dueno_foto_url || res.dueno_foto_url;
 
+  // "pendiente" = pagada, esperando que el dueño confirme (plazo de 24 h). "pendiente_pago" = falta pagar.
   const [view, setView] = useState(
-    res.estado === "en_curso" ? "detail" : res.estado === "confirmada" ? "confirmed" : "sent"
+    res.estado === "en_curso"
+      ? "detail"
+      : res.estado === "confirmada"
+      ? "confirmed"
+      : res.estado === "pendiente"
+      ? "waiting"
+      : res.estado === "cancelada"
+      ? "cancelled"
+      : "sent"
   );
 
   // Telemetría GPS en tiempo real transmitida por el celular del arrendatario
@@ -108,33 +118,38 @@ export function ActiveRentalScreen({
   );
 
   const footer = (children) => (
-    <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>{children}</View>
+    <View
+      className="px-4 pt-3 bg-white border-t border-border gap-2"
+      style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
+    >
+      {children}
+    </View>
   );
 
   // -------------------------------------------------------------- ENVIADA
   if (view === "sent") {
     return (
-      <View style={styles.container}>
+      <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
-        <ScrollView contentContainerStyle={styles.centerBody} showsVerticalScrollIndicator={false}>
-          <View style={styles.iconCircleWarn}>
-            <Icon name="clock" size={34} color={colors.warning} />
+        <ScrollView contentContainerClassName="p-8 items-center gap-4" showsVerticalScrollIndicator={false}>
+          <View className="w-[76px] h-[76px] rounded-full bg-amber-50 items-center justify-center mt-8">
+            <Icon name="clock" size={34} color="#F59E0B" />
           </View>
-          <View style={styles.centerText}>
-            <Text style={styles.bigTitle}>Reserva pendiente de pago</Text>
-            <Text style={styles.bigSub}>
+          <View className="items-center gap-2">
+            <Text className="text-xl font-bold text-textDark text-center">Reserva pendiente de pago</Text>
+            <Text className="text-[15px] text-textMuted leading-[22px] text-center">
               Falta elegir tarjetas y confirmar el pago para asegurar tu reserva.
             </Text>
           </View>
-          <Card padded style={{ width: "100%", gap: theme.spacing.md }}>
+          <Card padded style={{ width: "100%", gap: 12 }}>
             <Row label="Auto" value={nombre} />
             <Row label="Fechas" value={`${fechaHora(res.fecha_inicio)} → ${fechaHora(res.fecha_fin)}`} />
             <Row label="Garantía (hold)" value={`$${montoHold.toLocaleString("es-CL")}`} strong />
-            <View style={styles.divider} />
+            <View className="h-px bg-border" />
             <Row label="Estado" value="Pendiente de pago" warn />
           </Card>
-          <View style={styles.noteTeal}>
-            <Text style={styles.noteTealText}>
+          <View className="w-full bg-teal-50 rounded-xl p-4 gap-1">
+            <Text className="text-[13px] text-primary leading-[19px]">
               El hold es una pre-autorización, no un cobro. Se libera al devolver el auto sin daños.
             </Text>
           </View>
@@ -153,56 +168,167 @@ export function ActiveRentalScreen({
     );
   }
 
+  // ------------------------------------------------- ESPERANDO AL DUEÑO
+  if (view === "waiting") {
+    const plazo = res.confirmar_dueno_antes_de;
+    return (
+      <View className="flex-1 bg-background">
+        <StatusBar barStyle="dark-content" />
+        <ScreenHeader title="Tu reserva" onBack={onBack} />
+        <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+          <View className="items-center gap-2">
+            <View className="w-[68px] h-[68px] rounded-full bg-amber-50 items-center justify-center">
+              <Icon name="clock" size={32} color="#F59E0B" />
+            </View>
+            <Text className="text-xl font-bold text-textDark text-center">Esperando la confirmación del dueño</Text>
+            <Text className="text-[15px] text-textMuted leading-[22px] text-center">
+              {plazo
+                ? `El dueño tiene hasta ${fechaHora(plazo)} para confirmar.`
+                : "El dueño tiene 24 horas para confirmar."}{" "}
+              Si no lo hace, cancelamos la reserva y te devolvemos todo.
+            </Text>
+          </View>
+
+          <Card padded style={{ gap: 10 }}>
+            <Row label="Auto" value={nombre} />
+            <Row label="Fechas" value={`${fechaHora(res.fecha_inicio)} → ${fechaHora(res.fecha_fin)}`} />
+            <Row label="Estado" value="Esperando al dueño" warn />
+          </Card>
+
+          {res.cobro?.monto ? (
+            <Card padded style={{ gap: 10 }}>
+              <SectionLabel>Resumen del pago</SectionLabel>
+              <Row label="Cobrado hoy" value={clp(res.cobro.monto)} strong />
+              <Row label="Garantía retenida" value={clp(res.garantia?.monto ?? res.monto_hold)} />
+              <Text className="text-xs text-textMuted leading-[17px]">
+                La garantía es una retención sobre tu cupo, no un cargo. Se libera al devolver el auto sin daños (la reversa bancaria tarda entre 24 y 72 hrs hábiles).
+              </Text>
+            </Card>
+          ) : null}
+        </ScrollView>
+        {footer(
+          <>
+            <Button variant="danger" size="sm" label="Cancelar la reserva" onPress={onCancelReservation} />
+            <Button variant="ghost" size="sm" label="Seguir mirando autos" onPress={onBack} />
+          </>
+        )}
+      </View>
+    );
+  }
+
+  // ---------------------------------------------------------- CANCELADA
+  if (view === "cancelled") {
+    const motivo = {
+      dueno_no_confirmo: "El dueño no confirmó a tiempo. Te devolvimos todo: el arriendo y la garantía.",
+      no_presentacion:
+        "Se canceló porque no te presentaste a retirar el auto. Se aplicó una multa que se entrega al dueño; " +
+        "el resto del arriendo y la garantía se te devolvieron.",
+      dueno_no_presentacion:
+        "El dueño no se presentó a entregar el auto. Se le aplicó una multa y te devolvimos todo: " +
+        "el arriendo y la garantía.",
+      dueno_cancelo_tarde:
+        "El dueño canceló con poca anticipación. Se le aplicó una multa y te devolvimos todo: el arriendo y " +
+        "la garantía.",
+      ninguno_se_presento:
+        "Nadie se presentó a la entrega (ninguno avisó su llegada). Cancelamos la reserva sin multas " +
+        "y te devolvimos todo.",
+    }[res.motivo_cancelacion] || "Esta reserva fue cancelada.";
+    return (
+      <View className="flex-1 bg-background">
+        <StatusBar barStyle="dark-content" />
+        <ScreenHeader title="Tu reserva" onBack={onBack} />
+        <ScrollView contentContainerClassName="p-8 items-center gap-4" showsVerticalScrollIndicator={false}>
+          <View className="w-[68px] h-[68px] rounded-full bg-red-50 items-center justify-center mt-8">
+            <Icon name="close" size={32} color="#DC2626" />
+          </View>
+          <Text className="text-xl font-bold text-textDark text-center">Reserva cancelada</Text>
+          <Text className="text-[15px] text-textMuted leading-[22px] text-center">{motivo}</Text>
+          <Card padded style={{ width: "100%", gap: 12 }}>
+            <Row label="Auto" value={nombre} />
+            <Row label="Fechas" value={`${fechaHora(res.fecha_inicio)} → ${fechaHora(res.fecha_fin)}`} />
+          </Card>
+        </ScrollView>
+        {footer(<Button variant="ghost" size="sm" label="Volver" onPress={onBack} />)}
+      </View>
+    );
+  }
+
   // ------------------------------------------------------------ CONFIRMADA
   if (view === "confirmed") {
     return (
-      <View style={styles.container}>
+      <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          <View style={styles.centerText}>
-            <View style={styles.iconCircleOk}>
-              <Icon name="check" size={32} color={colors.accent700} />
+        <ScreenHeader title="Tu arriendo" onBack={onBack} />
+        <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+          <View className="items-center gap-2">
+            <View className="w-[68px] h-[68px] rounded-full bg-teal-50 items-center justify-center">
+              <Icon name="check" size={32} color="#0F766E" />
             </View>
-            <Text style={styles.bigTitle}>Reserva confirmada</Text>
-            <Text style={styles.bigSub}>Ya puedes coordinar el retiro con el dueño.</Text>
+            <Text className="text-xl font-bold text-textDark text-center">Reserva confirmada</Text>
+            <Text className="text-[15px] text-textMuted leading-[22px] text-center">Ya puedes coordinar el retiro con el dueño.</Text>
           </View>
 
-          {/* Tarjeta de Verificación / Pre-Checkin 24h */}
-          <Card padded style={{ gap: theme.spacing.sm, backgroundColor: res.precheck_cliente_confirmado ? colors.accent100 : colors.surface }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="check" size={18} color={res.precheck_cliente_confirmado ? colors.accentDark : colors.textMuted} />
-                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                  Verificación 24h antes
-                </Text>
-              </View>
-              <Badge
-                variant={res.precheck_cliente_confirmado ? "success" : "warning"}
-                label={res.precheck_cliente_confirmado ? "Confirmado" : "Pendiente"}
-              />
-            </View>
-            <Text style={{ fontSize: 13, color: colors.textMuted }}>
-              {res.precheck_cliente_confirmado
-                ? "Has confirmado tu viaje y asistencia para mañana."
-                : "Confirma tu asistencia y lugar de encuentro 24 horas antes del inicio."}
-            </Text>
-            {!res.precheck_cliente_confirmado && (
-              <Button
-                variant="secondary"
-                size="sm"
-                label="Completar verificación de viaje"
-                iconRight="arrow-right"
-                onPress={() => setModalPrecheck(true)}
-              />
-            )}
-          </Card>
+          {/* Resumen del pago: solo si la reserva trae el desglose del cobro */}
+          {res.cobro?.monto ? (
+            <Card padded style={{ gap: 10 }}>
+              <SectionLabel>Resumen del pago</SectionLabel>
+              <Row label="Cobrado hoy" value={clp(res.cobro.monto)} strong />
+              <Row label="Garantía retenida" value={clp(res.garantia?.monto ?? res.monto_hold)} />
+              <Text className="text-xs text-textMuted leading-[17px]">
+                La garantía es una retención sobre tu cupo, no un cargo. Se libera al devolver el auto sin daños (la reversa bancaria tarda entre 24 y 72 hrs hábiles).
+              </Text>
+            </Card>
+          ) : null}
 
-          <Card padded style={{ gap: theme.spacing.md }}>
+          {/* Llegada al punto de encuentro, comprobada por ubicación (desde 2 h antes de la entrega) */}
+          <LlegadaPorUbicacion reserva={res} rol="cliente" onActualizada={handlePrecheckConfirmed} />
+
+          {/* Tarjeta de Verificación / Pre-Checkin 24h */}
+          {(() => {
+            const msHastaRetiro = res.fecha_inicio ? new Date(res.fecha_inicio).getTime() - Date.now() : null;
+            const dentroDe24h = msHastaRetiro !== null && msHastaRetiro <= 24 * 3600000;
+
+            return (
+              <Card padded style={{ gap: 8, backgroundColor: res.precheck_cliente_confirmado ? "#CCFBF1" : "#FFFFFF" }}>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-2">
+                    <Icon name="check" size={18} color={res.precheck_cliente_confirmado ? "#115E59" : "#64748B"} />
+                    <Text className="text-sm font-bold text-textDark">
+                      Verificación 24h antes
+                    </Text>
+                  </View>
+                  <Badge
+                    variant={res.precheck_cliente_confirmado ? "success" : dentroDe24h ? "warning" : "default"}
+                    label={res.precheck_cliente_confirmado ? "Confirmado" : dentroDe24h ? "Pendiente" : "Próximamente"}
+                  />
+                </View>
+                <Text className="text-[13px] text-textMuted">
+                  {res.precheck_cliente_confirmado
+                    ? "Has confirmado tu viaje y asistencia para la entrega."
+                    : dentroDe24h
+                    ? "Faltan menos de 24 horas para tu viaje. Confirma tu asistencia y condiciones de viaje."
+                    : "La confirmación de viaje se habilitará automáticamente 24 horas antes del retiro."}
+                </Text>
+                {!res.precheck_cliente_confirmado && dentroDe24h && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    label="Completar verificación de viaje"
+                    iconRight="arrow-right"
+                    onPress={() => setModalPrecheck(true)}
+                  />
+                )}
+              </Card>
+            );
+          })()}
+
+          <Card padded style={{ gap: 12 }}>
             <SectionLabel>Punto de encuentro</SectionLabel>
-            <View style={styles.miniMap}>
+            <View className="h-[140px] rounded-xl overflow-hidden bg-teal-50 items-center justify-center">
               {MapView ? (
                 <MapView
-                  style={styles.miniMapVista}
+                  style={{ width: "100%", height: "100%" }}
+                  className="w-full h-full"
                   initialRegion={{
                     latitude: Number(res.lugar_entrega_lat || car.latitud || -37.4697),
                     longitude: Number(res.lugar_entrega_lng || car.longitud || -72.3536),
@@ -223,15 +349,15 @@ export function ActiveRentalScreen({
                   />
                 </MapView>
               ) : (
-                <Icon name="pin" size={26} color={colors.primary} />
+                <Icon name="pin" size={26} color="#0F766E" />
               )}
             </View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.meetAddr}>
+            <View className="flex-row justify-between items-center">
+              <View className="flex-1 mr-2">
+                <Text className="text-[15px] font-bold text-textDark">
                   {res.lugar_entrega_acordado || car.ubicacion_base || "Por coordinar"}
                 </Text>
-                <Text style={styles.meetTime}>{fechaHora(res.fecha_inicio, true)}</Text>
+                <Text className="text-[13px] text-textMuted capitalize">{fechaHora(res.fecha_inicio, true)}</Text>
               </View>
               <Button
                 variant="secondary"
@@ -248,8 +374,8 @@ export function ActiveRentalScreen({
             </View>
           </Card>
 
-          <Card padded style={styles.ownerRow}>
-            <View style={styles.ownerAvatar}>
+          <Card padded className="flex-row items-center gap-3">
+            <View className="w-11 h-11 rounded-full bg-slate-100 items-center justify-center">
               {duenoFoto && !ownerFotoError ? (
                 <Image
                   source={{ uri: duenoFoto }}
@@ -257,22 +383,22 @@ export function ActiveRentalScreen({
                   onError={() => setOwnerFotoError(true)}
                 />
               ) : (
-                <Icon name="user" size={20} color={colors.textMuted} />
+                <Icon name="user" size={20} color="#64748B" />
               )}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.ownerName}>{duenoNombre}</Text>
-              <Text style={styles.ownerSub}>Coordina por el chat de la reserva</Text>
+            <View className="flex-1">
+              <Text className="text-[15px] font-bold text-textDark">{duenoNombre}</Text>
+              <Text className="text-[13px] text-textMuted mt-0.5">Coordina por el chat de la reserva</Text>
             </View>
             <Button variant="secondary" size="sm" iconLeft="chat" label="Chat" onPress={onOpenChat} fullWidth={false} />
           </Card>
 
           {/* Segundo Conductor */}
           <Card padded style={{ gap: 6 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="user" size={18} color={colors.primary} />
-                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            <View className="flex-row justify-between items-center">
+              <View className="flex-row items-center gap-2">
+                <Icon name="user" size={18} color="#0F766E" />
+                <Text className="text-sm font-bold text-textDark">
                   Segundo Conductor
                 </Text>
               </View>
@@ -296,11 +422,11 @@ export function ActiveRentalScreen({
               ) : null}
             </View>
             {res.segundo_conductor ? (
-              <Text style={{ fontSize: 13, color: colors.textMuted }}>
+              <Text className="text-[13px] text-textMuted">
                 {res.segundo_conductor.nombre} (Doc: {res.segundo_conductor.rut || res.segundo_conductor.numero_documento || "—"})
               </Text>
             ) : (
-              <Text style={{ fontSize: 12, color: colors.textMuted }}>
+              <Text className="text-xs text-textMuted">
                 ¿Otra persona manejará el vehículo? Asígnala con verificación KYC previa.
               </Text>
             )}
@@ -313,9 +439,9 @@ export function ActiveRentalScreen({
             />
           </Card>
 
-          <View style={styles.noteTeal}>
-            <Text style={styles.noteTealTitle}>Lleva tu licencia</Text>
-            <Text style={styles.noteTealText}>
+          <View className="w-full bg-teal-50 rounded-xl p-4 gap-1">
+            <Text className="text-sm font-bold text-primary">Lleva tu licencia</Text>
+            <Text className="text-[13px] text-primary leading-[19px]">
               El dueño registrará el checklist fotográfico de 8 ángulos y firmarás el contrato en tu celular.
             </Text>
           </View>
@@ -352,28 +478,28 @@ export function ActiveRentalScreen({
   const tieneCargosExtra = (res.cargos_adicionales_clp || 0) > 0 || (res.cargo_limpieza_clp || 0) > 0 || (res.cargo_combustible_clp || 0) > 0 || (res.cargo_atraso_clp || 0) > 0 || (res.cargo_falta_grave_clp || 0) > 0;
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader
         title="Detalle de la reserva"
         onBack={() => setView("confirmed")}
         right={<Badge variant={res.estado === "en_curso" ? "info" : "neutral"} label={res.estado === "en_curso" ? "En curso" : res.estado || "—"} />}
       />
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        <Card padded style={styles.carRow}>
+      <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+        <Card padded className="flex-row items-center gap-3">
           {car.fotos?.[0] ? (
-            <Image source={{ uri: car.fotos[0] }} style={styles.carThumb} />
+            <Image source={{ uri: car.fotos[0] }} className="w-[76px] h-[58px] rounded-xl bg-teal-50" />
           ) : (
-            <View style={[styles.carThumb, styles.carThumbEmpty]}>
-              <Icon name="car" size={22} color={colors.primary300} />
+            <View className="w-[76px] h-[58px] rounded-xl bg-amber-50 items-center justify-center">
+              <Icon name="car" size={22} color="#5EEAD4" />
             </View>
           )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.carTitle}>{nombre}</Text>
+          <View className="flex-1">
+            <Text className="text-[15px] font-bold text-textDark">{nombre}</Text>
             {/* La patente recién se muestra una vez retirado el auto: antes
                 de eso no hay nada que hacer con ese dato. */}
             {res.estado === "en_curso" && (
-              <Text style={styles.carSub}>Patente {car.patente || "—"}</Text>
+              <Text className="text-[13px] text-textMuted mt-0.5">Patente {car.patente || "—"}</Text>
             )}
           </View>
         </Card>
@@ -381,9 +507,9 @@ export function ActiveRentalScreen({
         {res.estado === "en_curso" && (() => {
           const cd = restanteHasta(res.fecha_fin);
           return (
-            <View style={[styles.countCard, cd?.vencido && styles.countCardLate]}>
-              <Text style={styles.countValue}>{cd ? (cd.vencido ? `Atrasado ${cd.texto}` : cd.texto) : "—"}</Text>
-              <Text style={styles.countLabel}>
+            <View className={`rounded-2xl py-4 items-center gap-1 ${cd?.vencido ? "bg-amber-800" : "bg-primary"}`}>
+              <Text className="text-2xl font-extrabold text-white tracking-[0.5px]">{cd ? (cd.vencido ? `Atrasado ${cd.texto}` : cd.texto) : "—"}</Text>
+              <Text className="text-[11px] text-teal-200 uppercase tracking-[0.6px]">
                 {cd?.vencido ? "pasada la hora de devolución" : "para la hora de devolución acordada"}
               </Text>
             </View>
@@ -391,11 +517,11 @@ export function ActiveRentalScreen({
         })()}
 
         {res.estado === "en_curso" && (
-          <Card padded style={{ gap: 6, backgroundColor: colors.accent100 || "#f0fdf4", borderColor: colors.primary, borderWidth: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="pin" size={18} color={colors.primary} />
-                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+          <Card padded style={{ gap: 6, backgroundColor: "#F0FDF4", borderColor: "#0F766E", borderWidth: 1 }}>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-2">
+                <Icon name="pin" size={18} color="#0F766E" />
+                <Text className="text-sm font-bold text-textDark">
                   Ubicación en vivo del arriendo
                 </Text>
               </View>
@@ -404,7 +530,7 @@ export function ActiveRentalScreen({
                 label={gpsTransmitiendo ? "Transmitiendo..." : "En línea"}
               />
             </View>
-            <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            <Text className="text-[13px] text-textMuted">
               Tu celular comparte la ubicación en tiempo real con el dueño del vehículo durante el viaje.
             </Text>
           </Card>
@@ -412,10 +538,10 @@ export function ActiveRentalScreen({
 
         {/* Resumen: fechas, garantía y cualquier cargo aplicado, todo en una
             sola tarjeta — antes eran dos (o tres) apiladas por separado. */}
-        <Card padded style={{ gap: theme.spacing.md }}>
+        <Card padded style={{ gap: 12 }}>
           <Row label="Retiro" value={fechaHora(res.fecha_inicio)} />
           <Row label="Devolución" value={fechaHora(res.fecha_fin)} />
-          <View style={styles.divider} />
+          <View className="h-px bg-border" />
           <Row label="Garantía retenida (hold)" value={`$${montoHold.toLocaleString("es-CL")}`} warn />
           {res.monto_cobro_final > 0 && (
             <Row label="Cobro final" value={`$${res.monto_cobro_final.toLocaleString("es-CL")}`} strong />
@@ -423,10 +549,10 @@ export function ActiveRentalScreen({
 
           {tieneCargosExtra && (
             <>
-              <View style={styles.divider} />
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="alert" size={16} color={colors.warning} />
-                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+              <View className="h-px bg-border" />
+              <View className="flex-row items-center gap-2">
+                <Icon name="alert" size={16} color="#F59E0B" />
+                <Text className="text-[13px] font-bold text-textDark">
                   Cargos y penalizaciones aplicadas
                 </Text>
               </View>
@@ -443,7 +569,7 @@ export function ActiveRentalScreen({
                 <Row label="Faltas / Infracciones" value={`$${res.cargo_falta_grave_clp.toLocaleString("es-CL")}`} />
               )}
               {res.motivo_multas && (
-                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: -4 }}>
+                <Text className="text-xs text-textMuted -mt-1">
                   Detalle: {res.motivo_multas}
                 </Text>
               )}
@@ -506,14 +632,12 @@ export function ActiveRentalScreen({
 
 function Row({ label, value, strong, warn }) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
+    <View className="flex-row justify-between items-center gap-3">
+      <Text className="text-sm text-textMuted">{label}</Text>
       <Text
-        style={[
-          styles.rowValue,
-          strong && { fontWeight: "700" },
-          warn && { color: colors.warningText, fontWeight: "700" },
-        ]}
+        className={`text-sm text-textDark shrink text-right ${
+          warn ? "text-amber-800 font-bold" : strong ? "font-bold" : ""
+        }`}
       >
         {value}
       </Text>
@@ -521,83 +645,3 @@ function Row({ label, value, strong, warn }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  centerBody: { padding: theme.spacing.xxl, alignItems: "center", gap: theme.spacing.lg },
-  centerText: { alignItems: "center", gap: theme.spacing.sm },
-  iconCircleWarn: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: colors.warningBg,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: theme.spacing.xxl,
-  },
-  iconCircleOk: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bigTitle: { ...theme.typography.title, color: colors.text, textAlign: "center" },
-  bigSub: { fontSize: 15, color: colors.textMuted, lineHeight: 22, textAlign: "center" },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },
-  rowLabel: { fontSize: 14, color: colors.textMuted },
-  rowValue: { fontSize: 14, color: colors.text, flexShrink: 1, textAlign: "right" },
-  divider: { height: 1, backgroundColor: colors.border },
-  noteTeal: { width: "100%", backgroundColor: colors.primary100, borderRadius: theme.radius.field, padding: theme.spacing.lg, gap: 4 },
-  noteTealTitle: { fontSize: 14, fontWeight: "700", color: colors.primary },
-  noteTealText: { fontSize: 13, color: colors.primary, lineHeight: 19 },
-  miniMap: {
-    height: 140,
-    borderRadius: theme.radius.field,
-    overflow: "hidden",
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  // width/height explícitos: con StyleSheet.absoluteFillObject el MapView
-  // (SurfaceView nativo en Android) a veces mide 0 bajo New Architecture y
-  // deja un espacio en blanco en vez del mapa.
-  miniMapVista: { width: "100%", height: "100%" },
-  meetAddr: { fontSize: 15, fontWeight: "700", color: colors.text },
-  meetTime: { fontSize: 13, color: colors.textMuted, textTransform: "capitalize" },
-  ownerRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  ownerAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ownerName: { fontSize: 15, fontWeight: "700", color: colors.text },
-  ownerSub: { fontSize: 13, color: colors.textMuted, marginTop: 1 },
-  countCard: {
-    backgroundColor: colors.primary,
-    borderRadius: theme.radius.card,
-    paddingVertical: theme.spacing.lg,
-    alignItems: "center",
-    gap: 3,
-  },
-  countCardLate: { backgroundColor: colors.warningText || "#8A5B0B" },
-  countValue: { fontSize: 24, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
-  countLabel: { fontSize: 11, color: colors.accent300, textTransform: "uppercase", letterSpacing: 0.6 },
-  carRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  carThumb: { width: 76, height: 58, borderRadius: theme.radius.field, backgroundColor: colors.primary100 },
-  carThumbEmpty: { backgroundColor: colors.accent100, alignItems: "center", justifyContent: "center" },
-  carTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
-  carSub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: theme.spacing.sm,
-  },
-});

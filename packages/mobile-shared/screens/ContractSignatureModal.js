@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
@@ -42,6 +43,12 @@ export function ContractSignatureModal({
   onSigned,
   onVerContrato,
 }) {
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Si corre fuera de SafeAreaProvider en tests
+  }
   const [acepta, setAcepta] = React.useState(false);
   const [biometria, setBiometria] = React.useState(undefined); // undefined = cargando
   const [modoManual, setModoManual] = React.useState(false);
@@ -132,7 +139,7 @@ export function ContractSignatureModal({
         style={styles.overlay}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, theme.spacing.xxl) }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <View style={{ flex: 1 }}>

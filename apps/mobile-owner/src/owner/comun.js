@@ -1,20 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { colors, theme, Icon, BackButton } from "@rentacar/mobile-shared";
+import { View, Text, TouchableOpacity } from "react-native";
+import { colors, Icon, BackButton } from "@rentacar/mobile-shared";
 
 /**
- * Piezas compartidas de las pantallas del dueño. Base clara idéntica a la del
- * arrendatario (fondo crema, tarjetas blancas, bordes `colors.border`).
- *
- * Lo que distingue al dueño es un **acento oscuro estilo premium** reservado
- * para las piezas hero: la franja de resumen, el saldo, el botón + del
- * navbar. Es un teal casi negro (`colors.primary900` #061E1F) con hairline
- * menta y sombra alta — el arrendatario nunca lo usa.
+ * Piezas compartidas de las pantallas del dueño usando NativeWind classes.
  */
-
-// Superficie premium del dueño y su detalle de acento.
 export const OWNER_PREMIUM_BG = colors.primary900;
-export const OWNER_PREMIUM_LINE = "rgba(47, 191, 155, 0.22)"; // menta a baja opacidad
+export const OWNER_PREMIUM_LINE = "rgba(47, 191, 155, 0.22)";
 
 const MAX_GLOBO = 9;
 
@@ -23,7 +15,7 @@ export function BotonMensajes({ noLeidos = 0, onPress }) {
   const texto = noLeidos > MAX_GLOBO ? `${MAX_GLOBO}+` : String(noLeidos);
   return (
     <TouchableOpacity
-      style={oc.msgBtn}
+      className="w-10 h-10 rounded-xl border border-gray-200 bg-surface items-center justify-center relative active:opacity-80"
       onPress={onPress}
       activeOpacity={0.8}
       accessibilityRole="button"
@@ -31,8 +23,8 @@ export function BotonMensajes({ noLeidos = 0, onPress }) {
     >
       <Icon name="chat" size={20} color={colors.primary} />
       {noLeidos > 0 ? (
-        <View style={oc.msgGlobo}>
-          <Text style={oc.msgGloboTexto} allowFontScaling={false}>
+        <View className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full px-1 bg-red-600 border-2 border-background items-center justify-center">
+          <Text className="text-[10px] font-bold text-white" allowFontScaling={false}>
             {texto}
           </Text>
         </View>
@@ -43,16 +35,15 @@ export function BotonMensajes({ noLeidos = 0, onPress }) {
 
 /**
  * Cabecera estándar de una pantalla del dueño: título grande, bajada
- * opcional y (opcional) el botón de Mensajes con su globo. `right` mete un
- * control extra a la izquierda del de mensajes.
+ * opcional y (opcional) el botón de Mensajes con su globo.
  */
 export function CabeceraOwner({ titulo, subtitulo, noLeidos, onMensajes, onBack, right }) {
   return (
-    <View style={oc.header}>
+    <View className="flex-row items-start gap-3 px-4 pt-2 pb-3">
       {onBack ? <BackButton onPress={onBack} /> : null}
-      <View style={{ flex: 1 }}>
-        <Text style={oc.title}>{titulo}</Text>
-        {subtitulo ? <Text style={oc.subtitle}>{subtitulo}</Text> : null}
+      <View className="flex-1">
+        <Text className="text-2xl font-bold text-textDark">{titulo}</Text>
+        {subtitulo ? <Text className="text-[13px] text-textMuted mt-0.5">{subtitulo}</Text> : null}
       </View>
       {right}
       {onMensajes ? <BotonMensajes noLeidos={noLeidos || 0} onPress={onMensajes} /> : null}
@@ -63,13 +54,13 @@ export function CabeceraOwner({ titulo, subtitulo, noLeidos, onMensajes, onBack,
 /** Franja de resumen — el bloque hero premium (teal casi negro) del dueño. */
 export function FranjaResumen({ items }) {
   return (
-    <View style={oc.franja}>
+    <View className="flex-row items-stretch bg-primary-900 rounded-2xl border border-[rgba(47,191,155,0.22)] py-4 shadow-lg">
       {items.map((it, i) => (
         <React.Fragment key={it.label}>
-          {i > 0 ? <View style={oc.franjaDiv} /> : null}
-          <View style={oc.franjaItem}>
-            <Text style={oc.franjaValor}>{it.value}</Text>
-            <Text style={oc.franjaLabel}>{it.label}</Text>
+          {i > 0 ? <View className="w-[1px] bg-[rgba(47,191,155,0.22)] my-1" /> : null}
+          <View className="flex-1 items-center gap-0.5 px-1.5">
+            <Text className="text-xl font-bold text-white tracking-tight">{it.value}</Text>
+            <Text className="text-[11px] text-white/60 text-center tracking-[0.2px]">{it.label}</Text>
           </View>
         </React.Fragment>
       ))}
@@ -77,101 +68,17 @@ export function FranjaResumen({ items }) {
   );
 }
 
-export const oc = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  listContent: { paddingHorizontal: theme.spacing.screen, gap: theme.spacing.lg },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.md,
-  },
-  title: { ...theme.typography.title, color: colors.text },
-  subtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-
-  msgBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  msgGlobo: {
-    position: "absolute",
-    top: -5,
-    right: -5,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    backgroundColor: colors.danger,
-    borderWidth: 2,
-    borderColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  msgGloboTexto: { fontSize: 10, fontWeight: "700", color: "#FFFFFF" },
-
-  // Tarjeta blanca estándar.
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...theme.shadow.sm,
-  },
-  cardPadded: { padding: theme.spacing.lg },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
-
-  // Sección pequeña en color de marca (caja de tarifa, detalle, etc.).
-  seccionMarca: {
-    backgroundColor: colors.primary100,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.md,
-  },
-  seccionSuave: {
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.md,
-  },
-
-  // Franja de resumen — hero premium: teal casi negro + hairline menta + sombra alta.
-  franja: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    backgroundColor: OWNER_PREMIUM_BG,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-    borderColor: OWNER_PREMIUM_LINE,
-    paddingVertical: theme.spacing.lg,
-    ...theme.shadow.lg,
-  },
-  franjaItem: { flex: 1, alignItems: "center", gap: 3, paddingHorizontal: 6 },
-  franjaValor: { ...theme.typography.price, color: "#FFFFFF", letterSpacing: -0.2 },
-  franjaLabel: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.56)",
-    textAlign: "center",
-    letterSpacing: 0.2,
-  },
-  franjaDiv: { width: 1, backgroundColor: OWNER_PREMIUM_LINE, marginVertical: 4 },
-
-  // Píldora de estado (disponible / pausado / ...).
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: theme.radius.pill,
-  },
-  pillDot: { width: 6, height: 6, borderRadius: 3 },
-  pillText: { fontSize: 12, fontWeight: "700" },
-});
+// Utilidades y clases predefinidas de Tailwind para pantallas de Owner
+export const oc = {
+  screen: "flex-1 bg-background",
+  content: "p-4 gap-4",
+  listContent: "px-4 gap-4",
+  card: "bg-surface rounded-2xl border border-gray-200 shadow-sm",
+  cardPadded: "p-4",
+  cardTitle: "text-[15px] font-bold text-textDark",
+  seccionMarca: "bg-primary-100 rounded-xl p-3.5",
+  seccionSuave: "bg-surface-subtle rounded-xl p-3.5",
+  pill: "flex-row items-center gap-1.5 py-1 px-2.5 rounded-full",
+  pillDot: "w-1.5 h-1.5 rounded-full",
+  pillText: "text-xs font-bold",
+};

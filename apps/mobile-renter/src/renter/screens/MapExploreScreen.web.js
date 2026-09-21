@@ -1,21 +1,21 @@
 import React from "react";
-import { View, Text, StyleSheet, StatusBar } from "react-native";
+import { View, Text, StatusBar } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, theme, Icon, Button } from "@rentacar/mobile-shared";
+import { Icon, Button } from "@rentacar/mobile-shared";
 
 // react-native-maps es un módulo nativo y no existe en web. La versión web
 // muestra una alternativa; el mapa real vive en MapExploreScreen.js (nativo).
 export function MapExploreScreen({ onBack }) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
-      <View style={[styles.center, { paddingTop: insets.top + 40 }]}>
-        <View style={styles.icon}>
-          <Icon name="pin" size={30} color={colors.primary} />
+      <View className="flex-1 items-center px-8 gap-3" style={{ paddingTop: insets.top + 40 }}>
+        <View className="w-16 h-16 rounded-full bg-teal-50 items-center justify-center">
+          <Icon name="pin" size={30} color="#0F766E" />
         </View>
-        <Text style={styles.title}>El mapa está en la app</Text>
-        <Text style={styles.text}>
+        <Text className="text-lg font-bold text-textDark text-center">El mapa está en la app</Text>
+        <Text className="text-sm text-textMuted text-center leading-5">
           La vista de mapa usa mapas nativos y no está disponible en la versión web.
           Abre ArriendoMiAutoYa en tu teléfono para explorar los autos en el mapa.
         </Text>
@@ -23,24 +23,10 @@ export function MapExploreScreen({ onBack }) {
           label="Volver al listado"
           onPress={onBack}
           fullWidth={false}
-          style={{ marginTop: theme.spacing.md }}
+          style={{ marginTop: 12 }}
         />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, alignItems: "center", paddingHorizontal: theme.spacing.xxl, gap: theme.spacing.md },
-  icon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { fontSize: 18, fontWeight: "700", color: colors.text, textAlign: "center" },
-  text: { fontSize: 14, color: colors.textMuted, textAlign: "center", lineHeight: 20 },
-});

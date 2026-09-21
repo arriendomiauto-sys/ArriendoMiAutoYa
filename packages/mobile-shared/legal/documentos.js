@@ -26,10 +26,9 @@ export const DOCUMENTOS_LEGALES = {
       {
         h: "1. Naturaleza del servicio y objeto",
         p:
-          "ArriendoMiAutoYa Chile SpA opera una plataforma tecnológica de economía colaborativa " +
-          "(car-sharing P2P) que conecta a propietarios de vehículos particulares con conductores " +
-          "validados para celebrar contratos de arriendo a corto y mediano plazo en la comuna de " +
-          "Los Ángeles, Región del Biobío.",
+          "ARRIENDO MI AUTO SpA (RUT 78.493.457-8), domiciliada en la comuna de Los Ángeles, Región del Biobío, " +
+          "opera la plataforma tecnológica de economía colaborativa (car-sharing P2P) ArriendoMiAutoYa, que conecta a " +
+          "propietarios de vehículos particulares con conductores validados para celebrar contratos de arriendo a corto y mediano plazo.",
       },
       {
         h: "2. Requisitos para arrendatarios",
@@ -42,13 +41,14 @@ export const DOCUMENTOS_LEGALES = {
         ],
       },
       {
-        h: "3. Seguro, siniestros y deducible 15 UF (50/50)",
+        h: "3. Programa de protección, siniestros y deducible 15 UF (50/50)",
         p:
-          "Todos los vehículos cuentan con cobertura de seguro comercial durante el período de " +
-          "arriendo. Ante un siniestro calificado (colisión, choque, robo o daño material):",
+          "Los arriendos cuentan con programa de cobertura y seguro comercial frente a siniestros. Ante un siniestro fortuito o culposo amparado:",
         items: [
-          "El deducible de 15 UF se comparte por partes iguales: 50% del arrendatario y 50% de la empresa o dueño, según corresponda.",
+          "El deducible general de 15 UF se absorbe por partes iguales: 50% a cargo de ARRIENDO MI AUTO SpA y 50% a cargo del propietario del vehículo, quedando exento el arrendatario.",
+          "El arrendatario responderá con su hold de garantía ($800.000) y hasta el monto total de los daños únicamente en caso de dolo, culpa grave, conducción bajo efectos del alcohol o drogas, conductores no autorizados o exclusiones directas de la póliza.",
           "El arrendatario debe dejar constancia policial inmediata ante Carabineros de Chile y reportar el evento en la plataforma antes de 2 horas.",
+          "Conforme al artículo 169 de la Ley N° 18.290 de Tránsito, el arrendatario asume la responsabilidad civil exclusiva por su conducción y se obliga a mantener indemne al propietario y a la plataforma ante reclamos de terceros.",
         ],
       },
       {
@@ -95,7 +95,7 @@ export const DOCUMENTOS_LEGALES = {
       {
         h: "1. Responsable del tratamiento",
         p:
-          "ArriendoMiAutoYa Chile SpA, domiciliada en la comuna de Los Ángeles, Región del Biobío, " +
+          "ARRIENDO MI AUTO SpA (RUT 78.493.457-8), domiciliada en la comuna de Los Ángeles, Región del Biobío, " +
           "es responsable de la custodia y administración de las bases de datos generadas por su " +
           "aplicación móvil y su plataforma web, conforme a la Ley N° 19.628.",
       },
@@ -104,6 +104,8 @@ export const DOCUMENTOS_LEGALES = {
         items: [
           "Datos de identificación: nombre completo, RUT/cédula de identidad chilena y fecha de nacimiento.",
           "Documentos de conducción: fotografía y datos de la licencia clase B para validar la habilitación legal.",
+          "Certificados oficiales del Registro Civil en PDF: certificado de antecedentes y hoja de vida del conductor " +
+            "(arrendatarios y segundo conductor) y certificado de anotaciones vigentes del vehículo (dueños).",
           "Datos de contacto: número de teléfono móvil y correo electrónico.",
           "Registro fotográfico del checklist: las 9 fotos obligatorias del estado inicial y final del vehículo.",
           "Datos transaccionales: tokens seguros de la pasarela de pago (no almacenamos números de tarjeta).",
@@ -125,6 +127,20 @@ export const DOCUMENTOS_LEGALES = {
           "Puedes solicitar acceso, rectificación, cancelación u oposición al tratamiento de tus " +
           "datos personales en cualquier momento, escribiendo al canal de soporte o en la sucursal " +
           "de Los Ángeles, siempre que no existan obligaciones legales o contractuales pendientes.",
+      },
+      {
+        h: "5. Certificados de antecedentes (datos sensibles)",
+        p:
+          "El certificado de antecedentes y la hoja de vida del conductor contienen datos personales sensibles. " +
+          "Solo los tratamos con tu consentimiento explícito, que das al subirlos y puedes retirar cuando quieras " +
+          "escribiendo a soporte.",
+        items: [
+          "Finalidad: comprobar que quien conduce el vehículo está habilitado y no registra impedimentos.",
+          "Acceso: solo el personal de Arrienda Tu Auto autorizado para revisarlos; nunca se muestran al dueño del vehículo ni a otros usuarios.",
+          "Conservación: el archivo PDF se elimina a los 30 días de resuelta la revisión. Conservamos únicamente el " +
+            "resultado, el folio del certificado y una huella digital del archivo para acreditar que fue revisado.",
+          "Los certificados son gratuitos: se descargan con tu ClaveÚnica en registrocivil.cl.",
+        ],
       },
     ],
   },

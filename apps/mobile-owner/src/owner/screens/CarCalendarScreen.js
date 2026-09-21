@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, AppState } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, theme, useApp, Chip, Icon, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
-import { CabeceraOwner, oc } from "../comun";
+import { CabeceraOwner } from "../comun";
 
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-// Clave local de un día ("año-mes-día", mes 0-based) para indexar sin comparar Date.
 const claveDia = (y, m, d) => `${y}-${m}-${d}`;
 
-// Mismos estados que ocupan el auto en el backend (validators.ESTADOS_OCUPAN_AUTO):
-// una `pendiente_pago` cuenta mientras no venza su TTL. Sin esto el dueño veía
-// libre —y podía bloquear como "uso personal"— un día en pleno checkout de un
-// arrendatario, que el backend igual va a rechazar al confirmar.
+// Cada cuánto se vuelven a pedir las reservas mientras el calendario está
+// abierto: si un arrendatario reserva justo ahora, el dueño lo ve sin salir.
+const REFRESCO_RESERVAS_MS = 30000;
+
 const reservaOcupaAuto = (r) => {
-  if (r.estado === "confirmada" || r.estado === "en_curso") return true;
+  // "pendiente" = pagada y esperando al dueño: el auto ya está tomado en esas fechas.
+  if (r.estado === "pendiente" || r.estado === "confirmada" || r.estado === "en_curso") return true;
   if (r.estado === "pendiente_pago") {
     return !r.expira_en || new Date(r.expira_en).getTime() > Date.now();
   }
@@ -25,15 +25,11 @@ export function CarCalendarScreen({ car, onBack }) {
   const insets = useSafeAreaInsets();
   const { cars } = useApp();
   const [selectedCarId, setSelectedCarId] = useState(car?.id || cars[0]?.id || null);
-  // Las reservas del dueño no dependen del auto elegido: se piden una sola vez.
   const [reservas, setReservas] = useState([]);
-  // Los bloqueos sí son por-auto y se recargan al cambiar de auto.
   const [bloqueos, setBloqueos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const hoy = new Date();
-  // 0 = mes actual, 1 = el siguiente, etc. No se navega hacia atrás: no
-  // tiene sentido bloquear un día que ya pasó.
   const [mesOffset, setMesOffset] = useState(0);
   const fechaMostrada = new Date(hoy.getFullYear(), hoy.getMonth() + mesOffset, 1);
   const anio = fechaMostrada.getFullYear();
@@ -44,15 +40,22 @@ export function CarCalendarScreen({ car, onBack }) {
   const irMesAnterior = () => setMesOffset((o) => Math.max(0, o - 1));
   const irMesSiguiente = () => setMesOffset((o) => o + 1);
 
-  // Reservas del dueño: una sola vez. No cambian al cambiar de auto ni de mes,
-  // y traerlas de nuevo en cada toque era parte de la lentitud.
   useEffect(() => {
     let vivo = true;
-    ApiClient.getReservas("dueno")
-      .then((todas) => vivo && setReservas(Array.isArray(todas) ? todas : []))
-      .catch(() => {});
+    const cargarReservas = () =>
+      ApiClient.getReservas("dueno")
+        .then((todas) => vivo && setReservas(Array.isArray(todas) ? todas : []))
+        .catch(() => {});
+    cargarReservas();
+    const intervalo = setInterval(cargarReservas, REFRESCO_RESERVAS_MS);
+    // Al volver de segundo plano el intervalo pudo quedar dormido: se refresca ya.
+    const suscripcion = AppState.addEventListener("change", (estado) => {
+      if (estado === "active") cargarReservas();
+    });
     return () => {
       vivo = false;
+      clearInterval(intervalo);
+      suscripcion?.remove?.();
     };
   }, []);
 
@@ -73,9 +76,6 @@ export function CarCalendarScreen({ car, onBack }) {
     cargarBloqueos();
   }, [cargarBloqueos]);
 
-  // Índices O(1) por día. Se rearman solo cuando cambian los datos o el auto,
-  // NO al navegar de mes: antes `estadoDelDia` recorría todas las reservas
-  // (con 4 `new Date` cada una) por cada una de las 31 celdas, en cada render.
   const { diasReservados, diasBloqueados } = useMemo(() => {
     const reservados = new Set();
     const bloqueados = new Map();
@@ -110,8 +110,6 @@ export function CarCalendarScreen({ car, onBack }) {
     return "available";
   };
 
-  // Update optimista: el estado cambia YA y la API va en segundo plano. Con el
-  // backend de Render dormido, esperar la respuesta eran 10-40s de nada.
   const toggleDay = (day) => {
     const estado = estadoDelDia(day);
     if (estado === "booked") {
@@ -122,8 +120,6 @@ export function CarCalendarScreen({ car, onBack }) {
 
     if (typeof estado === "object" && estado.state === "blocked") {
       const bloqueo = estado.bloqueo;
-      // Un bloqueo recién creado que todavía no volvió del backend: sin id
-      // real no se puede borrar, se ignora el toque hasta que llegue.
       if (String(bloqueo.id).startsWith("tmp-")) return;
       setBloqueos((p) => p.filter((b) => b.id !== bloqueo.id));
       ApiClient.eliminarBloqueoCalendario(bloqueo.id).catch((err) => {
@@ -138,7 +134,6 @@ export function CarCalendarScreen({ car, onBack }) {
     setBloqueos((p) => [...p, optimista]);
     ApiClient.crearBloqueoCalendario(selectedCarId, fecha.toISOString(), "Uso personal")
       .then((nuevo) => {
-        // Se reemplaza el temporal por el real (trae el id que usa el DELETE).
         setBloqueos((p) => p.map((b) => (b.id === tempId ? nuevo || optimista : b)));
       })
       .catch((err) => {
@@ -148,11 +143,11 @@ export function CarCalendarScreen({ car, onBack }) {
   };
 
   return (
-    <View style={[oc.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+    <View className="flex-1 bg-background" style={{ paddingTop: Math.max(insets.top, 12) }}>
       <CabeceraOwner titulo="Calendario" subtitulo="Bloquea días de uso personal" onBack={onBack} />
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carChips}>
+      <ScrollView contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 32 }} className="px-4 gap-4" showsVerticalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
           {cars.map((c) => (
             <Chip
               key={c.id}
@@ -163,24 +158,24 @@ export function CarCalendarScreen({ car, onBack }) {
           ))}
         </ScrollView>
 
-        <View style={[oc.card, oc.cardPadded]}>
-          <View style={styles.monthNav}>
+        <View className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+          <View className="flex-row items-center justify-between mb-3">
             <TouchableOpacity
               onPress={irMesAnterior}
               disabled={enMesActual}
               hitSlop={theme.control.hitSlop}
-              style={[styles.monthNavBtn, enMesActual && styles.monthNavBtnDisabled]}
+              className={`w-8 h-8 rounded-full items-center justify-center bg-surface-subtle border border-gray-200 ${enMesActual ? "opacity-40" : ""}`}
               accessibilityRole="button"
               accessibilityLabel="Mes anterior"
               accessibilityState={{ disabled: enMesActual }}
             >
               <Icon name="chevron-left" size={18} color={enMesActual ? colors.textPlaceholder : colors.primary} />
             </TouchableOpacity>
-            <Text style={styles.month}>{MESES[mes]} {anio}</Text>
+            <Text className="text-base font-bold text-textDark">{MESES[mes]} {anio}</Text>
             <TouchableOpacity
               onPress={irMesSiguiente}
               hitSlop={theme.control.hitSlop}
-              style={styles.monthNavBtn}
+              className="w-8 h-8 rounded-full items-center justify-center bg-surface-subtle border border-gray-200"
               accessibilityRole="button"
               accessibilityLabel="Mes siguiente"
             >
@@ -189,17 +184,17 @@ export function CarCalendarScreen({ car, onBack }) {
           </View>
 
           {loading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: 30 }} />
+            <ActivityIndicator color={colors.primary} className="my-8" />
           ) : (
             <>
-              <View style={styles.weekRow}>
+              <View className="flex-row mb-2">
                 {["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"].map((d) => (
-                  <Text key={d} style={styles.weekday}>{d}</Text>
+                  <Text key={d} className="flex-1 text-[11px] font-bold text-textMuted text-center">{d}</Text>
                 ))}
               </View>
-              <View style={styles.grid}>
+              <View className="flex-row flex-wrap">
                 {Array.from({ length: primerDia }, (_, i) => (
-                  <View key={`e${i}`} style={styles.cellEmpty} />
+                  <View key={`e${i}`} className="w-[14.28%] h-11" />
                 ))}
                 {Array.from({ length: diasEnMes }, (_, i) => i + 1).map((day) => {
                   const estado = estadoDelDia(day);
@@ -208,21 +203,24 @@ export function CarCalendarScreen({ car, onBack }) {
                   return (
                     <TouchableOpacity
                       key={day}
-                      style={[
-                        styles.cell,
-                        !booked && !blocked && styles.cellAvailable,
-                        booked && styles.cellBooked,
-                        blocked && styles.cellBlocked,
-                      ]}
+                      className={`w-[14.28%] h-11 items-center justify-center rounded-lg ${
+                        booked
+                          ? "bg-primary-100"
+                          : blocked
+                            ? "bg-red-50"
+                            : "bg-accent/15"
+                      }`}
                       onPress={() => toggleDay(day)}
                       activeOpacity={0.8}
                     >
                       <Text
-                        style={[
-                          styles.dayNum,
-                          booked && { color: colors.primary, fontWeight: "800" },
-                          blocked && { color: colors.danger, textDecorationLine: "line-through" },
-                        ]}
+                        className={`text-[13px] font-semibold ${
+                          booked
+                            ? "text-primary font-extrabold"
+                            : blocked
+                              ? "text-red-500 line-through"
+                              : "text-textDark"
+                        }`}
                       >
                         {day}
                       </Text>
@@ -230,15 +228,15 @@ export function CarCalendarScreen({ car, onBack }) {
                   );
                 })}
               </View>
-              <View style={styles.legend}>
+              <View className="flex-row justify-around mt-4 pt-3 border-t border-gray-100">
                 {[
-                  { c: colors.accent, l: "Disponible" },
-                  { c: colors.primary, l: "Arrendado" },
-                  { c: colors.danger, l: "Bloqueado" },
+                  { c: "bg-accent", l: "Disponible" },
+                  { c: "bg-primary", l: "Arrendado" },
+                  { c: "bg-red-500", l: "Bloqueado" },
                 ].map((it) => (
-                  <View key={it.l} style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: it.c }]} />
-                    <Text style={styles.legendText}>{it.l}</Text>
+                  <View key={it.l} className="flex-row items-center gap-1.5">
+                    <View className={`w-2 h-2 rounded-full ${it.c}`} />
+                    <Text className="text-xs text-textMuted">{it.l}</Text>
                   </View>
                 ))}
               </View>
@@ -249,52 +247,3 @@ export function CarCalendarScreen({ car, onBack }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg, paddingBottom: theme.spacing.xxxl },
-  carChips: { gap: theme.spacing.sm, paddingRight: theme.spacing.screen },
-  monthNav: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: theme.spacing.md,
-  },
-  monthNavBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  monthNavBtnDisabled: { opacity: 0.4 },
-  month: { fontSize: 16, fontWeight: "700", color: colors.text },
-  weekRow: { flexDirection: "row", marginBottom: theme.spacing.sm },
-  weekday: { flex: 1, fontSize: 11, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
-  grid: { flexDirection: "row", flexWrap: "wrap" },
-  cellEmpty: { width: `${100 / 7}%`, height: 44 },
-  cell: {
-    width: `${100 / 7}%`,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.sm,
-  },
-  cellAvailable: { backgroundColor: colors.accent100 },
-  cellBooked: { backgroundColor: colors.primary100 },
-  cellBlocked: { backgroundColor: colors.dangerBg },
-  dayNum: { fontSize: 13, fontWeight: "600", color: colors.text },
-  legend: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendDot: { width: 7, height: 7, borderRadius: 4 },
-  legendText: { fontSize: 12, color: colors.textMuted },
-});

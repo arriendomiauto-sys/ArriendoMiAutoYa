@@ -2,14 +2,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import QRCode from "react-native-qrcode-svg";
-import { colors, theme, Button, Card, ScreenHeader, ApiClient, Icon, showAlert, msjError } from "@rentacar/mobile-shared";
+import { Button, Card, ScreenHeader, ApiClient, Icon, showAlert, msjError } from "@rentacar/mobile-shared";
 import { conectarChat } from "@rentacar/mobile-shared/api/chatSocket";
 
 // 2 minutos de validez estricta (120 segundos)
@@ -102,46 +101,46 @@ export function MyQRCodeScreen({ reservation, onBack }) {
   const codigoLegible = codigo ? (codigo.match(/.{1,4}/g)?.join(" - ") || codigo) : "";
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <ScreenHeader
         title={esDevolucion ? "Código de devolución" : "Código de entrega"}
         onBack={onBack}
       />
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        <Text style={styles.intro}>
+      <ScrollView contentContainerClassName="p-4 gap-4 pb-10" showsVerticalScrollIndicator={false}>
+        <Text className="text-sm leading-5 text-textMuted text-center">
           Muéstrale este código en persona a{" "}
-          <Text style={{ fontWeight: "700", color: colors.text }}>
+          <Text className="font-bold text-textDark">
             {auto.marca ? `quien te entrega el ${auto.marca} ${auto.modelo}` : "el dueño"}
           </Text>{" "}
           para verificar tu identidad y {esDevolucion ? "cerrar el arriendo" : "comenzar el arriendo"}.
         </Text>
 
         {/* Tarjeta Principal del QR */}
-        <View style={styles.qrCard}>
+        <View className="min-h-[260px] rounded-2xl border-[1.5px] border-teal-200 bg-white items-center justify-center p-5 gap-3 shadow-md">
           {loading && (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator color={colors.primary} size="large" />
-              <Text style={styles.loadingText}>Generando código seguro...</Text>
+            <View className="items-center gap-3 py-10">
+              <ActivityIndicator color="#0F766E" size="large" />
+              <Text className="text-sm text-textMuted font-medium">Generando código seguro...</Text>
             </View>
           )}
 
           {!loading && error && (
-            <View style={styles.errorBox}>
-              <Icon name="alert-triangle" size={32} color={colors.danger} />
-              <Text style={styles.errText}>{error}</Text>
+            <View className="items-center gap-3 py-5">
+              <Icon name="alert-triangle" size={32} color="#EF4444" />
+              <Text className="text-sm text-danger text-center max-w-[260px]">{error}</Text>
               <Button label="Reintentar" onPress={() => generar(false)} fullWidth={false} size="sm" />
             </View>
           )}
 
           {/* Estado EXPIRADO (vencieron los 2 minutos) */}
           {!loading && !error && expirado && (
-            <View style={styles.expiredBox}>
-              <View style={styles.expiredIconWrap}>
-                <Icon name="clock" size={36} color={colors.warning} />
+            <View className="items-center gap-3 py-5 w-full">
+              <View className="w-[68px] h-[68px] rounded-full bg-amber-100 items-center justify-center mb-1">
+                <Icon name="clock" size={36} color="#F59E0B" />
               </View>
-              <Text style={styles.expiredTitle}>Código expirado</Text>
-              <Text style={styles.expiredDesc}>
+              <Text className="text-lg font-bold text-textDark">Código expirado</Text>
+              <Text className="text-[13.5px] text-textMuted text-center leading-[19px] px-4 mb-2">
                 Por seguridad, el código tiene una validez de 2 minutos. Genera uno nuevo para que el dueño lo valide.
               </Text>
               <Button
@@ -157,57 +156,59 @@ export function MyQRCodeScreen({ reservation, onBack }) {
           {!loading && !error && !expirado && codigo && (
             <>
               {/* Badge de Seguridad y Contador */}
-              <View style={[styles.timerBadge, timeLeft <= 30 && styles.timerBadgeWarn]}>
-                <View style={[styles.timerDot, timeLeft <= 30 ? styles.timerDotWarn : (refreshing && styles.timerDotRefreshing)]} />
-                <Text style={[styles.timerText, timeLeft <= 30 && styles.timerTextWarn]}>
+              <View className={`flex-row items-center py-1.5 px-3.5 rounded-full border gap-2 ${timeLeft <= 30 ? "bg-amber-100 border-amber-500" : "bg-teal-50 border-teal-200"}`}>
+                <View
+                  className={`w-2 h-2 rounded-full ${
+                    timeLeft <= 30 ? "bg-red-500" : refreshing ? "bg-amber-500" : "bg-primary"
+                  }`}
+                />
+                <Text className={`text-[13px] font-bold ${timeLeft <= 30 ? "text-red-700" : "text-teal-800"}`}>
                   {refreshing ? "Actualizando..." : `Válido por ${tiempoFormateado}`}
                 </Text>
               </View>
 
               {/* Barra de Tiempo Decreciente */}
-              <View style={styles.progressBarTrack}>
+              <View className="w-[200px] h-1 rounded-sm bg-slate-200 overflow-hidden">
                 <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${pctRestante}%`,
-                      backgroundColor: timeLeft <= 30 ? colors.warning : colors.primary,
-                    },
-                  ]}
+                  className="h-full rounded-sm"
+                  style={{
+                    width: `${pctRestante}%`,
+                    backgroundColor: timeLeft <= 30 ? "#F59E0B" : "#0F766E",
+                  }}
                 />
               </View>
 
               {/* Código QR */}
-              <View style={styles.qrWrap}>
+              <View className="p-3 bg-white rounded-xl border border-border shadow-sm">
                 <QRCode
                   value={codigo}
                   size={195}
-                  color={colors.primary700}
+                  color="#0F766E"
                   backgroundColor="#FFFFFF"
                 />
               </View>
 
               {/* Código Escrito para Dictar */}
-              <View style={styles.codeContainer}>
-                <Text style={styles.codeLabel}>Código para ingresar a mano:</Text>
+              <View className="w-full items-center bg-slate-50 py-2.5 px-3 rounded-xl border border-border gap-1">
+                <Text className="text-[11.5px] text-textMuted font-medium">Código para ingresar a mano:</Text>
                 <TouchableOpacity
-                  style={styles.codeTouch}
+                  className="items-center gap-1"
                   onPress={copiarCodigo}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel="Copiar código escrito"
                 >
-                  <Text testID="text-codigo-qr" style={styles.codeText}>{codigoLegible}</Text>
-                  <View style={styles.copyRow}>
-                    <Icon name={copiado ? "check" : "copy"} size={13} color={copiado ? colors.accentDark : colors.primary} />
-                    <Text style={[styles.copyText, copiado && { color: colors.accentDark, fontWeight: "700" }]}>
+                  <Text testID="text-codigo-qr" className="text-base font-extrabold tracking-[1.5px] text-teal-900 text-center font-mono">{codigoLegible}</Text>
+                  <View className="flex-row items-center gap-1 mt-0.5">
+                    <Icon name={copiado ? "check" : "copy"} size={13} color={copiado ? "#B45309" : "#0F766E"} />
+                    <Text className={`text-[11.5px] font-medium ${copiado ? "text-amber-800 font-bold" : "text-primary"}`}>
                       {copiado ? "Copiado" : "Toca para copiar"}
                     </Text>
                   </View>
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.codeHint}>
+              <Text className="text-[11.5px] text-textMuted text-center">
                 Validez estricta de 2 minutos • Cambia dinámicamente
               </Text>
             </>
@@ -216,9 +217,9 @@ export function MyQRCodeScreen({ reservation, onBack }) {
 
         {/* Indicador de espera en vivo */}
         {!loading && !error && !expirado && codigo && (
-          <View style={styles.waitRow}>
-            <View style={styles.waitDot} />
-            <Text style={styles.waitText}>
+          <View className="flex-row items-center justify-center gap-2 px-3">
+            <View className="w-2 h-2 rounded-full bg-amber-500" />
+            <Text className="text-[12.5px] text-textMuted text-center shrink">
               {esDevolucion
                 ? "Esperando que el dueño escanee o escriba el código para cerrar..."
                 : "Esperando que el dueño escanee o escriba el código para comenzar..."}
@@ -228,10 +229,10 @@ export function MyQRCodeScreen({ reservation, onBack }) {
 
         {/* Ficha Resumen del Vehículo y Entrega */}
         {reservation && (
-          <Card padded style={{ gap: theme.spacing.md }}>
-            <View style={styles.cardHeader}>
-              <Icon name="car" size={18} color={colors.primary} />
-              <Text style={styles.cardHeaderTitle}>Detalles de la reserva</Text>
+          <Card padded style={{ gap: 12 }}>
+            <View className="flex-row items-center gap-2 pb-1 border-b border-border">
+              <Icon name="car" size={18} color="#0F766E" />
+              <Text className="text-sm font-bold text-textDark">Detalles de la reserva</Text>
             </View>
             <Row label="Vehículo" value={[auto.marca, auto.modelo, auto.anio].filter(Boolean).join(" ")} />
             <Row label="Patente" value={auto.patente || "—"} isBadge />
@@ -246,14 +247,14 @@ export function MyQRCodeScreen({ reservation, onBack }) {
 
 function Row({ label, value, isBadge }) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
+    <View className="flex-row justify-between items-center gap-3">
+      <Text className="text-[13px] text-textMuted">{label}</Text>
       {isBadge ? (
-        <View style={styles.badgePatente}>
-          <Text style={styles.badgePatenteText}>{value}</Text>
+        <View className="bg-slate-100 border border-border px-2 py-0.5 rounded-md">
+          <Text className="text-[13px] font-extrabold text-textDark tracking-widest">{value}</Text>
         </View>
       ) : (
-        <Text style={styles.rowValue} numberOfLines={2}>
+        <Text className="text-[13px] text-textDark font-semibold shrink text-right" numberOfLines={2}>
           {value}
         </Text>
       )}
@@ -261,158 +262,3 @@ function Row({ label, value, isBadge }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg, paddingBottom: 40 },
-  intro: { fontSize: 14, lineHeight: 20, color: colors.textMuted, textAlign: "center" },
-
-  qrCard: {
-    minHeight: 260,
-    borderRadius: theme.radius.card || 16,
-    borderWidth: 1.5,
-    borderColor: colors.primary200,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: theme.spacing.xl,
-    gap: theme.spacing.md,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-
-  loadingBox: { alignItems: "center", gap: 12, paddingVertical: 40 },
-  loadingText: { fontSize: 14, color: colors.textMuted, fontWeight: "500" },
-
-  errorBox: { alignItems: "center", gap: 12, paddingVertical: 20 },
-  errText: { fontSize: 14, color: colors.danger, textAlign: "center", maxWidth: 260 },
-
-  expiredBox: { alignItems: "center", gap: 12, paddingVertical: 20, width: "100%" },
-  expiredIconWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.warning100 || "#FEF3C7",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  expiredTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
-  expiredDesc: { fontSize: 13.5, color: colors.textMuted, textAlign: "center", lineHeight: 19, paddingHorizontal: 16, marginBottom: 8 },
-
-  timerBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.primary100,
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    borderRadius: theme.radius.pill || 20,
-    borderWidth: 1,
-    borderColor: colors.primary200,
-    gap: 7,
-  },
-  timerBadgeWarn: {
-    backgroundColor: colors.warning100 || "#FEF3C7",
-    borderColor: colors.warning || "#F59E0B",
-  },
-  timerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary,
-  },
-  timerDotWarn: {
-    backgroundColor: colors.danger || "#EF4444",
-  },
-  timerDotRefreshing: {
-    backgroundColor: colors.warning || "#F59E0B",
-  },
-  timerText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.primary700,
-  },
-  timerTextWarn: {
-    color: colors.danger || "#B91C1C",
-  },
-
-  progressBarTrack: {
-    width: 200,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.surfaceSecondary || "#E2E8F0",
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    borderRadius: 2,
-  },
-
-  qrWrap: {
-    padding: theme.spacing.md,
-    backgroundColor: "#FFFFFF",
-    borderRadius: theme.radius.field || 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-
-  codeContainer: {
-    width: "100%",
-    alignItems: "center",
-    backgroundColor: colors.surfaceSecondary || "#F8FAFC",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.field || 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
-  },
-  codeLabel: { fontSize: 11.5, color: colors.textMuted, fontWeight: "500" },
-  codeTouch: { alignItems: "center", gap: 4 },
-  codeText: {
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-    color: colors.primary800 || colors.primary,
-    textAlign: "center",
-    fontFamily: "monospace",
-  },
-  copyRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  copyText: { fontSize: 11.5, color: colors.primary, fontWeight: "500" },
-
-  codeHint: { fontSize: 11.5, color: colors.textMuted, textAlign: "center" },
-
-  waitRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: theme.spacing.md,
-  },
-  waitDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
-  waitText: { fontSize: 12.5, color: colors.textMuted, textAlign: "center", flexShrink: 1 },
-
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: colors.border },
-  cardHeaderTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
-
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: theme.spacing.md },
-  rowLabel: { fontSize: 13, color: colors.textMuted },
-  rowValue: { fontSize: 13, color: colors.text, fontWeight: "600", flexShrink: 1, textAlign: "right" },
-
-  badgePatente: {
-    backgroundColor: colors.surfaceSecondary || "#F1F5F9",
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  badgePatenteText: { fontSize: 13, fontWeight: "800", color: colors.text, letterSpacing: 1 },
-});
