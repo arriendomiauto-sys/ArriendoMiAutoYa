@@ -90,7 +90,10 @@ function contarFiltrosActivos(f) {
 
 // Predicado único de filtrado, compartido por la lista y por el contador de
 // resultados del modal (así "Aplicar · N autos" y lo que se ve coinciden).
-function autoCoincide(car, { q, catActiva, tarifaMax, transmision, combustible }) {
+function autoCoincide(car, { q, catActiva, tarifaMax, transmision, combustible, currentUserId }) {
+  if (currentUserId && (car.dueno_id === currentUserId || car.usuario_id === currentUserId)) {
+    return false;
+  }
   if (q) {
     const hay = `${car.marca} ${car.modelo} ${car.ubicacion_base || ""} ${car.comuna || ""}`.toLowerCase();
     if (!hay.includes(q)) return false;
@@ -189,7 +192,7 @@ function SliderPrecio({ min, max, valor, onChange }) {
   );
 }
 
-function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar, onLimpiar, orden, onCambiarOrden }) {
+function ModalFiltros({ visible, valor, cars, q, catActiva, currentUserId, onCambiar, onCerrar, onLimpiar, orden, onCambiarOrden }) {
   // Borrador local: "Aplicar" confirma de una vez, no filtro tecla a tecla.
   // El orden es distinto: se aplica al toque, no necesita confirmación.
   const [borrador, setBorrador] = useState(valor);
@@ -203,9 +206,9 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, onCambiar, onCerrar,
   const nResultados = useMemo(() => {
     const tarifaMax = borrador.tarifaMax ? parseInt(borrador.tarifaMax, 10) : null;
     return (cars || []).filter((c) =>
-      autoCoincide(c, { q, catActiva, tarifaMax, transmision: borrador.transmision, combustible: borrador.combustible })
+      autoCoincide(c, { q, catActiva, tarifaMax, transmision: borrador.transmision, combustible: borrador.combustible, currentUserId })
     ).length;
-  }, [cars, q, catActiva, borrador]);
+  }, [cars, q, catActiva, borrador, currentUserId]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCerrar}>
@@ -358,6 +361,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
   const tarifaMaxNum = filtros.tarifaMax ? parseInt(filtros.tarifaMax, 10) : null;
 
   const filteredCars = useMemo(() => {
+    const currentUserId = currentUser?.id;
     const base = (cars || []).filter((car) =>
       autoCoincide(car, {
         q,
@@ -365,10 +369,11 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
         tarifaMax: tarifaMaxNum,
         transmision: filtros.transmision,
         combustible: filtros.combustible,
+        currentUserId,
       })
     );
     return ordenarAutos(base, orden);
-  }, [cars, q, catActiva, tarifaMaxNum, filtros.transmision, filtros.combustible, orden]);
+  }, [cars, q, catActiva, tarifaMaxNum, filtros.transmision, filtros.combustible, orden, currentUser?.id]);
 
   const primerNombre = (currentUser?.nombre || "").split(" ")[0];
   const filtrosActivos = contarFiltrosActivos(filtros);
@@ -684,6 +689,7 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
         cars={cars}
         q={q}
         catActiva={catActiva}
+        currentUserId={currentUser?.id}
         orden={orden}
         onCambiarOrden={setOrden}
         onCambiar={(nuevo) => {

@@ -78,12 +78,15 @@ export function CuentaCobroModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView className="flex-1 bg-[#061E1F]/60 justify-end" behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView
+        className="flex-1 bg-[#061E1F]/60 justify-end"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <View
-          className="bg-white rounded-t-3xl p-5 gap-2 max-h-[92%]"
-          style={{ paddingBottom: Math.max(insets?.bottom || 0, 20) + 12 }}
+          className="bg-white rounded-t-3xl p-5 gap-2 max-h-[92%] flex-col"
+          style={{ paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }}
         >
-          <View className="w-10 h-1 rounded-full bg-gray-300 self-center" />
+          <View className="w-10 h-1 rounded-full bg-gray-300 self-center mb-1" />
           <View className="flex-row items-center justify-between">
             <Text className="text-lg font-extrabold text-textDark">Nueva cuenta de cobro</Text>
             <TouchableOpacity onPress={onClose} hitSlop={theme.control.hitSlop}>
@@ -93,7 +96,12 @@ export function CuentaCobroModal({
           <Text className="text-[12.5px] text-textMuted leading-[17px] mb-2">
             La cuenta de débito o vista donde recibes tus pagos. ¿Tienes CuentaRUT? Tu número de cuenta es tu RUT sin el dígito verificador.
           </Text>
-          <ScrollView style={{ maxHeight: 380 }} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={{ maxHeight: 440 }}
+            contentContainerStyle={{ paddingBottom: 16 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <View className="mb-4">
               <CampoConSugerencias
                 etiqueta="Banco"

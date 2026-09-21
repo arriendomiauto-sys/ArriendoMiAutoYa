@@ -46,22 +46,21 @@ function colorDeCategoria(categoria) {
 }
 
 export function MapExploreScreen({ onBack, onSelectCar }) {
-  const { cars } = useApp();
+  const { cars, currentUser } = useApp();
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
   const [userCoords, setUserCoords] = useState(null);
 
   // Solo los autos con coordenadas reales van al mapa.
-  //
-  // Antes, a los que no las tenían se les inventaba una posición derivada del
-  // id: el pin salía a cuadras del auto y el arrendatario llegaba a una
-  // esquina donde no había nadie. Un punto inventado es peor que ningún punto,
-  // porque parece información. Los que no tienen coordenadas se cuentan aparte
-  // y se dicen abajo, en vez de fingir que están en algún lugar.
+  // Se excluyen los autos propios del usuario si está autenticado (BUG-027 UX).
   const { puntos, sinUbicacion } = useMemo(() => {
     const conUbicacion = [];
     let sinCoords = 0;
+    const uid = currentUser?.id;
     for (const car of cars || []) {
+      if (uid && (car.dueno_id === uid || car.usuario_id === uid)) {
+        continue;
+      }
       if (typeof car.latitud === "number" && typeof car.longitud === "number") {
         conUbicacion.push({ car, coord: { latitude: car.latitud, longitude: car.longitud } });
       } else {
@@ -69,7 +68,7 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
       }
     }
     return { puntos: conUbicacion, sinUbicacion: sinCoords };
-  }, [cars]);
+  }, [cars, currentUser?.id]);
 
   const [selectedId, setSelectedId] = useState(puntos[0]?.car?.id || null);
   const selected =

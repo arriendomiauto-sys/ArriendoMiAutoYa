@@ -342,7 +342,9 @@ export function Badge({ label, variant = "neutral", style }) {
   const c = BADGE_TONES[variant] || BADGE_TONES.neutral;
   return (
     <View style={[styles.badge, { backgroundColor: c.bg }, style]}>
-      <Text style={[styles.badgeText, { color: c.fg }]}>{label}</Text>
+      <Text style={[styles.badgeText, { color: c.fg }]} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -732,6 +734,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: theme.radius.pill,
+    flexShrink: 0,
   },
   badgeText: { fontSize: 12, fontWeight: "700" },
 
