@@ -31,15 +31,17 @@ import { OwnerField } from "./OwnerField";
  */
 function StepProgress({ pasoActual, totalPasos = 2, onBack }) {
   return (
-    <View className="flex-row items-center justify-between px-4 pt-3 pb-2 bg-background">
-      <TouchableOpacity
-        onPress={onBack}
-        className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center active:opacity-70"
-        hitSlop={theme.control.hitSlop}
-      >
-        <Icon name="chevron-left" size={18} color="#0F3D3E" strokeWidth={2} />
-      </TouchableOpacity>
-      <View className="flex-row flex-1 mx-4 gap-2">
+    <View className="flex-row items-center justify-between px-4 pt-2.5 pb-2 bg-background">
+      {onBack ? (
+        <TouchableOpacity
+          onPress={onBack}
+          className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center active:opacity-70 mr-2"
+          hitSlop={theme.control.hitSlop}
+        >
+          <Icon name="chevron-left" size={18} color="#0F3D3E" strokeWidth={2} />
+        </TouchableOpacity>
+      ) : null}
+      <View className="flex-row flex-1 mx-2 gap-2">
         <View
           className={`h-1 flex-1 rounded-full ${pasoActual >= 1 ? "bg-accent-500" : "bg-gray-200"}`}
         />
@@ -47,7 +49,7 @@ function StepProgress({ pasoActual, totalPasos = 2, onBack }) {
           className={`h-1 flex-1 rounded-full ${pasoActual >= 2 ? "bg-accent-500" : "bg-gray-200"}`}
         />
       </View>
-      <Text className="text-xs font-semibold text-textMuted">
+      <Text className="text-xs font-semibold text-textMuted ml-2">
         Paso {pasoActual} de {totalPasos}
       </Text>
     </View>
@@ -392,7 +394,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
     >
       <StatusBar barStyle="light-content" />
       <OwnerAuthHero variant="compact" caption="PARA DUEÑOS" onBack={() => onNavigate("login")} />
-      <StepProgress pasoActual={1} totalPasos={2} onBack={() => onNavigate("login")} />
+      <StepProgress pasoActual={1} totalPasos={2} />
 
       <ScrollView
         className="flex-1"
@@ -590,10 +592,6 @@ export function OwnerRegisterScreen({ onNavigate }) {
             onPress={handleEnviarDatos}
             loading={loading}
           />
-
-          <View className="items-center my-0.5">
-            <Text className="text-[11px] text-textMuted font-medium">o regístrate con</Text>
-          </View>
 
           <BotonesOAuth preferredMode="owner" compact />
 
