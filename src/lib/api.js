@@ -292,6 +292,55 @@ export class ApiClient {
     });
   }
 
+  // Antecedentes: certificados oficiales del Registro Civil que esperan al ejecutivo
+  static getAntecedentesPendientes() {
+    return this.request("/admin/antecedentes/pendientes");
+  }
+
+  static revisarAntecedente(certificadoId, accion, notas) {
+    return this.request(`/admin/antecedentes/${certificadoId}/revisar`, {
+      method: "POST",
+      body: JSON.stringify({ accion, notas }),
+    });
+  }
+
+  // Resultado de la consulta manual en autoseguro.gob.cl ("sin_encargo" | "con_encargo")
+  static registrarEncargoRobo(autoId, resultado, notas) {
+    return this.request(`/admin/autos/${autoId}/encargo-robo`, {
+      method: "POST",
+      body: JSON.stringify({ resultado, notas }),
+    });
+  }
+
+  // Abre un PDF privado: el respaldo local exige sesión (Bearer), así que no sirve un enlace directo.
+  // Devuelve una URL de objeto para abrir en una pestaña nueva.
+  static async urlDeArchivoPrivado(url) {
+    if (!url) throw new Error("Este certificado ya no tiene archivo (se purgó pasado el plazo de retención).");
+    const local = url.includes("/storage/local/");
+    const headers = local && accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+    let response;
+    try {
+      // Las URLs firmadas de Supabase no llevan credenciales (su CORS es comodín y las rechazaría).
+      response = await fetch(url, { headers, credentials: local ? "include" : "omit" });
+    } catch {
+      throw new Error("No se pudo descargar el documento.");
+    }
+    if (!response.ok) throw new Error(`No se pudo abrir el documento (${response.status}).`);
+    return URL.createObjectURL(await response.blob());
+  }
+
+  // Segundo conductor: documentos e imágenes que antes no llegaban al panel
+  static getConductoresPendientes() {
+    return this.request("/admin/conductores/pendientes");
+  }
+
+  static revisarConductor(conductorId, accion, notas) {
+    return this.request(`/admin/conductores/${conductorId}/revisar`, {
+      method: "POST",
+      body: JSON.stringify({ accion, notas }),
+    });
+  }
+
   // Flota
   static getFlota() {
     return this.request("/admin/flota-sucursal");
@@ -364,6 +413,14 @@ export class ApiClient {
 
   static marcarLiquidacionPagada(liquidacionId) {
     return this.request(`/admin/liquidaciones/${liquidacionId}/pagar`, { method: "POST" });
+  }
+
+  static ejecutarLiquidaciones() {
+    return this.request("/admin/liquidaciones/ejecutar", { method: "POST" });
+  }
+
+  static getMultasDuenos(params = {}) {
+    return this.request(`/admin/multas-duenos${this._qs(params) ? `?${this._qs(params)}` : ""}`);
   }
 
   static getPagos(params = {}) {

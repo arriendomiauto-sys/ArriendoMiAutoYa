@@ -3,15 +3,33 @@ import { Search, FileText, Calendar, MessageSquare } from "lucide-react";
 import Shell from "../components/Shell";
 import { PageIntro, Chip, Segmented, StateMsg, EmptyState, Drawer, formatoCLP } from "../components/ui";
 import { ApiClient } from "../lib/api";
+import ArchivoPrivado, { abrirArchivo } from "../components/ArchivoPrivado";
 import { fecha } from "../lib/format";
 
 const FILTROS = [
   { value: "todas", label: "Todas" },
   { value: "en_curso", label: "En curso" },
   { value: "pendiente_pago", label: "Pendiente pago" },
+  { value: "pendiente", label: "Esperando dueño" },
   { value: "disputada", label: "En disputa" },
   { value: "finalizada", label: "Finalizada" },
+  { value: "cancelada", label: "Cancelada" },
 ];
+
+// En una reserva "pendiente" = pagada, esperando que el dueño confirme (en usuarios significa otra cosa).
+const estadoDeReserva = (r) => (r.estado === "pendiente" ? "esperando_dueno" : r.estado);
+const MOTIVO_CANCELACION = {
+  dueno_no_confirmo: "El dueño no confirmó a tiempo (se devolvió todo al arrendatario)",
+  no_presentacion: "El arrendatario no se presentó (multa a favor del dueño)",
+  dueno_no_presentacion: "El dueño no se presentó (se devolvió todo al arrendatario; la multa queda como deuda del dueño)",
+  ninguno_se_presento: "No se presentó ninguno de los dos (se devolvió todo, sin multas)",
+  dueno_cancelo_tarde: "El dueño canceló con poca anticipación (se devolvió todo; la multa queda como deuda del dueño)",
+};
+const MULTA_POR_AUSENCIA = {
+  cancelacion_tardia_dueno: "Multa por cancelación tardía del dueño (deuda pendiente)",
+  no_presentacion: "Multa por no presentación del arrendatario (a favor del dueño)",
+  no_presentacion_dueno: "Multa por no presentación del dueño (deuda pendiente)",
+};
 
 // GET /admin/reservas filtra con estado/q y pagina con limit/cursor. Tanto la
 // búsqueda como el filtro de estado van server-side.
@@ -164,7 +182,7 @@ export default function Reservas() {
                     <td>{r.cliente?.nombre || r.cliente_nombre || "—"}</td>
                     <td style={{ color: "var(--muted)" }}>{r.dueno?.nombre || r.dueno_nombre || "—"}</td>
                     <td style={{ color: "var(--muted)", fontSize: 12 }}>{fecha(r.fecha_inicio)} → {fecha(r.fecha_fin)}</td>
-                    <td><Chip estado={r.estado} /></td>
+                    <td><Chip estado={estadoDeReserva(r)} /></td>
                     <td className="num tnum">{r.monto_cobro ? formatoCLP(r.monto_cobro) : "—"}</td>
                     <td className="num tnum" style={{ color: "var(--muted)" }}>{r.monto_hold ? formatoCLP(r.monto_hold) : "—"}</td>
                     <td><button className="row-link" onClick={() => setSel(r)}>Ver detalle</button></td>
@@ -236,9 +254,23 @@ function DetalleReserva({ r }) {
     <>
       <h4>Estado</h4>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Chip estado={r.estado} />
+        <Chip estado={estadoDeReserva(r)} />
         <span className="chip neutral">{fecha(r.fecha_inicio)} → {fecha(r.fecha_fin)}</span>
       </div>
+      {r.estado === "pendiente" && r.confirmar_dueno_antes_de ? (
+        <div className="hint" style={{ marginTop: 6 }}>El dueño debe confirmar antes del {fecha(r.confirmar_dueno_antes_de)}; si no, se cancela y se devuelve todo.</div>
+      ) : null}
+      {r.estado === "cancelada" && MOTIVO_CANCELACION[r.motivo_cancelacion] ? (
+        <div className="hint" style={{ marginTop: 6 }}>{MOTIVO_CANCELACION[r.motivo_cancelacion]}</div>
+      ) : null}
+      {(r.llegada_cliente_en || r.llegada_dueno_en) ? (
+        <div className="hint" style={{ marginTop: 6 }}>
+          Avisos de llegada — arrendatario: {r.llegada_cliente_en ? fecha(r.llegada_cliente_en) : "no avisó"} · dueño: {r.llegada_dueno_en ? fecha(r.llegada_dueno_en) : "no avisó"}
+        </div>
+      ) : null}
+      {(r.multas_detalle || []).filter((m) => MULTA_POR_AUSENCIA[m.tipo]).map((m, i) => (
+        <div key={i} className="money-row"><span style={{ color: "var(--danger)" }}>{MULTA_POR_AUSENCIA[m.tipo]}</span><span className="m" style={{ color: "var(--danger)" }}>{formatoCLP(m.monto_clp)}</span></div>
+      ))}
 
       <h4>Partes</h4>
       <dl className="dl">
@@ -265,6 +297,23 @@ function DetalleReserva({ r }) {
         {r.checklist_entrega ? <div className="tl-item"><b>Checklist de entrega</b><span>{r.checklist_entrega.kilometraje} km · {r.checklist_entrega.nivel_combustible}</span></div> : null}
         {r.checklist_devolucion ? <div className="tl-item"><b>Checklist de devolución</b><span>{r.checklist_devolucion.kilometraje} km · {r.checklist_devolucion.estado_limpieza}</span></div> : null}
       </div>
+
+      {[["Fotos de la entrega", r.checklist_entrega], ["Fotos de la devolución", r.checklist_devolucion]].map(([titulo, ch]) => (
+        ch && (ch.fotos?.length || ch.selfie_entrega_url) ? (
+          <div key={titulo}>
+            <h4>{titulo} ({(ch.fotos?.length || 0) + (ch.selfie_entrega_url ? 1 : 0)})</h4>
+            {ch.notas ? <div className="hint" style={{ marginBottom: 6 }}>{ch.notas}</div> : null}
+            <div className="doc-grid">
+              {[...(ch.selfie_entrega_url ? [ch.selfie_entrega_url] : []), ...(ch.fotos || [])].map((u, i) => (
+                <button type="button" className="doc-thumb" key={i} onClick={() => abrirArchivo(u).catch(() => {})}>
+                  <ArchivoPrivado url={u} alt={`${titulo} ${i + 1}`} />
+                  <span className="tag">{ch.selfie_entrega_url && i === 0 ? "Selfie" : `Foto ${i + (ch.selfie_entrega_url ? 0 : 1)}`}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null
+      ))}
     </>
   );
 }

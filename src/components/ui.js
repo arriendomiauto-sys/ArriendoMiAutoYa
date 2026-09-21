@@ -38,7 +38,7 @@ const CHIP = {
   rechazado: ["danger", "Rechazado"], pendiente: ["neutral", "Pendiente"],
   verificada: ["ok", "Licencia OK"], revision: ["warn", "En revisión"], rechazada: ["danger", "Rechazada"],
   en_curso: ["info", "En curso"], finalizada: ["neutral", "Finalizada"], confirmada: ["ok", "Confirmada"],
-  pendiente_pago: ["warn", "Pendiente de pago"], disputada: ["danger", "En disputa"], cancelada: ["neutral", "Cancelada"],
+  pendiente_pago: ["warn", "Pendiente de pago"], esperando_dueno: ["warn", "Esperando al dueño"], disputada: ["danger", "En disputa"], cancelada: ["neutral", "Cancelada"],
   activo: ["ok", "Activo"], pausado: ["neutral", "Pausado"], pendiente_docs: ["warn", "Doc. pendiente"],
   aprobado: ["ok", "Docs OK"],
   abierta: ["warn", "Abierta"], resuelta: ["ok", "Resuelta"], en_revision: ["warn", "En revisión"],

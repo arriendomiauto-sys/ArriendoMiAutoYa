@@ -3,6 +3,7 @@ import { Gavel, Eye } from "lucide-react";
 import Shell from "../components/Shell";
 import { PageIntro, Chip, Segmented, StateMsg, EmptyState, Drawer, useAsync, formatoCLP } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
+import ArchivoPrivado, { abrirArchivo } from "../components/ArchivoPrivado";
 import { ApiClient } from "../lib/api";
 import { fecha } from "../lib/format";
 
@@ -162,10 +163,10 @@ function Resolver({ d, onDone }) {
           <h4>Evidencia ({fotos.length})</h4>
           <div className="doc-grid">
             {fotos.map((u, i) => (
-              <a className="doc-thumb" key={i} href={u} target="_blank" rel="noreferrer">
-                <img src={u} alt={`Evidencia ${i + 1}`} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+              <button type="button" className="doc-thumb" key={i} onClick={() => abrirArchivo(u).catch(() => {})}>
+                <ArchivoPrivado url={u} alt={`Evidencia ${i + 1}`} />
                 <span className="tag">Foto {i + 1}</span>
-              </a>
+              </button>
             ))}
           </div>
         </>
@@ -221,6 +222,13 @@ function Resolver({ d, onDone }) {
         <select className="input" style={{ width: "100%" }} value={accion} onChange={(e) => setAccion(e.target.value)} disabled={!esAdmin}>
           {ACCIONES_PAGO.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
         </select>
+        <div style={{ marginTop: 6, padding: "8px 10px", background: "var(--surface-2)", borderRadius: 6, fontSize: 11.5, color: "var(--muted)", borderLeft: "3px solid var(--primary)" }}>
+          {accion === "reembolso_total" && "• Reembolso total: Se devuelve el 100% del arriendo al arrendatario vía Mercado Pago, se libera el 100% del hold de garantía y se anula la liquidación al dueño."}
+          {accion === "cobro_cliente" && "• Cobro cliente: Se capturan los cargos/daños pendientes de la garantía para transferir al dueño y se libera el remanente al arrendatario."}
+          {accion === "division_deducible_50_50" && "• División 50/50: Se captura el 50% de la garantía/deducible para el dueño y se libera el otro 50% al arrendatario."}
+          {accion === "cargo_limpieza_dueno" && "• Cargo limpieza: Se captura solo el cargo de limpieza de la garantía para el dueño y se libera el resto al arrendatario."}
+          {accion === "sin_cobro" && "• Sin cobro: No procede cobro de daños ni extras; la garantía se libera íntegramente al arrendatario."}
+        </div>
       </div>
       <div className="field">
         <label>Fundamento (queda en el registro legal)</label>

@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Maximize2
 } from "lucide-react";
+import ArchivoPrivado, { abrirArchivo, esPdf } from "./ArchivoPrivado";
 
 const MOTIVOS_RECHAZO_COMUNES = [
   "Foto borrosa / no legible",
@@ -32,14 +33,16 @@ const MOTIVOS_RECHAZO_COMUNES = [
 export default function DocumentViewerModal({
   open,
   onOpenChange,
-  tipo = "usuario", // "usuario" | "auto"
+  tipo = "usuario", // "usuario" | "auto" | "conductor"
   item, // usuario o auto seleccionado
   onAprobar,
   onRechazar,
   procesando = false,
   esAdmin = true,
+  onEncargo, // (autoId, resultado) => void — consulta de AutoSeguro (solo autos)
 }) {
   const [documentos, setDocumentos] = useState([]);
+  const [faltantes, setFaltantes] = useState([]);
   const [docActualIndex, setDocActualIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [rotacion, setRotacion] = useState(0);
@@ -51,137 +54,66 @@ export default function DocumentViewerModal({
   useEffect(() => {
     if (!item) {
       setDocumentos([]);
+      setFaltantes([]);
       return;
     }
 
     const docs = [];
+    const agregar = (id, titulo, categoria, url, estado) => {
+      if (url) docs.push({ id, titulo, categoria, url, estado });
+    };
+    // Lo que se espera encontrar y no llegó: el admin distingue "no lo subieron" de "no se ve".
+    const faltan = [];
+    const exigir = (etiqueta, url) => {
+      if (!url) faltan.push(etiqueta);
+    };
 
     if (tipo === "usuario") {
-      // Cédula / Identidad
       const fotoUrl = item.foto_perfil_verificada_url || item.foto_perfil_url;
-      if (fotoUrl) {
-        docs.push({
-          id: "selfie",
-          titulo: item.foto_perfil_verificada_url ? "Selfie Biométrica / Perfil" : "Foto de Perfil",
-          categoria: "Identidad",
-          url: fotoUrl,
-          estado: item.foto_perfil_verificada_url ? "verificado" : "pendiente",
-        });
-      }
-      if (item.carnet_frontal_url) {
-        docs.push({
-          id: "carnet_frontal",
-          titulo: "Cédula / Documento (Frente)",
-          categoria: "Identidad",
-          url: item.carnet_frontal_url,
-          estado: item.estado_documentos,
-        });
-      }
-      if (item.carnet_trasero_url) {
-        docs.push({
-          id: "carnet_trasero",
-          titulo: "Cédula / Documento (Reverso)",
-          categoria: "Identidad",
-          url: item.carnet_trasero_url,
-          estado: item.estado_documentos,
-        });
-      }
-
-      // Licencia de Conducir
-      if (item.licencia_url) {
-        docs.push({
-          id: "licencia",
-          titulo: "Licencia de Conducir",
-          categoria: "Licencia",
-          url: item.licencia_url,
-          estado: item.licencia_estado || "pendiente",
-        });
-      }
-      if (item.pic_url) {
-        docs.push({
-          id: "pic",
-          titulo: "Permiso Internacional (PIC)",
-          categoria: "Licencia",
-          url: item.pic_url,
-          estado: item.licencia_estado || "pendiente",
-        });
-      }
-
-      // Si no tiene URLs específicas pero tiene notas o registro
-      if (docs.length === 0) {
-        docs.push({
-          id: "sin_doc",
-          titulo: "Documento en Proceso",
-          categoria: "General",
-          url: null,
-          placeholder: "Documentos cargados desde la app móvil en revisión OCR.",
-        });
-      }
+      agregar("selfie", item.foto_perfil_verificada_url ? "Selfie Biométrica / Perfil" : "Foto de Perfil", "Identidad", fotoUrl,
+        item.foto_perfil_verificada_url ? "verificado" : "pendiente");
+      agregar("carnet_frontal", "Cédula / Documento (Frente)", "Identidad", item.carnet_frontal_url, item.estado_documentos);
+      agregar("carnet_trasero", "Cédula / Documento (Reverso)", "Identidad", item.carnet_trasero_url, item.estado_documentos);
+      agregar("licencia", "Licencia de Conducir", "Licencia", item.licencia_url, item.licencia_estado || "pendiente");
+      agregar("pic", "Permiso Internacional (PIC)", "Licencia", item.pic_url, item.licencia_estado || "pendiente");
+      exigir("Cédula (frente)", item.carnet_frontal_url);
+      if ((item.tipo_documento || "rut") === "rut") exigir("Cédula (reverso)", item.carnet_trasero_url);
+      exigir("Licencia de conducir", item.licencia_url);
+    } else if (tipo === "conductor") {
+      agregar("selfie", "Selfie del conductor", "Identidad", item.selfie_url, item.estado_kyc);
+      agregar("carnet_frontal", "Cédula / Documento (Frente)", "Identidad", item.carnet_frontal_url, item.estado_kyc);
+      agregar("carnet_trasero", "Cédula / Documento (Reverso)", "Identidad", item.carnet_trasero_url, item.estado_kyc);
+      agregar("licencia", "Licencia de Conducir", "Licencia", item.licencia_url, item.estado_kyc);
+      agregar("pic", "Permiso Internacional (PIC)", "Licencia", item.pic_url, item.estado_kyc);
+      exigir("Selfie", item.selfie_url);
+      exigir("Cédula (frente)", item.carnet_frontal_url);
+      exigir("Licencia de conducir", item.licencia_url);
     } else if (tipo === "auto") {
-      // Documentación del Auto
-      if (item.doc_inscripcion_url) {
-        docs.push({
-          id: "padron",
-          titulo: "Certificado de Inscripción (Padrón)",
-          categoria: "Vehículo",
-          url: item.doc_inscripcion_url,
-        });
-      }
-      if (item.doc_permiso_circulacion_url) {
-        docs.push({
-          id: "permiso",
-          titulo: "Permiso de Circulación",
-          categoria: "Vehículo",
-          url: item.doc_permiso_circulacion_url,
-        });
-      }
-      if (item.doc_soap_url) {
-        docs.push({
-          id: "soap",
-          titulo: "Seguro Obligatorio (SOAP)",
-          categoria: "Vehículo",
-          url: item.doc_soap_url,
-        });
-      }
-      if (item.doc_revision_tecnica_url) {
-        docs.push({
-          id: "rev_tecnica",
-          titulo: "Revisión Técnica",
-          categoria: "Vehículo",
-          url: item.doc_revision_tecnica_url,
-        });
-      }
-      if (item.doc_seguro_url) {
-        docs.push({
-          id: "seguro_comercial",
-          titulo: "Póliza de Seguro",
-          categoria: "Vehículo",
-          url: item.doc_seguro_url,
-        });
-      }
-
-      // Fotos del Vehículo
-      if (Array.isArray(item.fotos)) {
-        item.fotos.forEach((fotoUrl, idx) => {
-          docs.push({
-            id: `foto_auto_${idx}`,
-            titulo: `Foto del Vehículo #${idx + 1}`,
-            categoria: "Inspección Auto",
-            url: fotoUrl,
-          });
-        });
-      }
-
-      if (docs.length === 0) {
-        docs.push({
-          id: "sin_doc_auto",
-          titulo: "Documentos del Vehículo",
-          categoria: "Vehículo",
-          url: null,
-          placeholder: "No se adjuntaron fotos directas o están en almacenamiento privado.",
-        });
-      }
+      agregar("padron", "Certificado de Inscripción (Padrón)", "Vehículo", item.doc_inscripcion_url);
+      agregar("permiso", "Permiso de Circulación", "Vehículo", item.doc_permiso_circulacion_url);
+      agregar("soap", "Seguro Obligatorio (SOAP)", "Vehículo", item.doc_soap_url);
+      agregar("rev_tecnica", "Revisión Técnica", "Vehículo", item.doc_revision_tecnica_url);
+      agregar("gases", "Certificado de Gases", "Vehículo", item.doc_certificado_gases_url);
+      agregar("historial", "Historial Vehicular", "Vehículo", item.doc_historial_vehicular_url);
+      agregar("seguro_comercial", "Póliza de Seguro", "Vehículo", item.doc_seguro_url);
+      agregar("anotaciones", "Certificado de Anotaciones Vigentes", "Vehículo", item.doc_anotaciones_vigentes_url);
+      exigir("Permiso de circulación", item.doc_permiso_circulacion_url);
+      exigir("SOAP", item.doc_soap_url);
+      exigir("Revisión técnica", item.doc_revision_tecnica_url);
+      exigir("Certificado de gases", item.doc_certificado_gases_url);
+      exigir("Certificado de anotaciones vigentes", item.doc_anotaciones_vigentes_url);
+      (Array.isArray(item.fotos) ? item.fotos : []).forEach((fotoUrl, idx) => {
+        agregar(`foto_auto_${idx}`, `Foto del Vehículo #${idx + 1}`, "Inspección Auto", fotoUrl);
+      });
     }
+
+    if (docs.length === 0) {
+      docs.push({
+        id: "sin_doc", titulo: "Sin documentos", categoria: "General", url: null,
+        placeholder: "Todavía no se adjuntó ningún documento. Pídeselo al usuario desde la app.",
+      });
+    }
+    setFaltantes(faltan);
 
     setDocumentos(docs);
     setDocActualIndex(0);
@@ -243,11 +175,15 @@ export default function DocumentViewerModal({
                 <Dialog.Title className="text-base font-bold text-white flex items-center gap-2">
                   {tipo === "usuario"
                     ? `Revisión de Identidad & KYC: ${item.nombre || item.email || "Usuario"}`
+                    : tipo === "conductor"
+                    ? `Revisión de segundo conductor: ${item.nombre || "Conductor"}`
                     : `Inspección de Vehículo: ${item.marca} ${item.modelo} (${item.patente})`}
                 </Dialog.Title>
                 <p className="text-xs text-slate-400">
                   {tipo === "usuario"
                     ? `RUT / Documento: ${item.rut || item.numero_documento || "No informado"} · Teléfono: ${item.telefono || "No informado"}`
+                    : tipo === "conductor"
+                    ? `RUT: ${item.rut || item.numero_documento || "No informado"} · Titular: ${item.titular_nombre || "—"} · ${item.patente || ""}`
                     : `Dueño: ${item.dueno_nombre || "No informado"} · RUT: ${item.dueno_rut || "—"}`}
                 </p>
               </div>
@@ -306,15 +242,13 @@ export default function DocumentViewerModal({
                     <RotateCw size={15} />
                   </button>
                   {docActual?.url && (
-                    <a
-                      href={docActual.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => abrirArchivo(docActual.url).catch(() => {})}
                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition ml-1"
-                      title="Abrir imagen original"
+                      title="Abrir archivo original"
                     >
                       <ExternalLink size={15} />
-                    </a>
+                    </button>
                   )}
                 </div>
               </div>
@@ -328,10 +262,12 @@ export default function DocumentViewerModal({
                       transform: `scale(${zoom}) rotate(${rotacion}deg)`,
                     }}
                   >
-                    <img
-                      src={docActual.url}
+                    <ArchivoPrivado
+                      key={docActual.url}
+                      url={docActual.url}
                       alt={docActual.titulo}
                       className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-2xl border border-slate-700/50"
+                      style={esPdf(docActual.url) ? { minWidth: 260, minHeight: 160, color: "#cbd5e1" } : { minWidth: 220, minHeight: 160, color: "#cbd5e1" }}
                     />
                   </div>
                 ) : (
@@ -385,7 +321,7 @@ export default function DocumentViewerModal({
                   >
                     <div className="w-6 h-6 rounded-md bg-slate-800 flex items-center justify-center text-slate-300 overflow-hidden">
                       {doc.url ? (
-                        <img src={doc.url} alt="" className="w-full h-full object-cover" />
+                        <ArchivoPrivado url={doc.url} alt="" miniatura className="w-full h-full object-cover" />
                       ) : (
                         <FileText size={12} />
                       )}
@@ -417,27 +353,41 @@ export default function DocumentViewerModal({
                 </div>
 
                 <div className="text-xs space-y-1.5 text-slate-300">
-                  {tipo === "usuario" ? (
+                  {tipo === "usuario" || tipo === "conductor" ? (
                     <>
                       <div className="flex justify-between py-1 border-b border-slate-800">
                         <span className="text-slate-500">Estado Identidad:</span>
-                        <span className="font-semibold capitalize text-teal-400">{item.estado_documentos}</span>
+                        <span className="font-semibold capitalize text-teal-400">{item.estado_documentos || item.estado_kyc}</span>
                       </div>
-                      <div className="flex justify-between py-1 border-b border-slate-800">
-                        <span className="text-slate-500">Estado Licencia:</span>
-                        <span className="font-semibold capitalize text-slate-200">{item.licencia_estado || "No registrada"}</span>
-                      </div>
+                      {tipo === "usuario" ? (
+                        <div className="flex justify-between py-1 border-b border-slate-800">
+                          <span className="text-slate-500">Estado Licencia:</span>
+                          <span className="font-semibold capitalize text-slate-200">{item.licencia_estado || "No registrada"}</span>
+                        </div>
+                      ) : null}
                       <div className="flex justify-between py-1 border-b border-slate-800">
                         <span className="text-slate-500">Clase Licencia:</span>
-                        <span className="font-semibold text-slate-200">{item.licencia_clase || "Clase B"}</span>
+                        <span className="font-semibold text-slate-200">{item.licencia_clase || "—"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800">
+                        <span className="text-slate-500">N° Licencia:</span>
+                        <span className="font-semibold text-slate-200">{item.licencia_numero || "—"}</span>
                       </div>
                       <div className="flex justify-between py-1 border-b border-slate-800">
                         <span className="text-slate-500">Vencimiento Licencia:</span>
                         <span className="font-semibold text-slate-200">
-                          {item.licencia_vencimiento
-                            ? new Date(item.licencia_vencimiento).toLocaleDateString("es-CL")
-                            : "—"}
+                          {item.licencia_vencimiento ? new Date(item.licencia_vencimiento).toLocaleDateString("es-CL") : "—"}
                         </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800">
+                        <span className="text-slate-500">Nacimiento:</span>
+                        <span className="font-semibold text-slate-200">
+                          {item.fecha_nacimiento ? new Date(item.fecha_nacimiento).toLocaleDateString("es-CL") : "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800">
+                        <span className="text-slate-500">Antecedentes:</span>
+                        <span className="font-semibold capitalize text-slate-200">{item.antecedentes_estado || "Pendiente"}</span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-slate-500">Tipo Doc:</span>
@@ -460,6 +410,18 @@ export default function DocumentViewerModal({
                           {item.documentos_verificados ? "Verificados" : "Pendiente de Aprobación"}
                         </span>
                       </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800">
+                        <span className="text-slate-500">Anotaciones aprobadas:</span>
+                        <span className="font-semibold text-slate-200">
+                          {item.anotaciones_aprobadas_en ? new Date(item.anotaciones_aprobadas_en).toLocaleDateString("es-CL") : "No"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-800">
+                        <span className="text-slate-500">Encargo por robo:</span>
+                        <span className={`font-semibold ${item.encargo_robo_estado === "sin_encargo" ? "text-emerald-400" : item.encargo_robo_estado === "con_encargo" ? "text-red-400" : "text-amber-400"}`}>
+                          {{ sin_encargo: "Sin encargo", con_encargo: "CON ENCARGO" }[item.encargo_robo_estado] || "Sin consultar"}
+                        </span>
+                      </div>
                       <div className="flex justify-between py-1">
                         <span className="text-slate-500">Ubicación Base:</span>
                         <span className="font-semibold text-slate-200">{item.ubicacion_base}</span>
@@ -467,6 +429,32 @@ export default function DocumentViewerModal({
                     </>
                   )}
                 </div>
+
+                {faltantes.length > 0 && (
+                  <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-[11px] text-red-300">
+                    <span className="font-bold block mb-0.5">No llegaron estos documentos:</span>
+                    {faltantes.join(" · ")}
+                  </div>
+                )}
+
+                {tipo === "auto" && esAdmin && onEncargo ? (
+                  <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-300 space-y-2">
+                    <span className="font-bold text-slate-200 block">Consulta en AutoSeguro (encargo por robo)</span>
+                    <a href="https://www.autoseguro.gob.cl/" target="_blank" rel="noopener noreferrer" className="text-teal-300 underline">
+                      Abrir autoseguro.gob.cl e ingresar {item.patente}
+                    </a>
+                    <div className="flex gap-2">
+                      <button type="button" disabled={procesando} onClick={() => onEncargo(item.id, "sin_encargo")}
+                        className="flex-1 px-2 py-1.5 rounded-lg bg-emerald-600/30 border border-emerald-500/50 text-emerald-100 font-semibold disabled:opacity-50">
+                        Sin encargo
+                      </button>
+                      <button type="button" disabled={procesando} onClick={() => onEncargo(item.id, "con_encargo")}
+                        className="flex-1 px-2 py-1.5 rounded-lg bg-red-600/30 border border-red-500/50 text-red-100 font-semibold disabled:opacity-50">
+                        Con encargo
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
 
                 {item.notas_auditoria && (
                   <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400">

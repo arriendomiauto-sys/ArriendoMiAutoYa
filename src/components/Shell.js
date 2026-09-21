@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import {
   LayoutDashboard, Calendar, Users, Car, ShieldCheck, Gavel, LifeBuoy,
-  Wallet, Settings, LogOut, ChevronRight, Search, KeyRound, Sun, Moon,
+  Wallet, Settings, LogOut, ChevronRight, Search, Sun, Moon,
 } from "lucide-react";
 import RequireAuth from "./RequireAuth";
 import { useAuth } from "../context/AuthContext";
@@ -66,7 +66,7 @@ export default function Shell({ title, crumb = "Consola", counts = {}, actions, 
       <div className="app">
         <aside className="side">
           <div className="side-brand">
-            <span className="logo"><KeyRound size={17} /></span>
+            <img src="/logo.png" alt="RentACar" className="side-logo-img" />
             <div>
               <b>RentACar</b>
               <span>Consola de operaciones</span>

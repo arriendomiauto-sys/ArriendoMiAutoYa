@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { KeyRound } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
@@ -34,7 +33,7 @@ export default function Login() {
   return (
     <div className="login">
       <form className="login-card" onSubmit={handleSubmit}>
-        <div className="logo"><KeyRound size={22} /></div>
+        <img src="/logo.png" alt="RentACar" className="login-logo-img" />
         <h1>Consola RentACar</h1>
         <p className="lead">Ingreso del equipo de operaciones.</p>
 
