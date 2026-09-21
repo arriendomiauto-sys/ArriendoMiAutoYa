@@ -11,6 +11,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
+from app.features.system.storage.service import StorageService
 from app.models.entities import Auto, ChecklistAuto, Reserva, Usuario
 from app.features.operations.admin._guards import exigir_admin_o_manager
 
@@ -22,18 +23,27 @@ _ESTADOS = {
 }
 
 
-def _checklist(reserva: Reserva, tipo: str) -> Optional[Dict[str, Any]]:
+def _checklist(reserva: Reserva, tipo: str, con_fotos: bool = False) -> Optional[Dict[str, Any]]:
     ch = next((c for c in (reserva.checklists or []) if c.tipo == tipo), None)
     if not ch:
         return None
-    return {
+    datos = {
         "kilometraje": ch.kilometraje,
         "nivel_combustible": ch.nivel_combustible,
         "estado_limpieza": ch.estado_limpieza,
+        "n_fotos": len(ch.fotos or []),
     }
+    if con_fotos:
+        # Solo en el detalle: son la evidencia de una disputa, pero pesan demasiado para el listado.
+        datos.update({
+            "fotos": list(ch.fotos or []),
+            "notas": ch.notas,
+            "selfie_entrega_url": ch.selfie_entrega_url,
+        })
+    return datos
 
 
-def _serializar(reserva: Reserva) -> Dict[str, Any]:
+def _serializar(reserva: Reserva, con_fotos: bool = False) -> Dict[str, Any]:
     auto = reserva.auto
     dueno = auto.dueno if auto else None
     return {
@@ -53,6 +63,12 @@ def _serializar(reserva: Reserva) -> Dict[str, Any]:
         "cargo_atraso_clp": reserva.cargo_atraso_clp or 0,
         "cargos_adicionales_clp": reserva.cargos_adicionales_clp or 0,
         "cargo_falta_grave_clp": reserva.cargo_falta_grave_clp or 0,
+        # Política de confirmación del dueño y no presentación (confirmacion_service).
+        "confirmar_dueno_antes_de": reserva.confirmar_dueno_antes_de,
+        "motivo_cancelacion": reserva.motivo_cancelacion,
+        "llegada_cliente_en": reserva.llegada_cliente_en,
+        "llegada_dueno_en": reserva.llegada_dueno_en,
+        "multas_detalle": list(reserva.multas_detalle or []),
         "auto": {
             "id": auto.id, "marca": auto.marca, "modelo": auto.modelo,
             "anio": auto.anio, "patente": auto.patente,
@@ -65,8 +81,8 @@ def _serializar(reserva: Reserva) -> Dict[str, Any]:
             {"rol": f.rol, "metodo": f.metodo, "firmado_en": f.firmado_en}
             for f in (reserva.firmas or [])
         ],
-        "checklist_entrega": _checklist(reserva, "antes"),
-        "checklist_devolucion": _checklist(reserva, "despues"),
+        "checklist_entrega": _checklist(reserva, "antes", con_fotos),
+        "checklist_devolucion": _checklist(reserva, "despues", con_fotos),
     }
 
 
@@ -140,4 +156,12 @@ def obtener_reserva_admin(
     reserva = _base_query(db, usuario).filter(Reserva.id == reserva_id).first()
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
-    return _serializar(reserva)
+
+    # Las fotos del checklist están en un bucket privado con URL firmada que caduca a los 7 días.
+    cambio = False
+    for ch in reserva.checklists or []:
+        ch.fotos, cambio_fotos = StorageService.renovar_lista_urls(ch.fotos or [])
+        cambio = StorageService.renovar_url_campos(ch, ("selfie_entrega_url",)) or cambio_fotos or cambio
+    if cambio:
+        db.commit()
+    return _serializar(reserva, con_fotos=True)

@@ -28,7 +28,7 @@ class PricingService:
         # Fallback con valores por defecto
         class DefaultConfig:
             valor_uf_clp = settings.VALOR_UF_CLP
-            comision_plataforma_pct = settings.COMISION_PLATAFORMA_PORCENTAJE * 100 # 20.0
+            comision_plataforma_pct = settings.COMISION_PLATAFORMA_PORCENTAJE * 100 # 15.0
             hold_enrolamiento_clp = settings.HOLD_ENROLAMIENTO_CLP
             cargo_limpieza_estandar_clp = 15000
             cargo_limpieza_profunda_clp = 35000
@@ -153,8 +153,8 @@ class PricingService:
         """
         Calcula el cobro final integral:
         - Subtotal arriendo base: dias * tarifa_dia.
-        - Comisión plataforma: 20% sobre arriendo base.
-        - Base dueño: 80% del arriendo base.
+        - Comisión plataforma: 15% sobre arriendo base (configurable).
+        - Base dueño: 85% del arriendo base.
         - Cargos adicionales (100% abonados al dueño): limpieza, combustible faltante, km extra, atraso.
         """
         cfg = PricingService.obtener_configuracion(db)

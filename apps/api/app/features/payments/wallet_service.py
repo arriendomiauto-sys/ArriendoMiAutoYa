@@ -23,7 +23,7 @@ RECHAZADA = "rechazada"
 
 # Estados de reserva en los que una tarjeta asociada NO se puede borrar: está
 # respaldando un arriendo vivo (cobro hecho y/o garantía retenida).
-_RESERVA_VIVA = ("pendiente_pago", "confirmada", "en_curso", "disputada")
+_RESERVA_VIVA = ("pendiente_pago", "pendiente", "confirmada", "en_curso", "disputada")
 
 
 class WalletError(Exception):

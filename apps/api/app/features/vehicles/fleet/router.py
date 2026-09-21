@@ -120,7 +120,7 @@ def crear_bloqueo(
 
     dia_reservado = db.query(Reserva).filter(
         Reserva.auto_id == auto_id,
-        Reserva.estado.in_(["confirmada", "en_curso"]),
+        Reserva.estado.in_(["pendiente", "confirmada", "en_curso"]),
         Reserva.fecha_inicio <= payload.fecha,
         Reserva.fecha_fin > payload.fecha,
     ).first()

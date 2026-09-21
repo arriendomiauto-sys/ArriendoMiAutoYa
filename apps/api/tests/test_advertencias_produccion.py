@@ -1,14 +1,15 @@
 """
-Sin CHAPI_API_KEY (o fuera de producción) la verificación de antecedentes
-corre en modo simulado y siempre da "limpio" -- correcto en desarrollo,
-silencioso y peligroso si pasa inadvertido en producción. Settings.
-advertencias_produccion() no bloquea el arranque, solo lo hace ruidoso.
+Verificaciones que en desarrollo están apagadas a propósito (para no frenar el
+trabajo) pero que en producción significarían que nadie verifica antecedentes
+ni exige autos verificados. Settings.advertencias_produccion() no bloquea el
+arranque, solo lo hace ruidoso en los logs.
 """
 from app.core.config import Settings
 
 
 def _settings(**overrides):
-    base = dict(ENVIRONMENT="production")
+    # Por defecto, todo lo obligatorio encendido: cada test apaga solo lo que prueba.
+    base = dict(ENVIRONMENT="production", ANTECEDENTES_OBLIGATORIOS=True, AUTOS_VERIFICADOS_OBLIGATORIOS=True)
     base.update(overrides)
     return Settings(**base)
 
@@ -18,16 +19,26 @@ def test_sin_avisos_fuera_de_produccion():
     assert s.advertencias_produccion() == []
 
 
-def test_avisa_si_falta_chapi_api_key_en_produccion():
-    s = _settings(CHAPI_API_KEY=None)
+def test_avisa_si_los_antecedentes_no_son_obligatorios_en_produccion():
+    s = _settings(ANTECEDENTES_OBLIGATORIOS=False)
     avisos = s.advertencias_produccion()
-    assert any("CHAPI_API_KEY" in a for a in avisos)
+    assert any("ANTECEDENTES_OBLIGATORIOS" in a for a in avisos)
 
 
-def test_no_avisa_de_chapi_si_la_key_esta_configurada():
-    s = _settings(CHAPI_API_KEY="key-real")
+def test_avisa_si_los_autos_no_verificados_siguen_reservables_en_produccion():
+    s = _settings(AUTOS_VERIFICADOS_OBLIGATORIOS=False)
     avisos = s.advertencias_produccion()
-    assert not any("CHAPI_API_KEY" in a for a in avisos)
+    assert any("AUTOS_VERIFICADOS_OBLIGATORIOS" in a for a in avisos)
+
+
+def test_no_avisa_de_antecedentes_si_estan_activados():
+    s = _settings()
+    avisos = s.advertencias_produccion()
+    assert not any("ANTECEDENTES" in a or "AUTOS_VERIFICADOS" in a for a in avisos)
+
+
+def test_chapi_ya_no_existe_en_la_configuracion():
+    assert not hasattr(Settings(), "CHAPI_API_KEY")
 
 
 def test_avisa_si_didit_habilitado_sin_credenciales_completas():
@@ -40,5 +51,5 @@ def test_avisa_si_didit_habilitado_sin_credenciales_completas():
 
 
 def test_no_avisa_de_didit_si_esta_apagado():
-    s = _settings(VERIFICACION_EXTERNA_HABILITADA=False, CHAPI_API_KEY="key-real")
+    s = _settings(VERIFICACION_EXTERNA_HABILITADA=False)
     assert s.advertencias_produccion() == []

@@ -1,5 +1,6 @@
 """
-Recordatorios push de entrega y devolución.
+Recordatorios de entrega y devolución, al arrendatario y al dueño (push siempre; correo solo el de 24 h antes
+de la entrega).
 
 Sin esto, un arrendatario que arma su día alrededor de "el retiro es a las
 18:00" no tiene ningún aviso de la app hasta que efectivamente son las 18:00
@@ -32,7 +33,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.entities import Auto, Reserva
-from app.features.communications.notifications.service import crear_notificacion
+from app.features.bookings.reservations import avisos as reservas_avisos
 from app.features.bookings.reservations.gps_monitor_service import revisar_reservas_en_curso
 
 logger = logging.getLogger(__name__)
@@ -102,40 +103,49 @@ def enviar_recordatorios_pendientes(db: Session, ahora: Optional[datetime] = Non
         auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
         nombre_auto = _nombre_auto(auto)
 
-        avisos = [
+        # (flag, momento, horas antes, título y mensaje del arrendatario, título y mensaje del dueño, correo)
+        # Quien no se presente a una reserva confirmada paga una multa: los avisos de la entrega lo dicen y
+        # dicen cómo evitarlo (abrir la app en el punto de encuentro). El correo solo va en el aviso de 24 h.
+        multa_txt = (
+            " Quien no se presente a una reserva confirmada paga una multa: cuando llegues, abre la app y "
+            "confirmaremos tu llegada por ubicación."
+        )
+        avisos_reserva = [
             (
                 "recordatorio_entrega_24h_enviado", reserva.fecha_inicio, 24,
-                "Tu arriendo es mañana", f"Retiras el {nombre_auto} mañana. Revisa el punto de entrega acordado.",
+                "Tu arriendo es mañana", f"Retiras el {nombre_auto} mañana. Revisa el punto de entrega acordado." + multa_txt,
+                "Entregas tu auto mañana", f"Mañana entregas el {nombre_auto}. Revisa el punto de entrega acordado." + multa_txt,
+                True,
             ),
             (
                 "recordatorio_entrega_2h_enviado", reserva.fecha_inicio, 2,
-                "Tu arriendo es en 2 horas", f"Retiras el {nombre_auto} en 2 horas.",
+                "Tu arriendo es en 2 horas", f"Retiras el {nombre_auto} en 2 horas." + multa_txt,
+                "Entregas tu auto en 2 horas", f"En 2 horas entregas el {nombre_auto}." + multa_txt,
+                False,
             ),
             (
                 "recordatorio_devolucion_24h_enviado", reserva.fecha_fin, 24,
                 "Devuelves el auto mañana", f"Mañana termina tu arriendo del {nombre_auto}. Recuerda dejarlo con el combustible acordado.",
+                "Te devuelven el auto mañana", f"Mañana termina el arriendo de tu {nombre_auto}.",
+                False,
             ),
             (
                 "recordatorio_devolucion_2h_enviado", reserva.fecha_fin, 2,
                 "Devuelves el auto en 2 horas", f"Te quedan 2 horas para devolver el {nombre_auto}.",
+                "Te devuelven el auto en 2 horas", f"En 2 horas termina el arriendo de tu {nombre_auto}.",
+                False,
             ),
         ]
 
-        for campo_flag, objetivo, horas_antes, titulo, mensaje in avisos:
+        for campo_flag, objetivo, horas_antes, titulo_c, msg_c, titulo_d, msg_d, con_correo in avisos_reserva:
             if getattr(reserva, campo_flag):
                 continue
             if not _debe_enviarse(objetivo, ahora, horas_antes):
                 continue
 
-            crear_notificacion(
-                db,
-                usuario_id=reserva.cliente_id,
-                tipo="recordatorio_entrega",
-                titulo=titulo,
-                mensaje=mensaje,
-                entidad_tipo="reserva",
-                entidad_id=reserva.id,
-            )
+            reservas_avisos.avisar(db, reserva, reserva.cliente_id, titulo_c, msg_c, correo=con_correo, tipo="recordatorio_entrega")
+            if auto:
+                reservas_avisos.avisar(db, reserva, auto.dueno_id, titulo_d, msg_d, correo=con_correo, tipo="recordatorio_entrega")
             setattr(reserva, campo_flag, True)
             db.commit()
             enviados += 1

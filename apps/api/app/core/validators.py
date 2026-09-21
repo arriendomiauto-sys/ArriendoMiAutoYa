@@ -175,7 +175,8 @@ def validar_telefono_chileno(telefono: str) -> bool:
 # Estados de reserva que "ocupan" el auto y bloquean el rango en el calendario.
 # `pendiente_pago` cuenta mientras no expire su TTL: si no, dos personas podrían
 # arrancar el checkout para las mismas fechas y solo se descubre al pagar.
-ESTADOS_OCUPAN_AUTO = ("pendiente_pago", "confirmada", "en_curso")
+# `pendiente` = pagada y esperando la confirmación del dueño: también bloquea el auto.
+ESTADOS_OCUPAN_AUTO = ("pendiente_pago", "pendiente", "confirmada", "en_curso")
 
 
 def _reservas_que_ocupan(auto_id: str, db: Session, ahora: Optional[datetime] = None):

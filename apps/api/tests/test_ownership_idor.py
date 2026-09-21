@@ -4,6 +4,11 @@ Cubre los fixes de la sesión: dueno_id/cliente_id del payload se ignoran
 (siempre se usa el usuario autenticado), y un usuario no puede editar ni
 ver recursos de otro.
 """
+from datetime import datetime, timedelta
+
+# Relativas a hoy: una reserva en el pasado se rechaza, así que las fechas fijas envejecen.
+_INICIO = (datetime.utcnow() + timedelta(days=10)).strftime("%Y-%m-%dT10:00:00")
+_FIN = (datetime.utcnow() + timedelta(days=13)).strftime("%Y-%m-%dT10:00:00")
 
 AUTO_BASE = {
     "marca": "Toyota",
@@ -96,8 +101,8 @@ def test_patch_auto_admin_puede_editar_de_cualquiera(usuario_factory, auth_as):
 def _crear_reserva(c, auto_id, **overrides):
     payload = {
         "auto_id": auto_id,
-        "fecha_inicio": "2026-09-01T10:00:00",
-        "fecha_fin": "2026-09-04T10:00:00",
+        "fecha_inicio": _INICIO,
+        "fecha_fin": _FIN,
         "lugar_entrega_acordado": "Plaza de Armas, Los Angeles",
         **overrides,
     }
@@ -167,8 +172,8 @@ def test_reserva_sin_auth_da_401(client, db_session):
         "/api/v1/reservas",
         json={
             "auto_id": auto.id,
-            "fecha_inicio": "2026-09-01T10:00:00",
-            "fecha_fin": "2026-09-04T10:00:00",
+            "fecha_inicio": _INICIO,
+            "fecha_fin": _FIN,
             "lugar_entrega_acordado": "Plaza de Armas",
         },
     )

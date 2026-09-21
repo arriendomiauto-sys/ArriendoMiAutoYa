@@ -23,6 +23,8 @@ from app.core.limiter import limiter
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.request_limit import RequestSizeLimitMiddleware
 from app.features.communications.notifications.reminders_service import iniciar_bucle_recordatorios
+from app.features.bookings.reservations.cancelacion_loop import iniciar_bucle_barrido_reservas
+from app.features.auth.background_checks.retencion_loop import iniciar_bucle_purga_certificados
 
 # Auth & Identity
 from app.features.auth.login.router import router as auth_router
@@ -40,6 +42,7 @@ from app.features.bookings.delivery.router import router as delivery_router
 # Payments
 from app.features.payments.router import router as payments_router
 from app.features.payments.checkout_router import router as checkout_router
+from app.features.auth.background_checks.router import router as antecedentes_router
 
 # Communications
 from app.features.communications.messages.router import router as messages_router
@@ -93,6 +96,12 @@ async def lifespan(app: FastAPI):
     # Recordatorios de entrega/devolución (24h y 2h antes)
     tarea_recordatorios = iniciar_bucle_recordatorios(SessionLocal)
 
+    # Cancela las reservas `pendiente_pago` vencidas y suelta garantías colgadas
+    tarea_barrido_reservas = iniciar_bucle_barrido_reservas(SessionLocal)
+
+    # Borra los PDF de certificados de antecedentes ya resueltos pasado el plazo de retención
+    tarea_purga_certificados = iniciar_bucle_purga_certificados(SessionLocal)
+
     # Barrido periódico de liquidaciones a dueños (solo si los payouts BCI están activos)
     tarea_liquidaciones = None
     if settings.BCI_PAYOUTS_HABILITADO:
@@ -102,9 +111,11 @@ async def lifespan(app: FastAPI):
     yield
 
     tarea_recordatorios.cancel()
+    tarea_barrido_reservas.cancel()
+    tarea_purga_certificados.cancel()
     if tarea_liquidaciones:
         tarea_liquidaciones.cancel()
-    for t in (tarea_recordatorios, tarea_liquidaciones):
+    for t in (tarea_recordatorios, tarea_barrido_reservas, tarea_purga_certificados, tarea_liquidaciones):
         if t:
             try:
                 await t
@@ -180,6 +191,7 @@ app.include_router(admin_router, prefix=api_prefix)
 app.include_router(reviews_router, prefix=api_prefix)
 app.include_router(payments_router, prefix=api_prefix)
 app.include_router(checkout_router, prefix=api_prefix)
+app.include_router(antecedentes_router, prefix=api_prefix)
 app.include_router(storage_router, prefix=api_prefix)
 app.include_router(users_router, prefix=api_prefix)
 app.include_router(fleet_router, prefix=api_prefix)

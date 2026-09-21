@@ -7,6 +7,13 @@ peso bruto vehicular. Solo aplica a licencias chilenas; las extranjeras las
 gobierna evaluar_licencia_usuario (Convenio de Viena, PIC, homologación), que
 no tiene un concepto de "clase" equivalente.
 """
+
+
+def _fecha(dias):
+    """Fecha relativa a hoy: las reservas en el pasado se rechazan, las fijas envejecen."""
+    from datetime import datetime, timedelta
+    return (datetime.utcnow() + timedelta(days=dias)).strftime("%Y-%m-%dT10:00:00")
+
 from app.models.entities import Auto
 
 
@@ -27,8 +34,8 @@ def _crear_reserva(auth_as, cliente, auto):
         "/api/v1/reservas",
         json={
             "auto_id": auto.id,
-            "fecha_inicio": "2027-01-05T10:00:00",
-            "fecha_fin": "2027-01-08T10:00:00",
+            "fecha_inicio": _fecha(60),
+            "fecha_fin": _fecha(63),
             "lugar_entrega_acordado": "Plaza de Armas",
         },
     )

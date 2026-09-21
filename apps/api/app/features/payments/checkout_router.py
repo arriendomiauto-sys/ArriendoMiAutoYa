@@ -18,7 +18,7 @@ from app.core.limiter import limiter
 from app.models.entities import Auto, Pago, Reserva, Tarjeta, Usuario
 from app.schemas.schemas import PagarReservaRequest, CobroPosteriorRequest, CobroPosteriorOut
 from app.features.auth.login.service import get_current_user
-from app.features.payments import checkout_service
+from app.features.payments import checkout_service, cargos_service
 from app.features.communications.notifications.service import crear_notificacion
 
 logger = logging.getLogger(__name__)
@@ -101,58 +101,22 @@ def cobrar_posterior(
                 detail="El plazo de 30 días para reportar cobros posteriores de TAG o multas ha expirado.",
             )
 
-    # Obtener la tarjeta de crédito de la garantía registrada en la bóveda
-    tarjeta_credito = None
-    if reserva.tarjeta_garantia_id:
-        tarjeta_credito = db.query(Tarjeta).filter(Tarjeta.id == reserva.tarjeta_garantia_id).first()
-
-    if not tarjeta_credito:
-        # Fallback a tarjeta predeterminada de garantía del cliente si existiera
-        tarjeta_credito = (
-            db.query(Tarjeta)
-            .filter(Tarjeta.usuario_id == reserva.cliente_id, Tarjeta.tipo == "credito", Tarjeta.estado == "validada")
-            .first()
-        )
-
-    if not tarjeta_credito:
-        raise HTTPException(
-            status_code=422,
-            detail="El arrendatario no cuenta con una tarjeta de crédito activa en la bóveda para procesar este cobro.",
-        )
-
+    # El cobro es del dueño: se le cobra al arrendatario con tope en la garantía de la reserva
+    # y lo cobrado se le abona al dueño (cargos_service). La referencia es la clave de
+    # idempotencia de MP: única por cobro, si no un segundo peaje de la misma reserva
+    # devolvería el pago del primero sin cobrar nada nuevo.
     cliente = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado.")
-
-    # Ejecutar el cobro contra el vault de Mercado Pago
-    ref_externa = f"POST-{reserva.id[:8]}-{payload.tipo.upper()}"
-    resultado = checkout_service._mover(
-        tarjeta_credito,
-        cliente,
-        monto=payload.monto,
-        capturar=True,
-        ref=ref_externa,
-    )
-
-    if not resultado.get("autorizada"):
-        motivo = resultado.get("detalle_estado") or "Cobro rechazado por la pasarela"
-        raise HTTPException(
-            status_code=402,
-            detail=f"No se pudo procesar el cobro posterior en la tarjeta de crédito ({motivo}).",
+    try:
+        pago_posterior, abono = cargos_service.cobrar_cargo_a_tarjeta_de_credito(
+            db, reserva, f"cobro_posterior_{payload.tipo.lower()}", payload.monto
         )
-
-    pago_posterior = Pago(
-        id=str(uuid.uuid4()),
-        reserva_id=reserva.id,
-        usuario_id=reserva.cliente_id,
-        tipo=f"cobro_posterior_{payload.tipo.lower()}",
-        monto=payload.monto,
-        estado="capturado",
-        referencia_pago=str(resultado.get("payment_id") or ref_externa),
-    )
-    db.add(pago_posterior)
+    except cargos_service.CargoError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.mensaje)
     db.commit()
     db.refresh(pago_posterior)
+    cargos_service.liquidar_sin_bloquear(db, abono)
 
     # Notificar al cliente con el desglose y aviso
     crear_notificacion(

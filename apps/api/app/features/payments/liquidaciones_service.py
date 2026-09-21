@@ -38,6 +38,7 @@ from app.core.config import settings
 from app.models.entities import Notificacion, Pago, Reserva, Usuario
 from app.features.payments import bci_payouts
 from app.features.communications.notifications.service import crear_notificacion
+from app.features.communications.email.service import enviar_deposito_realizado
 
 logger = logging.getLogger(__name__)
 
@@ -100,14 +101,71 @@ def _marcar_fallido(db: Session, pago: Pago) -> str:
     return "fallida"
 
 
-def _marcar_pagado(db: Session, pago: Pago, cuenta: dict, transfer_id: Optional[str]) -> str:
+def _compensar_multas_dueno(db: Session, dueno_id: str, liquidacion: Pago) -> int:
+    """
+    Compensa deudas líquidas y exigibles del dueño (multas por no presentación o cancelación tardía)
+    contra el monto de su liquidación (Art. 1655 y ss. del Código Civil de Chile).
+    Devuelve el monto total compensado en CLP.
+    """
+    multas = (
+        db.query(Pago)
+        .filter(Pago.usuario_id == dueno_id, Pago.tipo == "multa_dueno", Pago.estado == "pendiente")
+        .order_by(Pago.timestamp.asc())
+        .all()
+    )
+    if not multas:
+        return 0
+
+    monto_disp = int(liquidacion.monto or 0)
+    total_comp = 0
+    ahora = _ahora()
+
+    for m in multas:
+        if monto_disp <= 0:
+            break
+        m_monto = int(m.monto or 0)
+        descontar = min(monto_disp, m_monto)
+        monto_disp -= descontar
+        total_comp += descontar
+
+        if descontar == m_monto:
+            m.estado = "pagado"
+            m.referencia_pago = f"COMPENSADO-LIQ-{liquidacion.id[:8]}"
+            m.liquidado_en = ahora
+        else:
+            # Compensación parcial
+            m.monto = m_monto - descontar
+            m_compensada = Pago(
+                reserva_id=m.reserva_id,
+                usuario_id=m.usuario_id,
+                tipo="multa_dueno",
+                monto=descontar,
+                estado="pagado",
+                referencia_pago=f"COMPENSADO-LIQ-{liquidacion.id[:8]}",
+                liquidado_en=ahora,
+            )
+            db.add(m_compensada)
+
+    if total_comp > 0:
+        db.flush()
+    return total_comp
+
+
+def _marcar_pagado(
+    db: Session,
+    pago: Pago,
+    cuenta: dict,
+    transfer_id: Optional[str],
+    compensado: int = 0,
+    neto_transferido: Optional[int] = None,
+) -> str:
     pago.estado = "pagado"
     pago.procesando_desde = None
     if transfer_id:
         pago.referencia_pago = transfer_id
     pago.liquidado_en = pago.liquidado_en or _ahora()
     db.commit()
-    _notificar_pagada(db, pago, cuenta)
+    _notificar_pagada(db, pago, cuenta, compensado=compensado, neto_transferido=neto_transferido)
     return "pagada"
 
 
@@ -151,15 +209,33 @@ def _procesar_uno(db: Session, pago: Pago) -> str:
         return "omitida"  # otro barrido ya la tomó
     db.refresh(pago)
 
+    # Compensación legal de multas pendientes de este dueño (Art. 1655 Código Civil)
+    total_compensado = _compensar_multas_dueno(db, pago.usuario_id, pago)
+    monto_original = int(pago.monto or 0)
+    monto_a_transferir = max(0, monto_original - total_compensado)
+
+    if monto_a_transferir == 0:
+        # Se compensó la totalidad de la liquidación contra multas del dueño
+        pago.estado = "pagado"
+        pago.procesando_desde = None
+        pago.referencia_pago = f"COMPENSACION-MULTAS-{pago.id[:8]}"
+        pago.liquidado_en = pago.liquidado_en or _ahora()
+        db.commit()
+        _notificar_pagada(db, pago, cuenta, compensado=total_compensado, neto_transferido=0)
+        return "pagada"
+
     ref = f"LIQ-{pago.id[:8]}"
     try:
-        r = bci_payouts.transferir(cuenta, int(pago.monto or 0), ref)
+        r = bci_payouts.transferir(cuenta, monto_a_transferir, ref)
     except Exception as e:  # noqa: BLE001 — API real no implementada / caída
         logger.error("[LIQUIDACIONES] transferir() falló para %s: %s", pago.id, e)
         r = {"ok": False, "transfer_id": None, "estado": "error", "detalle": str(e)}
 
     if r.get("ok"):
-        return _marcar_pagado(db, pago, cuenta, r.get("transfer_id"))
+        return _marcar_pagado(
+            db, pago, cuenta, r.get("transfer_id"),
+            compensado=total_compensado, neto_transferido=monto_a_transferir
+        )
     return _marcar_fallido(db, pago)
 
 
@@ -304,15 +380,49 @@ def _notificar_liquidacion_lista(db: Session, pago: Pago, cuenta: Optional[dict]
     db.commit()
 
 
-def _notificar_pagada(db: Session, pago: Pago, cuenta: dict) -> None:
+def _notificar_pagada(
+    db: Session,
+    pago: Pago,
+    cuenta: dict,
+    compensado: int = 0,
+    neto_transferido: Optional[int] = None,
+) -> None:
     ult4 = str(cuenta.get("numero", ""))[-4:]
+    neto = int(pago.monto or 0) if neto_transferido is None else neto_transferido
+    if neto == 0 and compensado > 0:
+        titulo = "Liquidación compensada"
+        mensaje = (
+            f"Tu liquidación de ${int(pago.monto or 0):,} CLP fue compensada íntegramente contra multas pendientes "
+            f"por cancelación tardía o inasistencia (Art. 1655 Código Civil). No quedan saldos pendientes a transferir."
+        ).replace(",", ".")
+    elif compensado > 0:
+        titulo = "Depósito enviado (con compensación de multas)"
+        mensaje = (
+            f"Depositamos ${neto:,} CLP en tu cuenta {cuenta.get('banco','')} ····{ult4}. "
+            f"Se compensaron ${compensado:,} CLP por multas pendientes según Art. 1655 del Código Civil."
+        ).replace(",", ".")
+    else:
+        titulo = "Depósito enviado"
+        mensaje = f"Depositamos ${neto:,} CLP en tu cuenta {cuenta.get('banco','')} ····{ult4}.".replace(",", ".")
+
     crear_notificacion(
         db, usuario_id=pago.usuario_id, tipo="pago",
-        titulo="Depósito enviado",
-        mensaje=f"Depositamos ${int(pago.monto or 0):,} CLP en tu cuenta {cuenta.get('banco','')} ····{ult4}.".replace(",", "."),
+        titulo=titulo,
+        mensaje=mensaje,
         entidad_tipo="pago", entidad_id=pago.id, commit=False,
     )
     db.commit()
+    usuario = db.query(Usuario).filter(Usuario.id == pago.usuario_id).first()
+    if usuario:
+        try:
+            enviar_deposito_realizado(
+                email=usuario.email,
+                monto=neto,
+                banco=cuenta.get("banco", ""),
+                numero_enmascarado=ult4,
+            )
+        except Exception as e:  # noqa: BLE001 — best-effort, nunca romper la liquidación
+            logger.info("No se pudo encolar el correo de depósito: %s", e)
 
 
 def _notificar_fallo_final(db: Session, pago: Pago) -> None:

@@ -10,7 +10,7 @@ valores aceptados.
 """
 from datetime import datetime, timedelta, timezone
 
-from app.models.entities import Auto, Reserva
+from app.models.entities import Auto, Reserva, Tarjeta
 
 
 def _crear_reserva_finalizada(db_session, cliente, dueno, dias_atras=10, patente="PEAJ-01"):
@@ -73,6 +73,10 @@ def test_multa_comun_no_exige_fecha_ni_boleta(usuario_factory, auth_as, db_sessi
     cliente = usuario_factory(roles_activos=["cliente"])
     dueno = usuario_factory(roles_activos=["dueno"])
     auto, reserva = _crear_reserva_finalizada(db_session, cliente, dueno, patente="PEAJ-07")
+    # Con la devolución cerrada ya no hay garantía retenida: la multa se cobra a la tarjeta de
+    # crédito del arrendatario, así que necesita tener una.
+    db_session.add(Tarjeta(usuario_id=cliente.id, tipo="credito", estado="validada", ultimos4="4242", marca="visa"))
+    db_session.commit()
 
     resp = auth_as(dueno).post(
         f"/api/v1/reservas/{reserva.id}/aplicar-multa",

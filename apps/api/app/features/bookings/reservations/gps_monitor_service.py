@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.entities import Auto, Pago, Reserva
 from app.features.communications.notifications.service import crear_notificacion
 from app.features.auth.onboarding.fines_service import FinesService
+from app.features.payments import cargos_service
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +79,8 @@ def _avisar_preventivo(db: Session, reserva: Reserva, auto: Auto, minutos: int) 
 
 def _aplicar_penalizacion(db: Session, reserva: Reserva) -> int:
     """Registra la multa `gps_sin_senal` con el mismo patrón que `aplicar_multa_reserva`
-    (POST /reservas/{id}/aplicar-multa): se liquida contra la garantía al devolver, no se
-    intenta cobrar en el momento."""
+    (POST /reservas/{id}/aplicar-multa): queda pendiente y se descuenta de la garantía al
+    devolver, no se intenta cobrar en el momento. Al dueño se le abona solo lo que se cobre."""
     item_multa = FinesService.validar_y_calcular_multa(
         tipo="gps_sin_senal",
         monto_clp=None,
@@ -87,26 +88,23 @@ def _aplicar_penalizacion(db: Session, reserva: Reserva) -> int:
     )
     monto = item_multa["monto_clp"]
 
+    # Nace pendiente y sin referencia de pasarela: se cobra de la garantía al devolver el auto.
+    # Si ya no cabe en la garantía (el tope), no se anota nada: el aviso igual sale, sin cargo.
+    try:
+        cargos_service.registrar_cargo_pendiente(db, reserva, "cargo_gps_sin_senal", monto)
+    except cargos_service.CargoError as e:
+        logger.warning("[GPS] Penalización de %s no registrada en la reserva %s: %s", monto, reserva.id, e.mensaje)
+        return 0
+
     detalles = list(reserva.multas_detalle or [])
     detalles.append(item_multa)
     reserva.multas_detalle = detalles
 
     reserva.cargo_falta_grave_clp = (reserva.cargo_falta_grave_clp or 0) + monto
     reserva.cargos_adicionales_clp = (reserva.cargos_adicionales_clp or 0) + monto
-    reserva.monto_cobro_final = (reserva.monto_cobro_final or 0) + monto
-    reserva.liquidacion_dueno_clp = (reserva.liquidacion_dueno_clp or 0) + monto
 
     desglose_txt = f"[{item_multa['nombre']}: ${monto:,} CLP - {item_multa['motivo']}]"
     reserva.motivo_multas = f"{reserva.motivo_multas} | {desglose_txt}" if reserva.motivo_multas else desglose_txt
-
-    db.add(Pago(
-        reserva_id=reserva.id,
-        usuario_id=reserva.cliente_id,
-        tipo="cargo_gps_sin_senal",
-        monto=monto,
-        estado="capturado",
-        referencia_pago=f"MP-GPS-{uuid.uuid4().hex[:8].upper()}",
-    ))
     return monto
 
 
@@ -118,7 +116,7 @@ def _avisar_critico(db: Session, reserva: Reserva, auto: Auto, minutos: int, mon
         titulo="Alerta: 1 hora sin señal",
         mensaje=(
             f"El {auto.marca} {auto.modelo} ({auto.patente}) lleva más de 1 hora ({minutos} min) sin "
-            f"reportar ubicación. Se aplicó un cargo de ${monto:,} CLP por incumplimiento del contrato."
+            f"reportar ubicación.{f' Se aplicó un cargo de ${monto:,} CLP por incumplimiento del contrato.' if monto else ''}"
         ),
         entidad_tipo="reserva",
         entidad_id=reserva.id,
@@ -130,7 +128,7 @@ def _avisar_critico(db: Session, reserva: Reserva, auto: Auto, minutos: int, mon
         titulo="Cargo por pérdida de señal GPS",
         mensaje=(
             f"Tu celular no reportó ubicación por más de 1 hora durante el arriendo del "
-            f"{auto.marca} {auto.modelo}. Se aplicó un cargo de ${monto:,} CLP según el contrato."
+            f"{auto.marca} {auto.modelo}.{f' Se aplicó un cargo de ${monto:,} CLP según el contrato.' if monto else ''}"
         ),
         entidad_tipo="reserva",
         entidad_id=reserva.id,

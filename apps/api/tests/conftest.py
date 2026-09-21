@@ -33,7 +33,7 @@ def seed_demo_data(db):
         config = ConfiguracionPlataforma(
             id="default",
             valor_uf_clp=38000.0,
-            comision_plataforma_pct=20.0,
+            comision_plataforma_pct=15.0,
             hold_enrolamiento_clp=800000,
             cargo_limpieza_estandar_clp=15000,
             cargo_limpieza_profunda_clp=35000,
@@ -43,6 +43,8 @@ def seed_demo_data(db):
             periodo_gracia_minutos=30,
             dias_cobro_posterior_peajes=60,
             edad_minima_arriendo=21,
+            politica_no_presentacion_activa=True,
+            recordatorios_politica_activos=True,
         )
         db.add(config)
     sucursal_la = Sucursal(

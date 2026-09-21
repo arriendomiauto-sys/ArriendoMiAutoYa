@@ -182,6 +182,9 @@ class UserOut(UserBase):
     licencia_verificacion_externa_estado: Optional[str] = None
     confianza_ocr: Optional[float] = 1.0
     notas_auditoria: Optional[str] = None
+    # Estado de los antecedentes (certificados oficiales del Registro Civil): pendiente | revision |
+    # bloqueado | limpio. La app lo usa para pedir los certificados antes de reservar.
+    antecedentes_estado: Optional[str] = None
     roles_activos: List[str]
 
     # Mismo caso que AutoOut.documentos_verificados: estas dos columnas
@@ -323,7 +326,7 @@ class PagarReservaRequest(BaseModel):
 
 class CobroPosteriorRequest(BaseModel):
     """Solicitud del dueño para cobrar TAG, peajes o multas dentro de los 30 días posteriores."""
-    tipo: str = Field(..., description="'tag' | 'peaje' | 'multa' | 'otro'")
+    tipo: Literal["tag", "peaje", "multa", "otro"] = Field(..., description="'tag' | 'peaje' | 'multa' | 'otro'")
     monto: int = Field(..., gt=0, description="Monto en CLP a cobrar")
     descripcion: str = Field(..., min_length=3, max_length=500, description="Detalle del cobro")
     comprobante_url: str = Field(..., description="URL de la boleta o comprobante en almacenamiento seguro")
@@ -371,6 +374,21 @@ class AutoDocumentosReviewRequest(BaseModel):
     accion: Literal["aprobar", "rechazar"]
     notas: Optional[str] = ""
 
+class UsuarioRevisionOut(UserOut):
+    """Lo que el panel necesita para revisar la identidad: `UserOut` no trae las fotos del carnet ni la licencia."""
+    carnet_frontal_url: Optional[str] = None
+    carnet_trasero_url: Optional[str] = None
+    licencia_url: Optional[str] = None
+    pic_url: Optional[str] = None
+    pic_vencimiento: Optional[datetime] = None
+    licencia_numero: Optional[str] = None
+    licencia_clase: Optional[str] = None
+    licencia_vencimiento: Optional[datetime] = None
+    licencia_pais_emisor: Optional[str] = None
+    fecha_nacimiento: Optional[datetime] = None
+    es_residente_chile: Optional[bool] = None
+
+
 class AutoPendienteKycOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -389,8 +407,14 @@ class AutoPendienteKycOut(BaseModel):
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
     doc_certificado_gases_url: Optional[str] = None
+    doc_historial_vehicular_url: Optional[str] = None
     doc_seguro_url: Optional[str] = None
+    doc_anotaciones_vigentes_url: Optional[str] = None
     documentos_verificados: bool = False
+    # Verificación con documentos oficiales gratuitos (ver certificados_service)
+    encargo_robo_estado: Optional[str] = None
+    encargo_robo_consultado_en: Optional[datetime] = None
+    anotaciones_aprobadas_en: Optional[datetime] = None
 
     dueno_id: str
     dueno_nombre: Optional[str] = None
@@ -481,6 +505,7 @@ class AutoBase(BaseModel):
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
     doc_certificado_gases_url: Optional[str] = None
+    doc_historial_vehicular_url: Optional[str] = None
     # Póliza de seguro comercial: OPCIONAL. Si viene, el router la pasa por OCR
     # y solo la guarda si se lee como un documento contractual de seguro; una
     # imagen genérica se descarta (el auto se publica igual).
@@ -549,6 +574,7 @@ class AutoUpdate(BaseModel):
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
     doc_certificado_gases_url: Optional[str] = None
+    doc_historial_vehicular_url: Optional[str] = None
     doc_seguro_url: Optional[str] = None
     gps_consentimiento: Optional[bool] = None
 
@@ -571,6 +597,7 @@ class ValidarDocumentosAutoRequest(BaseModel):
     doc_soap_url: Optional[str] = None
     doc_revision_tecnica_url: Optional[str] = None
     doc_certificado_gases_url: Optional[str] = None
+    doc_historial_vehicular_url: Optional[str] = None
     doc_seguro_url: Optional[str] = None
 
 
@@ -794,6 +821,17 @@ class FirmaContratoOut(BaseModel):
     firmado_en: datetime
 
 
+class LlegadaRequest(BaseModel):
+    """
+    Ubicación con la que una parte confirma su llegada. El servidor solo calcula la distancia al punto de
+    encuentro: las coordenadas no se guardan. Son opcionales porque un auto sin coordenadas no se puede
+    verificar; con coordenadas del auto, sin ellas la llegada se rechaza.
+    """
+    latitud: Optional[float] = Field(None, ge=-90, le=90)
+    longitud: Optional[float] = Field(None, ge=-180, le=180)
+    precision_m: Optional[float] = Field(None, ge=0)
+
+
 class BookingOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -806,6 +844,13 @@ class BookingOut(BaseModel):
     monto_hold: int
     monto_cobro: int = 0
     expira_en: Optional[datetime] = None
+    # Plazo del dueño para confirmar una reserva pagada (estado "pendiente") y, si se canceló sola,
+    # por qué ("dueno_no_confirmo" | "no_presentacion"). Ver confirmacion_service.
+    confirmar_dueno_antes_de: Optional[datetime] = None
+    motivo_cancelacion: Optional[str] = None
+    # Cada parte avisa "ya llegué" al punto de encuentro; con eso se decide quién no se presentó.
+    llegada_cliente_en: Optional[datetime] = None
+    llegada_dueno_en: Optional[datetime] = None
     # Desglose del pago dual. Los llena el router al serializar (no son
     # columnas): `cobro` = lo que se cobra hoy a la tarjeta de débito
     # (`{monto, neto, iva}`), `garantia` = el hold sobre la de crédito
@@ -1053,6 +1098,8 @@ class DisputeOut(BaseModel):
     admin_asignado_id: Optional[str] = None
     motivo: Optional[str] = None
     foto_evidencia_url: Optional[str] = None
+    # Todas las fotos de evidencia (el panel las muestra); antes el esquema solo exponía una.
+    evidencia_fotos: List[str] = []
     resolucion: Optional[str] = None
     timestamp: datetime
 

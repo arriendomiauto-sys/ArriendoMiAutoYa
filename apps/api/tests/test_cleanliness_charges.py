@@ -6,21 +6,21 @@ def test_calculo_cargos_limpieza():
     calc_limpio = PricingService.calcular_cobro_final(tarifa_dia=40000, dias=2, estado_limpieza="limpio")
     assert calc_limpio["subtotal_arriendo"] == 80000
     assert calc_limpio["cargo_limpieza"] == 0
-    assert calc_limpio["comision_empresa"] == 16000 # 20%
-    assert calc_limpio["liquidacion_dueno"] == 64000 # 80%
+    assert calc_limpio["comision_empresa"] == 12000 # 15%
+    assert calc_limpio["liquidacion_dueno"] == 68000 # 85%
     assert calc_limpio["monto_total_cobro"] == 80000
 
     # Sucio estándar: +$15.000 CLP transferido al dueño
     calc_estandar = PricingService.calcular_cobro_final(tarifa_dia=40000, dias=2, estado_limpieza="sucio_estandar")
     assert calc_estandar["cargo_limpieza"] == 15000
-    assert calc_estandar["comision_empresa"] == 16000 # Solo sobre arriendo
-    assert calc_estandar["liquidacion_dueno"] == 64000 + 15000 # 79.000
+    assert calc_estandar["comision_empresa"] == 12000 # Solo sobre arriendo
+    assert calc_estandar["liquidacion_dueno"] == 68000 + 15000 # 83.000
     assert calc_estandar["monto_total_cobro"] == 80000 + 15000 # 95.000
 
     # Sucio profundo: +$35.000 CLP transferido al dueño
     calc_profundo = PricingService.calcular_cobro_final(tarifa_dia=40000, dias=2, estado_limpieza="sucio_profundo")
     assert calc_profundo["cargo_limpieza"] == 35000
-    assert calc_profundo["liquidacion_dueno"] == 64000 + 35000 # 99.000
+    assert calc_profundo["liquidacion_dueno"] == 68000 + 35000 # 103.000
     assert calc_profundo["monto_total_cobro"] == 80000 + 35000 # 115.000
 
 def test_admin_revision_documentos_manual(db_session, auth_as):

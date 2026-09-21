@@ -450,7 +450,7 @@ def run_qa_suite():
         resp_cfg_upd = client.put(
             f"{API_BASE}/admin/configuracion",
             headers=admin_headers,
-            json={"comision_plataforma_pct": 20.0, "cargo_limpieza_estandar_clp": 16000}
+            json={"comision_plataforma_pct": 15.0, "cargo_limpieza_estandar_clp": 16000}
         )
         if resp_cfg_upd.status_code == 200:
             log("E.Admin_Config_Update", "Parámetro de plataforma actualizado correctamente por Admin")

@@ -88,6 +88,15 @@ def aplicar_codigo_referido(usuario, codigo: str, db: Session) -> None:
     if referente.id == usuario.id:
         raise ValueError("No puedes usar tu propio código.")
 
+    from app.core.validators import normalizar_rut
+    rut_usuario = normalizar_rut(getattr(usuario, "rut", None))
+    rut_referente = normalizar_rut(getattr(referente, "rut", None))
+    if rut_usuario and rut_referente and rut_usuario == rut_referente:
+        raise ValueError("No puedes usar un código asociado a tu mismo RUT.")
+
+    if referente.referido_por_id == usuario.id:
+        raise ValueError("No se permiten invitaciones circulares o recíprocas.")
+
     usuario.referido_por_id = referente.id
     db.commit()
 

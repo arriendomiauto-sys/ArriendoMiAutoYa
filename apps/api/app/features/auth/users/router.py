@@ -317,7 +317,7 @@ def solicitar_eliminacion(
     # No borra nada por sí sola: registra la marca que soporte revisa para
     # tramitar la baja real. Bloquea mientras haya arriendos o pagos en
     # curso, sea como arrendatario o como dueño de flota.
-    ESTADOS_ACTIVOS = ("pendiente_pago", "confirmada", "en_curso", "disputada")
+    ESTADOS_ACTIVOS = ("pendiente_pago", "pendiente", "confirmada", "en_curso", "disputada")
     reservas_cliente = (
         db.query(Reserva)
         .filter(Reserva.cliente_id == current_user.id, Reserva.estado.in_(ESTADOS_ACTIVOS))

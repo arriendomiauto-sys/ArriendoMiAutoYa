@@ -14,6 +14,8 @@ from app.schemas.schemas import (
 )
 from app.models.entities import Auto, Usuario, TicketSoporte, Calificacion
 from app.features.auth.login.service import get_current_user, get_optional_current_user
+from app.features.auth.background_checks import certificados_service
+from app.core.config import settings
 from app.services import tarjetas
 from app.features.payments import checkout_service
 from app.features.vehicles.catalog.pricing_service import PricingService
@@ -89,6 +91,10 @@ def listar_autos(
     current_user: Optional[Usuario] = Depends(get_optional_current_user)
 ):
     query = db.query(Auto).filter(Auto.estado == estado)
+    # Un auto sin verificar no se ofrece (salvo a su propio dueño): antes quedaba visible y
+    # reservable aunque la app dijera "en revisión".
+    if settings.AUTOS_VERIFICADOS_OBLIGATORIOS and not (current_user and dueno_id == current_user.id):
+        query = query.filter(*certificados_service.condicion_autos_verificados())
     if ubicacion:
         query = query.filter(Auto.ubicacion_base.ilike(f"%{ubicacion}%"))
     if tarifa_max:
@@ -268,6 +274,7 @@ def crear_auto(
         doc_soap_url=payload.doc_soap_url,
         doc_revision_tecnica_url=payload.doc_revision_tecnica_url,
         doc_certificado_gases_url=payload.doc_certificado_gases_url,
+        doc_historial_vehicular_url=payload.doc_historial_vehicular_url,
         doc_seguro_url=doc_seguro_a_guardar,
         documentos_verificados=doc_verificados,
         gps_consentimiento=True,
@@ -499,7 +506,15 @@ def actualizar_auto(
     # Si el dueño reemplaza algún documento, vuelve a quedar pendiente de
     # revisión hasta que un ejecutivo lo valide de nuevo.
     docs_cambiados = False
-    for campo in ("doc_inscripcion_url", "doc_permiso_circulacion_url", "doc_soap_url", "doc_revision_tecnica_url"):
+    for campo in (
+        "doc_inscripcion_url",
+        "doc_permiso_circulacion_url",
+        "doc_soap_url",
+        "doc_revision_tecnica_url",
+        "doc_certificado_gases_url",
+        "doc_historial_vehicular_url",
+        "doc_seguro_url",
+    ):
         valor = getattr(payload, campo, None)
         if valor is not None:
             setattr(auto, campo, valor)

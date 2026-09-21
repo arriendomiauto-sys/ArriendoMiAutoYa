@@ -11,7 +11,10 @@ import logging
 from typing import Dict, Any, Optional, List, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
+from datetime import date
+
 from app.core.config import settings
+from app.features.auth.background_checks.certificados import fecha_de_vencimiento
 from app.features.auth.ocr.ocr_engine import OCRService, _normalizar_texto
 
 logger = logging.getLogger(__name__)
@@ -279,26 +282,32 @@ class CarDocValidator:
             ("gases", doc_certificado_gases_url, _MARCADORES_GASES),
         ]
 
-        def _analizar_un_doc(tipo: str, url: Optional[str], marcadores: tuple) -> Tuple[str, Optional[str], Optional[str], bool]:
+        def _analizar_un_doc(tipo: str, url: Optional[str], marcadores: tuple) -> Tuple[str, Optional[str], Optional[str], bool, bool]:
             if not url:
-                return tipo, None, None, False
+                return tipo, None, None, False, False
             raw_bytes = OCRService.descargar_imagen_bytes(url)
             if not raw_bytes:
-                return tipo, None, None, False
+                return tipo, None, None, False, False
             texto, _ = OCRService.llamar_google_vision_api(raw_bytes)
             if not texto:
-                return tipo, None, None, False
+                return tipo, None, None, False, False
 
             norm = _normalizar_texto(texto)
             folio = _extraer_folio(texto)
             tiene_patente = _contiene_patente(texto, patente_norm)
             hits_marcadores = sum(1 for m in marcadores if m in norm)
-            valido = tiene_patente or hits_marcadores >= 1 or folio is not None
-            return tipo, texto, folio, valido
+            # Tiene que ser DE ESTE auto (la patente aparece) y parecer el documento que dice ser.
+            # Antes bastaba un marcador o un folio: el permiso de otro auto pasaba.
+            valido = tiene_patente and (hits_marcadores >= 1 or folio is not None)
+            # Un documento vencido no vale. Si el texto no dice la vigencia, no se da por vencido.
+            vence = fecha_de_vencimiento(texto)
+            vencido = vence is not None and vence < date.today()
+            return tipo, texto, folio, valido and not vencido, vencido
 
         resultados = {}
         folios = {}
         conteo_validos = 0
+        vencidos: List[str] = []
 
         with ThreadPoolExecutor(max_workers=4) as ex:
             futuros = [
@@ -307,25 +316,34 @@ class CarDocValidator:
             ]
             for f in futuros:
                 try:
-                    tipo, texto, folio, es_valido = f.result()
+                    tipo, texto, folio, es_valido, vencido = f.result()
                     folios[tipo] = folio
                     resultados[tipo] = {
                         "tiene_texto": bool(texto),
                         "folio": folio,
                         "valido": es_valido,
+                        "vencido": vencido,
                     }
                     if es_valido:
                         conteo_validos += 1
+                    if vencido:
+                        vencidos.append(tipo)
                 except Exception as e:
                     logger.error(f"Error procesando documento {tipo}: {e}")
 
         # Se considera verificado automáticamente si al menos 2 documentos clave
         # fueron reconocidos con éxito (padrón / permiso / soap / revisión).
         # Si no, se deriva a revisión manual por soporte.
-        aprobado_auto = conteo_validos >= 2
+        # Un documento vencido lo impide aunque los demás estén bien: el auto no debe circular así.
+        aprobado_auto = conteo_validos >= 2 and not vencidos
 
         motivo_soporte = None
-        if not aprobado_auto:
+        if vencidos:
+            motivo_soporte = (
+                f"Documentos vencidos del vehículo {patente}: {', '.join(vencidos)}. "
+                "El dueño debe subir la versión vigente."
+            )
+        elif not aprobado_auto:
             motivo_soporte = (
                 f"El OCR automático no pudo validar con certeza todos los documentos del vehículo {patente}. "
                 "Requiere revisión visual manual por un ejecutivo de soporte."
@@ -363,6 +381,7 @@ class CarDocValidator:
             "motivo_soporte": motivo_soporte,
             "folios_detectados": folios,
             "conteo_validos": conteo_validos,
+            "vencidos": vencidos,
             "detalles": resultados,
             "seguro_presente": seguro_presente,
             "seguro_valido": seguro_valido,

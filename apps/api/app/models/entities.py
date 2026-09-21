@@ -238,7 +238,16 @@ class Auto(Base):
     doc_soap_url = Column(String, nullable=True)                 # Seguro Obligatorio (SOAP) vigente
     doc_revision_tecnica_url = Column(String, nullable=True)     # Revisión técnica al día
     doc_certificado_gases_url = Column(String, nullable=True)    # Certificado de emisión de gases, obligatorio y propio (antes: marcador dentro de la revisión técnica)
+    doc_historial_vehicular_url = Column(String, nullable=True)  # Certificado de anotaciones vigentes / Autofact / CAV (opcional)
     doc_seguro_url = Column(String, nullable=True)               # Póliza de seguro comercial (opcional; validada por OCR)
+    # Certificado de anotaciones vigentes (Registro Civil, PDF en bucket privado): titular, prohibiciones.
+    doc_anotaciones_vigentes_url = Column(String, nullable=True)
+    # Encargo por robo: consulta MANUAL del admin en autoseguro.gob.cl (no tiene API pública).
+    encargo_robo_estado = Column(String, default="sin_consultar")  # sin_consultar | sin_encargo | con_encargo
+    encargo_robo_consultado_en = Column(DateTime, nullable=True)
+    encargo_robo_consultado_por = Column(String, nullable=True)
+    # Cuándo un ejecutivo aprobó el certificado de anotaciones vigentes (None si no hay uno aprobado).
+    anotaciones_aprobadas_en = Column(DateTime, nullable=True)
     documentos_verificados = Column(Boolean, default=False)     # Los revisó un ejecutivo
 
     # Rastreo GPS. Instalar un equipo en el auto de un tercero exige
@@ -278,6 +287,20 @@ class Reserva(Base):
     # TTL de la reserva mientras está en "pendiente_pago": si no se paga antes
     # de esta fecha, se libera el auto y la reserva pasa a "cancelada".
     expira_en = Column(DateTime, nullable=True)
+    # Reserva pagada que espera al dueño (estado "pendiente"): si no la confirma
+    # antes de esta fecha se cancela y se devuelve todo (confirmacion_service).
+    # NULL en las reservas anteriores a la política: el barrido no las toca.
+    confirmar_dueno_antes_de = Column(DateTime, nullable=True)
+    # Por qué se canceló, cuando no fue una decisión manual: "dueno_no_confirmo" |
+    # "no_presentacion". NULL en el resto.
+    motivo_cancelacion = Column(String, nullable=True)
+    # "Ya llegué" al punto de encuentro, avisado por cada parte. Es la señal con la que el barrido decide
+    # quién no se presentó (confirmacion_service.resolver_no_presentaciones).
+    llegada_cliente_en = Column(DateTime, nullable=True)
+    llegada_dueno_en = Column(DateTime, nullable=True)
+    # Claves de los recordatorios de la política ya enviados (p. ej. "confirmar_12h", "aviso_multa_dueno"),
+    # para no repetirlos en cada pasada del barrido.
+    recordatorios_politica = Column(JSON, default=list)
     # Tarjetas elegidas en el checkout (bóveda). Se guardan para poder
     # reintentar el pago de una reserva pendiente y para bloquear el borrado
     # de una tarjeta que está respaldando un arriendo vivo.
@@ -568,7 +591,7 @@ class ConfiguracionPlataforma(Base):
 
     id = Column(String, primary_key=True, default="default")
     valor_uf_clp = Column(Float, default=38000.0) # Valor UF en pesos chilenos
-    comision_plataforma_pct = Column(Float, default=20.0) # % comisión sobre arriendo base
+    comision_plataforma_pct = Column(Float, default=15.0) # % comisión sobre arriendo base
     hold_enrolamiento_clp = Column(Integer, default=800000) # Garantía por usuario
     cargo_limpieza_estandar_clp = Column(Integer, default=15000) # Limpieza estándar
     cargo_limpieza_profunda_clp = Column(Integer, default=35000) # Limpieza profunda / tapiz
@@ -619,6 +642,11 @@ class ConfiguracionPlataforma(Base):
         "camioneta": 600000,
         "premium": 1000000,
     })
+
+    # Interruptores de seguridad (feature flags): cuando están en False, el
+    # barrido no ejecuta cancelaciones ni multas reales con movimiento de fondos.
+    politica_no_presentacion_activa = Column(Boolean, default=False)
+    recordatorios_politica_activos = Column(Boolean, default=False)
 
     actualizado_en = Column(DateTime, default=utc_now, onupdate=utc_now)
     actualizado_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
@@ -683,4 +711,38 @@ class ConductorAdicional(Base):
     # Relaciones
     reserva = relationship("Reserva", back_populates="segundo_conductor")
 
+
+class CertificadoAntecedente(Base):
+    """
+    Certificado oficial del Registro Civil (PDF gratuito con ClaveÚnica) que respalda
+    los antecedentes de una persona o de un vehículo. Ver
+    `app/features/auth/background_checks/certificados.py`: el análisis automático
+    nunca aprueba, un ejecutivo confirma el código de verificación.
+
+    Es dato sensible (los penales tienen protección reforzada): el PDF vive en un bucket
+    privado, se purga pasado `ANTECEDENTES_RETENCION_DIAS` (queda solo el hash y el
+    resultado) y jamás se registra su contenido en logs.
+    """
+    __tablename__ = "certificados_antecedentes"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    sujeto_tipo = Column(String, nullable=False)   # usuario | conductor_adicional | auto
+    sujeto_id = Column(String, nullable=False, index=True)
+    tipo = Column(String, nullable=False)          # antecedentes | hoja_vida | anotaciones_vigentes
+    archivo_url = Column(String, nullable=True)    # bucket privado; None una vez purgado
+    sha256 = Column(String, nullable=True)
+    rut_detectado = Column(String, nullable=True)
+    patente_detectada = Column(String, nullable=True)
+    folio = Column(String, nullable=True)
+    codigo_verificacion = Column(String, nullable=True)
+    emitido_en = Column(DateTime, nullable=True)
+    estado = Column(String, nullable=False, default="revision", index=True)  # revision | aprobado | rechazado
+    contenido_ok = Column(Boolean, default=False)  # el análisis automático no vio nada raro
+    motivo = Column(Text, nullable=True)
+    resultado_json = Column(JSON, nullable=True)   # hallazgos: sin_antecedentes, licencia_suspendida, ...
+    consentimiento_en = Column(DateTime, nullable=True)
+    subido_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
+    revisado_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
+    revisado_en = Column(DateTime, nullable=True)
+    creado_en = Column(DateTime, default=utc_now)
 

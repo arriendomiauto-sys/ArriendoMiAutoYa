@@ -13,6 +13,7 @@ from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.system.storage.service import StorageService
 from app.features.communications.notifications.service import crear_notificacion
 from app.services import referidos
+from app.features.payments import cargos_service
 
 
 def _foto_perfil_vigente(cliente: Optional[Usuario], db: Session) -> Optional[str]:
@@ -116,7 +117,10 @@ class DeliveryService:
 
     @staticmethod
     def validar_codigo_qr(codigo_qr_hash: str, db: Session) -> Dict[str, Any]:
-        reserva = db.query(Reserva).filter(Reserva.codigo_qr_hash == codigo_qr_hash).first()
+        codigo_limpio = (codigo_qr_hash or "").replace("-", "").replace(" ", "").strip().lower()
+        reserva = db.query(Reserva).filter(
+            (Reserva.codigo_qr_hash == codigo_qr_hash) | (Reserva.codigo_qr_hash == codigo_limpio)
+        ).first()
         if not reserva:
             raise HTTPException(status_code=404, detail="Código QR inválido o expirado")
 
@@ -250,9 +254,51 @@ class DeliveryService:
         firma_svg: Optional[str] = None,
         selfie_entrega_url: Optional[str] = None,
     ) -> Dict[str, Any]:
-        reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+        # Con bloqueo de fila: dos cierres simultáneos de la misma devolución
+        # leerían ambos "en_curso" y crearían dos liquidaciones.
+        reserva = db.query(Reserva).filter(Reserva.id == reserva_id).with_for_update().first()
         if not reserva:
             raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+        # Este paso es el que deja la reserva en_curso/finalizada y crea la
+        # liquidación del dueño: solo vale en el momento que le toca.
+        #   confirmada --(antes)--> en_curso --(despues)--> finalizada
+        # Sin esto se cerraba la devolución de reservas canceladas (ya
+        # reembolsadas), sin pagar o nunca entregadas, y repetir el cierre
+        # generaba una liquidación nueva cada vez.
+        if tipo == "antes":
+            if reserva.estado == "en_curso":
+                raise HTTPException(status_code=409, detail="La entrega de esta reserva ya fue registrada.")
+            if reserva.estado != "confirmada":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No se puede registrar la entrega de una reserva en estado '{reserva.estado}'.",
+                )
+            # El segundo conductor también maneja el auto: sus antecedentes tienen que estar
+            # aprobados (certificados oficiales; ver certificados_service).
+            from app.core.config import settings
+
+            conductor = reserva.segundo_conductor
+            if settings.ANTECEDENTES_OBLIGATORIOS and conductor and conductor.antecedentes_estado != "limpio":
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "codigo": "ANTECEDENTES_PENDIENTES_CONDUCTOR",
+                        "estado": conductor.antecedentes_estado or "pendiente",
+                        "mensaje": (
+                            "Los antecedentes del segundo conductor aún no están aprobados: "
+                            "el titular debe subir su certificado de antecedentes y su hoja de vida."
+                        ),
+                    },
+                )
+        else:
+            if reserva.estado == "finalizada":
+                raise HTTPException(status_code=409, detail="La devolución de esta reserva ya fue registrada.")
+            if reserva.estado != "en_curso":
+                raise HTTPException(
+                    status_code=400,
+                    detail="No se puede registrar la devolución: el arriendo no está en curso.",
+                )
 
         if len(fotos) < 1:
             raise HTTPException(
@@ -365,15 +411,12 @@ class DeliveryService:
             reserva.cargos_adicionales_clp = cobro_info["cargos_adicionales"]
             reserva.liquidacion_dueno_clp = cobro_info["liquidacion_dueno"]
 
-            # Registrar cobro final al cliente (ya con su descuento aplicado)
-            pago_cobro = Pago(
-                reserva_id=reserva.id,
-                usuario_id=reserva.cliente_id,
-                tipo="cobro_final",
-                monto=monto_cobro_final,
-                estado="capturado",
-                referencia_pago=f"MP-{uuid.uuid4().hex[:8].upper()}"
-            )
+            # Los cargos de la devolución (combustible, km, limpieza, atraso) y las
+            # multas del arriendo se cobran de la garantía más abajo (cargos_service).
+            # Antes acá se registraba un `cobro_final` "capturado" con una referencia
+            # inventada sin tocar ninguna tarjeta, y se le pagaba al dueño igual.
+            fines_pendientes = sum(int(p.monto or 0) for p in cargos_service.cargos_pendientes(db, reserva))
+            extras_devolucion = int(cobro_info["cargo_limpieza"] or 0) + int(cobro_info["cargos_adicionales"] or 0)
             # Detección de reporte de daños o anomalías en la devolución
             es_dano_reportado = bool(
                 notas and (
@@ -392,30 +435,6 @@ class DeliveryService:
 
             dueno = db.query(Usuario).filter(Usuario.id == auto.dueno_id).first() if auto else None
 
-            # Registrar liquidación para el dueño (incluye el 100% de compensaciones por limpieza, combustible y km).
-            # Nace siempre "pendiente": el depósito real lo gestiona liquidaciones_service
-            # (enganche tras el commit + barrido de fondo/admin), nunca este flujo.
-            pago_liq = Pago(
-                reserva_id=reserva.id,
-                usuario_id=auto.dueno_id if auto else reserva.cliente_id,
-                tipo="liquidacion_dueno",
-                monto=cobro_info["liquidacion_dueno"],
-                estado="pendiente",
-            )
-            db.add(pago_cobro)
-            db.add(pago_liq)
-
-            if dueno:
-                bono_pct_dueno = referidos.calcular_bono_referido_pct(dueno, config_referidos)
-                if bono_pct_dueno > 0:
-                    db.add(Pago(
-                        reserva_id=reserva.id,
-                        usuario_id=dueno.id,
-                        tipo="bono_referido",
-                        monto=round(cobro_info["liquidacion_dueno"] * bono_pct_dueno / 100),
-                        estado="pendiente",
-                    ))
-
             # Gestión de la garantía retenida (hold en tarjeta de crédito):
             # Si se reporta daño o existe una disputa abierta, la garantía NO se libera
             # y se mantiene retenida para respaldar la reparación tras revisión de soporte/admin.
@@ -423,14 +442,21 @@ class DeliveryService:
             # El hold se registra con tipo="hold_reserva" (ver checkout_service.py),
             # nunca "garantia" -- ese tipo no existe en ningún INSERT real, así que
             # este query nunca encontraba nada y la garantía jamás se liberaba solo.
-            pago_garantia = (
+            hay_disputa = bool(es_dano_reportado or disputa_existente)
+            garantia_retenida = bool(
                 db.query(Pago)
                 .filter(Pago.reserva_id == reserva.id, Pago.tipo == "hold_reserva", Pago.estado == "retenido")
                 .first()
             )
+            # Sin disputa, los extras y las multas se descuentan de la garantía (captura
+            # parcial, con tope en su monto) y el resto se libera. Con disputa no se toca:
+            # sigue retenida hasta que soporte resuelva.
+            resultado_garantia = cargos_service.saldar_garantia(
+                db, reserva, extras=extras_devolucion, cobrar=not hay_disputa
+            )
             garantia_liberada = False
 
-            if es_dano_reportado or disputa_existente:
+            if hay_disputa:
                 if not disputa_existente:
                     disputa = Disputa(
                         reserva_id=reserva.id,
@@ -463,27 +489,65 @@ class DeliveryService:
                         entidad_id=reserva.id,
                         commit=False,
                     )
-            elif pago_garantia:
-                try:
-                    from app.features.payments.mercadopago_service import MercadoPagoService
-                    from app.services import pagos_simulados
-                    ref = pago_garantia.referencia_pago
-                    if ref and not pagos_simulados.es_pago_simulado(ref):
-                        MercadoPagoService.liberar_hold(ref)
-                    pago_garantia.estado = "liberado"
-                    garantia_liberada = True
-                    crear_notificacion(
-                        db,
-                        usuario_id=reserva.cliente_id,
-                        tipo="pago",
-                        titulo="Garantía liberada",
-                        mensaje=f"Tu garantía de ${pago_garantia.monto:,} CLP ha sido liberada exitosamente tras la entrega del vehículo.",
-                        entidad_tipo="reserva",
-                        entidad_id=reserva.id,
-                        commit=False,
+            elif garantia_retenida:
+                garantia_liberada = resultado_garantia.garantia_liberada
+                cobrado = resultado_garantia.cobrado
+                if cobrado > 0:
+                    titulo_g = "Descuento de tu garantía"
+                    mensaje_g = (
+                        f"Se descontaron ${cobrado:,} CLP de tu garantía por los cargos del arriendo "
+                        f"(combustible, kilómetros, limpieza, atraso o multas). La orden de liberación del remanente "
+                        f"fue procesada de inmediato en la pasarela. Dependiendo de tu banco emisor, la reversa del cupo "
+                        f"suele tardar entre 24 y 72 horas hábiles en reflejarse en tu estado de cuenta."
                     )
-                except Exception as e:
-                    logger.error("[DELIVERY] Error al liberar hold de garantía para reserva %s: %s", reserva.id, e)
+                else:
+                    titulo_g = "Garantía liberada"
+                    mensaje_g = (
+                        "Tu garantía ha sido liberada exitosamente tras la entrega del vehículo. "
+                        "La orden de liberación fue procesada inmediatamente en la pasarela; dependiendo de tu banco "
+                        "emisor (Transbank/banco), la reversa del cupo suele tardar entre 24 y 72 horas hábiles en "
+                        "reflejarse en tu estado de cuenta."
+                    )
+                crear_notificacion(
+                    db,
+                    usuario_id=reserva.cliente_id,
+                    tipo="pago",
+                    titulo=titulo_g,
+                    mensaje=mensaje_g,
+                    entidad_tipo="reserva",
+                    entidad_id=reserva.id,
+                    commit=False,
+                )
+
+            # Al dueño solo se le liquida lo que efectivamente se cobró: su parte del arriendo
+            # más el 100 % de lo capturado por sus cargos (sin comisión).
+            liquidacion_final = int(cobro_info["liquidacion_dueno"]) - extras_devolucion + resultado_garantia.cobrado
+            reserva.liquidacion_dueno_clp = liquidacion_final
+            reserva.cargos_adicionales_clp = int(cobro_info["cargos_adicionales"]) + fines_pendientes
+            reserva.monto_cobro_final = monto_cobro_final + fines_pendientes
+            cobro_info["liquidacion_dueno"] = liquidacion_final
+
+            # Registrar liquidación para el dueño.
+            # Nace siempre "pendiente": el depósito real lo gestiona liquidaciones_service
+            # (enganche tras el commit + barrido de fondo/admin), nunca este flujo.
+            db.add(Pago(
+                reserva_id=reserva.id,
+                usuario_id=auto.dueno_id if auto else reserva.cliente_id,
+                tipo="liquidacion_dueno",
+                monto=liquidacion_final,
+                estado="pendiente",
+            ))
+
+            if dueno:
+                bono_pct_dueno = referidos.calcular_bono_referido_pct(dueno, config_referidos)
+                if bono_pct_dueno > 0:
+                    db.add(Pago(
+                        reserva_id=reserva.id,
+                        usuario_id=dueno.id,
+                        tipo="bono_referido",
+                        monto=round(liquidacion_final * bono_pct_dueno / 100),
+                        estado="pendiente",
+                    ))
 
             # La notificación al dueño sobre su liquidación (transferida o a la
             # espera de cuenta bancaria) la emite ahora liquidaciones_service.
@@ -502,9 +566,14 @@ class DeliveryService:
 
             limpieza_msg = f" Cargo por limpieza: ${cargo_limpieza:,} CLP." if cargo_limpieza > 0 else ""
             comb_msg = f" Combustible faltante: ${cargo_combustible:,} CLP." if cargo_combustible > 0 else ""
-            garantia_msg = (
+            descuento_msg = (
+                f" Se descontaron ${resultado_garantia.cobrado:,} CLP de la garantía por los cargos del arriendo."
+                if resultado_garantia.cobrado > 0 and not hay_disputa
+                else ""
+            )
+            garantia_msg = descuento_msg + (
                 " Garantía liberada inmediatamente."
-                if garantia_liberada
+                if garantia_liberada and not descuento_msg
                 else (" Garantía retenida por reporte de daño." if es_dano_reportado else "")
             )
             premio_msg = " ¡Felicitaciones por entregar el vehículo en óptimas condiciones! Tienes un beneficio en tu próximo arriendo." if devolucion_optima else ""

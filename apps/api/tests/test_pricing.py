@@ -21,8 +21,8 @@ def test_calcular_cobro_final():
     resultado = PricingService.calcular_cobro_final(tarifa_dia, dias)
     
     assert resultado["subtotal"] == 70000
-    assert resultado["comision_empresa"] == 14000 # 20%
-    assert resultado["liquidacion_dueno"] == 56000 # 80%
+    assert resultado["comision_empresa"] == 10500 # 15%
+    assert resultado["liquidacion_dueno"] == 59500 # 85%
 
 def test_deducible_seguro_50_50():
     deducible = PricingService.calcular_deducible_seguro()

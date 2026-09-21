@@ -1,7 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -14,32 +14,13 @@ from app.core.url_validator import validate_safe_return_url
 from app.models.entities import Auto, Pago, Reserva, Usuario
 from app.features.auth.login.service import get_current_user
 from app.features.payments.mercadopago_service import MercadoPagoService
-from app.features.communications.notifications.service import crear_notificacion
+from app.features.bookings.reservations import confirmacion_service
 # Mock payments handling for local development
 from app.services import pagos_simulados
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pagos", tags=["Pasarela de Pagos (Mercado Pago)"])
-
-
-def _notificar_reserva_confirmada(db: Session, reserva: Reserva) -> None:
-    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
-    if not auto:
-        return
-    nombre_auto = f"{auto.marca} {auto.modelo} ({auto.patente})"
-    crear_notificacion(
-        db, usuario_id=auto.dueno_id, tipo="reserva",
-        titulo="Nueva reserva de tu auto",
-        mensaje=f"Te reservaron el {nombre_auto}. Coordina la entrega con el arrendatario.",
-        entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
-    )
-    crear_notificacion(
-        db, usuario_id=reserva.cliente_id, tipo="reserva",
-        titulo="Reserva confirmada",
-        mensaje=f"Tu reserva del {nombre_auto} quedó confirmada y la garantía retenida.",
-        entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
-    )
 
 
 def _aplicar_resultado(db: Session, pago: Optional[Pago], resultado: Dict[str, Any]) -> None:
@@ -67,10 +48,11 @@ def _aplicar_resultado(db: Session, pago: Optional[Pago], resultado: Dict[str, A
 
     if pago.reserva_id:
         reserva = db.query(Reserva).filter(Reserva.id == pago.reserva_id).first()
-        if reserva and reserva.estado == "pendiente":
-            reserva.estado = "confirmada"
+        # Pagada, no confirmada: la reserva espera al dueño. Una reserva que ya está en `pendiente`
+        # (o más adelante) NO se toca: un aviso tardío de la pasarela no puede saltarse su confirmación.
+        if reserva and reserva.estado == "pendiente_pago":
+            confirmacion_service.esperar_confirmacion_del_dueno(db, reserva)
             db.flush()
-            _notificar_reserva_confirmada(db, reserva)
 
     db.commit()
     db.refresh(pago)
@@ -106,8 +88,13 @@ def _mensaje_de_rechazo(resultado: Dict[str, Any]) -> str:
 @limiter.limit("10/minute")
 def iniciar_pago(
     request: Request,
-    monto: int = Body(..., embed=True, description="Monto en CLP"),
-    tipo: str = Body("hold_reserva", embed=True, description="hold_enrolamiento, hold_reserva, cobro_final"),
+    monto: int = Body(..., embed=True, gt=0, description="Monto en CLP"),
+    # Lista cerrada: el barrido de liquidaciones paga todo `Pago` de tipo
+    # `liquidacion_dueno` pendiente, así que un `tipo` libre permitía inventarse
+    # una liquidación a la medida.
+    tipo: Literal["hold_reserva", "hold_enrolamiento", "cobro_final"] = Body(
+        "hold_reserva", embed=True, description="hold_enrolamiento, hold_reserva, cobro_final"
+    ),
     reserva_id: Optional[str] = Body(None, embed=True),
     return_url: Optional[str] = Body(None, embed=True),
     db: Session = Depends(get_db),
@@ -118,6 +105,15 @@ def iniciar_pago(
     mandar al usuario. Valida `return_url` contra Open Redirect (CWE-601).
     """
     simulado = pagos_simulados.pagos_simulados_activos()
+
+    # Un pago solo se puede atar a una reserva propia: sin esto, cualquiera
+    # asociaría cobros (y su confirmación) a la reserva de otra persona.
+    if reserva_id:
+        reserva_destino = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+        if not reserva_destino:
+            raise HTTPException(status_code=404, detail="Reserva no encontrada")
+        if reserva_destino.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
+            raise HTTPException(status_code=403, detail="Esa reserva no es tuya.")
 
     # La protección contra open redirect NO se relaja en modo simulado: dejar
     # pasar un dominio ajeno acá abriría en pruebas justo el agujero que el
@@ -210,6 +206,7 @@ def confirmar_pago(
     payment_id: str = Body(..., embed=True, description="payment_id que devuelve Mercado Pago"),
     pago_id: Optional[str] = Body(None, embed=True, description="Nuestro id de pago (external_reference)"),
     db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
 ):
     """
     Atajo para no hacer esperar al usuario que vuelve del checkout.
@@ -224,10 +221,19 @@ def confirmar_pago(
     if not pago:
         pago = db.query(Pago).filter(Pago.referencia_pago == payment_id).first()
 
+    # Sin un `Pago` propio no hay nada que confirmar. Se responde 404 también
+    # para el pago ajeno, así no se puede averiguar qué ids existen.
+    es_admin = "admin" in (current_user.roles_activos or [])
+    if not pago or (pago.usuario_id != current_user.id and not es_admin):
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+
     # ===== BLOQUE TEMPORAL — PAGOS SIMULADOS ==============================
     # Un payment_id con prefijo SIMULADO- se da por aprobado. Uno real sigue
     # yendo a Mercado Pago aunque la simulación esté encendida.
     if pagos_simulados.pagos_simulados_activos() and pagos_simulados.es_pago_simulado(payment_id):
+        # El id simulado tiene que ser el que se emitió para ESTE pago.
+        if payment_id != pago.referencia_pago:
+            raise HTTPException(status_code=409, detail="El pago no corresponde a este cobro.")
         resultado = pagos_simulados.obtener_pago_simulado(
             payment_id, monto=pago.monto if pago else 0
         )
@@ -239,6 +245,17 @@ def confirmar_pago(
         )
     else:
         resultado = MercadoPagoService.obtener_pago(payment_id)
+        # Un pago aprobado en Mercado Pago solo vale para el cobro al que se
+        # hizo: si no, un pago chico serviría para "confirmar" cualquier otro.
+        if resultado.get("success") and (
+            resultado.get("referencia_externa") != pago.id
+            or int(round(float(resultado.get("monto") or 0))) != int(pago.monto)
+        ):
+            SecurityAudit.log_event(
+                "PAGO_MP_NO_CORRESPONDE", user_id=current_user.id,
+                resource=f"pago:{pago.id}", details={"payment_id": payment_id}, status="BLOCKED",
+            )
+            raise HTTPException(status_code=409, detail="El pago de Mercado Pago no corresponde a este cobro.")
     # ======================================================================
 
     _aplicar_resultado(db, pago, resultado)
@@ -320,8 +337,20 @@ async def webhook_mercadopago(
 
 
 @router.get("/mercadopago/estado/{payment_id}", summary="Consulta el estado de un pago")
-def consultar_estado_pago(payment_id: str, current_user: Usuario = Depends(get_current_user)):
-    return MercadoPagoService.obtener_pago(payment_id)
+def consultar_estado_pago(
+    payment_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    # Solo el dueño del pago (o un admin): los ids de Mercado Pago son
+    # correlativos y sin esto cualquiera recorrería los pagos de la cuenta.
+    pago = db.query(Pago).filter(Pago.referencia_pago == payment_id).first()
+    if not pago or (pago.usuario_id != current_user.id and "admin" not in (current_user.roles_activos or [])):
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    resultado = MercadoPagoService.obtener_pago(payment_id)
+    # El JSON crudo trae datos del pagador y de la tarjeta que la app no necesita.
+    resultado.pop("raw", None)
+    return resultado
 
 
 @router.get("/configuracion", summary="Datos públicos de la pasarela para el cliente")

@@ -6,6 +6,13 @@ Todo corre en modo simulado (PAGOS_SIMULADOS=True por config de dev): la app
 manda tokens falsos `SIMULADO-DEBITO-<4>` / `SIMULADO-CREDITO-<4>` y la pasarela
 no sale a la red. Convención: una tarjeta terminada en 0000 siempre rechaza.
 """
+
+
+def _fecha(dias):
+    """Fecha relativa a hoy: las reservas en el pasado se rechazan, las fijas envejecen."""
+    from datetime import datetime, timedelta
+    return (datetime.utcnow() + timedelta(days=dias)).strftime("%Y-%m-%dT10:00:00")
+
 from datetime import datetime, timedelta
 
 from app.models.entities import Auto, Reserva
@@ -38,8 +45,8 @@ def _crear_reserva(auth_as, cliente, auto):
         "/api/v1/reservas",
         json={
             "auto_id": auto.id,
-            "fecha_inicio": "2027-01-05T10:00:00",
-            "fecha_fin": "2027-01-08T10:00:00",
+            "fecha_inicio": _fecha(60),
+            "fecha_fin": _fecha(63),
             "lugar_entrega_acordado": "Plaza de Armas",
         },
     )
@@ -130,7 +137,8 @@ def test_token_real_sin_pista_de_tipo_se_rechaza_claro(usuario_factory, auth_as)
 # ===========================================================================
 # Checkout
 # ===========================================================================
-def test_pago_dual_confirma_la_reserva(usuario_factory, auth_as, db_session):
+def test_pago_dual_deja_la_reserva_esperando_al_dueno(usuario_factory, auth_as, db_session):
+    """Pagada, pero solo el dueño la confirma (ver test_politica_confirmacion_y_no_presentacion)."""
     dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado", patente=None)
     auto = _auto(db_session, dueno, patente="PGOK-12", tarifa_dia=20000, categoria="suv")
     cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
@@ -150,10 +158,11 @@ def test_pago_dual_confirma_la_reserva(usuario_factory, auth_as, db_session):
         json={"tarjeta_cobro_id": deb["id"], "tarjeta_garantia_id": cred["id"]},
     )
     assert pago.status_code == 200, pago.text
-    assert pago.json()["estado"] == "confirmada"
+    assert pago.json()["estado"] == "esperando_dueno"
 
     r = db_session.query(Reserva).filter(Reserva.id == reserva["id"]).first()
-    assert r.estado == "confirmada"
+    assert r.estado == "pendiente"
+    assert r.confirmar_dueno_antes_de is not None
     assert r.tarjeta_cobro_id == deb["id"]
     tipos = {p.tipo: p for p in r.pagos}
     assert tipos["cobro_arriendo"].estado == "capturado"
@@ -213,7 +222,7 @@ def test_pagar_el_arriendo_con_credito_es_valido(usuario_factory, auth_as, db_se
         json={"tarjeta_cobro_id": cred_cobro["id"], "tarjeta_garantia_id": cred_garantia["id"]},
     )
     assert pago.status_code == 200, pago.text
-    assert pago.json()["estado"] == "confirmada"
+    assert pago.json()["estado"] == "esperando_dueno"
 
 
 def test_pagar_con_la_misma_tarjeta_en_cobro_y_garantia_se_rechaza(usuario_factory, auth_as, db_session):
@@ -450,8 +459,8 @@ def test_reingreso_con_fechas_distintas_cancela_la_anterior(usuario_factory, aut
         "/api/v1/reservas",
         json={
             "auto_id": auto.id,
-            "fecha_inicio": "2027-02-10T10:00:00",
-            "fecha_fin": "2027-02-12T10:00:00",
+            "fecha_inicio": _fecha(90),
+            "fecha_fin": _fecha(92),
             "lugar_entrega_acordado": "Plaza de Armas",
         },
     )

@@ -86,8 +86,9 @@ def test_alerta_critica_a_los_60_minutos_aplica_multa(db_session, usuario_factor
     assert reserva.gps_alerta_60m_enviada is True
     assert reserva.cargo_falta_grave_clp == 20000
     assert reserva.cargos_adicionales_clp == 20000
-    assert reserva.monto_cobro_final == 20000
-    assert reserva.liquidacion_dueno_clp == 20000
+    # No se le liquida nada al dueño todavía: el cargo se cobra de la garantía al devolver el auto.
+    assert (reserva.monto_cobro_final or 0) == 0
+    assert (reserva.liquidacion_dueno_clp or 0) == 0
     assert reserva.multas_detalle[-1]["tipo"] == "gps_sin_senal"
     assert "gps_sin_senal" in (reserva.motivo_multas or "") or "Pérdida de señal" in reserva.motivo_multas
 
@@ -95,6 +96,8 @@ def test_alerta_critica_a_los_60_minutos_aplica_multa(db_session, usuario_factor
     assert pago is not None
     assert pago.monto == 20000
     assert pago.usuario_id == cliente.id
+    assert pago.estado == "pendiente"
+    assert not pago.referencia_pago
 
     # Avisa a las dos partes.
     assert db_session.query(Notificacion).filter_by(usuario_id=dueno.id, tipo="gps").count() == 1

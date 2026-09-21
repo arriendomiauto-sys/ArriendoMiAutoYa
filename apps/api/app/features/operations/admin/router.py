@@ -6,15 +6,23 @@ from app.core.database import get_db
 from app.models.entities import Pago, Reserva, Usuario, Disputa, Auto, Sucursal, ConfiguracionPlataforma
 from app.schemas.schemas import (
     UserOut, DocumentReviewRequest, PlatformConfigOut, PlatformConfigUpdate,
-    AutoPendienteKycOut, AutoDocumentosReviewRequest,
+    AutoPendienteKycOut, AutoDocumentosReviewRequest, UsuarioRevisionOut,
 )
 from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.auth.login.service import get_current_user
 from app.features.system.storage.service import StorageService
 from app.features.operations.admin.reservations_router import router as reservations_router
 from app.features.operations.admin.users_router import router as users_router
+from app.features.operations.admin.antecedentes_router import router as antecedentes_admin_router
+from app.features.operations.admin.conductores_router import router as conductores_admin_router
 
 router = APIRouter(prefix="/admin", tags=["Panel Admin & Financiero"])
+
+# Campos con la URL de un documento del auto (bucket privado, URL firmada que caduca).
+CAMPOS_DOCUMENTOS_AUTO = (
+    "doc_inscripcion_url", "doc_permiso_circulacion_url", "doc_soap_url", "doc_revision_tecnica_url",
+    "doc_certificado_gases_url", "doc_historial_vehicular_url", "doc_seguro_url", "doc_anotaciones_vigentes_url",
+)
 
 @router.get("/configuracion", response_model=PlatformConfigOut, summary="Obtener configuración dinámica de la plataforma (RF-33)")
 def obtener_configuracion_plataforma(
@@ -30,7 +38,7 @@ def obtener_configuracion_plataforma(
         config = ConfiguracionPlataforma(
             id="default",
             valor_uf_clp=38000.0,
-            comision_plataforma_pct=20.0,
+            comision_plataforma_pct=15.0,
             hold_enrolamiento_clp=800000,
             cargo_limpieza_estandar_clp=15000,
             cargo_limpieza_profunda_clp=35000,
@@ -153,7 +161,7 @@ def listar_flota_sucursal(
         for auto in query.all()
     ]
 
-@router.get("/documentos/pendientes", response_model=List[UserOut], summary="Listar usuarios con documentos que requieren revisión manual (Admin/Manager RF-27)")
+@router.get("/documentos/pendientes", response_model=List[UsuarioRevisionOut], summary="Listar usuarios con documentos que requieren revisión manual (Admin/Manager RF-27)")
 def listar_documentos_pendientes(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -172,18 +180,12 @@ def listar_documentos_pendientes(
         (Usuario.licencia_estado.in_(["revision", "pendiente"]))
     ).all()
 
+    # Las URLs firmadas de los buckets privados caducan a los 7 días: se renuevan TODAS las imágenes
+    # (antes solo las fotos de perfil, y el carnet y la licencia llegaban rotos o ni llegaban).
     hubo_cambios = False
     for u in usuarios:
-        if u.foto_perfil_verificada_url:
-            renovada = StorageService.renovar_si_vence_pronto(u.foto_perfil_verificada_url)
-            if renovada and renovada != u.foto_perfil_verificada_url:
-                u.foto_perfil_verificada_url = renovada
-                hubo_cambios = True
-        if getattr(u, "foto_perfil_url", None):
-            renovada = StorageService.renovar_si_vence_pronto(u.foto_perfil_url)
-            if renovada and renovada != u.foto_perfil_url:
-                u.foto_perfil_url = renovada
-                hubo_cambios = True
+        if StorageService.renovar_url_campos(u, ("foto_perfil_verificada_url", "foto_perfil_url", "carnet_frontal_url", "carnet_trasero_url", "licencia_url", "pic_url")):
+            hubo_cambios = True
     if hubo_cambios:
         db.commit()
 
@@ -246,7 +248,13 @@ def listar_autos_documentos_pendientes(
 
     autos = db.query(Auto).filter(Auto.documentos_verificados == False).all()
     resultado = []
+    hubo_cambios = False
     for a in autos:
+        # Documentos del auto y fotos: firmadas en buckets privados, caducan a los 7 días.
+        if StorageService.renovar_url_campos(a, CAMPOS_DOCUMENTOS_AUTO):
+            hubo_cambios = True
+        a.fotos, cambio_fotos = StorageService.renovar_lista_urls(a.fotos or [])
+        hubo_cambios = hubo_cambios or cambio_fotos
         resultado.append(
             AutoPendienteKycOut(
                 id=a.id,
@@ -263,8 +271,13 @@ def listar_autos_documentos_pendientes(
                 doc_soap_url=a.doc_soap_url,
                 doc_revision_tecnica_url=a.doc_revision_tecnica_url,
                 doc_certificado_gases_url=a.doc_certificado_gases_url,
+                doc_historial_vehicular_url=a.doc_historial_vehicular_url,
                 doc_seguro_url=a.doc_seguro_url,
+                doc_anotaciones_vigentes_url=a.doc_anotaciones_vigentes_url,
                 documentos_verificados=a.documentos_verificados or False,
+                encargo_robo_estado=a.encargo_robo_estado,
+                encargo_robo_consultado_en=a.encargo_robo_consultado_en,
+                anotaciones_aprobadas_en=a.anotaciones_aprobadas_en,
                 dueno_id=a.dueno_id,
                 dueno_nombre=a.dueno.nombre if a.dueno else None,
                 dueno_rut=a.dueno.rut if a.dueno else None,
@@ -272,6 +285,8 @@ def listar_autos_documentos_pendientes(
                 dueno_telefono=a.dueno.telefono if a.dueno else None,
             )
         )
+    if hubo_cambios:
+        db.commit()
     return resultado
 
 @router.post("/autos/{auto_id}/revisar-documentos", response_model=AutoPendienteKycOut, summary="Aprobar o rechazar documentos del auto (Admin)")
@@ -384,7 +399,7 @@ def _fila_liquidacion_dueno(db: Session, dueno_id: str) -> Optional[Dict[str, An
         if reserva_ids else {}
     )
     cfg = PricingService.obtener_configuracion(db)
-    comision_pct = float(getattr(cfg, "comision_plataforma_pct", 20.0) or 20.0) / 100.0
+    comision_pct = float(getattr(cfg, "comision_plataforma_pct", 15.0) or 15.0) / 100.0
 
     neto = comision = 0
     pendientes = otros = 0
@@ -409,6 +424,13 @@ def _fila_liquidacion_dueno(db: Session, dueno_id: str) -> Optional[Dict[str, An
         else:  # 'procesando'
             otros += 1
 
+    multas_pendientes = (
+        db.query(Pago)
+        .filter(Pago.tipo == "multa_dueno", Pago.usuario_id == dueno_id, Pago.estado == "pendiente")
+        .all()
+    )
+    multas_pendientes_clp = sum(int(m.monto or 0) for m in multas_pendientes)
+
     return {
         "id": dueno_id,
         "dueno_nombre": dueno.nombre if dueno else "Dueño",
@@ -418,6 +440,8 @@ def _fila_liquidacion_dueno(db: Session, dueno_id: str) -> Optional[Dict[str, An
         "bruto_clp": neto + comision,
         "comision_clp": comision,
         "neto_clp": neto,
+        "multas_pendientes_clp": multas_pendientes_clp,
+        "neto_a_transferir_clp": max(0, neto - multas_pendientes_clp),
         "estado": "pendiente" if (pendientes or otros) else "pagada",
         "pagada_en": pagada_en.isoformat() if pagada_en else None,
     }
@@ -492,6 +516,44 @@ def ejecutar_liquidaciones(db: Session = Depends(get_db), current_user: Usuario 
     return {"resumen": liquidaciones_service.ejecutar_liquidaciones_pendientes(db)}
 
 
+@router.get("/multas-duenos", summary="Listado de multas aplicadas a dueños (Admin)")
+def listar_multas_duenos(
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    _solo_admin(current_user)
+    q = db.query(Pago).filter(Pago.tipo == "multa_dueno")
+    if estado:
+        q = q.filter(Pago.estado == estado)
+    multas = q.order_by(Pago.timestamp.desc()).all()
+
+    dueno_ids = {m.usuario_id for m in multas}
+    reserva_ids = {m.reserva_id for m in multas if m.reserva_id}
+
+    duenos = {u.id: u for u in db.query(Usuario).filter(Usuario.id.in_(dueno_ids)).all()} if dueno_ids else {}
+    reservas = {r.id: r for r in db.query(Reserva).filter(Reserva.id.in_(reserva_ids)).all()} if reserva_ids else {}
+
+    resultado = []
+    for m in multas:
+        d = duenos.get(m.usuario_id)
+        r = reservas.get(m.reserva_id)
+        resultado.append({
+            "id": m.id,
+            "dueno_id": m.usuario_id,
+            "dueno_nombre": d.nombre if d else "Dueño",
+            "dueno_rut": d.rut if d else None,
+            "reserva_id": m.reserva_id,
+            "monto_clp": m.monto,
+            "estado": m.estado,
+            "referencia_pago": m.referencia_pago,
+            "motivo": getattr(r, "motivo_cancelacion", None) or getattr(r, "motivo_multas", None) or "Multa por incumplimiento",
+            "fecha": m.timestamp.isoformat() if m.timestamp else None,
+            "liquidado_en": m.liquidado_en.isoformat() if m.liquidado_en else None,
+        })
+    return resultado
+
+
 @router.get("/pagos", summary="Listado de transacciones de la plataforma (Admin)")
 def listar_pagos_admin(
     limit: int = 100,
@@ -522,4 +584,6 @@ def listar_pagos_admin(
 # Montar sub-routers de reservas y usuarios para el panel
 router.include_router(reservations_router)
 router.include_router(users_router)
+router.include_router(antecedentes_admin_router)
+router.include_router(conductores_admin_router)
 

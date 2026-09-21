@@ -64,6 +64,7 @@ def _serializar(u: Usuario, m: Dict[str, Any]) -> Dict[str, Any]:
         "confianza_ocr": u.confianza_ocr,
         "licencia_estado": u.licencia_estado,
         "licencia_clase": u.licencia_clase,
+        "antecedentes_estado": u.antecedentes_estado,
         "fecha_registro": u.fecha_registro,
         "suspendido": bool(u.suspendido),
         "total_arriendos": m.get("total_arriendos", 0),

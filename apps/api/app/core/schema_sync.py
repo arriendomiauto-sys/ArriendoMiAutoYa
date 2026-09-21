@@ -245,6 +245,10 @@ _CHECKS_ESPERADAS = {
             "cargo_limpieza_estandar", "cargo_limpieza_profunda", "cargo_otro",
             "cobro_posterior_tag", "cobro_posterior_peaje", "cobro_posterior_multa",
             "cobro_posterior_otro",
+            # Parte del arriendo que se devuelve al descontar la multa por no presentación.
+            "reembolso_parcial",
+            # Multa que el dueño debe por no presentarse a una entrega confirmada (deuda pendiente).
+            "multa_dueno",
         ),
     ),
 }

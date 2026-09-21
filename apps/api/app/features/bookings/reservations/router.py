@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, Request
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Response, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
@@ -8,6 +8,7 @@ from app.schemas.schemas import (
     BookingCreate,
     BookingOut,
     ExtendBookingRequest,
+    LlegadaRequest,
     PreCheckinRequest,
     PreCheckinResponse,
     AplicarMultaRequest,
@@ -34,7 +35,14 @@ import uuid
 from app.core.validators import validar_disponibilidad_reserva
 from app.features.auth.onboarding.license_service import evaluar_licencia_usuario
 from app.services import tarjetas
-from app.features.payments import checkout_service
+from app.features.payments import checkout_service, cargos_service
+from app.features.auth.background_checks import certificados_service
+from app.core.config import settings
+from app.features.bookings.reservations import cancelacion_service, confirmacion_service
+
+# Límites de las fechas de una reserva (mismo tope de 30 días que las extensiones).
+MAX_DIAS_RESERVA = 30
+TOLERANCIA_INICIO_PASADO = timedelta(hours=1)  # la app redondea el retiro a la media hora
 
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
 
@@ -91,6 +99,25 @@ def crear_reserva(
             detail=tarjetas.motivo_bloqueo(current_user, "reservar un vehículo"),
         )
 
+    # Antecedentes: quien conduce el auto tiene que tener aprobados su certificado de
+    # antecedentes y su hoja de vida del conductor (certificados oficiales gratuitos).
+    if settings.ANTECEDENTES_OBLIGATORIOS:
+        estado_antecedentes = certificados_service.recalcular_estado_usuario(db, current_user)
+        if estado_antecedentes != "limpio":
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "codigo": "ANTECEDENTES_PENDIENTES",
+                    "estado": estado_antecedentes,
+                    "mensaje": (
+                        "Tu cuenta está bloqueada por una revisión de antecedentes: contacta a soporte."
+                        if estado_antecedentes == "bloqueado"
+                        else "Para reservar necesitas subir tu certificado de antecedentes y tu hoja de "
+                             "vida del conductor (gratis en registrocivil.cl) y esperar su aprobación."
+                    ),
+                },
+            )
+
     # La licencia (y el PIC, si su país lo exige) tiene que seguir vigente el
     # último día del arriendo, no solo hoy. Acá también se aplica la edad
     # mínima de la plataforma.
@@ -109,6 +136,64 @@ def crear_reserva(
         raise HTTPException(status_code=404, detail="Auto no encontrado")
     if auto.estado != "activo":
         raise HTTPException(status_code=400, detail="El auto no está disponible para arriendo")
+    # Mismo criterio que el catálogo: un auto sin verificar no se puede reservar por un enlace directo.
+    if settings.AUTOS_VERIFICADOS_OBLIGATORIOS and not certificados_service.auto_esta_verificado(auto):
+        raise HTTPException(status_code=400, detail="El auto no está disponible para arriendo")
+    # Un usuario con roles dueño y arrendatario ve su auto en el catálogo: sin
+    # esto podría reservarlo y cobrarse a sí mismo (comisión, bonos, liquidación).
+    if auto.dueno_id == current_user.id:
+        raise HTTPException(status_code=400, detail="No puedes arrendar tu propio vehículo.")
+
+    dueno = auto.dueno or db.query(Usuario).filter(Usuario.id == auto.dueno_id).first()
+    if dueno:
+        from app.core.validators import normalizar_rut
+        rut_cliente = normalizar_rut(getattr(current_user, "rut", None))
+        rut_dueno = normalizar_rut(getattr(dueno, "rut", None))
+        if rut_cliente and rut_dueno and rut_cliente == rut_dueno:
+            raise HTTPException(status_code=400, detail="No puedes arrendar un vehículo registrado a tu mismo RUT.")
+
+        doc_cliente = (getattr(current_user, "numero_documento", None) or "").strip().upper()
+        doc_dueno = (getattr(dueno, "numero_documento", None) or "").strip().upper()
+        if doc_cliente and doc_dueno and doc_cliente == doc_dueno:
+            raise HTTPException(status_code=400, detail="No puedes arrendar un vehículo registrado a tu mismo documento de identidad.")
+
+        # Detección de cuentas bancarias compartidas (evita colusión y autofinanciamiento / cash advance)
+        from app.models.entities import CuentaCobro
+        import re
+        cuentas_cliente = db.query(CuentaCobro).filter(CuentaCobro.usuario_id == current_user.id).all()
+        cuentas_dueno = db.query(CuentaCobro).filter(CuentaCobro.usuario_id == dueno.id).all()
+
+        nums_cliente = {re.sub(r"\D", "", c.numero) for c in cuentas_cliente if c.numero}
+        if getattr(current_user, "cuenta_bancaria", None) and isinstance(current_user.cuenta_bancaria, dict):
+            num_cb = current_user.cuenta_bancaria.get("numero")
+            if num_cb:
+                nums_cliente.add(re.sub(r"\D", "", str(num_cb)))
+
+        nums_dueno = {re.sub(r"\D", "", c.numero) for c in cuentas_dueno if c.numero}
+        if getattr(dueno, "cuenta_bancaria", None) and isinstance(dueno.cuenta_bancaria, dict):
+            num_db = dueno.cuenta_bancaria.get("numero")
+            if num_db:
+                nums_dueno.add(re.sub(r"\D", "", str(num_db)))
+
+        nums_cliente.discard("")
+        nums_dueno.discard("")
+        if nums_cliente and nums_dueno and nums_cliente.intersection(nums_dueno):
+            raise HTTPException(status_code=400, detail="Operación no permitida: se detectó una cuenta bancaria compartida entre las partes.")
+
+    # Fechas razonables: sin esto se aceptaban reservas en el pasado (ya nacen
+    # con atraso) y por meses (un solo checkout bloquea el auto todo ese rango).
+    inicio_utc = payload.fecha_inicio
+    fin_utc = payload.fecha_fin
+    if inicio_utc.tzinfo is not None:
+        inicio_utc = inicio_utc.astimezone(timezone.utc).replace(tzinfo=None)
+    if fin_utc.tzinfo is not None:
+        fin_utc = fin_utc.astimezone(timezone.utc).replace(tzinfo=None)
+    if inicio_utc < datetime.now(timezone.utc).replace(tzinfo=None) - TOLERANCIA_INICIO_PASADO:
+        raise HTTPException(status_code=400, detail="La fecha de retiro no puede estar en el pasado.")
+    if (fin_utc - inicio_utc) > timedelta(days=MAX_DIAS_RESERVA):
+        raise HTTPException(
+            status_code=400, detail=f"Un arriendo no puede durar más de {MAX_DIAS_RESERVA} días."
+        )
 
     # Clase de licencia vs. categoría del vehículo. "Clase" (B, A2, A4...) es
     # una taxonomía chilena sin equivalente directo en otros países — ahí ya
@@ -537,7 +622,9 @@ def firmar_contrato(
 # una vez que la reserva queda en_curso, ver hallazgo #10).
 TRANSICIONES_ESTADO_VALIDAS: dict[str, set[str]] = {
     "pendiente": {"confirmada", "cancelada"},
-    "pendiente_pago": {"confirmada", "cancelada"},
+    # `pendiente_pago -> confirmada` la fija SOLO el checkout al cobrar: si este
+    # endpoint la permitiera, el arrendatario confirmaría su reserva sin pagar.
+    "pendiente_pago": {"cancelada"},
     "confirmada": {"cancelada"},
     "en_curso": set(),
     "finalizada": set(),
@@ -553,7 +640,9 @@ def actualizar_estado_reserva(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    # Bloqueada la fila: el barrido de confirmaciones vencidas no puede cancelar y devolver el dinero
+    # mientras el dueño la confirma.
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).with_for_update().first()
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
     _verificar_acceso_reserva(reserva, current_user, db)
@@ -569,10 +658,78 @@ def actualizar_estado_reserva(
             ),
         )
 
-    reserva.estado = nuevo_estado
-    db.commit()
-    db.refresh(reserva)
-    return reserva
+    if nuevo_estado == "cancelada":
+        return cancelacion_service.cancelar_reserva(db, reserva, current_user)
+
+    # Aceptar una solicitud es decisión del dueño (o de un admin), nunca del
+    # arrendatario que la hizo.
+    auto = reserva.auto or db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    es_dueno = bool(auto) and auto.dueno_id == current_user.id
+    if not (es_dueno or "admin" in (current_user.roles_activos or [])):
+        raise HTTPException(status_code=403, detail="Solo el dueño del vehículo puede aceptar la solicitud.")
+
+    if confirmacion_service.plazo_vencido(reserva):
+        raise HTTPException(
+            status_code=409,
+            detail="El plazo para confirmar esta reserva venció: se cancela y se le devuelve todo al arrendatario.",
+        )
+    return confirmacion_service.confirmar_reserva(db, reserva)
+
+
+@router.post(
+    "/{reserva_id}/llegada",
+    response_model=BookingOut,
+    summary='"Ya llegué" al punto de encuentro (Arrendatario o Dueño)',
+)
+def avisar_llegada(
+    reserva_id: str,
+    payload: Optional[LlegadaRequest] = Body(None),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Cada parte confirma su llegada con su ubicación: el servidor comprueba que esté cerca del punto de
+    encuentro y no guarda las coordenadas. Con eso el barrido decide solo, pasada la gracia, quién no se
+    presentó (ver `confirmacion_service`).
+    """
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).with_for_update().first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    try:
+        return _con_desglose_pago(confirmacion_service.registrar_llegada(
+            db, reserva, current_user,
+            latitud=payload.latitud if payload else None,
+            longitud=payload.longitud if payload else None,
+            precision_m=payload.precision_m if payload else None,
+        ))
+    except confirmacion_service.PoliticaError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detalle)
+
+
+@router.post(
+    "/{reserva_id}/no-presentacion",
+    response_model=BookingOut,
+    summary="Multar al arrendatario ausente a mano, a favor del dueño (solo Admin)",
+)
+def reportar_no_presentacion(
+    reserva_id: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """
+    Salida manual para un admin (p. ej. tras revisar una disputa). Los dueños NO pueden usarla: quien decide
+    solo es el barrido, con los avisos de llegada, para que un dueño no pueda multar a quien sí llegó.
+    """
+    if "admin" not in (current_user.roles_activos or []):
+        raise HTTPException(status_code=403, detail="Solo un administrador puede registrar la no presentación a mano.")
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).with_for_update().first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    try:
+        return confirmacion_service.registrar_no_presentacion(db, reserva)
+    except confirmacion_service.PoliticaError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detalle)
+
 
 @router.post(
     "/{reserva_id}/extender",
@@ -604,17 +761,34 @@ def extender_reserva(
             detail="El vehículo ya tiene otra reserva confirmada en los días solicitados para la extensión."
         )
 
+    # Los días adicionales se cobran ahora, aparte, a la tarjeta con la que se pagó el arriendo
+    # (días × tarifa, IVA incl., igual que el cobro original). Si el banco lo rechaza, no se extiende.
+    # La garantía es fija por categoría: extender no la sube.
     monto_adicional = PricingService.calcular_monto_hold_reserva(auto.tarifa_dia, payload.dias_adicionales)
+    tarjeta = cargos_service.tarjeta_del_cobro(db, reserva) or cargos_service.tarjeta_de_credito(db, reserva)
+    if not tarjeta:
+        raise HTTPException(
+            status_code=409,
+            detail="No encontramos la tarjeta con la que pagaste este arriendo. Agrega una tarjeta para extenderlo.",
+        )
+    cobro = cargos_service.cobrar_a_tarjeta(
+        db, reserva, tarjeta, monto_adicional, ref=f"EXT-{reserva.id[:8]}-{uuid.uuid4().hex[:6]}"
+    )
+    if not cobro.get("autorizada"):
+        raise HTTPException(
+            status_code=402,
+            detail="El banco no aprobó el cobro de los días adicionales. Prueba con otra tarjeta; el arriendo no se extendió.",
+        )
 
     reserva.fecha_fin = nueva_fecha_fin
-    reserva.monto_hold += monto_adicional
+    reserva.monto_cobro = int(reserva.monto_cobro or 0) + monto_adicional
     db.add(Pago(
         reserva_id=reserva.id,
         usuario_id=reserva.cliente_id,
-        tipo="hold_reserva",
+        tipo="cobro_arriendo",
         monto=monto_adicional,
         estado="capturado",
-        referencia_pago=f"MP-EXT-{uuid.uuid4().hex[:8].upper()}"
+        referencia_pago=str(cobro.get("payment_id") or ""),
     ))
     db.commit()
     db.refresh(reserva)
@@ -638,6 +812,18 @@ def realizar_precheckin(
 
     auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
     ahora = datetime.now(timezone.utc)
+
+    # Validar ventana de tiempo: solo dentro de las 24h previas a la entrega (o entrega en curso/hoy)
+    if reserva.fecha_inicio:
+        fecha_inicio_utc = reserva.fecha_inicio
+        if fecha_inicio_utc.tzinfo is None:
+            fecha_inicio_utc = fecha_inicio_utc.replace(tzinfo=timezone.utc)
+        segundos_hasta_inicio = (fecha_inicio_utc - ahora).total_seconds()
+        if segundos_hasta_inicio > 25 * 3600:
+            raise HTTPException(
+                status_code=400,
+                detail="El pre-checkin de confirmación solo está disponible dentro de las 24 horas previas al inicio de la reserva."
+            )
 
     if payload.rol == "cliente":
         if reserva.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
@@ -763,6 +949,21 @@ def aplicar_multa_reserva(
     )
 
     monto = item_multa["monto_clp"]
+    tipo_pago = f"cargo_{payload.tipo}"
+
+    # El monto es del dueño y se le cobra al arrendatario de verdad (con tope en la garantía):
+    #  · durante el arriendo queda pendiente y se descuenta de la garantía al devolver el auto;
+    #  · con la devolución ya cerrada no queda garantía retenida, así que se cobra a su
+    #    tarjeta de crédito ahora y se le abona al dueño.
+    cobrado_ahora = reserva.estado == "finalizada"
+    try:
+        if cobrado_ahora:
+            _, abono = cargos_service.cobrar_cargo_a_tarjeta_de_credito(db, reserva, tipo_pago, monto, prefijo_ref="MULTA")
+        else:
+            abono = None
+            cargos_service.registrar_cargo_pendiente(db, reserva, tipo_pago, monto)
+    except cargos_service.CargoError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.mensaje)
 
     # Actualizar campos de multas en la reserva
     detalles = list(reserva.multas_detalle or [])
@@ -771,25 +972,16 @@ def aplicar_multa_reserva(
 
     reserva.cargo_falta_grave_clp = (reserva.cargo_falta_grave_clp or 0) + monto
     reserva.cargos_adicionales_clp = (reserva.cargos_adicionales_clp or 0) + monto
-    reserva.monto_cobro_final = (reserva.monto_cobro_final or 0) + monto
-    reserva.liquidacion_dueno_clp = (reserva.liquidacion_dueno_clp or 0) + monto
+    if cobrado_ahora:
+        # Con lo pendiente, estos totales se calculan al devolver, ya con lo efectivamente cobrado.
+        reserva.monto_cobro_final = (reserva.monto_cobro_final or 0) + monto
+        reserva.liquidacion_dueno_clp = (reserva.liquidacion_dueno_clp or 0) + monto
 
     desglose_txt = f"[{item_multa['nombre']}: ${monto:,} CLP - {payload.motivo}]"
     if reserva.motivo_multas:
         reserva.motivo_multas += f" | {desglose_txt}"
     else:
         reserva.motivo_multas = desglose_txt
-
-    # Registrar cobro por la multa
-    pago_multa = Pago(
-        reserva_id=reserva.id,
-        usuario_id=reserva.cliente_id,
-        tipo=f"cargo_{payload.tipo}",
-        monto=monto,
-        estado="capturado",
-        referencia_pago=f"MP-FINE-{uuid.uuid4().hex[:8].upper()}"
-    )
-    db.add(pago_multa)
 
     # Notificar al cliente con el detalle transparente
     crear_notificacion(
@@ -806,6 +998,7 @@ def aplicar_multa_reserva(
     )
 
     db.commit()
+    cargos_service.liquidar_sin_bloquear(db, abono)
     db.refresh(reserva)
     return reserva
 

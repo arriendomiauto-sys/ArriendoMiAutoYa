@@ -25,7 +25,10 @@ from app.features.payments import cards_service as tarjetas
 router = APIRouter(prefix="/enrolamiento", tags=["Enrolamiento de Clientes"])
 
 @router.post("/procesar-documentos", summary="Extrae datos de carnet y licencia vía OCR")
-def procesar_documentos_ocr(payload: UserEnrolamiento):
+def procesar_documentos_ocr(
+    payload: UserEnrolamiento,
+    current_user: Usuario = Depends(get_current_user),  # noqa: ARG001 — solo exige sesión (cada llamada cuesta OCR)
+):
     """
     Envía las imágenes a Google Cloud Vision (o usa mock local con datos demo) para extraer RUT y validar vigencia.
     """

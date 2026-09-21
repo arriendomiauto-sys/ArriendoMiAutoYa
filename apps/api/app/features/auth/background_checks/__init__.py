@@ -1,7 +1,6 @@
 """
-Background checks package.
+Verificación de antecedentes con certificados oficiales gratuitos del Registro Civil.
 """
 from .service import BackgroundCheckService
-from .models import BackgroundCheckResult
 
-__all__ = ["BackgroundCheckService", "BackgroundCheckResult"]
+__all__ = ["BackgroundCheckService"]

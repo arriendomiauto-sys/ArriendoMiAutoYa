@@ -24,6 +24,13 @@ class StorageService:
     MIME_PERMITIDOS = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
     TAMANO_MAXIMO_BYTES = 8 * 1024 * 1024  # 8 MB
 
+    # PDF: solo para los certificados oficiales del Registro Civil, únicamente en
+    # estos buckets privados y solo si el llamador lo pide (`permitir_pdf=True`).
+    BUCKETS_PDF = {"documentos-kyc", "documentos-autos"}
+    TAMANO_MAXIMO_PDF_BYTES = 5 * 1024 * 1024  # 5 MB
+    # Un certificado no necesita nada de esto: es contenido activo.
+    _PDF_CONTENIDO_ACTIVO = (b"/JavaScript", b"/JS", b"/Launch", b"/EmbeddedFile", b"/OpenAction", b"/AA")
+
     @classmethod
     def _raiz_local(cls, bucket: str) -> str:
         """
@@ -49,7 +56,7 @@ class StorageService:
 
         # Solo caracteres seguros en nombres de archivo (hex UUID o alfanuméricos con guiones y extensiones)
         import re
-        if not re.match(r"^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp|heic)$", archivo_id, re.IGNORECASE):
+        if not re.match(r"^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp|heic|pdf)$", archivo_id, re.IGNORECASE):
             return None
 
         ruta = os.path.join(settings.STORAGE_LOCAL_PRIVATE_DIR, bucket, archivo_id)
@@ -82,6 +89,79 @@ class StorageService:
         return None
 
     @classmethod
+    def renovar_url_campos(cls, objeto, campos) -> bool:
+        """
+        Re-firma las URLs que estén por caducar en los `campos` de un objeto (fila ORM). Las URLs
+        firmadas de los buckets privados caducan a los 7 días: sin esto el panel muestra imágenes
+        rotas. Devuelve True si cambió alguna, para que quien llama haga commit.
+        """
+        cambio = False
+        for campo in campos:
+            actual = getattr(objeto, campo, None)
+            if not actual:
+                continue
+            nueva = cls.renovar_si_vence_pronto(actual)
+            if nueva and nueva != actual:
+                setattr(objeto, campo, nueva)
+                cambio = True
+        return cambio
+
+    @classmethod
+    def renovar_lista_urls(cls, urls):
+        """Igual que `renovar_url_campos` pero para una lista de URLs. Devuelve (lista, cambió)."""
+        if not urls:
+            return urls, False
+        nuevas = [cls.renovar_si_vence_pronto(u) or u for u in urls]
+        return nuevas, nuevas != list(urls)
+
+    @classmethod
+    def eliminar_archivo_privado(cls, url: Optional[str]) -> bool:
+        """
+        Borra un archivo de un bucket privado (respaldo local o Supabase). Idempotente: si ya no existe
+        cuenta como hecho. Devuelve False solo si falló y conviene reintentar. Sirve para purgar los
+        certificados (datos personales sensibles) pasado el plazo de retención.
+        """
+        if not url:
+            return True
+        try:
+            if "/storage/local/" in url:
+                resto = url.split("/storage/local/", 1)[1].split("?", 1)[0].strip("/")
+                partes = resto.split("/")
+                if len(partes) != 2 or partes[0] not in cls.BUCKETS_PRIVADOS:
+                    return False
+                ruta = cls.leer_archivo_local_privado(partes[0], partes[1])
+                if ruta:
+                    os.remove(ruta)
+                return True
+
+            if "/storage/v1/object/" in url:
+                firmada = "/storage/v1/object/sign/" in url
+                marcador = "/storage/v1/object/sign/" if firmada else "/storage/v1/object/"
+                bucket, archivo_id = url.split(marcador, 1)[1].split("?", 1)[0].split("/", 1)
+                if bucket not in cls.BUCKETS_PRIVADOS:
+                    return False
+                supabase_url, service_key = settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY
+                if not (supabase_url and service_key and "your-" not in service_key):
+                    return False
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.delete(
+                        f"{supabase_url}/storage/v1/object/{bucket}/{archivo_id}",
+                        headers={"Authorization": f"Bearer {service_key}", "apikey": service_key},
+                    )
+                return resp.status_code in (200, 204, 404)
+        except Exception as e:  # noqa: BLE001
+            logger.error("No se pudo borrar un archivo privado: %s", e)
+        return False
+
+    @classmethod
+    def _es_pdf(cls, contenido: bytes) -> bool:
+        return bool(contenido) and contenido.lstrip()[:5] == b"%PDF-"
+
+    @classmethod
+    def _pdf_tiene_contenido_activo(cls, contenido: bytes) -> bool:
+        return any(marca in contenido for marca in cls._PDF_CONTENIDO_ACTIVO)
+
+    @classmethod
     def subir_archivo(
         cls,
         contenido_bytes: bytes,
@@ -89,6 +169,7 @@ class StorageService:
         content_type: str = "image/jpeg",
         bucket: str = "general",
         base_url: Optional[str] = None,
+        permitir_pdf: bool = False,
     ) -> Dict[str, Any]:
         """
         Sube un archivo binario a Supabase Storage (o al almacenamiento local de respaldo).
@@ -97,25 +178,44 @@ class StorageService:
         if bucket not in cls.BUCKETS_PERMITIDOS:
             bucket = "general"
 
-        if len(contenido_bytes) > cls.TAMANO_MAXIMO_BYTES:
+        es_pdf = permitir_pdf and cls._es_pdf(contenido_bytes)
+        limite = cls.TAMANO_MAXIMO_PDF_BYTES if es_pdf else cls.TAMANO_MAXIMO_BYTES
+        if len(contenido_bytes) > limite:
             return {
                 "success": False,
                 "validation_error": True,
                 "bucket": bucket,
-                "error": f"El archivo excede el tamaño máximo permitido ({cls.TAMANO_MAXIMO_BYTES // (1024*1024)} MB).",
+                "error": f"El archivo excede el tamaño máximo permitido ({limite // (1024*1024)} MB).",
             }
 
-        # El tipo se detecta por los bytes, no por el content-type que mandó
-        # el cliente (RN manda octet-stream / nada para las fotos de cámara).
-        sniff = cls._sniff_imagen(contenido_bytes)
-        if not sniff:
-            return {
-                "success": False,
-                "validation_error": True,
-                "bucket": bucket,
-                "error": "Tipo de archivo no permitido: el contenido no es una imagen JPG, PNG o WebP válida. Toma la foto de nuevo.",
-            }
-        content_type, extension = sniff
+        if es_pdf:
+            if bucket not in cls.BUCKETS_PDF:
+                return {
+                    "success": False,
+                    "validation_error": True,
+                    "bucket": bucket,
+                    "error": "Los PDF solo se aceptan en los buckets privados de documentos.",
+                }
+            if cls._pdf_tiene_contenido_activo(contenido_bytes):
+                return {
+                    "success": False,
+                    "validation_error": True,
+                    "bucket": bucket,
+                    "error": "El PDF contiene elementos no permitidos (scripts o archivos incrustados). Descarga el certificado original del Registro Civil.",
+                }
+            content_type, extension = "application/pdf", ".pdf"
+        else:
+            # El tipo se detecta por los bytes, no por el content-type que mandó
+            # el cliente (RN manda octet-stream / nada para las fotos de cámara).
+            sniff = cls._sniff_imagen(contenido_bytes)
+            if not sniff:
+                return {
+                    "success": False,
+                    "validation_error": True,
+                    "bucket": bucket,
+                    "error": "Tipo de archivo no permitido: el contenido no es una imagen JPG, PNG o WebP válida. Toma la foto de nuevo.",
+                }
+            content_type, extension = sniff
         if content_type == "image/heic":
             return {
                 "success": False,

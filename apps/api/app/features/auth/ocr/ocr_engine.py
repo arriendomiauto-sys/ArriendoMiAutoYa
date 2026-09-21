@@ -148,7 +148,14 @@ class OCRService:
                 return None
 
         if url_o_path.startswith("/uploads/"):
-            local = os.path.join(settings.STORAGE_LOCAL_DIR, url_o_path[len("/uploads/"):])
+            # La ruta la manda el cliente: se normaliza y se exige que quede
+            # DENTRO de la carpeta pública. Sin esto, `/uploads/../uploads_privados/…`
+            # llegaba a los documentos de identidad.
+            base = os.path.realpath(settings.STORAGE_LOCAL_DIR)
+            local = os.path.realpath(os.path.join(base, url_o_path[len("/uploads/"):]))
+            if os.path.commonpath([base, local]) != base:
+                logger.warning(f"[Anti-traversal] Ruta rechazada en OCR: {url_o_path}")
+                return None
             if os.path.isfile(local):
                 try:
                     with open(local, "rb") as f:
@@ -157,14 +164,8 @@ class OCRService:
                     logger.error(f"Error al leer archivo local ({local}): {e}")
             return None
 
-        if os.path.isfile(url_o_path):
-            try:
-                with open(url_o_path, "rb") as f:
-                    return f.read()
-            except Exception as e:
-                logger.error(f"Error al leer archivo local ({url_o_path}): {e}")
-                return None
-
+        # Ninguna otra ruta del disco se lee: antes cualquier ruta absoluta que
+        # existiera en el servidor se abría y se mandaba al OCR.
         return None
 
     @staticmethod

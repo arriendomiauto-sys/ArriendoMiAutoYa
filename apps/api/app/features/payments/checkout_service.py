@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.models.entities import Pago, Reserva, Tarjeta, Usuario
 from app.features.payments import card_vault
 from app.features.payments.mercadopago_service import MercadoPagoService
-from app.features.communications.notifications.service import crear_notificacion
+from app.features.bookings.reservations import confirmacion_service
 from app.services import pagos_simulados
 
 logger = logging.getLogger(__name__)
@@ -140,12 +140,13 @@ def procesar_pago(
     device_id: Optional[str] = None,  # noqa: ARG001 — plumbing MP fingerprint pendiente
 ) -> Dict[str, Any]:
     """
-    Ejecuta el pago dual de la reserva. Devuelve `{estado: "confirmada"}` o
-    `{estado: "pendiente", motivo, expira_en}`. Lanza `CheckoutError` en los
-    caminos de error (tarjeta inválida, sin cupo, cobro rechazado, expirada).
+    Ejecuta el pago dual de la reserva. Devuelve `{estado: "esperando_dueno", confirmar_antes_de}`
+    (pagada: el dueño tiene un plazo para confirmarla, ver `confirmacion_service`) o
+    `{estado: "pendiente", motivo, expira_en}` (el banco aún revisa el cobro). Lanza `CheckoutError`
+    en los caminos de error (tarjeta inválida, sin cupo, cobro rechazado, expirada).
     """
-    if reserva.estado == "confirmada":
-        return {"estado": "confirmada"}
+    if reserva.estado in ("pendiente", "confirmada"):
+        return _respuesta_pagada(reserva)
     if reserva.estado != "pendiente_pago":
         raise CheckoutError(409, "ESTADO_INVALIDO", "La reserva no está esperando pago.")
 
@@ -175,6 +176,40 @@ def procesar_pago(
     if not tg or tg.tipo != "credito" or tg.estado != "validada":
         raise CheckoutError(402, "TARJETA_TIPO_INVALIDO",
                             "La garantía se retiene en una tarjeta de crédito validada.", campo="garantia")
+
+    # Antifraude: prevención de autofinanciamiento / colusión con medios de pago del dueño
+    from app.core.validators import normalizar_rut
+    dueno = getattr(reserva, "auto", None) and getattr(reserva.auto, "dueno", None)
+    if not dueno and getattr(reserva, "auto", None):
+        dueno = db.query(Usuario).filter(Usuario.id == reserva.auto.dueno_id).first()
+
+    if dueno:
+        # 1. Comprobar RUT si estuviese presente en metadata de tarjeta
+        rut_dueno = normalizar_rut(getattr(dueno, "rut", None))
+        if rut_dueno:
+            rut_tc = normalizar_rut(getattr(tc, "rut", None))
+            rut_tg = normalizar_rut(getattr(tg, "rut", None))
+            if (rut_tc and rut_tc == rut_dueno) or (rut_tg and rut_tg == rut_dueno):
+                raise CheckoutError(403, "COLUSION_AUTOFINANCIAMIENTO",
+                                    "No puedes utilizar un medio de pago perteneciente al dueño del vehículo.")
+
+        # 2. Comprobar si el titular de la tarjeta coincide con el dueño y difiere del arrendatario
+        if dueno.nombre and usuario.nombre:
+            nombre_dueno = dueno.nombre.strip().upper()
+            nombre_cliente = usuario.nombre.strip().upper()
+            if nombre_dueno != nombre_cliente:
+                if (tc.titular and tc.titular.strip().upper() == nombre_dueno) or \
+                   (tg.titular and tg.titular.strip().upper() == nombre_dueno):
+                    raise CheckoutError(403, "COLUSION_AUTOFINANCIAMIENTO",
+                                        "No puedes utilizar un medio de pago perteneciente al dueño del vehículo.")
+
+        # 3. Comprobar si la misma tarjeta tokenizada en el vault pertenece al dueño
+        tarjetas_dueno = db.query(Tarjeta).filter(Tarjeta.usuario_id == dueno.id).all()
+        ids_dueno = {t.mp_card_id for t in tarjetas_dueno if t.mp_card_id}
+
+        if (tc.mp_card_id and tc.mp_card_id in ids_dueno) or (tg.mp_card_id and tg.mp_card_id in ids_dueno):
+            raise CheckoutError(403, "COLUSION_AUTOFINANCIAMIENTO",
+                                "No puedes utilizar un medio de pago perteneciente al dueño del vehículo.")
 
     monto_cobro = int(reserva.monto_cobro or 0)
     monto_hold = int(reserva.monto_hold or 0)
@@ -211,13 +246,19 @@ def procesar_pago(
     # --- Éxito: se persiste todo junto -----------------------------------
     _registrar_pago(db, reserva, usuario, "hold_reserva", monto_hold, "retenido", res_hold.get("payment_id"))
     _registrar_pago(db, reserva, usuario, "cobro_arriendo", monto_cobro, "capturado", res_cobro.get("payment_id"))
-    reserva.estado = "confirmada"
     reserva.tarjeta_cobro_id = tc.id
     reserva.tarjeta_garantia_id = tg.id
+    # Pagada, pero el dueño todavía no aceptó: queda "pendiente" con plazo.
+    confirmacion_service.esperar_confirmacion_del_dueno(db, reserva)
     db.commit()
+    return _respuesta_pagada(reserva)
 
-    _notificar_confirmada(db, reserva)
-    return {"estado": "confirmada"}
+
+def _respuesta_pagada(reserva: Reserva) -> Dict[str, Any]:
+    if reserva.estado == "confirmada":
+        return {"estado": "confirmada"}
+    plazo = reserva.confirmar_dueno_antes_de
+    return {"estado": "esperando_dueno", "confirmar_antes_de": plazo.isoformat() if plazo else None}
 
 
 def _registrar_pago(db, reserva, usuario, tipo, monto, estado, payment_id) -> None:
@@ -241,22 +282,3 @@ def _motivo_rechazo(res: Dict[str, Any]) -> str:
         "cc_rejected_call_for_authorize": "Tu banco necesita que autorices este monto. Llámalos y reintenta.",
     }
     return mapa.get(detalle, "No se pudo cobrar el arriendo. No se retuvo ninguna garantía.")
-
-
-def _notificar_confirmada(db: Session, reserva: Reserva) -> None:
-    auto = reserva.auto
-    nombre_auto = f"{auto.marca} {auto.modelo}" if auto else "tu vehículo"
-    if auto:
-        crear_notificacion(
-            db, usuario_id=auto.dueno_id, tipo="reserva",
-            titulo="Nueva reserva confirmada",
-            mensaje=f"Te reservaron el {nombre_auto} y ya se pagó. Coordina la entrega.",
-            entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
-        )
-    crear_notificacion(
-        db, usuario_id=reserva.cliente_id, tipo="reserva",
-        titulo="Reserva confirmada",
-        mensaje=f"Tu reserva del {nombre_auto} quedó confirmada y la garantía retenida.",
-        entidad_tipo="reserva", entidad_id=reserva.id, commit=False,
-    )
-    db.commit()

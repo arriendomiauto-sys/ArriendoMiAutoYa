@@ -32,42 +32,6 @@ def test_persist_verification_assets_solo_devuelve_lo_persistido(monkeypatch):
 
 
 # ===========================================================================
-# BackgroundCheckService (ChapiAPI en modo mock)
-# ===========================================================================
-def test_background_check_mock_limpio():
-    result = BackgroundCheckService.verify_driver_eligibility("18.456.789-K")
-    assert result.is_eligible is True
-    assert result.has_suspended_license is False
-
-
-def test_background_check_sin_rut_no_elegible():
-    result = BackgroundCheckService.verify_driver_eligibility("")
-    assert result.is_eligible is False
-
-
-def test_background_check_marca_usuario_bloqueado(db_session, monkeypatch):
-    from app.features.auth.background_checks import service as bg_service
-    from app.features.auth.background_checks.models import BackgroundCheckResult
-    from app.models.entities import Usuario
-
-    user = Usuario(email="conductor.bg@test.cl", rut="7.654.321-8", estado_documentos="verificado")
-    db_session.add(user)
-    db_session.commit()
-
-    monkeypatch.setattr(
-        bg_service.BackgroundCheckService, "verify_driver_eligibility",
-        classmethod(lambda cls, rut: BackgroundCheckResult(
-            is_eligible=False, criminal_record_clean=False, driver_record_clean=True,
-            rejection_reasons=["Presenta antecedentes penales."],
-        )),
-    )
-    bg_service.BackgroundCheckService.run_and_flag_user(db_session, user.id)
-    db_session.refresh(user)
-    assert user.estado_documentos == "requiere_revision_manual"
-    assert user.antecedentes_estado == "revision"
-
-
-# ===========================================================================
 # Webhook de Didit: veredicto Approved
 # ===========================================================================
 def test_webhook_didit_approved_persiste_identidad_pero_no_la_licencia(client, db_session, usuario_factory, monkeypatch):

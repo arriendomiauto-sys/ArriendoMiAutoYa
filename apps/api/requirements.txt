@@ -12,6 +12,9 @@ python-dotenv>=1.0.1
 python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.9
 reportlab>=4.0.0
+# Lectura del texto de los certificados oficiales en PDF (antecedentes, hoja de vida,
+# anotaciones vigentes). Los PDF del Registro Civil traen capa de texto: no hace falta OCR de pago.
+pypdf>=4.0.0
 pytest>=8.0.0
 httpx>=0.27.0
 slowapi>=0.1.9

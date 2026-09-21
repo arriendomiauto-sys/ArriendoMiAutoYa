@@ -1,7 +1,9 @@
 from app.core.config import settings
 
-def test_ocr_procesar_documentos(client):
-    resp = client.post(
+def test_ocr_procesar_documentos(usuario_factory, auth_as):
+    # El OCR exige sesión (cada llamada cuesta dinero): el usuario que se enrola ya inició sesión.
+    usuario = usuario_factory(estado_documentos="pendiente")
+    resp = auth_as(usuario).post(
         "/api/v1/enrolamiento/procesar-documentos",
         json={
             "nombre": "Juan Pérez",

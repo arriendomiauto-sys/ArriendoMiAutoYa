@@ -1,15 +1,11 @@
 """
-La verificación de antecedentes (ChapiAPI) solo corría para el titular —
-el segundo conductor pasaba el KYC de documentos pero nadie consultaba su
-hoja de vida ni antecedentes penales. Ahora, cuando su KYC queda
-"verificado", se dispara la misma verificación en background; si aparece
-cualquier antecedente, queda en revisión con un ticket dirigido al titular
-de la reserva (el conductor no tiene cuenta propia).
+Cuando el KYC del segundo conductor queda "verificado", se programa el cálculo de su
+estado de antecedentes en background. El estado sale de los certificados que sube el
+titular (ver test_certificados_servicio.py); acá solo se comprueba que la asignación
+del conductor programa esa tarea.
 """
 from datetime import datetime, timedelta, timezone
 
-from app.features.auth.background_checks.chapi_provider import ChapiApiProvider
-from app.features.auth.background_checks.models import BackgroundCheckResult
 from app.features.auth.background_checks.service import BackgroundCheckService
 from app.models.entities import Usuario, Auto, Reserva, ConductorAdicional, TicketSoporte
 
@@ -58,44 +54,6 @@ def _crear_datos(db):
     db.commit()
 
     return dueno, cliente, auto, reserva, conductor
-
-
-def test_conductor_con_antecedentes_pasa_a_revision_con_ticket_al_titular(db_session, monkeypatch):
-    dueno, cliente, auto, reserva, conductor = _crear_datos(db_session)
-    monkeypatch.setattr(
-        ChapiApiProvider, "check_driver_background",
-        classmethod(lambda cls, rut: BackgroundCheckResult(
-            is_eligible=False, criminal_record_clean=False, driver_record_clean=True,
-            rejection_reasons=["Presenta antecedentes penales."],
-        )),
-    )
-
-    BackgroundCheckService.run_and_flag_conductor(db_session, conductor.id)
-
-    db_session.refresh(conductor)
-    assert conductor.antecedentes_estado == "revision"
-    assert conductor.estado_kyc == "requiere_revision_manual"
-
-    ticket = db_session.query(TicketSoporte).filter(TicketSoporte.usuario_id == cliente.id).first()
-    assert ticket is not None
-    assert "segundo conductor" in ticket.asunto.lower()
-    assert "antecedentes penales" in ticket.descripcion.lower()
-
-
-def test_conductor_sin_antecedentes_queda_limpio(db_session, monkeypatch):
-    dueno, cliente, auto, reserva, conductor = _crear_datos(db_session)
-    monkeypatch.setattr(
-        ChapiApiProvider, "check_driver_background",
-        classmethod(lambda cls, rut: BackgroundCheckResult(
-            is_eligible=True, criminal_record_clean=True, driver_record_clean=True,
-        )),
-    )
-
-    BackgroundCheckService.run_and_flag_conductor(db_session, conductor.id)
-
-    db_session.refresh(conductor)
-    assert conductor.antecedentes_estado == "limpio"
-    assert conductor.estado_kyc == "verificado"
 
 
 def test_asignar_segundo_conductor_programa_verificacion_de_antecedentes(client, db_session, monkeypatch):

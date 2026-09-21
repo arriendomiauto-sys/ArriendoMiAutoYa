@@ -92,10 +92,10 @@ def test_get_comision_descuenta_compensaciones(client, db_session, usuario_facto
     _liq(db_session, d.id, 34000, "pendiente", reserva_id=r.id)
 
     fila = next(f for f in auth_as(admin).get("/api/v1/admin/liquidaciones").json() if f["id"] == d.id)
-    # comisión solo sobre la base: 24000 base -> subtotal 30000 -> comisión 6000
+    # comisión (15 %) solo sobre la base: 24000 base -> subtotal 28235 -> comisión 4235
     assert fila["neto_clp"] == 34000
-    assert fila["comision_clp"] == 6000
-    assert fila["bruto_clp"] == 40000
+    assert fila["comision_clp"] == 4235
+    assert fila["bruto_clp"] == 38235
     assert fila["reservas_count"] == 1
 
 

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     HOLD_ENROLAMIENTO_CLP: int = 800000
     SEGURO_DEDUCIBLE_UF: int = 15
     VALOR_UF_CLP: int = 37500
-    COMISION_PLATAFORMA_PORCENTAJE: float = 0.20
+    COMISION_PLATAFORMA_PORCENTAJE: float = 0.15
 
     # Rastreo GPS de la flota. El mercado chileno no tiene un convenio único:
     # se opera con equipo en comodato + suscripción mensual por vehículo, así
@@ -66,14 +66,19 @@ class Settings(BaseSettings):
     # identidad — comparten API key y webhook secret, no el workflow.
     DIDIT_WORKFLOW_ID_LICENCIA: Optional[str] = None
 
-    # Verificación de antecedentes del conductor (ChapiAPI).
+    # Verificación de antecedentes con certificados oficiales gratuitos del Registro
+    # Civil (antecedentes y hoja de vida del conductor para las personas; anotaciones
+    # vigentes para los autos). Reemplaza a ChapiAPI, que aprobaba siempre en
+    # desarrollo y también cuando fallaba la red.
     #
-    # Sin llave (o en desarrollo) el proveedor responde un mock con
-    # antecedentes limpios y licencia sin suspensión, para no bloquear el
-    # enrolamiento. Con llave real, se consulta la Hoja de Vida del Conductor
-    # y los antecedentes penales por RUT antes de habilitar a la persona.
-    CHAPI_API_KEY: Optional[str] = None
-    CHAPI_BASE_URL: str = "https://api.chapi.cl/v1"
+    # Apagado por defecto para no frenar el desarrollo ni a los usuarios que ya
+    # operan: se enciende en producción cuando la cola de revisión del admin esté lista.
+    ANTECEDENTES_OBLIGATORIOS: bool = False        # sin antecedentes "limpio" no se puede reservar
+    AUTOS_VERIFICADOS_OBLIGATORIOS: bool = False   # un auto sin verificar no se ofrece ni se reserva
+    ANTECEDENTES_VIGENCIA_DIAS: int = 30           # antigüedad máxima del certificado al subirlo
+    ANTECEDENTES_RETENCION_DIAS: int = 30          # el PDF se purga pasado este plazo (queda el hash y el resultado)
+    ANTECEDENTES_PURGA_INTERVALO_HORAS: int = 24   # cada cuánto se buscan PDF vencidos para borrar
+    ANTECEDENTES_REVERIFICACION_DIAS: int = 180    # pasado este plazo desde la aprobación hay que volver a verificar
 
     # Google Maps
     GOOGLE_MAPS_API_KEY: str = "placeholder-maps-key"
@@ -121,6 +126,8 @@ class Settings(BaseSettings):
     # No intentar transferencias por montos ínfimos (se acumulan / se pagan a mano).
     BCI_PAYOUT_MIN_CLP: int = 1000
     LIQUIDACIONES_INTERVALO_MINUTOS: int = 10
+    # Cada cuánto se cancelan las reservas `pendiente_pago` vencidas y se sueltan garantías colgadas.
+    RESERVAS_BARRIDO_INTERVALO_MINUTOS: int = 5
     # ====================================================================
 
     # Storage Local Directory Fallback
@@ -192,23 +199,28 @@ class Settings(BaseSettings):
     # la cuenta del cliente, el envío falla igual aunque la API key esté
     # puesta — confirmar el dominio antes de encender esto en producción.
     RESEND_FROM_EMAIL: str = "contratos@arriendomiautoya.cl"
+    RESEND_NOTIFICACIONES_EMAIL: str = "notificaciones@arriendomiautoya.cl"
 
     def advertencias_produccion(self) -> List[str]:
         """
-        Config que en desarrollo cae a un mock silencioso (antecedentes
-        siempre "limpios", identidad Didit apagada) pero que en producción
-        significaría que esas verificaciones nunca corren de verdad. No
-        rompe el arranque -- solo lo hace ruidoso en los logs, para que no
-        pase inadvertido igual que pasó con la licencia de Didit.
+        Config que en desarrollo queda apagada a propósito (verificación de
+        antecedentes, identidad Didit) pero que en producción significaría que
+        esas verificaciones nunca corren de verdad. No rompe el arranque -- solo
+        lo hace ruidoso en los logs, para que no pase inadvertido igual que pasó
+        con la licencia de Didit.
         """
         if self.ENVIRONMENT != "production":
             return []
         avisos = []
-        if not self.CHAPI_API_KEY:
+        if not self.ANTECEDENTES_OBLIGATORIOS:
             avisos.append(
-                "CHAPI_API_KEY no está configurada: la verificación de antecedentes "
-                "(ChapiAPI) corre en modo simulado y siempre da 'limpio' — nadie está "
-                "consultando antecedentes penales ni licencias suspendidas de verdad."
+                "ANTECEDENTES_OBLIGATORIOS está apagado: nadie está verificando los "
+                "antecedentes ni la hoja de vida de quien arrienda un auto."
+            )
+        if not self.AUTOS_VERIFICADOS_OBLIGATORIOS:
+            avisos.append(
+                "AUTOS_VERIFICADOS_OBLIGATORIOS está apagado: un auto con documentos sin "
+                "verificar (o con encargo por robo sin consultar) se ofrece y se puede reservar."
             )
         if self.VERIFICACION_EXTERNA_HABILITADA and not (
             self.DIDIT_API_KEY and self.DIDIT_WORKFLOW_ID and self.DIDIT_WEBHOOK_SECRET

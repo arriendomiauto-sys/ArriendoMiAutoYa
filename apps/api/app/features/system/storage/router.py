@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, s
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.features.system.storage.service import StorageService
-from app.models.entities import Usuario
+from app.models.entities import CertificadoAntecedente, Usuario
 from app.features.auth.login.service import get_current_user, get_optional_current_user, autenticar_token
 from app.core.database import get_db
 from app.core.limiter import limiter
@@ -74,6 +74,21 @@ async def servir_archivo_local_privado(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Archivo no encontrado en el respaldo local privado.",
+        )
+
+    # Los PDF son certificados con datos personales sensibles (antecedentes): a diferencia de
+    # una foto, solo los ve quien los subió o un ejecutivo, y siempre como descarga.
+    if archivo_id.lower().endswith(".pdf"):
+        if not ({"admin", "manager"} & set(current_user.roles_activos or [])):
+            certificado = (
+                db.query(CertificadoAntecedente)
+                .filter(CertificadoAntecedente.archivo_url.like(f"%/{bucket}/{archivo_id}"))
+                .first()
+            )
+            if not certificado or certificado.subido_por_id != current_user.id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a este documento.")
+        return FileResponse(
+            ruta, media_type="application/pdf", filename=archivo_id, content_disposition_type="attachment"
         )
     return FileResponse(ruta)
 

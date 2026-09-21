@@ -22,14 +22,17 @@ def clausula_peajes_tag(dias_cobro_posterior_peajes: int) -> str:
     cerrada la reserva.
     """
     return (
-        "<b>QUINTA — PEAJES, TAG Y MULTAS DE TRÁNSITO:</b> Los consumos de autopistas concesionadas (TAG y pórticos "
+        "<b>QUINTA — PEAJES, TAG Y MULTAS DE TRÁNSITO (LEY N° 18.287):</b> Los consumos de autopistas concesionadas (TAG y pórticos "
         "de flujo libre) y las infracciones cursadas por fotorradar u otros controles se notifican semanas después "
         "del hecho y siempre a nombre del titular de la patente, no del conductor. Por ello, el Arrendatario "
-        "<b>autoriza expresamente</b> a Arrienda Tu Auto SpA a cargar a su tarjeta registrada los peajes y multas "
+        "<b>autoriza expresamente</b> a ARRIENDO MI AUTO SpA a cargar a su tarjeta registrada los peajes y multas "
         f"generados entre la entrega y la devolución del vehículo, dentro de los <b>{dias_cobro_posterior_peajes} días</b> "
         "siguientes al término del arriendo. Todo cargo se respaldará con la boleta de la concesionaria o el parte "
-        "cursado, que quedará disponible en el historial de la reserva. Vencido ese plazo, la plataforma no podrá "
-        "imputar nuevos cargos por este concepto al Arrendatario."
+        "cursado, que quedará disponible en el historial de la reserva. Vencido ese plazo de cobro a tarjeta, o en caso "
+        "de resultar infructuoso el cargo por fondos insuficientes, el Arrendatario confiere mandato especial e irrevocable "
+        "al Arrendador y a ARRIENDO MI AUTO SpA para individualizarlo ante el respectivo Juzgado de Policía Local o "
+        "Dirección de Tránsito Municipal conforme al artículo 4° de la Ley N° 18.287, asumiendo el Arrendatario la calidad "
+        "de infractor directo y la exclusiva responsabilidad de comparecencia y pago ante dicho tribunal."
     )
 
 def parse_svg_path(path_str: str) -> list:
@@ -267,7 +270,7 @@ class ContractService:
         # 1. Cabecera del Documento
         story.append(Paragraph("CONTRATO DE ARRIENDO TEMPORAL DE VEHÍCULO MOTORIZADO (PEER-TO-PEER)", title_style))
         story.append(Spacer(1, 4))
-        story.append(Paragraph(f"ARRIENDA TU AUTO CHILE SpA • CÓDIGO DE RESERVA: {reserva_id[:8].upper()}", subtitle_style))
+        story.append(Paragraph(f"ARRIENDO MI AUTO SpA • CÓDIGO DE RESERVA: {reserva_id[:8].upper()}", subtitle_style))
         story.append(Spacer(1, 8))
         story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#E11D2A"), spaceAfter=10))
 
@@ -286,8 +289,8 @@ class ContractService:
             f"En la ciudad de Los Ángeles, Región del Biobío, Chile, comparecen por una parte como <b>ARRENDADOR (DUEÑO)</b> "
             f"don/doña <b>{dueno_nombre}</b>, Cédula de Identidad N° <b>{dueno_rut}</b>, fono {dueno_telefono}; y por la otra parte como "
             f"<b>ARRENDATARIO (CLIENTE)</b> don/doña <b>{cliente_nombre}</b>, Cédula de Identidad N° <b>{cliente_rut}</b>, "
-            f"fono {cliente_telefono}{segundo_conductor_intro}; con la intermediación digital y garantía de la plataforma <b>Arrienda Tu Auto Chile SpA</b> "
-            f"(RUT 77.891.234-5). Las partes convienen celebrar el presente contrato de arriendo bajo las siguientes cláusulas:"
+            f"fono {cliente_telefono}{segundo_conductor_intro}; con la intermediación digital y mandato de administración de la plataforma "
+            f"<b>ARRIENDO MI AUTO SpA</b> (RUT <b>78.493.457-8</b>). Las partes convienen celebrar el presente contrato de arriendo bajo las siguientes cláusulas:"
         )
         story.append(Paragraph(intro_text, body_style))
         story.append(Spacer(1, 8))
@@ -373,10 +376,12 @@ class ContractService:
         deducible_pesos = 15 * valor_uf_clp
         mitad_deducible = deducible_pesos / 2
         clausula4 = (
-            f"<b>CUARTA — SEGURO Y COBERTURA DE DEDUCIBLE (15 UF 50/50):</b> El móvil cuenta con póliza de seguro full cobertura con deducible fijado en "
-            f"<b>15 UF</b> (~${deducible_pesos:,.0f} CLP al valor UF de referencia). En caso de siniestro, choque, hurto o daño amparado por la póliza, "
-            f"el deducible se divide en partes iguales: <b>50% a cargo de Arrienda Tu Auto SpA (~${mitad_deducible:,.0f} CLP)</b> y <b>50% a cargo del Arrendador (~${mitad_deducible:,.0f} CLP)</b>. "
-            f"El Arrendatario responderá con su Hold de Garantía de $800.000 CLP ante dolo, negligencia grave, consumo de alcohol/drogas o exclusiones directas de la póliza."
+            f"<b>CUARTA — PROGRAMA DE COBERTURA Y DEDUCIBLE DE 15 UF (50/50):</b> El arriendo cuenta con programa de protección y seguro frente a siniestros, "
+            f"con deducible general fijado en <b>15 UF</b> (~${deducible_pesos:,.0f} CLP al valor de referencia). Ante cualquier siniestro fortuito o culposo "
+            f"amparado por la póliza, el deducible se absorbe en partes iguales: <b>50% a cargo de ARRIENDO MI AUTO SpA (~${mitad_deducible:,.0f} CLP)</b> "
+            f"y <b>50% a cargo del Arrendador (~${mitad_deducible:,.0f} CLP)</b>, quedando exento el Arrendatario. "
+            f"Excepcionalmente, el Arrendatario responderá con su Hold de Garantía de $800.000 CLP y hasta el valor total de los daños si mediare dolo, "
+            f"negligencia grave, conducción bajo la influencia del alcohol, estupefacientes, falta de licencia apta o exclusiones expresas de la cobertura."
         )
         story.append(Paragraph(clausula4, body_style))
         story.append(Spacer(1, 5))
@@ -384,12 +389,46 @@ class ContractService:
         story.append(Paragraph(clausula_peajes_tag(dias_cobro_posterior_peajes), body_style))
         story.append(Spacer(1, 5))
 
-        clausula5 = (
-            "<b>SEXTA — DEVOLUCIÓN, ATRASOS Y JURISDICCIÓN:</b> Se otorga un período de gracia de 30 minutos respecto de la hora de término pactada. "
-            "Posterior a dicho lapso, se facturará la fracción horaria o el día adicional correspondiente. "
-            "Para todos los efectos legales, las partes fijan su domicilio en la comuna de Los Ángeles, sometiéndose a la competencia de sus Tribunales de Justicia."
+        clausula_indemnidad = (
+            "<b>SEXTA — DESTINO LÍCITO, PROHIBICIÓN LEY N° 20.000, RESPONSABILIDAD CIVIL E INDEMNIDAD (LEY N° 18.290):</b><br/>"
+            "a) <u>Destino Lícito y Sustancias Ilícitas</u>: El Arrendatario se obliga a destinar el vehículo exclusivamente para fines de transporte personal lícito. "
+            "Queda terminantemente prohibido utilizar el vehículo para el transporte de drogas, estupefacientes o sustancias psicotrópicas sancionadas por la Ley N° 20.000, "
+            "contrabando, armas no autorizadas, carreras clandestinas, subarriendo no autorizado o cualquier otra actividad delictiva. "
+            "El Arrendatario autoriza expresamente a ARRIENDO MI AUTO SpA y al Arrendador a compartir de inmediato con el Ministerio Público, "
+            "Carabineros de Chile y Policía de Investigaciones (PDI) todos los datos de telemetría GPS, bitácora de viajes, identidad y grabaciones para coadyuvar en la persecución penal.<br/>"
+            "b) <u>Responsabilidad Civil e Indemnidad</u>: El Arrendatario asume la responsabilidad exclusiva, personal y "
+            "directa por la conducción y custodia del vehículo durante todo el arriendo. En consecuencia, y en resguardo del artículo 169 de la Ley de Tránsito, "
+            "el Arrendatario se obliga expresamente a mantener total e íntegramente indemne al Arrendador (Dueño) y a ARRIENDO MI AUTO SpA frente a cualquier acción, "
+            "demanda o condena indemnizatoria por daños materiales, lesiones o perjuicios a terceros derivados del uso del vehículo, obligándose a reembolsar "
+            "de inmediato cualquier suma que aquellos fueren conminados a pagar."
         )
-        story.append(Paragraph(clausula5, body_style))
+        story.append(Paragraph(clausula_indemnidad, body_style))
+        story.append(Spacer(1, 5))
+
+        clausula_firma = (
+            "<b>SÉPTIMA — VALIDEZ PROBATORIA DE FIRMA ELECTRÓNICA (LEY N° 19.799):</b> Las partes declaran que el presente contrato se suscribe "
+            "válidamente mediante mecanismos de firma electrónica. Reconocen que el sellado digital, el hash criptográfico SHA-256 generado por la plataforma "
+            "y la verificación biométrica KYC previa constituyen plena prueba convencional de su identidad, consentimiento e integridad del documento, "
+            "renunciando a desconocer su valor probatorio."
+        )
+        story.append(Paragraph(clausula_firma, body_style))
+        story.append(Spacer(1, 5))
+
+        clausula_jurisdiccion = (
+            "<b>OCTAVA — DEVOLUCIÓN, ATRASOS, CESE DE TENENCIA (ART. 470 N° 1 C.P.) Y JURISDICCIÓN:</b> "
+            "Se otorga un período de gracia de 30 minutos respecto de la hora de término pactada. "
+            "Posterior a dicho lapso, se facturará la fracción horaria o el día adicional correspondiente. "
+            "Si transcurren más de 6 horas continuas de atraso respecto de la hora pactada (o de cualquier extensión debidamente aprobada en la plataforma) "
+            "sin que el vehículo haya sido restituido ni medie comunicación justificada por fuerza mayor comprobable, cesará de pleno derecho y sin necesidad "
+            "de requerimiento judicial previo el título de mera tenencia conferido por este contrato. A partir de dicho momento, la retención del móvil se "
+            "considerará ilegítima, quedando facultados el Arrendador y ARRIENDO MI AUTO SpA para activar los protocolos de inmovilización y corte de ignición remota vía GPS, "
+            "así como para interponer de inmediato la denuncia penal por el delito de apropiación indebida (artículo 470 N° 1 del Código Penal chileno) o hurto según corresponda, "
+            "sin perjuicio de las acciones civiles por perjuicios y lucro cesante.<br/>"
+            "Para todos los efectos legales, las partes fijan su domicilio en la comuna de Los Ángeles, Región del Biobío, sin perjuicio de las normas "
+            "de competencia especial que la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores reconoce al Arrendatario para acudir ante "
+            "los tribunales correspondientes a su domicilio."
+        )
+        story.append(Paragraph(clausula_jurisdiccion, body_style))
         story.append(Spacer(1, 8))
 
         # 5. Firmas Digitales y Manuscritas
