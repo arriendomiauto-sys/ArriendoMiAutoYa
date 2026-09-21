@@ -14,7 +14,6 @@ import {
   useApp,
   ApiClient,
   Icon,
-  Checkbox,
   LegalModal,
   BotonesOAuth,
   showAlert,
@@ -42,10 +41,10 @@ function StepProgress({ pasoActual, totalPasos = 2, onBack }) {
       </TouchableOpacity>
       <View className="flex-row flex-1 mx-4 gap-2">
         <View
-          className={`h-1 flex-1 rounded-full ${pasoActual >= 1 ? "bg-[#2DD4BF]" : "bg-gray-200"}`}
+          className={`h-1 flex-1 rounded-full ${pasoActual >= 1 ? "bg-accent-500" : "bg-gray-200"}`}
         />
         <View
-          className={`h-1 flex-1 rounded-full ${pasoActual >= 2 ? "bg-[#2DD4BF]" : "bg-gray-200"}`}
+          className={`h-1 flex-1 rounded-full ${pasoActual >= 2 ? "bg-accent-500" : "bg-gray-200"}`}
         />
       </View>
       <Text className="text-xs font-semibold text-textMuted">
@@ -56,9 +55,10 @@ function StepProgress({ pasoActual, totalPasos = 2, onBack }) {
 }
 
 /**
- * Registro de Dueño en 2 pasos:
- * - Paso 1: Todos los datos (nombre, apellido, correo, contraseña, RUT, celular, fecha, términos).
+ * Registro de Dueño en 2 pasos (NativeWind):
+ * - Paso 1: Todos los datos (sin RUT ni fecha de nacimiento, compacto y equilibrado).
  * - Paso 2: Verificación por código OTP de 6 dígitos enviado al correo.
+ * - Términos: Obliga a abrirlos para poder aceptarlos.
  * - Éxito: "Cuenta de dueño creada" con tarjeta resumen y acceso al panel.
  */
 export function OwnerRegisterScreen({ onNavigate }) {
@@ -72,7 +72,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [haRevisadoTerminos, setHaRevisadoTerminos] = useState(false);
 
-  // Formulario Paso 1: Compacto y sin RUT ni fecha de nacimiento
+  // Formulario Paso 1: Compacto y sin campos redundantes
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
@@ -86,7 +86,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
   const otpInputsRef = useRef([]);
   const [tiempoReenvio, setTiempoReenvio] = useState(45);
 
-  // Refs de navegación de teclado
+  // Refs de teclado
   const apellidoRef = useRef(null);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
@@ -171,12 +171,19 @@ export function OwnerRegisterScreen({ onNavigate }) {
       showAlert("Celular requerido", "Por favor ingresa un número de celular de 9 dígitos.");
       return;
     }
-    if (!haRevisadoTerminos || !acceptedTerms) {
+    if (!haRevisadoTerminos) {
       showAlert(
         "Términos requeridos",
-        `Debes abrir y revisar los Términos de uso y la Política de privacidad antes de crear tu cuenta.`
+        "Debes abrir y revisar los Términos de uso y la Política de privacidad antes de crear tu cuenta."
       );
       setDocumentoLegal("terminos");
+      return;
+    }
+    if (!acceptedTerms) {
+      showAlert(
+        "Términos requeridos",
+        "Debes aceptar los Términos de uso y la Política de privacidad para continuar."
+      );
       return;
     }
 
@@ -262,7 +269,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
       <View className="flex-1 bg-background justify-between px-6 pt-16 pb-10">
         <StatusBar barStyle="dark-content" />
         <View className="items-center mt-6">
-          <View className="w-20 h-20 rounded-full bg-[#E4F8F2] items-center justify-center mb-6">
+          <View className="w-20 h-20 rounded-full bg-accent-100 items-center justify-center mb-6">
             <Icon name="check" size={38} color="#10B981" strokeWidth={2.8} />
           </View>
           <Text className="text-2xl font-bold text-primary-700 text-center mb-2">
@@ -310,7 +317,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
         >
           <View className="items-center">
             {/* Ícono circular de correo */}
-            <View className="w-20 h-20 rounded-full bg-[#E4F8F2] items-center justify-center mb-6">
+            <View className="w-20 h-20 rounded-full bg-accent-100 items-center justify-center mb-6">
               <Icon name="mail" size={36} color="#0F3D3E" strokeWidth={1.8} />
             </View>
 
@@ -330,7 +337,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
                   ref={(el) => (otpInputsRef.current[idx] = el)}
                   className={`w-12 h-14 rounded-xl text-center text-xl font-bold border ${
                     digito
-                      ? "border-[#2DD4BF] bg-white text-primary-800"
+                      ? "border-accent-500 bg-white text-primary-800"
                       : "border-gray-200 bg-gray-50 text-primary-800"
                   }`}
                   value={digito}
@@ -377,7 +384,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
     );
   }
 
-  // PANTALLA PASO 1: Formulario Compacto
+  // PANTALLA PASO 1: Formulario Compacto y Armónico
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-background"
@@ -389,192 +396,216 @@ export function OwnerRegisterScreen({ onNavigate }) {
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="flex-grow px-4 pt-3 pb-6 gap-2.5"
+        contentContainerClassName="flex-grow justify-between px-4 pt-3 pb-6"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="text-xl font-bold text-primary-700">Crea tu cuenta de dueño</Text>
-        <Text className="text-xs text-textMuted -mt-1.5">
-          Completa tus datos para comenzar a publicar tus autos.
-        </Text>
-
-        {/* Alerta de correo existente */}
-        {avisoCorreoExistente ? (
-          <View className="rounded-xl border border-red-200 bg-red-50 p-3 gap-1">
-            <Text className="text-xs font-bold text-red-700">Ese correo ya tiene una cuenta</Text>
-            <Text className="text-[11px] text-red-600 leading-4">
-              ¿Eres tú? Inicia sesión o cambia tu contraseña.
-            </Text>
-            <TouchableOpacity
-              className="mt-0.5 self-start py-0.5"
-              onPress={() => onNavigate("login")}
-            >
-              <Text className="text-xs font-bold text-red-800 underline">Ir a iniciar sesión</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {/* Fila Nombre y Apellido */}
-        <View className="flex-row gap-2.5">
-          <OwnerField
-            className="flex-1"
-            placeholder="Nombre"
-            value={form.nombre}
-            onChangeText={set("nombre")}
-            autoCapitalize="words"
-            returnKeyType="next"
-            blurOnSubmit={false}
-            onSubmitEditing={() => apellidoRef.current?.focus()}
-          />
-          <OwnerField
-            className="flex-1"
-            ref={apellidoRef}
-            placeholder="Apellido"
-            value={form.apellido}
-            onChangeText={set("apellido")}
-            autoCapitalize="words"
-            returnKeyType="next"
-            blurOnSubmit={false}
-            onSubmitEditing={() => emailRef.current?.focus()}
-          />
-        </View>
-
-        {/* Correo */}
-        <OwnerField
-          ref={emailRef}
-          placeholder="Correo electrónico"
-          iconLeft="mail"
-          value={form.email}
-          onChangeText={set("email")}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoComplete="email"
-          returnKeyType="next"
-          blurOnSubmit={false}
-          onSubmitEditing={() => passwordRef.current?.focus()}
-        />
-
-        {/* Contraseña */}
-        <OwnerField
-          ref={passwordRef}
-          placeholder="Contraseña"
-          iconLeft="lock"
-          value={form.password}
-          onChangeText={set("password")}
-          secure
-          revealIcon
-          returnKeyType="next"
-          blurOnSubmit={false}
-          onSubmitEditing={() => telefonoRef.current?.focus()}
-        />
-
-        {/* Chips de validación de contraseña */}
-        <View className="flex-row flex-wrap gap-1.5 -mt-0.5">
-          <View
-            className={`flex-row items-center px-2 py-0.5 rounded-full border ${
-              passwordLargo ? "bg-[#E4F8F2] border-[#A7F3D0]" : "bg-gray-100 border-gray-200"
-            }`}
-          >
-            <Text className={`text-[11px] font-semibold ${passwordLargo ? "text-teal-800" : "text-gray-500"}`}>
-              {passwordLargo ? "✓ " : ""}8+ chars
+        {/* BLOQUE SUPERIOR: Campos */}
+        <View className="gap-3">
+          <View>
+            <Text className="text-xl font-bold text-primary-700">Crea tu cuenta de dueño</Text>
+            <Text className="text-xs text-textMuted mt-0.5">
+              Completa tus datos para comenzar a publicar tus autos.
             </Text>
           </View>
-          <View
-            className={`flex-row items-center px-2 py-0.5 rounded-full border ${
-              passwordLetra ? "bg-[#E4F8F2] border-[#A7F3D0]" : "bg-gray-100 border-gray-200"
-            }`}
-          >
-            <Text className={`text-[11px] font-semibold ${passwordLetra ? "text-teal-800" : "text-gray-500"}`}>
-              {passwordLetra ? "✓ " : ""}Letra
-            </Text>
-          </View>
-          <View
-            className={`flex-row items-center px-2 py-0.5 rounded-full border ${
-              passwordNumero ? "bg-[#E4F8F2] border-[#A7F3D0]" : "bg-gray-100 border-gray-200"
-            }`}
-          >
-            <Text className={`text-[11px] font-semibold ${passwordNumero ? "text-teal-800" : "text-gray-500"}`}>
-              {passwordNumero ? "✓ " : ""}Número
-            </Text>
-          </View>
-        </View>
 
-        {/* Celular con prefijo +56 */}
-        <OwnerField
-          ref={telefonoRef}
-          placeholder="9 1234 5678"
-          prefix="+56"
-          value={form.telefono}
-          onChangeText={set("telefono")}
-          format={formatearTelefonoInput}
-          maxLength={11}
-          keyboardType="phone-pad"
-          returnKeyType="done"
-          onSubmitEditing={handleEnviarDatos}
-        />
-
-        {/* Términos y privacidad obligatorios para abrir */}
-        <TouchableOpacity
-          className={`rounded-xl border p-2.5 mt-0.5 active:opacity-85 ${
-            acceptedTerms ? "bg-[#F0FDF9] border-[#A7F3D0]" : "bg-gray-50 border-gray-200"
-          }`}
-          onPress={handleToggleTerms}
-          activeOpacity={0.8}
-        >
-          <View className="flex-row items-start gap-2.5">
-            <Checkbox
-              checked={acceptedTerms}
-              onToggle={handleToggleTerms}
-            />
-            <View className="flex-1">
-              <Text className="text-xs font-bold text-primary-800 mb-0.5">
-                Términos y Privacidad{" "}
-                <Text className="text-[11px] font-semibold text-teal-700">
-                  {haRevisadoTerminos ? (acceptedTerms ? "✓ Aceptados" : "(Revisados)") : "(Toca para leer)"}
-                </Text>
+          {/* Alerta de correo existente */}
+          {avisoCorreoExistente ? (
+            <View className="rounded-xl border border-red-200 bg-red-50 p-3 gap-1">
+              <Text className="text-xs font-bold text-red-700">Ese correo ya tiene una cuenta</Text>
+              <Text className="text-[11px] text-red-600 leading-4">
+                ¿Eres tú? Inicia sesión o cambia tu contraseña.
               </Text>
-              <Text className="text-[11px] text-textMuted leading-4">
-                Debes leer y aceptar los{" "}
-                <Text
-                  className="text-primary-700 font-bold underline"
-                  onPress={() => handleOpenDoc("terminos")}
-                >
-                  Términos de uso
-                </Text>{" "}
-                y la{" "}
-                <Text
-                  className="text-primary-700 font-bold underline"
-                  onPress={() => handleOpenDoc("privacidad")}
-                >
-                  Política de privacidad
-                </Text>
-                .
+              <TouchableOpacity
+                className="mt-0.5 self-start py-0.5"
+                onPress={() => onNavigate("login")}
+              >
+                <Text className="text-xs font-bold text-red-800 underline">Ir a iniciar sesión</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* Fila Nombre y Apellido */}
+          <View className="flex-row gap-2.5">
+            <OwnerField
+              className="flex-1"
+              placeholder="Nombre"
+              value={form.nombre}
+              onChangeText={set("nombre")}
+              autoCapitalize="words"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => apellidoRef.current?.focus()}
+            />
+            <OwnerField
+              className="flex-1"
+              ref={apellidoRef}
+              placeholder="Apellido"
+              value={form.apellido}
+              onChangeText={set("apellido")}
+              autoCapitalize="words"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => emailRef.current?.focus()}
+            />
+          </View>
+
+          {/* Correo */}
+          <OwnerField
+            ref={emailRef}
+            placeholder="Correo electrónico"
+            iconLeft="mail"
+            value={form.email}
+            onChangeText={set("email")}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+
+          {/* Contraseña */}
+          <OwnerField
+            ref={passwordRef}
+            placeholder="Contraseña"
+            iconLeft="lock"
+            value={form.password}
+            onChangeText={set("password")}
+            secure
+            revealIcon
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => telefonoRef.current?.focus()}
+          />
+
+          {/* Chips de validación de contraseña */}
+          <View className="flex-row flex-wrap gap-1.5 -mt-1">
+            <View
+              className={`flex-row items-center px-2 py-0.5 rounded-full border ${
+                passwordLargo ? "bg-accent-100 border-accent-300" : "bg-gray-100 border-gray-200"
+              }`}
+            >
+              <Text className={`text-[11px] font-semibold ${passwordLargo ? "text-accent-800" : "text-gray-500"}`}>
+                {passwordLargo ? "✓ " : ""}8+ chars
+              </Text>
+            </View>
+            <View
+              className={`flex-row items-center px-2 py-0.5 rounded-full border ${
+                passwordLetra ? "bg-accent-100 border-accent-300" : "bg-gray-100 border-gray-200"
+              }`}
+            >
+              <Text className={`text-[11px] font-semibold ${passwordLetra ? "text-accent-800" : "text-gray-500"}`}>
+                {passwordLetra ? "✓ " : ""}Letra
+              </Text>
+            </View>
+            <View
+              className={`flex-row items-center px-2 py-0.5 rounded-full border ${
+                passwordNumero ? "bg-accent-100 border-accent-300" : "bg-gray-100 border-gray-200"
+              }`}
+            >
+              <Text className={`text-[11px] font-semibold ${passwordNumero ? "text-accent-800" : "text-gray-500"}`}>
+                {passwordNumero ? "✓ " : ""}Número
               </Text>
             </View>
           </View>
-        </TouchableOpacity>
 
-        <OwnerGradientButton
-          label="Crear cuenta"
-          onPress={handleEnviarDatos}
-          loading={loading}
-          className="mt-1"
-        />
+          {/* Celular con prefijo +56 */}
+          <OwnerField
+            ref={telefonoRef}
+            placeholder="9 1234 5678"
+            prefix="+56"
+            value={form.telefono}
+            onChangeText={set("telefono")}
+            format={formatearTelefonoInput}
+            maxLength={11}
+            keyboardType="phone-pad"
+            returnKeyType="done"
+            onSubmitEditing={handleEnviarDatos}
+          />
 
-        <View className="items-center my-0.5">
-          <Text className="text-[11px] text-textMuted font-medium">o regístrate con</Text>
+          {/* CAJA DE TÉRMINOS Y CONDICIONES (Claramente visible y con lectura obligatoria) */}
+          <View className="rounded-xl border border-primary-200 bg-surface-subtle p-3 gap-2">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-1.5">
+                <Icon name="shield" size={15} color="#0F3D3E" strokeWidth={2} />
+                <Text className="text-xs font-bold text-primary-700">Documentos legales</Text>
+              </View>
+              <Text className={`text-[11px] font-semibold ${haRevisadoTerminos ? "text-accent-700" : "text-amber-700"}`}>
+                {haRevisadoTerminos ? "✓ Revisados" : "Lectura requerida"}
+              </Text>
+            </View>
+
+            <View className="gap-1">
+              <TouchableOpacity
+                className="flex-row items-center justify-between py-1 px-2 rounded-lg bg-white border border-gray-200 active:opacity-75"
+                onPress={() => handleOpenDoc("terminos")}
+                hitSlop={theme.control.hitSlop}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Icon name="document" size={14} color="#0F3D3E" />
+                  <Text className="text-xs font-semibold text-primary-700">Términos y condiciones de dueño</Text>
+                </View>
+                <Icon name="chevron-right" size={14} color="#6B7280" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="flex-row items-center justify-between py-1 px-2 rounded-lg bg-white border border-gray-200 active:opacity-75"
+                onPress={() => handleOpenDoc("privacidad")}
+                hitSlop={theme.control.hitSlop}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Icon name="shield" size={14} color="#0F3D3E" />
+                  <Text className="text-xs font-semibold text-primary-700">Política de privacidad</Text>
+                </View>
+                <Icon name="chevron-right" size={14} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Fila Checkbox para Aceptar */}
+            <TouchableOpacity
+              className="flex-row items-center gap-2 pt-1 active:opacity-80"
+              onPress={handleToggleTerms}
+            >
+              <View
+                className={`w-5 h-5 rounded border items-center justify-center ${
+                  acceptedTerms
+                    ? "bg-primary-700 border-primary-700"
+                    : "bg-white border-gray-300"
+                }`}
+              >
+                {acceptedTerms ? <Icon name="check" size={12} color="#FFFFFF" strokeWidth={3} /> : null}
+              </View>
+              <Text className="text-xs text-textDark flex-1">
+                Acepto los términos de uso y la política de privacidad.
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <BotonesOAuth preferredMode="owner" compact />
+        {/* BLOQUE INFERIOR: Acciones */}
+        <View className="gap-2 pt-4">
+          <OwnerGradientButton
+            label="Crear cuenta"
+            onPress={handleEnviarDatos}
+            loading={loading}
+          />
 
-        <TouchableOpacity
-          className="h-8 items-center justify-center active:opacity-70 mt-0.5"
-          onPress={() => onNavigate("login")}
-        >
-          <Text className="text-xs text-textMuted">
-            ¿Ya tienes cuenta? <Text className="text-primary-700 font-bold">Entrar</Text>
-          </Text>
-        </TouchableOpacity>
+          <View className="items-center my-0.5">
+            <Text className="text-[11px] text-textMuted font-medium">o regístrate con</Text>
+          </View>
+
+          <BotonesOAuth preferredMode="owner" compact />
+
+          <TouchableOpacity
+            className="h-8 items-center justify-center active:opacity-70 mt-0.5"
+            onPress={() => onNavigate("login")}
+          >
+            <Text className="text-xs text-textMuted">
+              ¿Ya tienes cuenta? <Text className="text-primary-700 font-bold">Entrar</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       <LegalModal
