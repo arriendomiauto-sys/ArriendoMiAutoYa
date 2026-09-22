@@ -148,17 +148,29 @@ class PricingService:
         cargo_km_extra: int = 0,
         cargo_atraso: int = 0,
         cargos_adicionales: int = 0,
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
+        dueno_id: Optional[str] = None,
+        comision_pct_override: Optional[float] = None,
     ) -> dict:
         """
         Calcula el cobro final integral:
         - Subtotal arriendo base: dias * tarifa_dia.
-        - Comisión plataforma: 15% sobre arriendo base (configurable).
-        - Base dueño: 85% del arriendo base.
+        - Comisión plataforma: 15% sobre arriendo base (configurable o con descuento de colaborador).
+        - Base dueño: 85% del arriendo base (o más si es colaborador Plata/Oro).
         - Cargos adicionales (100% abonados al dueño): limpieza, combustible faltante, km extra, atraso.
         """
         cfg = PricingService.obtener_configuracion(db)
         comision_pct = float(cfg.comision_plataforma_pct) / 100.0
+
+        if comision_pct_override is not None:
+            comision_pct = float(comision_pct_override)
+        elif dueno_id and db:
+            from app.models.entities import Usuario
+            from app.features.auth.onboarding import referrals_service
+            dueno_obj = db.query(Usuario).filter(Usuario.id == dueno_id).first()
+            if dueno_obj:
+                nivel_info = referrals_service.calcular_nivel_colaborador(dueno_obj, db)
+                comision_pct = float(nivel_info["comision_plataforma_pct"]) / 100.0
 
         subtotal_arriendo = tarifa_dia * dias
         comision_empresa = int(subtotal_arriendo * comision_pct)

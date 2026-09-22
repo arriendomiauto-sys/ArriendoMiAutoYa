@@ -1,12 +1,19 @@
 """
 Panel de "invita y gana": GET /usuarios/me/programa-referidos devuelve el
-código propio, el link para compartir y las estadísticas del bono (ver
-app/features/auth/onboarding/referrals_service.py).
+código propio, el link para compartir y las estadísticas del bono para promotores
+autorizados (ver app/features/auth/onboarding/referrals_service.py).
 """
 
 
-def test_genera_codigo_y_link_si_no_tenia(usuario_factory, auth_as):
-    user = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+def test_no_promotor_recibe_403_en_programa_referidos(usuario_factory, auth_as):
+    user = usuario_factory(roles_activos=["cliente"], es_promotor=False, estado_documentos="verificado")
+    resp = auth_as(user).get("/api/v1/usuarios/me/programa-referidos")
+    assert resp.status_code == 403
+    assert "promotores autorizados" in resp.json()["detail"]
+
+
+def test_genera_codigo_y_link_si_es_promotor(usuario_factory, auth_as):
+    user = usuario_factory(roles_activos=["cliente"], es_promotor=True, estado_documentos="verificado")
     assert user.codigo_referido is None
 
     resp = auth_as(user).get("/api/v1/usuarios/me/programa-referidos")
@@ -14,16 +21,15 @@ def test_genera_codigo_y_link_si_no_tenia(usuario_factory, auth_as):
     data = resp.json()
     assert data["codigo"]
     assert data["link"].endswith(f"/invitacion/{data['codigo']}")
+    assert data["es_un_solo_uso"] is True
+    assert data["es_promotor"] is True
     assert data["referidos_totales"] == 0
     assert data["bono_activado_alguna_vez"] is False
-    # El bono "invitado" decae desde la fecha de registro propia, sin
-    # importar si de verdad usó el código de alguien (ver
-    # calcular_bono_invitado_pct) — recién registrado, siempre es el mayor.
     assert data["bono_origen"] == "invitado"
 
 
 def test_cuenta_los_referidos_que_usaron_mi_codigo(usuario_factory, auth_as, db_session):
-    referente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    referente = usuario_factory(roles_activos=["cliente"], es_promotor=True, estado_documentos="verificado")
     auth_as(referente).get("/api/v1/usuarios/me")  # autorepara el código propio
     db_session.refresh(referente)
     codigo = referente.codigo_referido
@@ -41,7 +47,7 @@ def test_cuenta_los_referidos_que_usaron_mi_codigo(usuario_factory, auth_as, db_
 
 
 def test_bono_del_invitado_vigente_recien_registrado(usuario_factory, auth_as):
-    invitado = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
+    invitado = usuario_factory(roles_activos=["cliente"], es_promotor=True, estado_documentos="verificado")
     resp = auth_as(invitado).get("/api/v1/usuarios/me/programa-referidos")
     assert resp.status_code == 200
     data = resp.json()

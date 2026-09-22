@@ -220,6 +220,7 @@ class UserOut(UserBase):
 
     codigo_referido: Optional[str] = None
     referido_por_id: Optional[str] = None
+    es_promotor: bool = False
 
 class SesionVerificacionExternaOut(BaseModel):
     """Sesión hosted del proveedor de verificación (Didit). La app abre `url`."""
@@ -230,14 +231,55 @@ class SesionVerificacionExternaOut(BaseModel):
 class CodigoReferidoUpdate(BaseModel):
     codigo: str
 
+class InvitacionPromotorCreate(BaseModel):
+    nota: Optional[str] = None
+
+class InvitacionCodigoOut(BaseModel):
+    id: str
+    codigo: str
+    tipo: str  # "promotor" | "referido"
+    usado: bool
+    usado_en: Optional[datetime] = None
+    usado_por_nombre: Optional[str] = None
+    link: str
+    fecha_creacion: datetime
+
+class NivelColaboradorOut(BaseModel):
+    nivel: str  # bronce | plata | oro
+    titulo: str
+    comision_plataforma_pct: float
+    bono_extra_pct: float
+    referidos_activos: int
+    proximo_nivel: Optional[str] = None
+    faltantes_proximo_nivel: int = 0
+    beneficios: List[str] = []
+
+class ReferidoResumenOut(BaseModel):
+    iniciales: str
+    fecha_registro: str
+    estado: str  # registrado | activo
+
+class ValidacionCodigoReferidoOut(BaseModel):
+    valido: bool
+    codigo: str
+    tipo: str = "referido"  # "promotor" | "referido"
+    nombre_referente: Optional[str] = None
+    mensaje: str
+    beneficio_invitado: str
+    usado: bool = False
+
 class EstadisticasReferidosOut(BaseModel):
-    """Resumen para el panel de "invita y gana" (ver referrals_service.obtener_estadisticas)."""
+    """Resumen para el panel de "invita y gana" y colaboradores (ver referrals_service.obtener_estadisticas)."""
     codigo: Optional[str] = None
     link: str
+    es_un_solo_uso: bool = True
+    es_promotor: bool = False
     referidos_totales: int
     bono_activado_alguna_vez: bool
     bono_pct_vigente: float
     bono_origen: Optional[str] = None  # "invitado" | "referente" | None
+    nivel_colaborador: Optional[NivelColaboradorOut] = None
+    ultimos_referidos: Optional[List[ReferidoResumenOut]] = None
 
 class CuentaBancariaUpdate(BaseModel):
     banco: str

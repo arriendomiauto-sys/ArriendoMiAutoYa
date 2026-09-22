@@ -136,12 +136,38 @@ class Usuario(Base):
     codigo_referido = Column(String, nullable=True)
     referido_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
     bono_referido_activado_en = Column(DateTime, nullable=True)
+    es_promotor = Column(Boolean, default=False)
 
     # Relaciones
     autos = relationship("Auto", back_populates="dueno", foreign_keys="Auto.dueno_id")
     reservas_cliente = relationship("Reserva", back_populates="cliente", foreign_keys="Reserva.cliente_id")
     tickets = relationship("TicketSoporte", back_populates="usuario")
     tarjetas = relationship("Tarjeta", back_populates="usuario", cascade="all, delete-orphan")
+
+
+class InvitacionCodigo(Base):
+    """
+    Código de invitación de un solo uso.
+    - tipo='promotor': generado por el dueño de la app (Admin) para invitar a un usuario
+      que al registrarse obtendrá el rol de 'promotor'.
+    - tipo='referido': generado por un promotor activo para invitar a un cliente/dueño
+      con beneficio de bienvenida y atribución de referido.
+    En ambos casos, una vez canjeado queda marcado como usado=True y no puede reutilizarse.
+    """
+    __tablename__ = "invitaciones_codigos"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    codigo = Column(String, unique=True, index=True, nullable=False)
+    tipo = Column(String, default="referido")  # "promotor" | "referido"
+    creado_por_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
+    usado = Column(Boolean, default=False, index=True)
+    usado_por_id = Column(String, ForeignKey("usuarios.id"), nullable=True, index=True)
+    usado_en = Column(DateTime, nullable=True)
+    nota = Column(String, nullable=True)
+    fecha_creacion = Column(DateTime, default=utc_now)
+
+    creado_por = relationship("Usuario", foreign_keys=[creado_por_id])
+    usado_por = relationship("Usuario", foreign_keys=[usado_por_id])
 
 
 class Tarjeta(Base):
@@ -216,7 +242,7 @@ class Auto(Base):
     anio = Column(Integer, nullable=False)
     patente = Column(String, unique=True, index=True, nullable=False)
     tarifa_dia = Column(Integer, nullable=False) # CLP
-    estado = Column(String, default="activo") # activo, pausado, mantenimiento
+    estado = Column(String, default="pendiente") # activo, pausado, mantenimiento, pendiente
     ubicacion_base = Column(String, nullable=False)
     latitud = Column(Float, nullable=True)
     longitud = Column(Float, nullable=True)

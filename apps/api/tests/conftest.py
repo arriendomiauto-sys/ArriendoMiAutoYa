@@ -327,6 +327,7 @@ def usuario_factory(db_session):
             licencia_clase=kwargs.get("licencia_clase", "B" if estado_documentos == "verificado" else None),
             licencia_estado=kwargs.get("licencia_estado"),
             fecha_nacimiento=kwargs.get("fecha_nacimiento"),
+            es_promotor=kwargs.get("es_promotor", False),
         )
         db_session.add(user)
         db_session.commit()

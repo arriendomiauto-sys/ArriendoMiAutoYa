@@ -13,13 +13,16 @@ from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security_audit import SecurityAudit
 from app.models.entities import Auto, Calificacion, Reserva, Tarjeta, Usuario
 from app.features.operations.admin._guards import exigir_admin, exigir_admin_o_manager
+from app.schemas.schemas import InvitacionPromotorCreate, InvitacionCodigoOut
+from app.features.auth.onboarding import referrals_service as referidos
 
 router = APIRouter()
 
-ROLES_VALIDOS = {"cliente", "dueno", "manager", "admin"}
+ROLES_VALIDOS = {"cliente", "dueno", "manager", "admin", "promotor", "soporte"}
 
 
 def _metricas(db: Session, ids: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -152,6 +155,10 @@ def cambiar_roles(
 
     previos = objetivo.roles_activos or []
     objetivo.roles_activos = nuevos
+    if "promotor" in nuevos:
+        objetivo.es_promotor = True
+    elif "promotor" in previos:
+        objetivo.es_promotor = False
     _auditar(db, objetivo, admin, f"Roles: {previos} -> {nuevos}")
     SecurityAudit.log_event(
         "ADMIN_CAMBIO_ROLES", user_id=admin.id, resource=f"usuario:{usuario_id}",
@@ -185,6 +192,50 @@ def cambiar_suspension(
     db.commit()
     db.refresh(objetivo)
     return _serializar(objetivo, _metricas(db, [objetivo.id]).get(objetivo.id, {}))
+
+
+@router.post(
+    "/promotores/invitaciones",
+    response_model=InvitacionCodigoOut,
+    summary="Panel: crear una invitación de un solo uso para un nuevo promotor",
+)
+def crear_invitacion_promotor(
+    payload: Optional[InvitacionPromotorCreate] = None,
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(exigir_admin),
+):
+    inv = referidos.crear_invitacion_promotor(
+        admin, db, nota=payload.nota if payload else None
+    )
+    SecurityAudit.log_event(
+        "ADMIN_CREAR_INVITACION_PROMOTOR",
+        user_id=admin.id,
+        resource=f"invitacion:{inv.codigo}",
+        details={"tipo": inv.tipo, "nota": inv.nota},
+    )
+    return InvitacionCodigoOut(
+        id=inv.id,
+        codigo=inv.codigo,
+        tipo=inv.tipo,
+        usado=inv.usado,
+        usado_en=inv.usado_en,
+        usado_por_nombre=None,
+        link=f"{settings.FRONTEND_URL.rstrip('/')}/invitacion/{inv.codigo}",
+        fecha_creacion=inv.fecha_creacion,
+    )
+
+
+@router.get(
+    "/promotores/invitaciones",
+    response_model=List[InvitacionCodigoOut],
+    summary="Panel: listar invitaciones a promotores",
+)
+def listar_invitaciones_promotores(
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(exigir_admin),
+):
+    items = referidos.listar_invitaciones_promotores(admin, db)
+    return [InvitacionCodigoOut(**it) for it in items]
 
 
 def _auditar(db: Session, objetivo: Usuario, admin: Usuario, texto: str) -> None:

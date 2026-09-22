@@ -247,7 +247,8 @@ def crear_auto(
 
     # dueno_id siempre es el usuario autenticado: no se confía en el valor
     # que venga en el payload (evita que un cliente atribuya el auto a otro
-    # usuario arbitrario).
+    # usuario arbitrario). Si no sube o no valida los documentos, NO queda
+    # activo en el sistema: queda como 'pendiente'.
     nuevo_auto = Auto(
         dueno_id=current_user.id,
         marca=payload.marca,
@@ -255,6 +256,7 @@ def crear_auto(
         anio=payload.anio,
         patente=payload.patente.upper(),
         tarifa_dia=payload.tarifa_dia,
+        estado="activo" if doc_verificados else "pendiente",
         ubicacion_base=payload.ubicacion_base,
         latitud=payload.latitud,
         longitud=payload.longitud,
@@ -487,6 +489,11 @@ def actualizar_auto(
 
         auto.tarifa_dia = payload.tarifa_dia
     if payload.estado is not None:
+        if payload.estado == "activo" and not auto.documentos_verificados:
+            raise HTTPException(
+                status_code=400,
+                detail="No puedes activar el vehículo en el sistema porque sus documentos aún no han sido verificados."
+            )
         auto.estado = payload.estado
     if payload.fotos is not None:
         auto.fotos = list(payload.fotos)  # secuencia verbatim
@@ -521,6 +528,7 @@ def actualizar_auto(
             docs_cambiados = True
     if docs_cambiados:
         auto.documentos_verificados = False
+        auto.estado = "pendiente"
 
     db.commit()
     db.refresh(auto)

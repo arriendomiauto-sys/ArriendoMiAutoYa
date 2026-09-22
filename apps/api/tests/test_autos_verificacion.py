@@ -269,3 +269,29 @@ def test_el_dueno_sigue_viendo_su_auto_sin_verificar_en_su_flota(auth_as, dueno,
     mios = {a["id"] for a in auth_as(dueno).get("/api/v1/autos/mios").json()}
 
     assert auto.id in mios
+
+
+def test_auto_sin_documentos_verificados_no_se_puede_activar(auth_as, dueno, auto, db_session):
+    auto.documentos_verificados = False
+    auto.estado = "pendiente"
+    db_session.commit()
+
+    resp = auth_as(dueno).patch(f"/api/v1/autos/{auto.id}", json={"estado": "activo"})
+    assert resp.status_code == 400
+    assert "documentos aún no han sido verificados" in resp.json()["detail"]
+
+
+def test_reemplazar_documentos_auto_lo_devuelve_a_pendiente(auth_as, dueno, auto, db_session):
+    auto.documentos_verificados = True
+    auto.estado = "activo"
+    db_session.commit()
+
+    resp = auth_as(dueno).patch(
+        f"/api/v1/autos/{auto.id}",
+        json={"doc_permiso_circulacion_url": "https://ejemplo.com/nuevo_permiso.jpg"}
+    )
+    assert resp.status_code == 200
+    db_session.refresh(auto)
+    assert auto.documentos_verificados is False
+    assert auto.estado == "pendiente"
+

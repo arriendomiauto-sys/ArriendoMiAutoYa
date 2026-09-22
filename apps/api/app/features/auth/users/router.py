@@ -8,10 +8,11 @@ from app.models.entities import Usuario, Reserva
 from app.schemas.schemas import (
     UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate, TarjetaUpdate, TarjetaOut,
     CodigoReferidoUpdate, TarjetaVaultCreate, CuentaCobroCreate, CuentaCobroOut,
-    EstadisticasReferidosOut,
+    EstadisticasReferidosOut, ValidacionCodigoReferidoOut,
 )
 from app.features.auth.login.service import get_current_user
-from app.services import tarjetas, referidos
+from app.services import tarjetas
+from app.features.auth.onboarding import referrals_service as referidos
 from app.features.payments import wallet_service, cuentas_cobro_service
 from app.features.system.storage.service import StorageService
 from app.core.config import settings
@@ -53,14 +54,23 @@ def obtener_programa_referidos(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    if not current_user.codigo_referido:
-        referidos.obtener_o_generar_codigo(current_user, db)
+    es_prom = bool(
+        current_user.es_promotor
+        or "promotor" in (current_user.roles_activos or [])
+        or "admin" in (current_user.roles_activos or [])
+    )
+    if not es_prom:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El programa de colaboradores e invitaciones está reservado exclusivamente para promotores autorizados.",
+        )
 
     from app.features.vehicles.catalog.pricing_service import PricingService
 
     config = PricingService.obtener_configuracion(db)
     stats = referidos.obtener_estadisticas(current_user, db, config)
-    stats["link"] = f"{settings.FRONTEND_URL.rstrip('/')}/invitacion/{current_user.codigo_referido}"
+    codigo_mostrar = stats.get("codigo") or current_user.codigo_referido
+    stats["link"] = f"{settings.FRONTEND_URL.rstrip('/')}/invitacion/{codigo_mostrar}"
     return EstadisticasReferidosOut(**stats)
 
 @router.put(
@@ -79,6 +89,18 @@ def aplicar_codigo_referido(
         raise HTTPException(status_code=400, detail=str(e))
     db.refresh(current_user)
     return current_user
+
+@router.get(
+    "/codigo-referido/{codigo}/validar",
+    response_model=ValidacionCodigoReferidoOut,
+    summary="Valida públicamente si un código de referido o colaborador existe y está disponible",
+)
+def validar_codigo_referido(
+    codigo: str,
+    db: Session = Depends(get_db),
+):
+    resultado = referidos.validar_codigo_referido(codigo, db)
+    return ValidacionCodigoReferidoOut(**resultado)
 
 @router.put(
     "/me/tarjeta",
