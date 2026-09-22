@@ -406,6 +406,17 @@ export class ApiClient {
     });
   }
 
+  static crearInvitacionPromotor(nota = "") {
+    return this.request("/admin/promotores/invitaciones", {
+      method: "POST",
+      body: JSON.stringify({ nota }),
+    });
+  }
+
+  static getInvitacionesPromotores() {
+    return this.request("/admin/promotores/invitaciones");
+  }
+
   // ── Finanzas ───────────────────────────────────────────────────────────
   static getLiquidaciones() {
     return this.request("/admin/liquidaciones");

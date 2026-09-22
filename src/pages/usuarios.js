@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Users as UsersIcon, Star } from "lucide-react";
+import { Search, Users as UsersIcon, Star, UserPlus, Copy, Check } from "lucide-react";
 import Shell from "../components/Shell";
 import { PageIntro, Chip, Segmented, StateMsg, EmptyState, Drawer } from "../components/ui";
 import { ApiClient } from "../lib/api";
@@ -14,6 +14,7 @@ const FILTROS = [
 ];
 const ROLES = [
   { k: "cliente", label: "Cliente" }, { k: "dueno", label: "Dueño" },
+  { k: "promotor", label: "Promotor" },
   { k: "manager", label: "Manager" }, { k: "admin", label: "Admin" }, { k: "soporte", label: "Soporte" },
 ];
 const rolLabel = (r) => (r || []).map((x) => (ROLES.find((y) => y.k === x) || { label: x }).label).join(" · ");
@@ -33,6 +34,7 @@ export default function Usuarios() {
   const [q, setQ] = useState("");
   const [qDeb, setQDeb] = useState("");
   const [sel, setSel] = useState(null);
+  const [openPromotores, setOpenPromotores] = useState(false);
 
   // Debounce de la búsqueda (300ms) para no pegarle a la API por cada tecla.
   useEffect(() => {
@@ -106,10 +108,21 @@ export default function Usuarios() {
         </StateMsg>
       ) : null}
 
-      <div className="filters">
-        <Segmented options={FILTROS} value={filtro} onChange={setFiltro} />
-        <div className="search fsearch"><Search size={14} /><input placeholder="Nombre, RUT o correo…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <span className="count-hint"><b>{filtrados.length}</b> usuarios</span>
+      <div className="filters" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 280 }}>
+          <Segmented options={FILTROS} value={filtro} onChange={setFiltro} />
+          <div className="search fsearch"><Search size={14} /><input placeholder="Nombre, RUT o correo…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span className="count-hint"><b>{filtrados.length}</b> usuarios</span>
+          <button
+            className="btn btn-mint"
+            onClick={() => setOpenPromotores(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}
+          >
+            <UserPlus size={15} /> Invitar Promotor
+          </button>
+        </div>
       </div>
 
       {cargando ? (
@@ -165,6 +178,15 @@ export default function Usuarios() {
         sub={sel ? `${rolLabel(sel.roles_activos)} · registrado ${sel.fecha_registro ? new Date(sel.fecha_registro).toLocaleDateString("es-CL") : "—"}` : ""}
       >
         {sel ? <FichaUsuario u={sel} /> : null}
+      </Drawer>
+
+      <Drawer
+        open={openPromotores}
+        onOpenChange={setOpenPromotores}
+        title="Invitaciones a Promotores"
+        sub="Genera enlaces y códigos de un solo uso para autorizar nuevos promotores en la plataforma."
+      >
+        <PanelInvitacionesPromotores />
       </Drawer>
     </Shell>
   );
@@ -254,5 +276,143 @@ function FichaUsuario({ u }) {
         <button className="btn btn-danger" onClick={toggleSuspension} disabled={suspendiendo}>{suspendiendo ? "Procesando…" : (suspendido ? "Reactivar cuenta" : "Suspender cuenta")}</button>
       </div>
     </>
+  );
+}
+
+function PanelInvitacionesPromotores() {
+  const [invitaciones, setInvitaciones] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [generando, setGenerando] = useState(false);
+  const [nota, setNota] = useState("");
+  const [ultima, setUltima] = useState(null);
+  const [copiadoId, setCopiadoId] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    try {
+      const d = await ApiClient.getInvitacionesPromotores();
+      setInvitaciones(d || []);
+    } catch (e) {
+      setError(e.message || "No se pudo cargar la lista de invitaciones.");
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function generar() {
+    setGenerando(true);
+    setError(null);
+    try {
+      const res = await ApiClient.crearInvitacionPromotor(nota.trim() || undefined);
+      setUltima(res);
+      setNota("");
+      await cargar();
+    } catch (e) {
+      setError(e.message || "No se pudo generar la invitación.");
+    } finally {
+      setGenerando(false);
+    }
+  }
+
+  async function copiar(id, texto) {
+    if (!texto) return;
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiadoId(id);
+      setTimeout(() => setCopiadoId(null), 2000);
+    } catch (e) {
+      // fallback
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ background: "var(--card)", padding: 16, borderRadius: 12, border: "1px solid var(--line)", marginBottom: 16 }}>
+        <h4 style={{ margin: "0 0 8px 0", fontSize: 14 }}>Generar invitación de un solo uso</h4>
+        <p style={{ fontSize: 12, color: "var(--muted)", margin: "0 0 12px 0", lineHeight: 1.4 }}>
+          Cada enlace otorgará automáticamente el rol de <b>Promotor</b> al usuario al registrarse o canjearlo, activando el acceso a invitar en ambas apps (owner y renter).
+        </p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <input
+            placeholder="Nota opcional (ej: Promotor Santiago Norte)..."
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--line)", background: "var(--bg)", color: "var(--fg)", fontSize: 13 }}
+          />
+          <button className="btn btn-mint" onClick={generar} disabled={generando} style={{ whiteSpace: "nowrap" }}>
+            {generando ? "Generando…" : "Crear código"}
+          </button>
+        </div>
+        {error ? <div className="state-msg err" style={{ marginTop: 8 }}>{error}</div> : null}
+      </div>
+
+      {ultima ? (
+        <div style={{ background: "rgba(16,185,129,0.08)", border: "1px solid var(--mint)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--mint)" }}>Invitación generada exitosamente</span>
+            <button className="btn" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => copiar("ultima", ultima.link)}>
+              {copiadoId === "ultima" ? "¡Copiado!" : "Copiar enlace"}
+            </button>
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: 2, margin: "6px 0", color: "var(--fg)" }}>
+            {ultima.codigo}
+          </div>
+          <div className="mono" style={{ fontSize: 11, color: "var(--muted)", wordBreak: "break-all" }}>
+            {ultima.link}
+          </div>
+        </div>
+      ) : null}
+
+      <h4 style={{ fontSize: 13, marginBottom: 8 }}>Historial de invitaciones a promotores</h4>
+      {cargando ? (
+        <p style={{ fontSize: 12, color: "var(--muted)" }}>Cargando invitaciones…</p>
+      ) : invitaciones.length === 0 ? (
+        <p style={{ fontSize: 12, color: "var(--muted)" }}>Aún no hay invitaciones creadas.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {invitaciones.map((inv) => (
+            <div
+              key={inv.id || inv.codigo}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--line)",
+                background: "var(--card)",
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <b className="mono" style={{ fontSize: 14 }}>{inv.codigo}</b>
+                  <span className={`chip ${inv.usado ? "neutral" : "ok"}`} style={{ fontSize: 10, padding: "2px 6px" }}>
+                    <span className="dot" />{inv.usado ? "Canjeado" : "Disponible"}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                  {inv.usado ? `Canjeado por ${inv.usado_por_nombre || "Usuario"}` : "Un solo uso · Sin canjear"}
+                </div>
+              </div>
+
+              {!inv.usado ? (
+                <button
+                  className="btn"
+                  style={{ fontSize: 11, padding: "4px 8px" }}
+                  onClick={() => copiar(inv.id, inv.link)}
+                >
+                  {copiadoId === inv.id ? "¡Copiado!" : "Copiar link"}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
