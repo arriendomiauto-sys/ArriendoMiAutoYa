@@ -251,10 +251,36 @@ export function OwnerRegisterScreen({ onNavigate }) {
               maxLength={11}
               keyboardType="phone-pad"
               autoComplete="tel"
-              returnKeyType="done"
+              returnKeyType="next"
               onSubmitEditing={handleContinuarPaso1}
               {...r.campo("telefono")}
             />
+
+            {/* Código de Colaborador / Invitación */}
+            <View className="gap-1.5">
+              <OwnerField
+                testID="input-codigo-colaborador"
+                label="Código de colaborador (opcional)"
+                iconLeft="gift"
+                placeholder="Ej: ABC12345"
+                value={r.codigoReferido}
+                onChangeText={(val) => r.setCodigoReferido(val.toUpperCase())}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+              {r.codigoDetectadoAutomaticamente ? (
+                <View className="flex-row items-center gap-1.5 px-1">
+                  <Icon name="check" size={13} color="#10B981" strokeWidth={2.5} />
+                  <Text className="text-[11.5px] text-emerald-700 font-medium">
+                    Código de colaborador detectado del enlace
+                  </Text>
+                </View>
+              ) : (
+                <Text className="text-[11.5px] text-textMuted px-1">
+                  ¿Te invitó un colaborador? Ingresa su código para beneficios mutuos.
+                </Text>
+              )}
+            </View>
 
             {/* Caja de Términos y Condiciones */}
             <View className="bg-slate-50 border border-slate-200 rounded-2xl p-4 gap-2">

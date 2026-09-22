@@ -359,7 +359,7 @@ export function SegundoConductorModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.modalOverlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={[styles.modalContent, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
           <View style={styles.handle} />

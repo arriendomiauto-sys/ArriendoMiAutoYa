@@ -435,6 +435,12 @@ export function useCarWizard({ onComplete }) {
   };
 
   const subirDocumento = (docKey, origen) => {
+    const val = validacionDocs[docKey];
+    const estaValidado = val?.estado === "vigente" || val?.estado === "sin_vencimiento";
+    if (estaValidado) {
+      showAlert("Documento validado", "Este documento ya fue verificado y aprobado. La opción está bloqueada.");
+      return;
+    }
     runPicker(origen, async (uri) => {
       setUploadingDoc(docKey);
       try {
@@ -457,6 +463,12 @@ export function useCarWizard({ onComplete }) {
   };
 
   const quitarDocumento = (docKey) => {
+    const val = validacionDocs[docKey];
+    const estaValidado = val?.estado === "vigente" || val?.estado === "sin_vencimiento";
+    if (estaValidado) {
+      showAlert("Documento validado", "Este documento ya fue verificado y no puede ser eliminado.");
+      return;
+    }
     setForm((prev) => {
       const next = { ...prev.docs };
       delete next[docKey];
@@ -501,23 +513,7 @@ export function useCarWizard({ onComplete }) {
     enviar();
   };
 
-  const enviar = async () => {
-    if (loading) return;
-    if (docsBloqueantes.length) {
-      showAlert(
-        "Documentos que no sirven para publicar",
-        docsBloqueantes.map((d) => validacionDocs[d.key].motivo).join("\n\n")
-      );
-      return;
-    }
-    const faltan = DOCS_OBLIGATORIOS.filter((d) => !form.docs[d.key]);
-    if (faltan.length) {
-      showAlert(
-        "Faltan documentos",
-        `Sube ${faltan.map((d) => d.titulo.toLowerCase()).join(", ")} para publicar el auto.`
-      );
-      return;
-    }
+  const ejecutarCreacion = async () => {
     setLoading(true);
     try {
       const res = await ApiClient.crearAuto({
@@ -541,7 +537,7 @@ export function useCarWizard({ onComplete }) {
       });
 
       const nombre = `${form.marca} ${form.modelo} (${form.patente.toUpperCase()})`;
-      if (res?.documentos_verificados) {
+      if (res?.documentos_verificados && res?.estado === "activo") {
         showAlert(
           "¡Auto publicado y verificado!",
           `Tu ${nombre} fue verificado automáticamente y ya está activo en el mapa del marketplace.`,
@@ -549,8 +545,8 @@ export function useCarWizard({ onComplete }) {
         );
       } else {
         showAlert(
-          "Auto registrado — En revisión",
-          `Tu ${nombre} quedó registrado. Los documentos fueron enviados a revisión por nuestro equipo. Te avisaremos apenas quede habilitado.`,
+          "Auto registrado — Pendiente de validación",
+          `Tu ${nombre} quedó registrado como PENDIENTE y NO estará disponible para arriendo en el sistema hasta que subas todos los documentos requeridos y sean aprobados.`,
           [{ text: "Ver mi flota", onPress: onComplete }]
         );
       }
@@ -559,6 +555,26 @@ export function useCarWizard({ onComplete }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const enviar = async () => {
+    if (loading) return;
+    if (docsBloqueantes.length) {
+      showAlert(
+        "Documentos que no sirven para publicar",
+        docsBloqueantes.map((d) => validacionDocs[d.key].motivo).join("\n\n")
+      );
+      return;
+    }
+    const faltan = DOCS_OBLIGATORIOS.filter((d) => !form.docs[d.key]);
+    if (faltan.length) {
+      showAlert(
+        "Faltan documentos obligatorios",
+        `Debes subir ${faltan.map((d) => d.titulo.toLowerCase()).join(", ")}. Si no subes los documentos del vehículo, no quedará activo en el sistema.`
+      );
+      return;
+    }
+    ejecutarCreacion();
   };
 
   return {

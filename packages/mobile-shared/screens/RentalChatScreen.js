@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   AppState,
+  Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -88,6 +89,29 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   const [input, setInput] = useState("");
   const [enVivo, setEnVivo] = useState(false);
   const [otroEscribiendo, setOtroEscribiendo] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => {
+        setKeyboardVisible(true);
+        setTimeout(() => {
+          if (alFondoRef.current) {
+            scrollRef.current?.scrollToEnd({ animated: false });
+          }
+        }, 80);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const scrollRef = useRef(null);
   // Si el usuario se desplazó hacia arriba a releer, un mensaje nuevo NO debe
@@ -426,10 +450,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: c.bg }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      // Ver LoginScreen.js: sin este KeyboardAvoidingView explícito, el
-      // teclado tapaba la caja de mensaje entera — softwareKeyboardLayoutMode
-      // "pan" por sí solo no alcanza.
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScreenHeader
         title={interlocutor}
@@ -459,7 +480,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         contentContainerStyle={styles.msgs}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         scrollEventThrottle={100}
         onScroll={(e) => {
           const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -511,7 +532,16 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         ))}
       </ScrollView>
 
-      <View style={[styles.inputBar, { backgroundColor: c.surface, borderTopColor: c.border, paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View
+        style={[
+          styles.inputBar,
+          {
+            backgroundColor: c.surface,
+            borderTopColor: c.border,
+            paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 12),
+          },
+        ]}
+      >
         <TextInput
           style={[styles.input, { backgroundColor: c.input, borderColor: c.border, color: c.text }]}
           placeholder="Escribe un mensaje…"
@@ -547,7 +577,12 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  msgs: { padding: theme.spacing.screen, paddingBottom: theme.spacing.lg },
+  msgs: {
+    flexGrow: 1,
+    justifyContent: "flex-end",
+    padding: theme.spacing.screen,
+    paddingBottom: theme.spacing.sm,
+  },
   notice: {
     flexDirection: "row",
     alignItems: "center",

@@ -173,7 +173,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
       </ScrollView>
 
       <Modal visible={!!form} transparent animationType="fade" onRequestClose={() => setForm(null)}>
-        <KeyboardAvoidingView className="flex-1 bg-[#061E1F]/50 justify-center p-5" behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView className="flex-1 bg-[#061E1F]/50 justify-center p-5" behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View className="bg-white rounded-2xl p-5 border border-gray-100 gap-3 shadow-lg">
             <Text className="text-[17px] font-bold text-textDark">
               {form?.tipo === "documento_legal" ? "Nuevo documento legal" : "Nueva mantención"}

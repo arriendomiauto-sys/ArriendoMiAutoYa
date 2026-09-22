@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, ScrollView, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
 import { Button, Field, BackButton } from "../../components/ui";
+import { Icon } from "../../components/Icon";
 import { BotonesOAuth } from "../../components/BotonesOAuth";
 import { AlertaInline } from "../../components/AlertaInline";
 import { formatearCelular } from "../register/validaciones";
@@ -197,10 +198,36 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
               maxLength={11}
               keyboardType="phone-pad"
               autoComplete="tel"
-              returnKeyType="done"
+              returnKeyType="next"
               onSubmitEditing={r.continuar}
               {...r.campo("telefono")}
             />
+
+            {/* Código de Colaborador / Invitación */}
+            <View className="gap-1.5">
+              <Field
+                testID="input-codigo-colaborador"
+                label="Código de colaborador (opcional)"
+                iconLeft="gift"
+                placeholder="Ej: ABC12345"
+                value={r.codigoReferido}
+                onChangeText={(val) => r.setCodigoReferido(val.toUpperCase())}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+              {r.codigoDetectadoAutomaticamente ? (
+                <View className="flex-row items-center gap-1.5 px-1">
+                  <Icon name="check" size={13} color="#10B981" strokeWidth={2.5} />
+                  <Text className="text-[11.5px] text-emerald-700 font-medium">
+                    Código de colaborador detectado del enlace
+                  </Text>
+                </View>
+              ) : (
+                <Text className="text-[11.5px] text-textMuted px-1">
+                  ¿Te invitó un colaborador? Ingresa su código para beneficios de bienvenida.
+                </Text>
+              )}
+            </View>
 
             <View className="flex-grow min-h-[8px]" />
             <Button testID="btn-continuar" label="Continuar" onPress={r.continuar} />

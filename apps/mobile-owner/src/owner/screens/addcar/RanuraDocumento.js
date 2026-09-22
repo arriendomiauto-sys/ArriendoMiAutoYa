@@ -13,6 +13,10 @@ const TONO = {
 
 export function RanuraDocumento({ doc, uri, uploading, validando, validacion, onCamera, onFile, onClear }) {
   const tono = validacion ? TONO[validacion.estado] || "aviso" : null;
+  const estaValidado = Boolean(
+    uri && (tono === "ok" || validacion?.estado === "vigente" || validacion?.estado === "sin_vencimiento")
+  );
+
   const texto = (() => {
     if (validando) return "Leyendo el documento…";
     if (!validacion) return null;
@@ -32,11 +36,13 @@ export function RanuraDocumento({ doc, uri, uploading, validando, validacion, on
       ? "border-red-300"
       : tono === "aviso"
         ? "border-amber-300"
-        : uri
-          ? "border-emerald-300 bg-surface-subtle"
-          : doc.opcional
-            ? "border-dashed border-gray-300 bg-white"
-            : "border-gray-200 bg-white";
+        : estaValidado
+          ? "border-emerald-400 bg-emerald-50/20"
+          : uri
+            ? "border-emerald-300 bg-surface-subtle"
+            : doc.opcional
+              ? "border-dashed border-gray-300 bg-white"
+              : "border-gray-200 bg-white";
 
   return (
     <View className={`rounded-2xl border p-3.5 gap-2.5 ${borderClass}`}>
@@ -60,15 +66,24 @@ export function RanuraDocumento({ doc, uri, uploading, validando, validacion, on
           </View>
           <Text
             className={`text-[11.5px] leading-[15px] mt-0.5 ${
-              uri && !texto ? "text-accent-700 font-semibold" : "text-textMuted"
+              estaValidado
+                ? "text-accent-700 font-bold"
+                : uri && !texto
+                  ? "text-accent-700 font-semibold"
+                  : "text-textMuted"
             }`}
           >
-            {uri && !texto ? "Documento listo" : doc.ayuda}
+            {estaValidado ? "Documento validado y aprobado" : uri && !texto ? "Documento listo" : doc.ayuda}
           </Text>
         </View>
 
         {uploading ? (
           <ActivityIndicator color={colors.primary} size="small" />
+        ) : estaValidado ? (
+          <View className="flex-row items-center gap-1 bg-emerald-50 border border-emerald-300 rounded-full px-2.5 py-1">
+            <Icon name="check" size={13} color={colors.accentDark} />
+            <Text className="text-[11px] font-bold text-accent-700">Validado</Text>
+          </View>
         ) : uri ? (
           <TouchableOpacity onPress={onClear} hitSlop={theme.control.hitSlop} accessibilityLabel="Quitar documento">
             <Icon name="trash" size={18} color={colors.danger} />

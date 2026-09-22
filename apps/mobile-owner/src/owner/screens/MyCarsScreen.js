@@ -89,6 +89,13 @@ export function MyCarsScreen({
     .reduce((s, c) => s + Math.round((c.tarifa_dia || 0) * 0.85), 0);
 
   const toggleCarAvailability = async (car) => {
+    if (!car.documentos_verificados || car.estado === "pendiente") {
+      showAlert(
+        "Documentos pendientes de aprobación",
+        "Tu vehículo no puede activarse en el sistema porque sus documentos aún no han sido verificados por el equipo."
+      );
+      return;
+    }
     const nuevoEstado = car.estado === "pausado" ? "activo" : "pausado";
     setCars((prev) => prev.map((c) => (c.id === car.id ? { ...c, estado: nuevoEstado } : c)));
     try {
@@ -131,19 +138,28 @@ export function MyCarsScreen({
   };
 
   const renderCar = ({ item }) => {
-    const disponible = item.estado === "activo";
+    const docsOk = Boolean(item.documentos_verificados);
+    const esPendiente = item.estado === "pendiente" || !docsOk;
+    const disponible = item.estado === "activo" && docsOk;
     const tarifa = item.tarifa_dia || 0;
     const ganancia = Math.round(tarifa * 0.85);
-    const docsOk = item.documentos_verificados;
 
     return (
       <View className="bg-surface rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-0">
         <View className="h-[150px] bg-surface-secondary relative">
           <CarroThumb uri={item.fotos?.[0]} />
           <View className="absolute top-3 left-3 bg-white/95 rounded-full py-1 px-2.5 flex-row items-center gap-1.5 shadow-sm">
-            <View className={`w-1.5 h-1.5 rounded-full ${disponible ? "bg-accent-500" : "bg-gray-400"}`} />
-            <Text className={`text-xs font-bold ${disponible ? "text-accent-700" : "text-gray-500"}`}>
-              {disponible ? "Disponible" : "Pausado"}
+            <View
+              className={`w-1.5 h-1.5 rounded-full ${
+                esPendiente ? "bg-amber-500" : disponible ? "bg-accent-500" : "bg-gray-400"
+              }`}
+            />
+            <Text
+              className={`text-xs font-bold ${
+                esPendiente ? "text-amber-700" : disponible ? "text-accent-700" : "text-gray-500"
+              }`}
+            >
+              {esPendiente ? "Pendiente" : disponible ? "Disponible" : "Pausado"}
             </Text>
           </View>
         </View>
@@ -190,6 +206,7 @@ export function MyCarsScreen({
             <Text className="text-[13px] text-textDark font-medium">Disponible para arriendos</Text>
             <Switch
               value={disponible}
+              disabled={esPendiente}
               onValueChange={() => toggleCarAvailability(item)}
               trackColor={{ false: colors.border, true: colors.accent }}
               thumbColor="#FFFFFF"
@@ -220,15 +237,25 @@ export function MyCarsScreen({
               <Text className="text-xs font-semibold text-textDark">Mantenciones</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className="flex-1 flex-row items-center justify-center gap-1.5 bg-surface-subtle py-2.5 rounded-xl border border-gray-200 active:opacity-75"
-              onPress={() => onOpenVerificacion?.(item)}
-              activeOpacity={0.8}
+              className={`flex-1 flex-row items-center justify-center gap-1.5 py-2.5 rounded-xl border ${
+                docsOk ? "bg-emerald-50 border-emerald-300" : "bg-surface-subtle border-gray-200 active:opacity-75"
+              }`}
+              onPress={() => {
+                if (docsOk) {
+                  showAlert("Documentos validados", "Los documentos de este vehículo ya están verificados y aprobados.");
+                  return;
+                }
+                onOpenVerificacion?.(item);
+              }}
+              activeOpacity={docsOk ? 0.9 : 0.8}
               hitSlop={theme.control.hitSlop}
               accessibilityRole="button"
-              accessibilityLabel={`Verificar ${item.marca} ${item.modelo}`}
+              accessibilityLabel={docsOk ? `Documentos validados de ${item.marca} ${item.modelo}` : `Verificar ${item.marca} ${item.modelo}`}
             >
-              <Icon name="shield" size={15} color={colors.primary} />
-              <Text className="text-xs font-semibold text-textDark">Verificar</Text>
+              <Icon name={docsOk ? "check" : "shield"} size={15} color={docsOk ? colors.accentDark : colors.primary} />
+              <Text className={`text-xs font-semibold ${docsOk ? "text-accent-700 font-bold" : "text-textDark"}`}>
+                {docsOk ? "Validado" : "Verificar"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -306,7 +333,7 @@ export function MyCarsScreen({
       />
 
       <Modal visible={!!editingCar} transparent animationType="fade" onRequestClose={() => setEditingCar(null)}>
-        <KeyboardAvoidingView className="flex-1 bg-black/45 justify-center p-6" behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView className="flex-1 bg-black/45 justify-center p-6" behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View className="bg-surface rounded-2xl p-6 border border-gray-200 gap-4 max-h-[90%] shadow-2xl">
             <View className="flex-row items-center justify-between">
               <View className="flex-1">

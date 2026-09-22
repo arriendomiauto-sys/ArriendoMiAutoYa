@@ -14,6 +14,7 @@ import {
   msjError,
   LegalModal,
   ReadinessBand,
+  AdminPromoterInviteModal,
 } from "@rentacar/mobile-shared";
 
 /**
@@ -36,6 +37,7 @@ export function RenterProfileScreen({
   const { currentUser, reservations, logout } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
   const [showLegal, setShowLegal] = useState(false);
+  const [showAdminPromoterModal, setShowAdminPromoterModal] = useState(false);
   const [eliminando, setEliminando] = useState(false);
 
   useEffect(() => {
@@ -46,6 +48,12 @@ export function RenterProfileScreen({
   }, [currentUser?.id]);
 
   const user = currentUser || {};
+  const esPromotor = Boolean(
+    user.es_promotor ||
+    user.roles_activos?.includes("promotor") ||
+    user.roles_activos?.includes("admin")
+  );
+  const esAdmin = Boolean(user.roles_activos?.includes("admin"));
 
   const handleKycPress = () => {
     if (user.estado_documentos === "verificado") {
@@ -175,7 +183,12 @@ export function RenterProfileScreen({
             <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenPaymentMethods} />
             <MenuRow tile tileTone="menta" icon="document" label="Antecedentes" meta={antecedentesMeta} onPress={onOpenAntecedentes} />
             <MenuRow tile icon="heart" label="Autos guardados" onPress={onOpenFavorites} />
-            <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />
+            {esPromotor ? (
+              <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />
+            ) : null}
+            {esAdmin ? (
+              <MenuRow tile tileTone="menta" icon="users" label="Invitar Promotor (Admin)" onPress={() => setShowAdminPromoterModal(true)} />
+            ) : null}
             <MenuRow tile icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
             <MenuRow tile icon="help" label="Centro de ayuda" onPress={onOpenSupport} />
             <MenuRow tile icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
@@ -196,6 +209,10 @@ export function RenterProfileScreen({
       </ScrollView>
 
       <LegalModal visible={showLegal} doc="terminos" onClose={() => setShowLegal(false)} />
+      <AdminPromoterInviteModal
+        visible={showAdminPromoterModal}
+        onClose={() => setShowAdminPromoterModal(false)}
+      />
     </View>
   );
 }

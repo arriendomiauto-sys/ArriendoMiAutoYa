@@ -25,12 +25,19 @@ const BADGE = {
  */
 export function CertificadoAutoScreen({ auto, onBack }) {
   const insets = useSafeAreaInsets();
-  const [consiente, setConsiente] = useState(false);
+  const yaValidado = Boolean(
+    auto?.documentos_verificados || auto?.anotaciones_aprobadas_en || auto?.estado_anotaciones === "aprobado"
+  );
+  const [consiente, setConsiente] = useState(yaValidado);
   const [subiendo, setSubiendo] = useState(false);
-  const [resultado, setResultado] = useState(null);
+  const [resultado, setResultado] = useState(
+    yaValidado ? { estado: "aprobado", motivo: "Certificado revisado y aprobado exitosamente." } : null
+  );
+
+  const estaAprobado = yaValidado || resultado?.estado === "aprobado";
 
   const subir = async () => {
-    if (!consiente || subiendo) return;
+    if (estaAprobado || !consiente || subiendo) return;
     try {
       const pdf = await elegirPdf();
       if (pdf.cancelado) return;
@@ -64,37 +71,60 @@ export function CertificadoAutoScreen({ auto, onBack }) {
         </Text>
         <Text style={styles.patente}>{auto.patente}</Text>
 
-        <Text style={styles.intro}>
-          Para ofrecer tu auto necesitamos el Certificado de anotaciones vigentes del Registro Civil: muestra que la patente
-          es tuya y que no tiene prohibiciones ni embargos. Se descarga en registrocivil.cl con tu ClaveÚnica.
-        </Text>
+        {estaAprobado ? (
+          <Card padded style={styles.cardAprobado}>
+            <View style={styles.filaTitulo}>
+              <Icon name="check" size={20} color={colors.accentDark} />
+              <Text style={styles.tituloAprobado}>Documento validado y aprobado</Text>
+            </View>
+            <Text style={styles.textoAprobado}>
+              Este vehículo ya cuenta con su verificación aprobada. La opción para volver a subir o modificar este certificado ha quedado invalidada.
+            </Text>
+          </Card>
+        ) : (
+          <>
+            <Text style={styles.intro}>
+              Para ofrecer tu auto necesitamos el Certificado de anotaciones vigentes del Registro Civil: muestra que la patente
+              es tuya y que no tiene prohibiciones ni embargos. Se descarga en registrocivil.cl con tu ClaveÚnica.
+            </Text>
+            <Button
+              label="Abrir registrocivil.cl"
+              variant="secondary"
+              fullWidth={false}
+              style={{ alignSelf: "flex-start" }}
+              onPress={() => Linking.openURL(URL_REGISTRO_CIVIL)}
+            />
+
+            <TouchableOpacity
+              style={styles.consentimiento}
+              onPress={() => {
+                if (!estaAprobado) setConsiente((v) => !v);
+              }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: consiente }}
+              activeOpacity={estaAprobado ? 1 : 0.8}
+              disabled={estaAprobado}
+            >
+              <View style={[styles.caja, consiente && styles.cajaMarcada]}>
+                {consiente ? <Icon name="check" size={14} color={colors.textWhite} /> : null}
+              </View>
+              <Text style={styles.consentimientoTexto}>
+                Autorizo a Arrienda Tu Auto a revisar este certificado. Solo lo ve un ejecutivo y se elimina del sistema una vez
+                resuelto.
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
         <Button
-          label="Abrir registrocivil.cl"
-          variant="secondary"
-          fullWidth={false}
-          style={{ alignSelf: "flex-start" }}
-          onPress={() => Linking.openURL(URL_REGISTRO_CIVIL)}
+          label={estaAprobado ? "Certificado ya validado" : "Subir certificado"}
+          onPress={subir}
+          loading={subiendo}
+          disabled={estaAprobado || !consiente}
+          variant={estaAprobado ? "secondary" : "primary"}
         />
 
-        <TouchableOpacity
-          style={styles.consentimiento}
-          onPress={() => setConsiente((v) => !v)}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: consiente }}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.caja, consiente && styles.cajaMarcada]}>
-            {consiente ? <Icon name="check" size={14} color={colors.textWhite} /> : null}
-          </View>
-          <Text style={styles.consentimientoTexto}>
-            Autorizo a Arrienda Tu Auto a revisar este certificado. Solo lo ve un ejecutivo y se elimina del sistema una vez
-            resuelto.
-          </Text>
-        </TouchableOpacity>
-
-        <Button label="Subir certificado" onPress={subir} loading={subiendo} disabled={!consiente} />
-
-        {resultado ? (
+        {resultado && !yaValidado ? (
           <Card padded style={{ gap: theme.spacing.sm }}>
             <View style={styles.filaTitulo}>
               <Text style={styles.titulo}>Certificado de anotaciones</Text>
@@ -137,4 +167,21 @@ const styles = StyleSheet.create({
   titulo: { flex: 1, fontSize: 15, fontWeight: "700", color: colors.text },
   motivo: { fontSize: 12.5, color: colors.text, lineHeight: 18 },
   nota: { fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
+  cardAprobado: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+    borderWidth: 1,
+    gap: theme.spacing.sm,
+  },
+  tituloAprobado: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.accentDark,
+    flex: 1,
+  },
+  textoAprobado: {
+    fontSize: 13,
+    color: "#065F46",
+    lineHeight: 18,
+  },
 });

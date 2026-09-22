@@ -275,6 +275,17 @@ export class ApiClient {
     return this.request("/usuarios/me/programa-referidos");
   }
 
+  static async crearInvitacionPromotor(nota = "") {
+    return this.request("/admin/promotores/invitaciones", {
+      method: "POST",
+      body: JSON.stringify({ nota }),
+    });
+  }
+
+  static async getInvitacionesPromotores() {
+    return this.request("/admin/promotores/invitaciones");
+  }
+
   // Autos / Marketplace
   static async getAutos(params = {}) {
     try {

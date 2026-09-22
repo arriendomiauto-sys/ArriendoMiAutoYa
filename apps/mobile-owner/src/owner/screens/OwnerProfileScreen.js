@@ -14,6 +14,7 @@ import {
   msjError,
   LegalModal,
   ReadinessBand,
+  AdminPromoterInviteModal,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner } from "../comun";
 
@@ -33,6 +34,7 @@ export function OwnerProfileScreen({
   const { currentUser, logout } = useApp();
   const [calificaciones, setCalificaciones] = useState([]);
   const [showLegal, setShowLegal] = useState(false);
+  const [showAdminPromoterModal, setShowAdminPromoterModal] = useState(false);
   const [eliminando, setEliminando] = useState(false);
 
   useEffect(() => {
@@ -44,6 +46,12 @@ export function OwnerProfileScreen({
 
   const user = currentUser || {};
   const nombre = user.nombre || user.email || "Mi cuenta";
+  const esPromotor = Boolean(
+    user.es_promotor ||
+    user.roles_activos?.includes("promotor") ||
+    user.roles_activos?.includes("admin")
+  );
+  const esAdmin = Boolean(user.roles_activos?.includes("admin"));
 
   const handleKycPress = () => {
     if (user.estado_documentos === "verificado") {
@@ -179,7 +187,12 @@ export function OwnerProfileScreen({
               <MenuRow tile tileTone="menta" icon="shield" label="Identidad" meta={identidadMeta} onPress={handleKycPress} />
               <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenTarjeta} />
               <MenuRow tile icon="shield" label="Garantías y reclamos" onPress={onOpenDisputes} />
-              <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />
+              {esPromotor ? (
+                <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />
+              ) : null}
+              {esAdmin ? (
+                <MenuRow tile tileTone="menta" icon="users" label="Invitar Promotor (Admin)" onPress={() => setShowAdminPromoterModal(true)} />
+              ) : null}
               <MenuRow tile icon="bell" label="Notificaciones" onPress={onOpenNotifications} />
               <MenuRow tile icon="help" label="Soporte para anfitriones" onPress={onOpenSupport} />
               <MenuRow tile icon="document" label="Términos y condiciones" onPress={() => setShowLegal(true)} />
@@ -203,6 +216,10 @@ export function OwnerProfileScreen({
       </ScrollView>
 
       <LegalModal visible={showLegal} doc="terminos" onClose={() => setShowLegal(false)} />
+      <AdminPromoterInviteModal
+        visible={showAdminPromoterModal}
+        onClose={() => setShowAdminPromoterModal(false)}
+      />
     </View>
   );
 }

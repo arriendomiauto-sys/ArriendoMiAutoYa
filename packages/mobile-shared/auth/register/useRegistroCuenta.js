@@ -6,6 +6,7 @@ import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
 import { normalizarTelefonoCompleto } from "../../utils/formato";
 import { LARGO_CODIGO, MENSAJE_CODIGO, erroresCuenta } from "./validaciones";
+import { useReferralCodeDetector } from "./useReferralCodeDetector";
 
 export const PASO_CUENTA = "cuenta";
 export const PASO_TERMINOS = "terminos";
@@ -36,6 +37,15 @@ export function useRegistroCuenta({ role }) {
   const [paso, setPaso] = useState(PASO_CUENTA);
   const [loading, setLoading] = useState(false);
   const enCurso = useRef(false);
+
+  const { detectedCode, clearDetectedCode } = useReferralCodeDetector();
+  const [codigoReferido, setCodigoReferido] = useState("");
+
+  useEffect(() => {
+    if (detectedCode && !codigoReferido) {
+      setCodigoReferido(detectedCode);
+    }
+  }, [detectedCode]);
 
   const [form, setForm] = useState({ nombre: "", apellido: "", email: "", password: "", telefono: "" });
   // Los errores aparecen al salir de un campo o al intentar avanzar, no mientras
@@ -166,6 +176,15 @@ export function useRegistroCuenta({ role }) {
       } catch (err) {
         console.warn("[Registro] No se pudo guardar el perfil básico:", err?.message);
       }
+
+      if (codigoReferido && codigoReferido.trim()) {
+        try {
+          await ApiClient.aplicarCodigoReferido(codigoReferido.trim().toUpperCase());
+          await clearDetectedCode();
+        } catch (err) {
+          console.warn("[Registro] No se pudo aplicar código de referido:", err?.message);
+        }
+      }
       setPaso(PASO_EXITO);
     } catch {
       setErrorCodigo(MENSAJE_CODIGO);
@@ -229,6 +248,9 @@ export function useRegistroCuenta({ role }) {
       verificar,
       reenviar,
     },
+    codigoReferido,
+    setCodigoReferido,
+    codigoDetectadoAutomaticamente: Boolean(detectedCode),
     irACuenta,
     volver,
   };

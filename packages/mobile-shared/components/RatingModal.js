@@ -76,7 +76,7 @@ export function RatingModal({
     <Modal visible={visible} animationType="slide" transparent onRequestClose={cerrar}>
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
           <View style={styles.handle} />

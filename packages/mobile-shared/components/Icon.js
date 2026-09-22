@@ -458,11 +458,43 @@ export function Icon({
         </>
       );
 
-    case "file-text":
+    case "users":
       return renderSvg(
         <>
-          <Path d="M6 3h8l4 4v14H6z" />
-          <Path d="M9 11h6M9 14.5h6M9 17.5h3.5" />
+          <Path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <Circle cx="9" cy="7" r="4" />
+          <Path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <Path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </>
+      );
+
+    case "gift":
+      return renderSvg(
+        <>
+          <Path d="M20 12v10H4V12" />
+          <Rect x="2" y="7" width="20" height="5" />
+          <Path d="M12 7v15" />
+          <Path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+          <Path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+        </>
+      );
+
+    case "award":
+      return renderSvg(
+        <>
+          <Circle cx="12" cy="8" r="6" />
+          <Path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" />
+        </>
+      );
+
+    case "qr":
+    case "qrcode":
+      return renderSvg(
+        <>
+          <Rect x="3" y="3" width="7" height="7" />
+          <Rect x="14" y="3" width="7" height="7" />
+          <Rect x="3" y="14" width="7" height="7" />
+          <Path d="M14 14h3v3h-3zM14 20h3M17 17h4v4h-4z" />
         </>
       );
 
