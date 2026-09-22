@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   ScrollView,
   TouchableOpacity,
@@ -358,11 +357,14 @@ export function SegundoConductorModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.modalOverlay}
+        className="flex-1 bg-black/50 justify-end"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={[styles.modalContent, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
-          <View style={styles.handle} />
+        <View
+          className="bg-background rounded-t-3xl px-5 pt-2.5 max-h-[92%] flex-1"
+          style={{ paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }}
+        >
+          <View className="w-10 h-1 rounded-full bg-borderDark self-center mb-2" />
           <ScreenHeader
             title="Segundo Conductor"
             subtitle="Identidad con Didit · Licencia con validación casera"
@@ -370,12 +372,12 @@ export function SegundoConductorModal({
             tone={tone}
           />
 
-          <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1 mt-3" contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
             {/* Nombre del conductor */}
-            <Card padded style={styles.slotCard}>
-              <Text style={styles.slotTitle}>Nombre completo</Text>
+            <Card padded className="mb-3 gap-2.5">
+              <Text className="text-sm font-bold text-text">Nombre completo</Text>
               <TextInput
-                style={styles.nombreInput}
+                className="h-11 border border-border rounded-xl px-3 text-sm text-text bg-surface"
                 value={conductorNombre}
                 onChangeText={setConductorNombre}
                 placeholder="Nombre y apellido del segundo conductor"
@@ -383,15 +385,22 @@ export function SegundoConductorModal({
                 editable={!conductorId}
               />
               {conductorId ? (
-                <Text style={styles.slotDesc}>Para cambiar el nombre, contacta a soporte.</Text>
+                <Text className="text-xs text-textMuted leading-4">Para cambiar el nombre, contacta a soporte.</Text>
               ) : null}
             </Card>
 
             {/* Estado Actual */}
             {estadoKyc !== "pendiente" && (
-              <Card padded style={[styles.statusCard, estadoKyc === "verificado" ? styles.statusCardOk : styles.statusCardWarn]}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                  <Text style={styles.statusTitle}>
+              <Card
+                padded
+                className={`mb-3.5 border-[1.5px] ${
+                  estadoKyc === "verificado"
+                    ? "bg-accent-100 border-accent-dark"
+                    : "bg-amber-50 border-amber-500"
+                }`}
+              >
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-[15px] font-bold text-text">
                     {estadoKyc === "verificado"
                       ? "Conductor Autorizado"
                       : estadoKyc === "requiere_revision_manual"
@@ -405,17 +414,17 @@ export function SegundoConductorModal({
                 </View>
 
                 {conductorNombre ? (
-                  <Text style={styles.conductorDataText}>
+                  <Text className="text-[13px] font-semibold text-text mt-1">
                     {conductorNombre} {conductorRut ? `• ${conductorRut}` : ""}
                   </Text>
                 ) : null}
 
                 {notasAuditoria ? (
-                  <Text style={styles.notasAuditoriaText}>{notasAuditoria}</Text>
+                  <Text className="text-xs text-textMuted mt-1.5 leading-[17px]">{notasAuditoria}</Text>
                 ) : null}
 
                 {estadoKyc !== "verificado" && (
-                  <View style={{ marginTop: 12 }}>
+                  <View className="mt-3">
                     <Button
                       variant="secondary"
                       size="sm"
@@ -429,15 +438,15 @@ export function SegundoConductorModal({
             )}
 
             {/* Identidad: Didit primero, captura manual como respaldo */}
-            <Card padded style={styles.slotCard}>
-              <View style={styles.slotHeader}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Card padded className="mb-3 gap-2.5">
+              <View className="flex-row justify-between items-center">
+                <View className="flex-row items-center gap-2">
                   <Icon name="shield" size={20} color={colors.primary} />
-                  <Text style={styles.slotTitle}>1. Identidad (cédula + rostro)</Text>
+                  <Text className="text-sm font-bold text-text">1. Identidad (cédula + rostro)</Text>
                 </View>
                 {identidadVerificadaPorDidit && <Badge variant="success" label="Verificada" />}
               </View>
-              <Text style={styles.slotDesc}>
+              <Text className="text-xs text-textMuted leading-4">
                 {identidadVerificadaPorDidit
                   ? "Identidad confirmada por Didit."
                   : "El segundo conductor completa una verificación guiada (cédula + selfie con detección de vida)."}
@@ -454,8 +463,8 @@ export function SegundoConductorModal({
 
               {!identidadVerificadaPorDidit && usarCapturaManual && (
                 <>
-                  <View style={styles.buttonsRow}>
-                    <View style={{ flex: 1 }}>
+                  <View className="flex-row gap-2.5">
+                    <View className="flex-1">
                       <Button
                         variant={carnetFrontalUrl ? "secondary" : "primary"}
                         size="sm"
@@ -465,7 +474,7 @@ export function SegundoConductorModal({
                         onPress={() => iniciarCaptura("carnet_frente")}
                       />
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View className="flex-1">
                       <Button
                         variant={carnetTraseroUrl ? "secondary" : "outline"}
                         size="sm"
@@ -485,22 +494,22 @@ export function SegundoConductorModal({
                     onPress={() => iniciarCaptura("selfie")}
                   />
                   <TouchableOpacity onPress={() => setUsarCapturaManual(false)} hitSlop={theme.control.hitSlop}>
-                    <Text style={styles.volverDiditTexto}>Volver a intentar con Didit</Text>
+                    <Text className="text-xs font-semibold text-primary text-center mt-0.5">Volver a intentar con Didit</Text>
                   </TouchableOpacity>
                 </>
               )}
             </Card>
 
             {/* Licencia de Conducir — siempre casera, nunca por Didit */}
-            <Card padded style={styles.slotCard}>
-              <View style={styles.slotHeader}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Card padded className="mb-3 gap-2.5">
+              <View className="flex-row justify-between items-center">
+                <View className="flex-row items-center gap-2">
                   <Icon name="check" size={20} color={colors.primary} />
-                  <Text style={styles.slotTitle}>2. Licencia de Conducir</Text>
+                  <Text className="text-sm font-bold text-text">2. Licencia de Conducir</Text>
                 </View>
                 {licenciaUrl && <Badge variant="success" label="Listo" />}
               </View>
-              <Text style={styles.slotDesc}>Comprueba clase B vigente durante las fechas completas del arriendo.</Text>
+              <Text className="text-xs text-textMuted leading-4">Comprueba clase B vigente durante las fechas completas del arriendo.</Text>
 
               <Button
                 variant={licenciaUrl ? "secondary" : "primary"}
@@ -513,7 +522,7 @@ export function SegundoConductorModal({
             </Card>
 
             {/* Acciones Finales */}
-            <View style={{ marginTop: 12, gap: 10 }}>
+            <View className="mt-3 gap-2.5">
               <Button
                 label="Guardar verificación"
                 iconRight="arrow-right"
@@ -555,101 +564,3 @@ export function SegundoConductorModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    maxHeight: "92%",
-    flex: 1,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderDark,
-    alignSelf: "center",
-    marginBottom: 8,
-  },
-  body: {
-    flex: 1,
-    marginTop: 12,
-  },
-  nombreInput: {
-    height: 44,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: colors.text,
-    backgroundColor: colors.surface,
-  },
-  volverDiditTexto: {
-    fontSize: 12.5,
-    fontWeight: "600",
-    color: colors.primary,
-    textAlign: "center",
-    marginTop: 2,
-  },
-  statusCard: {
-    marginBottom: 14,
-    borderWidth: 1.5,
-  },
-  statusCardOk: {
-    backgroundColor: colors.accent100,
-    borderColor: colors.accentDark,
-  },
-  statusCardWarn: {
-    backgroundColor: colors.warningBg,
-    borderColor: colors.warning,
-  },
-  statusTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  conductorDataText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 4,
-  },
-  notasAuditoriaText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 6,
-    lineHeight: 17,
-  },
-  slotCard: {
-    marginBottom: 12,
-    gap: 10,
-  },
-  slotHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  slotTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  slotDesc: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 16,
-  },
-  buttonsRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-});

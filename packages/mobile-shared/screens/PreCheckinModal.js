@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   TouchableOpacity,
   ScrollView,
@@ -95,77 +94,86 @@ export function PreCheckinModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.overlay}
+        className="flex-1 bg-[#0a0f1d]/65 justify-end"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <View style={styles.iconCircle}>
+        <View
+          className="bg-surface rounded-t-3xl max-h-[88%]"
+          style={{ paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }}
+        >
+          <View className="w-10 h-1 rounded-full bg-borderDark self-center mt-2.5 mb-0.5" />
+          <View className="flex-row items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
+            <View className="w-11 h-11 rounded-full bg-accent-100 items-center justify-center">
               <Icon name="check" size={24} color={colors.accent700} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Verificación 24h antes</Text>
-              <Text style={styles.subtitle}>
+            <View className="flex-1">
+              <Text className="text-lg font-bold text-text">Verificación 24h antes</Text>
+              <Text className="text-[13px] text-textMuted mt-0.5">
                 {isDriver ? "Confirma que el vehículo está listo para entrega" : "Confirma tu viaje para mañana"}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={theme.control.hitSlop} style={styles.closeBtn}>
+            <TouchableOpacity onPress={onClose} hitSlop={theme.control.hitSlop} className="p-1">
               <Icon name="close" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={{ padding: 16, gap: 12 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             {/* Tarjeta de Información de Entrega */}
-            <View style={styles.infoCard}>
-              <Text style={styles.carName}>
+            <View className="bg-surfaceSubtle rounded-2xl border border-border p-3 gap-2">
+              <Text className="text-base font-bold text-text">
                 {auto.marca} {auto.modelo}
                 {/* Al cliente la patente recién se le muestra al retirar el
                     auto (QR de entrega) — 24h antes no aporta nada y expone
                     de más. El dueño sí ve la de su propio vehículo. */}
                 {isDriver && auto.patente ? ` (${auto.patente})` : ""}
               </Text>
-              <View style={styles.infoRow}>
+              <View className="flex-row items-center gap-1.5">
                 <Icon name="location" size={15} color={colors.primary} />
-                <Text style={styles.infoText}>{reserva.lugar_entrega_acordado || "Punto acordado"}</Text>
+                <Text className="text-sm text-text font-medium flex-1">{reserva.lugar_entrega_acordado || "Punto acordado"}</Text>
               </View>
-              <View style={styles.securityPill}>
+              <View className="flex-row items-center gap-1.5 bg-accent-100 py-1 px-2.5 rounded-full self-start mt-0.5">
                 <Icon name="shield" size={13} color={colors.accent800} />
-                <Text style={styles.securityPillText}>Punto de encuentro público coordinado</Text>
+                <Text className="text-xs text-accent-800 font-semibold">Punto de encuentro público coordinado</Text>
               </View>
             </View>
 
             {/* Aviso si está fuera de la ventana de 24h */}
             {fueraDeVentana24h && (
-              <View style={styles.warnCard}>
+              <View className="flex-row items-center gap-2 bg-amber-50 p-3 rounded-2xl border border-amber-200">
                 <Icon name="clock" size={16} color="#D97706" />
-                <Text style={styles.warnText}>
+                <Text className="text-[13px] text-amber-800 font-medium flex-1 leading-[18px]">
                   Este pre-checkin estará disponible 24 horas antes de la entrega acordada.
                 </Text>
               </View>
             )}
 
             {/* Checklist interactivo */}
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Checklist de confirmación</Text>
-              <Text style={[styles.counterBadge, todoMarcado && styles.counterBadgeOk]}>
+            <View className="flex-row justify-between items-center mt-1">
+              <Text className="text-sm font-bold text-textMuted uppercase tracking-wider">Checklist de confirmación</Text>
+              <Text
+                className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                  todoMarcado
+                    ? "text-emerald-800 bg-emerald-100 border-emerald-200"
+                    : "text-textMuted bg-surfaceSubtle border-border"
+                }`}
+              >
                 {checksMarcados}/4
               </Text>
             </View>
 
             <TouchableOpacity
-              style={styles.checkRow}
+              className="flex-row items-start gap-3 bg-background p-3 rounded-xl border border-border"
               onPress={() => setAsistencia(!asistencia)}
               activeOpacity={0.8}
             >
-              <View style={[styles.checkbox, asistencia && styles.checkboxActive]}>
+              <View className={`w-[22px] h-[22px] rounded-md border-[1.5px] items-center justify-center mt-0.5 ${asistencia ? "bg-accent border-accent" : "border-borderDark"}`}>
                 {asistencia && <Icon name="check" size={13} color="#FFFFFF" />}
               </View>
-              <Text style={styles.checkLabel}>
+              <Text className="text-sm text-text leading-5 flex-1">
                 {isDriver
                   ? "Asistiré puntualmente a la hora acordada para la entrega con código QR."
                   : "Asistiré puntualmente a recibir el auto en el lugar acordado."}
@@ -173,27 +181,27 @@ export function PreCheckinModal({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.checkRow}
+              className="flex-row items-start gap-3 bg-background p-3 rounded-xl border border-border"
               onPress={() => setLugarHora(!lugarHora)}
               activeOpacity={0.8}
             >
-              <View style={[styles.checkbox, lugarHora && styles.checkboxActive]}>
+              <View className={`w-[22px] h-[22px] rounded-md border-[1.5px] items-center justify-center mt-0.5 ${lugarHora ? "bg-accent border-accent" : "border-borderDark"}`}>
                 {lugarHora && <Icon name="check" size={13} color="#FFFFFF" />}
               </View>
-              <Text style={styles.checkLabel}>
+              <Text className="text-sm text-text leading-5 flex-1">
                 Confirmo que revisé la dirección y tengo planificado mi traslado.
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.checkRow}
+              className="flex-row items-start gap-3 bg-background p-3 rounded-xl border border-border"
               onPress={() => setLicenciaOAuto(!licenciaOAuto)}
               activeOpacity={0.8}
             >
-              <View style={[styles.checkbox, licenciaOAuto && styles.checkboxActive]}>
+              <View className={`w-[22px] h-[22px] rounded-md border-[1.5px] items-center justify-center mt-0.5 ${licenciaOAuto ? "bg-accent border-accent" : "border-borderDark"}`}>
                 {licenciaOAuto && <Icon name="check" size={13} color="#FFFFFF" />}
               </View>
-              <Text style={styles.checkLabel}>
+              <Text className="text-sm text-text leading-5 flex-1">
                 {isDriver
                   ? "El vehículo se encuentra limpio, con combustible y documentación al día."
                   : "Mi cédula y licencia de conducir física se encuentran vigentes para el viaje."}
@@ -201,23 +209,23 @@ export function PreCheckinModal({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.checkRow}
+              className="flex-row items-start gap-3 bg-background p-3 rounded-xl border border-border"
               onPress={() => setReglas(!reglas)}
               activeOpacity={0.8}
             >
-              <View style={[styles.checkbox, reglas && styles.checkboxActive]}>
+              <View className={`w-[22px] h-[22px] rounded-md border-[1.5px] items-center justify-center mt-0.5 ${reglas ? "bg-accent border-accent" : "border-borderDark"}`}>
                 {reglas && <Icon name="check" size={13} color="#FFFFFF" />}
               </View>
-              <Text style={styles.checkLabel}>
+              <Text className="text-sm text-text leading-5 flex-1">
                 Acepto las normas de arriendo (prohibido fumar en el vehículo, cuidado y devolución puntual).
               </Text>
             </TouchableOpacity>
 
             {/* Notas adicionales opcionales */}
-            <View style={styles.notesBox}>
-              <Text style={styles.notesLabel}>Notas o mensaje para la contraparte (opcional)</Text>
+            <View className="gap-1.5 mt-1">
+              <Text className="text-xs text-textMuted font-semibold">Notas o mensaje para la contraparte (opcional)</Text>
               <TextInput
-                style={styles.notesInput}
+                className="bg-background rounded-xl border border-border px-3.5 py-2.5 text-sm text-text min-h-[56px]"
                 placeholder="ej. Estaré esperándote frente a la entrada principal..."
                 placeholderTextColor={colors.textPlaceholder}
                 value={notas}
@@ -228,16 +236,17 @@ export function PreCheckinModal({
             </View>
 
             <Button
+              className="mt-2.5"
+              style={{ opacity: (!todoMarcado || fueraDeVentana24h) ? 0.6 : 1 }}
               label={isDriver ? "Confirmar disponibilidad del auto" : "Confirmar viaje para mañana"}
               onPress={handleConfirmar}
               loading={loading}
               disabled={!todoMarcado || fueraDeVentana24h}
               iconRight="check"
-              style={{ marginTop: 10, opacity: (!todoMarcado || fueraDeVentana24h) ? 0.6 : 1 }}
             />
 
             {!todoMarcado && !fueraDeVentana24h && (
-              <Text style={styles.helperText}>
+              <Text className="text-xs text-textMuted text-center mt-1">
                 Debes marcar las 4 casillas del checklist para poder confirmar.
               </Text>
             )}
@@ -248,169 +257,4 @@ export function PreCheckinModal({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(10, 15, 29, 0.65)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.xl,
-    borderTopRightRadius: theme.radius.xl,
-    maxHeight: "88%",
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderDark,
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 2,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { fontSize: 18, fontWeight: "700", color: colors.text },
-  subtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  closeBtn: { padding: 4 },
-  scrollContent: {
-    padding: theme.spacing.screen,
-    gap: theme.spacing.md,
-  },
-  infoCard: {
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: theme.spacing.md,
-    gap: 8,
-  },
-  carName: { fontSize: 16, fontWeight: "700", color: colors.text },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  infoText: { fontSize: 14, color: colors.text, fontWeight: "500", flex: 1 },
-  securityPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.accent100,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: theme.radius.pill,
-    alignSelf: "flex-start",
-    marginTop: 2,
-  },
-  securityPillText: { fontSize: 12, color: colors.accent800, fontWeight: "600" },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  checkRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: colors.background,
-    padding: 12,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.borderDark,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  checkboxActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  checkLabel: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-    flex: 1,
-  },
-  notesBox: { gap: 6, marginTop: 4 },
-  notesLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
-  notesInput: {
-    backgroundColor: colors.background,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.text,
-    minHeight: 56,
-  },
-  warnCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#FEF3C7",
-    padding: 12,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-  },
-  warnText: {
-    fontSize: 13,
-    color: "#92400E",
-    fontWeight: "500",
-    flex: 1,
-    lineHeight: 18,
-  },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  counterBadge: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.textMuted,
-    backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  counterBadgeOk: {
-    color: "#065F46",
-    backgroundColor: "#D1FAE5",
-    borderColor: "#A7F3D0",
-  },
-  helperText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: "center",
-    marginTop: 4,
-  },
-});
+

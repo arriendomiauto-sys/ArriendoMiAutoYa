@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
@@ -50,6 +49,7 @@ export function Button({
   iconLeft,
   iconRight,
   style,
+  className,
   fullWidth = true,
   accessibilityLabel,
   testID,
@@ -100,6 +100,7 @@ export function Button({
   return (
     <TouchableAnimado
       testID={testID}
+      className={className}
       onPress={onPress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
@@ -143,10 +144,11 @@ export function Button({
 // ---------------------------------------------------------------------------
 // Card
 // ---------------------------------------------------------------------------
-export function Card({ children, tone = "light", style, padded = true, elevated = true }) {
+export function Card({ children, tone = "light", style, className, padded = true, elevated = true }) {
   const p = palette(tone);
   return (
     <View
+      className={className}
       style={[
         styles.card,
         { backgroundColor: p.surface, borderColor: p.border },
@@ -174,11 +176,13 @@ export function BackButton({
   variant = "default",
   accessibilityLabel = "Volver",
   style,
+  className,
 }) {
   const p = palette(tone);
   const overlay = variant === "overlay";
   return (
     <TouchableOpacity
+      className={className}
       onPress={onPress || onBack}
       hitSlop={theme.control.hitSlop}
       activeOpacity={0.8}
@@ -203,10 +207,10 @@ export function BackButton({
 // ---------------------------------------------------------------------------
 // ScreenHeader — botón volver + título + acción opcional a la derecha
 // ---------------------------------------------------------------------------
-export function ScreenHeader({ title, subtitle, onBack, right, tone = "light", style }) {
+export function ScreenHeader({ title, subtitle, onBack, right, tone = "light", style, className }) {
   const p = palette(tone);
   return (
-    <View style={[styles.header, style]}>
+    <View className={className} style={[styles.header, style]}>
       {onBack ? (
         <BackButton onPress={onBack} tone={tone} />
       ) : (
@@ -230,7 +234,7 @@ export function ScreenHeader({ title, subtitle, onBack, right, tone = "light", s
 // ---------------------------------------------------------------------------
 // Chip — pill seleccionable
 // ---------------------------------------------------------------------------
-export function Chip({ label, selected, onPress, tone = "light", iconLeft }) {
+export function Chip({ label, selected, onPress, tone = "light", iconLeft, style, className }) {
   const p = palette(tone);
 
   // Mismo resorte que el botón: un chip de filtro se toca muchas veces
@@ -244,6 +248,7 @@ export function Chip({ label, selected, onPress, tone = "light", iconLeft }) {
 
   return (
     <TouchableAnimado
+      className={className}
       onPress={onPress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
@@ -291,7 +296,7 @@ export function Chip({ label, selected, onPress, tone = "light", iconLeft }) {
 //   <Rating value={4.8} count={23} size="sm" />  → ★ 4,8 · 23 arriendos
 // value nulo/0 => "Sin evaluaciones" (o el `emptyLabel` que se pase).
 // ---------------------------------------------------------------------------
-export function Rating({ value, count, size = "md", tone = "light", emptyLabel = "Sin evaluaciones", style }) {
+export function Rating({ value, count, size = "md", tone = "light", emptyLabel = "Sin evaluaciones", style, className }) {
   const p = palette(tone);
   const num = Number(value);
   const has = Number.isFinite(num) && num > 0;
@@ -303,7 +308,7 @@ export function Rating({ value, count, size = "md", tone = "light", emptyLabel =
 
   if (!has) {
     return (
-      <Text style={[styles.ratingMeta, { fontSize: dims.meta, color: p.textMuted }, style]}>
+      <Text className={className} style={[styles.ratingMeta, { fontSize: dims.meta, color: p.textMuted }, style]}>
         {emptyLabel}
       </Text>
     );
@@ -312,6 +317,7 @@ export function Rating({ value, count, size = "md", tone = "light", emptyLabel =
   const score = num.toFixed(1).replace(".", ",");
   return (
     <View
+      className={className}
       style={[styles.ratingRow, style]}
       accessibilityRole="text"
       accessibilityLabel={`${score} de 5${count ? `, ${count} arriendos` : ""}`}
@@ -338,10 +344,10 @@ const BADGE_TONES = {
   info: { bg: colors.primary100, fg: colors.primary },
 };
 
-export function Badge({ label, variant = "neutral", style }) {
+export function Badge({ label, variant = "neutral", style, className }) {
   const c = BADGE_TONES[variant] || BADGE_TONES.neutral;
   return (
-    <View style={[styles.badge, { backgroundColor: c.bg }, style]}>
+    <View className={className} style={[styles.badge, { backgroundColor: c.bg }, style]}>
       <Text style={[styles.badgeText, { color: c.fg }]} numberOfLines={1}>
         {label}
       </Text>
@@ -352,18 +358,19 @@ export function Badge({ label, variant = "neutral", style }) {
 // ---------------------------------------------------------------------------
 // SectionLabel — rótulo en versalitas
 // ---------------------------------------------------------------------------
-export function SectionLabel({ children, tone = "light", style }) {
+export function SectionLabel({ children, tone = "light", style, className }) {
   const p = palette(tone);
-  return <Text style={[styles.sectionLabel, { color: p.textMuted }, style]}>{children}</Text>;
+  return <Text className={className} style={[styles.sectionLabel, { color: p.textMuted }, style]}>{children}</Text>;
 }
 
 // ---------------------------------------------------------------------------
 // StatRow — fila de métricas separadas por divisores
 // ---------------------------------------------------------------------------
-export function StatRow({ items, tone = "light", style }) {
+export function StatRow({ items, tone = "light", style, className }) {
   const p = palette(tone);
   return (
     <View
+      className={className}
       style={[
         styles.statRow,
         { backgroundColor: p.surface, borderColor: p.border },
@@ -386,11 +393,12 @@ export function StatRow({ items, tone = "light", style }) {
 // ---------------------------------------------------------------------------
 // MenuList / MenuRow — lista de accesos con icono, opcionalmente agrupada
 // ---------------------------------------------------------------------------
-export function MenuList({ children, tone = "light", style }) {
+export function MenuList({ children, tone = "light", style, className }) {
   const p = palette(tone);
   const rows = React.Children.toArray(children).filter(Boolean);
   return (
     <View
+      className={className}
       style={[styles.menuList, { backgroundColor: p.surface, borderColor: p.border }, style]}
     >
       {rows.map((child, i) =>
@@ -412,6 +420,8 @@ export function MenuRow({
   tile = false,
   tileTone = "brand",
   _last = false,
+  className,
+  style,
 }) {
   const p = palette(tone);
   const color = danger ? colors.danger : p.accent;
@@ -427,11 +437,12 @@ export function MenuRow({
       : p.dark ? colors.accent : colors.primary;
   return (
     <TouchableOpacity
+      className={className}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={meta ? `${label}, ${meta}` : label}
-      style={[tile ? styles.menuRowTiled : styles.menuRow, !_last && { borderBottomWidth: 1, borderBottomColor: p.border }]}
+      style={[tile ? styles.menuRowTiled : styles.menuRow, !_last && { borderBottomWidth: 1, borderBottomColor: p.border }, style]}
     >
       <View style={styles.menuRowLeft}>
         {tile ? (
@@ -462,7 +473,7 @@ export function MenuRow({
 // ---------------------------------------------------------------------------
 // EmptyState — pantalla/lista vacía con invitación a actuar
 // ---------------------------------------------------------------------------
-export function EmptyState({ icon = "car", title, message, action, onAction, tone = "light" }) {
+export function EmptyState({ icon = "car", title, message, action, onAction, tone = "light", className, style }) {
   const p = palette(tone);
 
   // Aparece justo cuando una lista termina de cargar y no hay nada que
@@ -475,7 +486,7 @@ export function EmptyState({ icon = "car", title, message, action, onAction, ton
   }, [entrada]);
 
   return (
-    <Animated.View style={[styles.empty, { opacity: entrada }]}>
+    <Animated.View className={className} style={[styles.empty, { opacity: entrada }, style]}>
       <View style={[styles.emptyIcon, { backgroundColor: p.dark ? colors.darkCardSubtle : colors.primary100 }]}>
         <Icon name={icon} size={30} color={p.accent} />
       </View>
@@ -513,6 +524,7 @@ export const Field = React.forwardRef(function Field(
     revealIcon = false,
     tone = "light",
     style,
+    className,
     format,
     value,
     onChangeText,
@@ -557,7 +569,7 @@ export const Field = React.forwardRef(function Field(
   const apagado = inputProps.editable === false;
 
   return (
-    <View style={[styles.field, style]}>
+    <View className={className} style={[styles.field, style]}>
       {label ? <SectionLabel tone={tone}>{label}</SectionLabel> : null}
       <View
         style={[
@@ -621,12 +633,13 @@ export const Field = React.forwardRef(function Field(
 // ---------------------------------------------------------------------------
 // Checkbox — casilla cuadrada con etiqueta a la derecha
 // ---------------------------------------------------------------------------
-export function Checkbox({ checked, onToggle, label, tone = "light", testID }) {
+export function Checkbox({ checked, onToggle, label, tone = "light", testID, className, style }) {
   const p = palette(tone);
   return (
     <TouchableOpacity
       testID={testID}
-      style={styles.checkboxRow}
+      className={className}
+      style={[styles.checkboxRow, style]}
       onPress={onToggle}
       activeOpacity={0.8}
       accessibilityRole="checkbox"
@@ -653,10 +666,11 @@ export function Checkbox({ checked, onToggle, label, tone = "light", testID }) {
 // ---------------------------------------------------------------------------
 // BottomBar — barra fija inferior para el CTA principal de una pantalla
 // ---------------------------------------------------------------------------
-export function BottomBar({ children, tone = "light", bordered = true, style }) {
+export function BottomBar({ children, tone = "light", bordered = true, style, className }) {
   const p = palette(tone);
   return (
     <View
+      className={className}
       style={[
         styles.bottomBar,
         { backgroundColor: p.surface },
@@ -669,7 +683,7 @@ export function BottomBar({ children, tone = "light", bordered = true, style }) 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = {
   btn: {
     height: theme.control.height,
     borderRadius: theme.radius.field,
@@ -838,4 +852,4 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 18, fontWeight: "700", textAlign: "center" },
   emptyMessage: { fontSize: 14, textAlign: "center", lineHeight: 20, maxWidth: 300 },
-});
+};

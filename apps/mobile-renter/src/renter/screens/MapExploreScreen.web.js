@@ -23,7 +23,7 @@ export function MapExploreScreen({ onBack }) {
           label="Volver al listado"
           onPress={onBack}
           fullWidth={false}
-          style={{ marginTop: 12 }}
+          className="mt-3"
         />
       </View>
     </View>

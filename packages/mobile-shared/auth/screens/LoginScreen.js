@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StatusBar, KeyboardAvoidingView, Platform } from "react-native";
 import { colors } from "../../theme/colors";
 import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
@@ -46,7 +46,7 @@ export function LoginScreen({ onNavigate }) {
     // Tener una BottomBar fija + KAV encima duplicaba la compensación y
     // apretaba todo el contenido arriba del teclado.
     <KeyboardAvoidingView
-      style={styles.container}
+      className="flex-1 bg-surface"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="dark-content" />
@@ -54,17 +54,17 @@ export function LoginScreen({ onNavigate }) {
       <ScreenHeader title="" />
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
+        className="flex-1"
+        contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: 32, gap: 16 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
         {/* Bloque marca + saludo */}
-        <View style={styles.hero}>
+        <View className="items-start gap-2">
           <BrandLogo size={44} />
-          <Text style={styles.title}>Hola de nuevo</Text>
-          <Text style={styles.subtitle}>Ingresa para retomar tu próximo arriendo.</Text>
+          <Text className="text-[28px] leading-[34px] font-bold text-gray-900 mt-1">Hola de nuevo</Text>
+          <Text className="text-base text-gray-500">Ingresa para retomar tu próximo arriendo.</Text>
         </View>
 
         {error ? (
@@ -72,7 +72,7 @@ export function LoginScreen({ onNavigate }) {
         ) : null}
 
         {/* Bloque credenciales: el "Siguiente" del teclado salta al campo que sigue */}
-        <View style={styles.form}>
+        <View className="gap-4">
           <Field
             testID="input-email"
             label="Correo"
@@ -107,18 +107,18 @@ export function LoginScreen({ onNavigate }) {
           />
 
           <TouchableOpacity
-            style={styles.forgotLink}
+            className="self-start py-1"
             onPress={() => onNavigate("forgot")}
             disabled={loading}
             activeOpacity={0.7}
             hitSlop={theme.control.hitSlop}
           >
-            <Text style={[styles.forgotLinkText, loading && styles.bloqueado]}>¿Olvidaste tu contraseña?</Text>
+            <Text className={`text-sm font-semibold text-accent-700 ${loading ? "opacity-50" : ""}`}>¿Olvidaste tu contraseña?</Text>
           </TouchableOpacity>
         </View>
 
         {/* Empuja las acciones hacia abajo cuando sobra alto; colapsa cuando no */}
-        <View style={styles.spacer} />
+        <View className="grow min-h-[20px]" />
 
         {/* Bloque acciones */}
         <Button testID="btn-login" label="Entrar" onPress={handleLogin} loading={loading} />
@@ -136,50 +136,3 @@ export function LoginScreen({ onNavigate }) {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-    padding: theme.spacing.screen,
-    paddingBottom: 32,
-    gap: theme.spacing.lg,
-  },
-  hero: {
-    alignItems: "flex-start",
-    gap: theme.spacing.sm,
-  },
-  title: {
-    ...theme.typography.display,
-    color: colors.text,
-    marginTop: theme.spacing.xs,
-  },
-  subtitle: {
-    ...theme.typography.body,
-    color: colors.textMuted,
-  },
-  form: {
-    gap: theme.spacing.lg,
-  },
-  spacer: {
-    flexGrow: 1,
-    minHeight: theme.spacing.xl,
-  },
-  forgotLink: {
-    alignSelf: "flex-start",
-    paddingVertical: theme.spacing.xs,
-  },
-  forgotLinkText: {
-    ...theme.typography.bodyStrong,
-    color: colors.accent700,
-  },
-  bloqueado: {
-    opacity: 0.5,
-  },
-});

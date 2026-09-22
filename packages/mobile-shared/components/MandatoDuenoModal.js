@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   ScrollView,
   TouchableOpacity,
@@ -43,83 +42,93 @@ export function MandatoDuenoModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+      <View className="flex-1 bg-black/55 justify-end">
+        <View className="bg-surface rounded-t-3xl px-5 pt-4 max-h-[92%] flex-1">
           <ScreenHeader
             title="Mandato de Arriendo"
             subtitle="Condiciones de intermediación y comisiones"
             onBack={onClose}
           />
 
-          <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1 mt-2" contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
             {/* Header Icon + Resumen */}
-            <View style={styles.banner}>
-              <View style={styles.iconWrap}>
+            <View className="items-center bg-primary-100 p-4 rounded-2xl border border-primary-200 mb-4 mt-1">
+              <View className="w-[52px] h-[52px] rounded-full bg-white items-center justify-center mb-2.5">
                 <Icon name="shield" size={28} color={colors.primary} />
               </View>
-              <Text style={styles.bannerTitle}>
+              <Text className="text-base font-bold text-primary-700 text-center">
                 Autorización para arrendar tu vehículo
               </Text>
-              <Text style={styles.bannerSubtitle}>
+              <Text className="text-[13px] text-primary-800 text-center mt-1 leading-[18px]">
                 Mandato especial de administración e intermediación a ARRIENDO MI AUTO SpA (RUT 78.493.457-8) bajo las siguientes condiciones:
               </Text>
             </View>
 
             {/* Condiciones Clave */}
-            <Card padded style={styles.card}>
-              <View style={styles.row}>
-                <View style={styles.badgeNumber}><Text style={styles.badgeText}>1</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitle}>Recibes el 85% neto de cada arriendo</Text>
-                  <Text style={styles.itemDesc}>
+            <Card padded className="gap-3 mb-4">
+              <View className="flex-row gap-3 items-start">
+                <View className="w-[26px] h-[26px] rounded-full bg-primary-700 items-center justify-center mt-0.5">
+                  <Text className="text-white font-bold text-[13px]">1</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-gray-900">Recibes el 85% neto de cada arriendo</Text>
+                  <Text className="text-[12.5px] text-gray-500 mt-0.5 leading-[17px]">
                     ARRIENDO MI AUTO SpA percibe el valor del arriendo a tu nombre y transfiere el 85% neto acordado directamente a tu cuenta bancaria registrada.
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.divider} />
+              <View className="h-[1px] bg-gray-200" />
 
-              <View style={styles.row}>
-                <View style={styles.badgeNumber}><Text style={styles.badgeText}>2</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitle}>15% Comisión de intermediación</Text>
-                  <Text style={styles.itemDesc}>
+              <View className="flex-row gap-3 items-start">
+                <View className="w-[26px] h-[26px] rounded-full bg-primary-700 items-center justify-center mt-0.5">
+                  <Text className="text-white font-bold text-[13px]">2</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-gray-900">15% Comisión de intermediación</Text>
+                  <Text className="text-[12.5px] text-gray-500 mt-0.5 leading-[17px]">
                     La comisión del 15% financia la plataforma, soporte operativo, verificación biométrica KYC de conductores y el programa de protección frente a siniestros.
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.divider} />
+              <View className="h-[1px] bg-gray-200" />
 
-              <View style={styles.row}>
-                <View style={styles.badgeNumber}><Text style={styles.badgeText}>3</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitle}>100% de los cargos adicionales para ti</Text>
-                  <Text style={styles.itemDesc}>
+              <View className="flex-row gap-3 items-start">
+                <View className="w-[26px] h-[26px] rounded-full bg-primary-700 items-center justify-center mt-0.5">
+                  <Text className="text-white font-bold text-[13px]">3</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-gray-900">100% de los cargos adicionales para ti</Text>
+                  <Text className="text-[12.5px] text-gray-500 mt-0.5 leading-[17px]">
                     El 100% de los cobros accesorios por atraso, combustible faltante o suciedad/lavado se transfiere íntegro a tu cuenta para costear los gastos incurridos.
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.divider} />
+              <View className="h-[1px] bg-gray-200" />
 
-              <View style={styles.row}>
-                <View style={styles.badgeNumber}><Text style={styles.badgeText}>4</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitle}>Deducible 15 UF (50/50) y Garantía</Text>
-                  <Text style={styles.itemDesc}>
+              <View className="flex-row gap-3 items-start">
+                <View className="w-[26px] h-[26px] rounded-full bg-primary-700 items-center justify-center mt-0.5">
+                  <Text className="text-white font-bold text-[13px]">4</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-gray-900">Deducible 15 UF (50/50) y Garantía</Text>
+                  <Text className="text-[12.5px] text-gray-500 mt-0.5 leading-[17px]">
                     Ningún arrendatario retira tu auto sin garantía retenida ($800.000) y contrato digital firmado. Ante siniestros cubiertos, el deducible de 15 UF se absorbe 50% por la plataforma y 50% por el dueño.
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.divider} />
+              <View className="h-[1px] bg-gray-200" />
 
-              <View style={styles.row}>
-                <View style={styles.badgeNumber}><Text style={styles.badgeText}>5</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitle}>Cobro y gestión de peajes TAG y multas</Text>
-                  <Text style={styles.itemDesc}>
+              <View className="flex-row gap-3 items-start">
+                <View className="w-[26px] h-[26px] rounded-full bg-primary-700 items-center justify-center mt-0.5">
+                  <Text className="text-white font-bold text-[13px]">5</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-gray-900">Cobro y gestión de peajes TAG y multas</Text>
+                  <Text className="text-[12.5px] text-gray-500 mt-0.5 leading-[17px]">
                     Facultas expresamente a ARRIENDO MI AUTO SpA para cobrar y percibir del arrendatario los peajes, pasadas por pórticos TAG y multas de tránsito generadas durante el arriendo, transfiriéndolos a tu cuenta previa acreditación del comprobante.
                   </Text>
                 </View>
@@ -128,20 +137,24 @@ export function MandatoDuenoModal({
 
             {/* Checkbox de Aceptación */}
             <TouchableOpacity
-              style={styles.checkRow}
+              className="flex-row items-start gap-3 bg-white p-3.5 rounded-xl border border-gray-200"
               activeOpacity={0.8}
               onPress={() => setChecked(!checked)}
             >
-              <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+              <View
+                className={`w-[22px] h-[22px] rounded-md border-2 items-center justify-center mt-0.5 ${
+                  checked ? "bg-primary-700 border-primary-700" : "border-gray-400"
+                }`}
+              >
                 {checked && <Icon name="check" size={16} color="#FFFFFF" />}
               </View>
-              <Text style={styles.checkText}>
+              <Text className="flex-1 text-[13px] text-gray-900 leading-[18px]">
                 He leído y confiero mandato especial de administración e intermediación a ARRIENDO MI AUTO SpA (RUT 78.493.457-8) bajo las condiciones aquí estipuladas.
               </Text>
             </TouchableOpacity>
 
             {/* Botón de Confirmación */}
-            <View style={{ marginTop: 16 }}>
+            <View className="mt-4">
               <Button
                 label="Aceptar Mandato y Continuar"
                 iconRight="arrow-right"
@@ -166,124 +179,3 @@ export async function verificarMandatoAceptado(userId = "default") {
     return false;
   }
 }
-
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    maxHeight: "92%",
-    flex: 1,
-  },
-  body: {
-    flex: 1,
-    marginTop: 8,
-  },
-  banner: {
-    alignItems: "center",
-    backgroundColor: colors.primary100,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.primary200,
-    marginBottom: 16,
-    marginTop: 4,
-  },
-  iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  bannerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.primary,
-    textAlign: "center",
-  },
-  bannerSubtitle: {
-    fontSize: 13,
-    color: colors.primary700,
-    textAlign: "center",
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  card: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-start",
-  },
-  badgeNumber: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  badgeText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  itemDesc: {
-    fontSize: 12.5,
-    color: colors.textMuted,
-    marginTop: 2,
-    lineHeight: 17,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  checkRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    backgroundColor: colors.surface,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: colors.textMuted,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  checkboxChecked: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  checkText: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 18,
-  },
-});

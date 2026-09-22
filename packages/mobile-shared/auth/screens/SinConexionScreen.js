@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, StatusBar } from "react-native";
+import { View, Text, StatusBar } from "react-native";
 import { colors } from "../../theme/colors";
-import { theme } from "../../theme/tokens";
 import { Icon } from "../../components/Icon";
 import { Button } from "../../components/ui";
 
@@ -12,15 +11,15 @@ import { Button } from "../../components/ui";
  */
 export function SinConexionScreen({ onReintentar }) {
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-surface justify-between px-8 py-[34px]">
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.centro}>
-        <View style={styles.icono}>
+      <View className="flex-1 items-center justify-center gap-2.5">
+        <View className="w-[68px] h-[68px] rounded-full items-center justify-center bg-amber-50 border border-amber-200">
           <Icon name="wifi-off" size={32} color={colors.warningText} strokeWidth={2} />
         </View>
-        <Text style={styles.titulo}>Sin conexión</Text>
-        <Text style={styles.mensaje}>
+        <Text className="text-2xl font-bold text-gray-900 mt-1">Sin conexión</Text>
+        <Text className="text-sm text-gray-500 text-center max-w-[280px]">
           No pudimos revisar tu sesión. Tu cuenta sigue guardada en este teléfono.
         </Text>
       </View>
@@ -29,40 +28,3 @@ export function SinConexionScreen({ onReintentar }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "space-between",
-    paddingHorizontal: theme.spacing.xxl,
-    paddingVertical: 34,
-  },
-  centro: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  icono: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-  },
-  titulo: {
-    ...theme.typography.title,
-    color: colors.text,
-    marginTop: 4,
-  },
-  mensaje: {
-    ...theme.typography.callout,
-    color: colors.textMuted,
-    textAlign: "center",
-    maxWidth: 280,
-  },
-});

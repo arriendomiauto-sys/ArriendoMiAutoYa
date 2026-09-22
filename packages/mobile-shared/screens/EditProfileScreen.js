@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   StatusBar,
   ScrollView,
   KeyboardAvoidingView,
@@ -122,27 +121,27 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader tone={tone} title="Editar perfil" onBack={onBack} />
       {/* En Android el "pan" nativo sube el campo enfocado; el KAV es solo iOS. */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+          contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* Foto — una línea + botón, centrado */}
-          <View style={styles.avatarSection}>
-            <TouchableOpacity style={styles.avatarWrapper} onPress={handleFotoPress} activeOpacity={0.8}>
+          <View className="items-center gap-2 pt-1">
+            <TouchableOpacity className="relative" onPress={handleFotoPress} activeOpacity={0.8}>
               {tieneFoto ? (
-                <Image source={{ uri: fotoActual }} style={styles.avatar} onError={() => setImgError(true)} />
+                <Image source={{ uri: fotoActual }} className="w-[84px] h-[84px] rounded-full bg-surfaceSecondary" onError={() => setImgError(true)} />
               ) : (
-                <View style={[styles.avatar, styles.avatarEmpty]}>
+                <View className="w-[84px] h-[84px] rounded-full bg-surfaceSecondary items-center justify-center border border-border">
                   <Icon name="user" size={34} color={colors.textMuted} />
                 </View>
               )}
-              <View style={[styles.badge, tieneFotoVerificada ? styles.badgeOk : styles.badgePending]}>
+              <View className={`absolute bottom-0 right-0 w-[25px] h-[25px] rounded-full items-center justify-center border-2 border-surface ${tieneFotoVerificada ? "bg-accent-500" : "bg-amber-500"}`}>
                 <Icon
                   name={tieneFotoVerificada ? "check" : tieneFoto ? "camera" : "shield"}
                   size={12}
@@ -151,7 +150,7 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
               </View>
             </TouchableOpacity>
 
-            <Text style={[styles.photoNote, tieneFotoVerificada && styles.photoNoteVerified]}>
+            <Text className={`text-[12.5px] ${tieneFotoVerificada ? "text-accent-800 font-semibold" : "text-textMuted"}`}>
               {subiendoFoto
                 ? "Subiendo foto…"
                 : tieneFotoVerificada
@@ -162,19 +161,19 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
             </Text>
 
             <TouchableOpacity
-              style={styles.changePhoto}
+              className="flex-row items-center gap-1.5 border border-border rounded-full py-1.5 px-3.5 bg-surface"
               onPress={handleFotoPress}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Cambiar foto de perfil"
             >
               <Icon name="camera" size={13} color={colors.accent700} />
-              <Text style={styles.changePhotoText}>{tieneFoto ? "Cambiar foto" : "Agregar foto"}</Text>
+              <Text className="text-[12.5px] font-bold text-accent-700">{tieneFoto ? "Cambiar foto" : "Agregar foto"}</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.group}>
-            <Text style={styles.section}>Tus datos</Text>
+          <View className="gap-3">
+            <Text className="text-[13px] font-bold text-textMuted mb-0.5">Tus datos</Text>
             <Field
               tone={tone}
               label="Nombre completo"
@@ -199,25 +198,25 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
             />
           </View>
 
-          <View style={styles.group}>
-            <Text style={styles.section}>De tu verificación de identidad</Text>
-            <View style={styles.idCard}>
-              <View style={styles.idHead}>
+          <View className="gap-3">
+            <Text className="text-[13px] font-bold text-textMuted mb-0.5">De tu verificación de identidad</Text>
+            <View className="border border-border rounded-xl bg-surface overflow-hidden">
+              <View className="flex-row items-center gap-1.5 py-2.5 px-3 bg-accent-100">
                 <Icon name="shield" size={14} color={colors.accent800} />
-                <Text style={styles.idHeadText}>No editable aquí</Text>
+                <Text className="text-xs font-bold text-accent-800">No editable aquí</Text>
               </View>
-              <View style={styles.idRow}>
-                <Text style={styles.idKey}>Correo</Text>
-                <Text style={styles.idValue}>{currentUser?.email || "—"}</Text>
+              <View className="py-2.5 px-3 border-t border-border">
+                <Text className="text-[11px] font-bold tracking-wider text-textMuted">Correo</Text>
+                <Text className="text-sm font-medium text-text mt-0.5">{currentUser?.email || "—"}</Text>
               </View>
               {currentUser?.rut ? (
-                <View style={styles.idRow}>
-                  <Text style={styles.idKey}>RUT</Text>
-                  <Text style={styles.idValue}>{currentUser.rut}</Text>
+                <View className="py-2.5 px-3 border-t border-border">
+                  <Text className="text-[11px] font-bold tracking-wider text-textMuted">RUT</Text>
+                  <Text className="text-sm font-medium text-text mt-0.5">{currentUser.rut}</Text>
                 </View>
               ) : null}
               <TouchableOpacity
-                style={[styles.idRow, styles.idRowTap]}
+                className="py-2.5 px-3 border-t border-border flex-row items-center justify-between gap-2.5"
                 onPress={onOpenKyc}
                 disabled={!onOpenKyc}
                 activeOpacity={0.7}
@@ -225,14 +224,14 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
                 accessibilityLabel="Verificación de identidad"
               >
                 <View>
-                  <Text style={styles.idKey}>Identidad</Text>
-                  <View style={[styles.idBadge, identidadVerificada ? styles.idBadgeOk : styles.idBadgePending]}>
+                  <Text className="text-[11px] font-bold tracking-wider text-textMuted">Identidad</Text>
+                  <View className={`flex-row items-center gap-1 self-start rounded-full py-0.5 px-2 mt-1 ${identidadVerificada ? "bg-accent-100" : "bg-amber-50"}`}>
                     <Icon
                       name={identidadVerificada ? "check" : "clock"}
                       size={11}
                       color={identidadVerificada ? colors.accent800 : colors.warningText}
                     />
-                    <Text style={[styles.idBadgeText, !identidadVerificada && { color: colors.warningText }]}>
+                    <Text className={`text-[11.5px] font-bold ${identidadVerificada ? "text-accent-800" : "text-amber-800"}`}>
                       {identidadVerificada ? "Verificada" : "Pendiente"}
                     </Text>
                   </View>
@@ -240,105 +239,19 @@ export function EditProfileScreen({ onBack, onDone, onOpenKyc, tone = "light" })
                 {onOpenKyc ? <Icon name="chevron-right" size={16} color={colors.textMuted} /> : null}
               </TouchableOpacity>
             </View>
-            <Text style={styles.idCaption}>
+            <Text className="text-[11.5px] text-textMuted leading-4 px-0.5">
               Estos datos salen de tu verificación de identidad. Para cambiarlos, vuelve a verificarte.
             </Text>
           </View>
         </ScrollView>
 
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+        <View
+          className="px-4 pt-3 bg-surface border-t border-border"
+          style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
+        >
           <Button tone={tone} label="Guardar cambios" onPress={guardar} loading={guardando} />
         </View>
       </KeyboardAvoidingView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: theme.spacing.screen, gap: theme.spacing.xl },
-
-  avatarSection: { alignItems: "center", gap: 9, paddingTop: 4 },
-  avatarWrapper: { position: "relative" },
-  avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.surfaceSecondary },
-  avatarEmpty: { alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  badge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 25,
-    height: 25,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  badgeOk: { backgroundColor: colors.accent500 },
-  badgePending: { backgroundColor: colors.warning },
-  photoNote: { fontSize: 12.5, color: colors.textMuted },
-  photoNoteVerified: { color: colors.accent800, fontWeight: "600" },
-  changePhoto: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: theme.radius.pill,
-    paddingVertical: 6,
-    paddingHorizontal: 13,
-    backgroundColor: colors.surface,
-  },
-  changePhotoText: { fontSize: 12.5, fontWeight: "700", color: colors.accent700 },
-
-  group: { gap: theme.spacing.md },
-  section: { fontSize: 13, fontWeight: "700", color: colors.textMuted, marginBottom: 2 },
-
-  idCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    overflow: "hidden",
-  },
-  idHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingVertical: 10,
-    paddingHorizontal: 13,
-    backgroundColor: colors.accent100,
-  },
-  idHeadText: { fontSize: 12, fontWeight: "700", color: colors.accent800 },
-  idRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 13,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  idRowTap: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  idKey: { fontSize: 11, fontWeight: "700", letterSpacing: 0.3, color: colors.textMuted },
-  idValue: { fontSize: 14, fontWeight: "500", color: colors.text, marginTop: 2 },
-  idBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-start",
-    borderRadius: theme.radius.pill,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    marginTop: 4,
-  },
-  idBadgeOk: { backgroundColor: colors.accent100 },
-  idBadgePending: { backgroundColor: colors.warningBg },
-  idBadgeText: { fontSize: 11.5, fontWeight: "700", color: colors.accent800 },
-  idCaption: { fontSize: 11.5, color: colors.textMuted, lineHeight: 16, paddingHorizontal: 2 },
-
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-});

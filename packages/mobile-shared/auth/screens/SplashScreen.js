@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, StatusBar, Animated, Easing, Platform } from "react-native";
+import { View, Text, StatusBar, Animated, Easing, Platform } from "react-native";
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Circle } from "react-native-svg";
 import { BrandLogo } from "../../components/BrandLogo";
 
@@ -32,6 +32,8 @@ export function SplashScreen({
   mensaje = "Revisando tu sesión",
   logoSource,
   logoZoom,
+  duracionMs,
+  onFinish,
 }) {
   const textos = TEXTOS[variante] || TEXTOS.renter;
   const zoomFinal = logoZoom || (variante === "owner" ? 1.33 : 1);
@@ -40,6 +42,15 @@ export function SplashScreen({
   const entrada = useRef(new Animated.Value(0)).current;
   // Animación continua de la barra de progreso
   const avance = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (typeof onFinish === "function" && typeof duracionMs === "number") {
+      const timer = setTimeout(() => {
+        onFinish();
+      }, duracionMs);
+      return () => clearTimeout(timer);
+    }
+  }, [duracionMs, onFinish]);
 
   useEffect(() => {
     Animated.timing(entrada, {
@@ -85,17 +96,24 @@ export function SplashScreen({
   };
 
   return (
-    <View style={styles.container} accessibilityRole="progressbar" accessibilityLabel={mensaje}>
+    <View
+      className="flex-1 bg-[#061A19] justify-between items-center px-7"
+      style={{
+        paddingTop: Platform.OS === "android" ? 36 : 48,
+        paddingBottom: Platform.OS === "android" ? 44 : 56,
+      }}
+      accessibilityRole="progressbar"
+      accessibilityLabel={mensaje}
+    >
       <StatusBar barStyle="light-content" backgroundColor="#061A19" translucent />
 
-      {/* Fondo SVG con gradiente y aros concéntricos sutiles */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Svg width="100%" height="100%" viewBox="0 0 400 800" preserveAspectRatio="none">
+      {/* Fondo SVG con gradientes y círculos concéntricos de ambientación */}
+      <View className="absolute inset-0" pointerEvents="none">
+        <Svg width="100%" height="100%" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice">
           <Defs>
             <LinearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0%" stopColor="#0B2B28" />
-              <Stop offset="28%" stopColor="#082220" />
-              <Stop offset="65%" stopColor="#061A19" />
+              <Stop offset="45%" stopColor="#07201E" />
               <Stop offset="100%" stopColor="#041211" />
             </LinearGradient>
             <RadialGradient id="centerAura" cx="50%" cy="38%" r="65%">
@@ -117,12 +135,15 @@ export function SplashScreen({
       </View>
 
       {/* Píldora superior / Notch bar */}
-      <View style={styles.notchPill} />
+      <View className="w-[52px] h-[4.5px] rounded-[2.5px] bg-white/20 self-center" />
 
       {/* Contenido Central */}
-      <Animated.View style={[styles.centerContent, estiloEntrada]}>
+      <Animated.View className="flex-1 justify-center items-center w-full" style={estiloEntrada}>
         {/* Caja del logo oficial de la app */}
-        <View style={styles.iconBox}>
+        <View
+          className="w-[84px] h-[84px] rounded-3xl bg-[rgba(10,42,38,0.7)] border-[1.2px] border-teal-400/20 items-center justify-center mb-6.5 shadow-lg"
+          style={{ elevation: 6 }}
+        >
           <BrandLogo
             size={74}
             source={logoSource}
@@ -131,114 +152,20 @@ export function SplashScreen({
         </View>
 
         {/* Textos de Marca */}
-        <View style={styles.brandTextBox}>
-          <Text style={styles.brandTitle}>Arriendo Mi Auto Ya</Text>
-          <Text style={styles.brandTagline}>{textos.eslogan}</Text>
-          {textos.etiqueta ? <Text style={styles.etiqueta}>{textos.etiqueta}</Text> : null}
+        <View className="items-center max-w-[300px]">
+          <Text className="text-[25px] font-extrabold text-white text-center tracking-tight mb-2">Arriendo Mi Auto Ya</Text>
+          <Text className="text-[15px] font-normal text-white/70 text-center leading-[22px]">{textos.eslogan}</Text>
+          {textos.etiqueta ? <Text className="mt-2.5 text-xs tracking-widest uppercase font-extrabold text-[#2DD4BF] text-center">{textos.etiqueta}</Text> : null}
         </View>
       </Animated.View>
 
       {/* Pie de carga con barra delgada y mensaje */}
-      <View style={styles.footerBox}>
-        <View style={styles.barra}>
-          <Animated.View style={[styles.tramo, estiloTramo]} />
+      <View className="items-center gap-3 min-h-[48px]">
+        <View className="h-[3.5px] rounded-sm overflow-hidden bg-white/15" style={{ width: ANCHO_BARRA }}>
+          <Animated.View className="h-[3.5px] rounded-sm bg-[#2DD4BF]" style={[{ width: ANCHO_TRAMO }, estiloTramo]} />
         </View>
-        <Text style={styles.mensaje}>{mensaje}</Text>
+        <Text className="text-[13px] font-normal text-white/65 text-center">{mensaje}</Text>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#061A19",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: Platform.OS === "android" ? 36 : 48,
-    paddingBottom: Platform.OS === "android" ? 44 : 56,
-    paddingHorizontal: 28,
-  },
-  notchPill: {
-    width: 52,
-    height: 4.5,
-    borderRadius: 2.5,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    alignSelf: "center",
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    width: "100%",
-  },
-  iconBox: {
-    width: 84,
-    height: 84,
-    borderRadius: 24,
-    backgroundColor: "rgba(10, 42, 38, 0.7)",
-    borderWidth: 1.2,
-    borderColor: "rgba(45, 212, 191, 0.22)",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
-    marginBottom: 26,
-  },
-  brandTextBox: {
-    alignItems: "center",
-    maxWidth: 300,
-  },
-  brandTitle: {
-    fontSize: 25,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    textAlign: "center",
-    letterSpacing: -0.3,
-    marginBottom: 8,
-  },
-  brandTagline: {
-    fontSize: 15,
-    fontWeight: "400",
-    color: "rgba(255, 255, 255, 0.72)",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  etiqueta: {
-    marginTop: 10,
-    fontSize: 12,
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    fontWeight: "800",
-    color: "#2DD4BF",
-    textAlign: "center",
-  },
-  footerBox: {
-    alignItems: "center",
-    gap: 12,
-    minHeight: 48,
-  },
-  barra: {
-    width: ANCHO_BARRA,
-    height: 3.5,
-    borderRadius: 2,
-    overflow: "hidden",
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
-  },
-  tramo: {
-    width: ANCHO_TRAMO,
-    height: 3.5,
-    borderRadius: 2,
-    backgroundColor: "#2DD4BF",
-  },
-  mensaje: {
-    fontSize: 13,
-    fontWeight: "400",
-    color: "rgba(255, 255, 255, 0.65)",
-    textAlign: "center",
-  },
-});
-

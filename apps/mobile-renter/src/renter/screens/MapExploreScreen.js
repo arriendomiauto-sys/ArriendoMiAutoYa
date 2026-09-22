@@ -137,7 +137,7 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
             La vista de mapa usa mapas nativos y no está disponible en la versión web.
             Abre la app en tu teléfono para explorar los autos en el mapa.
           </Text>
-          <Button label="Volver al listado" onPress={onBack} fullWidth={false} style={{ marginTop: 12 }} />
+          <Button label="Volver al listado" onPress={onBack} fullWidth={false} className="mt-3" />
         </View>
       </View>
     );

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, StyleSheet } from "react-native";
+import { Animated } from "react-native";
 import { colors } from "../theme/colors";
 
 /**
@@ -11,7 +11,7 @@ import { colors } from "../theme/colors";
  * Se usa con `useNativeDriver`, así que la animación corre en el hilo de UI y
  * no le roba frames al JS.
  */
-export function Skeleton({ style, testID }) {
+export function Skeleton({ style, className = "", testID }) {
   const pulso = useRef(new Animated.Value(0.45)).current;
 
   useEffect(() => {
@@ -36,14 +36,8 @@ export function Skeleton({ style, testID }) {
   return (
     <Animated.View
       testID={testID}
-      style={[styles.skeleton, { opacity: pulso }, style]}
+      className={`rounded-lg ${className}`}
+      style={[{ backgroundColor: colors.skeleton || "#E5E7EB", opacity: pulso }, style]}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  skeleton: {
-    backgroundColor: colors.skeleton,
-    borderRadius: 8,
-  },
-});

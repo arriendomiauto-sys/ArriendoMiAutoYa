@@ -45,7 +45,7 @@ export function CancelReservationModal({ reservation, onClose, onConfirmCancel }
           </View>
         )}
 
-        <Card padded style={{ gap: 12 }}>
+        <Card padded className="gap-3">
           <Row label="Garantía retenida (hold)" value={`$${montoHold.toLocaleString("es-CL")}`} />
           {reservation?.fecha_inicio && (
             <Row

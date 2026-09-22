@@ -4,7 +4,6 @@ import {
   View,
   Text,
   Image,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   useWindowDimensions,
@@ -172,7 +171,7 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
   const renderContenido = () => {
     if (!permission) {
       return (
-        <View style={styles.centerBox}>
+        <View className="flex-1 items-center justify-center px-8 gap-3 bg-primary-900">
           <ActivityIndicator color="#FFFFFF" />
         </View>
       );
@@ -180,19 +179,19 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
 
     if (!permission.granted) {
       return (
-        <View style={styles.centerBox}>
-          <View style={styles.permIconTile}>
+        <View className="flex-1 items-center justify-center px-8 gap-3 bg-primary-900">
+          <View className="w-[60px] h-[60px] rounded-[18px] bg-primary-800 border border-slate-700 items-center justify-center">
             <Icon name="camera" size={30} color={colors.accent500} />
           </View>
-          <Text style={styles.permTitle}>Necesitamos tu cámara</Text>
-          <Text style={styles.permText}>
+          <Text className="text-white text-xl font-extrabold mt-2">Necesitamos tu cámara</Text>
+          <Text className="text-slate-400 text-sm text-center leading-5">
             La selfie de verificación confirma que eres tú quien está creando la cuenta.
           </Text>
-          <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
-            <Text style={styles.permBtnText}>Permitir cámara</Text>
+          <TouchableOpacity className="mt-4.5 bg-accent-500 px-6 py-3.5 rounded-xl" onPress={requestPermission}>
+            <Text className="text-primary-900 font-extrabold text-[15px]">Permitir cámara</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={cerrar} style={{ marginTop: 14 }}>
-            <Text style={styles.permCancel}>Cancelar</Text>
+          <TouchableOpacity onPress={cerrar} className="mt-3.5">
+            <Text className="text-slate-400 text-sm">Cancelar</Text>
           </TouchableOpacity>
         </View>
       );
@@ -200,25 +199,25 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
 
     if (fase === "revisar") {
       return (
-        <View style={styles.flex}>
-          <View style={styles.revisarTop}>
-            <Text style={styles.revisarTitulo}>¿Se ve tu cara clara en las dos?</Text>
-            <View style={styles.revisarFotos}>
+        <View className="flex-1">
+          <View className="flex-1 items-center justify-center px-5 gap-5">
+            <Text className="text-white text-lg font-extrabold text-center">¿Se ve tu cara clara en las dos?</Text>
+            <View className="flex-row gap-4">
               {tomadas.map((uri, i) => (
-                <View key={uri} style={styles.revisarItem}>
-                  <Image source={{ uri }} style={styles.revisarImg} resizeMode="cover" />
-                  <Text style={styles.revisarPie}>{i === 0 ? "De frente" : "Girando"}</Text>
+                <View key={uri} className="items-center gap-2">
+                  <Image source={{ uri }} className="w-[130px] h-[170px] rounded-xl bg-primary-900" resizeMode="cover" />
+                  <Text className="text-slate-400 text-[13px] font-semibold">{i === 0 ? "De frente" : "Girando"}</Text>
                 </View>
               ))}
             </View>
           </View>
-          <View style={styles.previewActions}>
-            <TouchableOpacity style={styles.retakeBtn} onPress={empezar}>
+          <View className="flex-row gap-3 px-5 pb-9">
+            <TouchableOpacity className="flex-1 h-[52px] rounded-xl border-[1.5px] border-white/30 flex-row items-center justify-center gap-2" onPress={empezar}>
               <Icon name="arrow-left" size={16} color="#FFFFFF" />
-              <Text style={styles.retakeText}>Repetir</Text>
+              <Text className="text-white text-[15px] font-bold">Repetir</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.useBtn} onPress={confirmar}>
-              <Text style={styles.useText}>Usar estas fotos</Text>
+            <TouchableOpacity className="flex-[1.6] h-[52px] rounded-xl bg-accent-500 items-center justify-center" onPress={confirmar}>
+              <Text className="text-primary-900 text-[15px] font-extrabold">Usar estas fotos</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -228,27 +227,25 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
     const pasoActual = PASOS[paso] || PASOS[0];
 
     return (
-      <View style={styles.flex}>
-        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
+      <View className="flex-1">
+        <CameraView ref={cameraRef} className="absolute inset-0" facing="front" />
 
         {/* Solo el contorno del óvalo sobre la cámara: sin máscara oscura y sin
             esquinas. La cuenta regresiva / spinner van centrados dentro. */}
         <View
           pointerEvents="none"
-          style={[
-            styles.faceOval,
-            {
-              width: frameW,
-              height: frameH,
-              left: ovalLeft,
-              top: ovalTop,
-              borderRadius: frameW / 2,
-            },
-          ]}
+          className="absolute items-center justify-center border-[2.5px] border-white/90"
+          style={{
+            width: frameW,
+            height: frameH,
+            left: ovalLeft,
+            top: ovalTop,
+            borderRadius: frameW / 2,
+          }}
         >
           {fase === "contando" && cuenta > 0 ? (
-            <View style={styles.cuentaRing}>
-              <Text style={styles.cuentaNum}>{cuenta}</Text>
+            <View className="w-[76px] h-[76px] rounded-full border-[3px] border-accent-500 bg-[rgba(6,30,31,0.35)] items-center justify-center">
+              <Text className="text-white text-[34px] font-extrabold">{cuenta}</Text>
             </View>
           ) : null}
           {fase === "capturando" ? (
@@ -256,52 +253,54 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
           ) : null}
         </View>
 
-        <View style={[styles.topBar, { top: insets.top + 12 }]}>
-          <TouchableOpacity onPress={cerrar} style={styles.iconBtn} hitSlop={12}>
-            <View style={styles.closeCircle}>
+        <View className="absolute left-0 right-0 flex-row items-center justify-between px-4" style={{ top: insets.top + 12 }}>
+          <TouchableOpacity onPress={cerrar} className="w-10 h-10 items-center justify-center" hitSlop={12}>
+            <View className="w-8 h-8 rounded-full bg-white/15 items-center justify-center">
               <Icon name="close" size={18} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.topTitle}>Selfie de verificación</Text>
-          <View style={styles.iconBtn} />
+          <Text className="text-white text-[15px] font-bold flex-1 text-center">Selfie de verificación</Text>
+          <View className="w-10 h-10 items-center justify-center" />
         </View>
 
-        <View style={[styles.bottomArea, { bottom: insets.bottom + 40 }]}>
-          <View style={styles.pasoPills}>
+        <View className="absolute left-0 right-0 items-center gap-3 px-7" style={{ bottom: insets.bottom + 40 }}>
+          <View className="flex-row gap-2 mb-1">
             {PASOS.map((p, i) => (
               <View
                 key={p.id}
-                style={[
-                  styles.pasoPill,
-                  i < tomadas.length && styles.pasoPillHecho,
-                  i === paso && fase !== "intro" && styles.pasoPillActivo,
-                ]}
+                className={`w-[34px] h-1 rounded-full ${
+                  i < tomadas.length
+                    ? "bg-accent-500"
+                    : i === paso && fase !== "intro"
+                    ? "bg-white"
+                    : "bg-white/30"
+                }`}
               />
             ))}
           </View>
 
           {fase === "intro" ? (
             <>
-              <View style={styles.avisoLegalBio}>
+              <View className="flex-row items-center gap-2.5 bg-[rgba(6,30,31,0.85)] border border-cyan-400/30 px-3.5 py-2.5 rounded-xl">
                 <Icon name="shield" size={16} color={colors.accent400} />
-                <Text style={styles.avisoLegalBioTexto}>
+                <Text className="flex-1 text-white/90 text-xs leading-4">
                   <Text style={{ fontWeight: "700" }}>Protección de Datos (Ley N° 19.628): </Text>
                   Tus rasgos faciales se procesan exclusivamente para validar tu identidad y prevenir suplantaciones
                   en el contrato de arriendo. Se almacenan cifrados y no se ceden a terceros.
                 </Text>
               </View>
-              <Text style={styles.hint}>
+              <Text className="text-white/90 text-[13px] text-center leading-[18px] bg-[rgba(6,30,31,0.62)] border border-white/10 px-3.5 py-2 rounded-xl">
                 Tomaremos dos fotos: una de frente y otra girando la cabeza despacio. Se
                 capturan automáticamente con una cuenta regresiva.
               </Text>
-              <TouchableOpacity style={styles.empezarBtn} onPress={empezar} activeOpacity={0.85}>
-                <Text style={styles.empezarText}>Aceptar y empezar verificación</Text>
+              <TouchableOpacity className="mt-1 min-w-[220px] h-[52px] rounded-xl bg-accent-500 items-center justify-center" onPress={empezar} activeOpacity={0.85}>
+                <Text className="text-primary-900 text-base font-extrabold">Aceptar y empezar verificación</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <Text style={styles.instruccion}>{pasoActual.instruccion}</Text>
-              <Text style={styles.hint}>{pasoActual.ayuda}</Text>
+              <Text className="text-white text-[17px] font-extrabold text-center">{pasoActual.instruccion}</Text>
+              <Text className="text-white/90 text-[13px] text-center leading-[18px] bg-[rgba(6,30,31,0.62)] border border-white/10 px-3.5 py-2 rounded-xl">{pasoActual.ayuda}</Text>
             </>
           )}
         </View>
@@ -311,181 +310,9 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={cerrar} statusBarTranslucent>
-      <View style={[styles.root, { width: SCREEN_W, height: SCREEN_H }]}>
+      <View className="flex-1 bg-black" style={{ width: SCREEN_W, height: SCREEN_H }}>
         {renderContenido()}
       </View>
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#000000" },
-  flex: { flex: 1 },
-  centerBox: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 12,
-    backgroundColor: colors.primary900,
-  },
-  permIconTile: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: colors.primary800,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  permTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "800", marginTop: 8 },
-  permText: { color: colors.darkTextMuted, fontSize: 14, textAlign: "center", lineHeight: 20 },
-  permBtn: {
-    marginTop: 18,
-    backgroundColor: colors.accent500,
-    paddingHorizontal: 24,
-    paddingVertical: 13,
-    borderRadius: 12,
-  },
-  permBtnText: { color: colors.primary900, fontWeight: "800", fontSize: 15 },
-  permCancel: { color: colors.darkTextMuted, fontSize: 14 },
-
-  // Encuadre de la cara: solo el contorno del óvalo, cámara visible detrás.
-  faceOval: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2.5,
-    borderColor: "rgba(255,255,255,0.92)",
-  },
-
-  cuentaRing: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 3,
-    borderColor: colors.accent500,
-    backgroundColor: "rgba(6,30,31,0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cuentaNum: {
-    color: "#FFFFFF",
-    fontSize: 34,
-    fontWeight: "800",
-  },
-
-  topBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  closeCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  topTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "700", flex: 1, textAlign: "center" },
-
-  bottomArea: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 28,
-  },
-  pasoPills: { flexDirection: "row", gap: 8, marginBottom: 4 },
-  pasoPill: {
-    width: 34,
-    height: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.3)",
-  },
-  pasoPillActivo: { backgroundColor: "#FFFFFF" },
-  pasoPillHecho: { backgroundColor: colors.accent500 },
-  instruccion: { color: "#FFFFFF", fontSize: 17, fontWeight: "800", textAlign: "center" },
-  avisoLegalBio: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "rgba(6,30,31,0.85)",
-    borderWidth: 1,
-    borderColor: "rgba(34,211,238,0.3)",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  avisoLegalBioTexto: {
-    flex: 1,
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  hint: {
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-    backgroundColor: "rgba(6,30,31,0.62)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 12,
-  },
-  empezarBtn: {
-    marginTop: 4,
-    minWidth: 220,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: colors.accent500,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  empezarText: { color: colors.primary900, fontSize: 16, fontWeight: "800" },
-
-  revisarTop: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 20, gap: 20 },
-  revisarTitulo: { color: "#FFFFFF", fontSize: 18, fontWeight: "800", textAlign: "center" },
-  revisarFotos: { flexDirection: "row", gap: 16 },
-  revisarItem: { alignItems: "center", gap: 8 },
-  revisarImg: { width: 130, height: 170, borderRadius: 12, backgroundColor: colors.primary900 },
-  revisarPie: { color: colors.darkTextMuted, fontSize: 13, fontWeight: "600" },
-
-  previewActions: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingBottom: 36,
-  },
-  retakeBtn: {
-    flex: 1,
-    height: 52,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.3)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  retakeText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
-  useBtn: {
-    flex: 1.6,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: colors.accent500,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  useText: { color: colors.primary900, fontSize: 15, fontWeight: "800" },
-});

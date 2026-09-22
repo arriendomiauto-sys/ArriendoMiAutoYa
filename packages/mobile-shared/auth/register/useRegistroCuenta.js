@@ -13,11 +13,11 @@ export const PASO_TERMINOS = "terminos";
 export const PASO_CODIGO = "codigo";
 export const PASO_EXITO = "exito";
 
-/** Pasos con barra de progreso: 1) Datos de la cuenta 2) Verificación por correo (el éxito ya es el final). */
-export const TOTAL_PASOS = 2;
+/** Pasos con barra de progreso: 1) Datos de la cuenta 2) Términos y condiciones 3) Verificación por correo (el éxito ya es el final). */
+export const TOTAL_PASOS = 3;
 const ESPERA_REENVIO_S = 45;
 
-const NUMERO_DE_PASO = { [PASO_CUENTA]: 1, [PASO_TERMINOS]: 1, [PASO_CODIGO]: 2 };
+const NUMERO_DE_PASO = { [PASO_CUENTA]: 1, [PASO_TERMINOS]: 2, [PASO_CODIGO]: 3 };
 
 const nuevoCodigo = () => Array(LARGO_CODIGO).fill("");
 
@@ -119,7 +119,14 @@ export function useRegistroCuenta({ role }) {
     }
   };
 
-  const continuar = aceptarYCrear;
+  const continuar = () => {
+    setIntentado(true);
+    const errores = erroresCuenta(form);
+    if (errores.telefono && Object.keys(errores).length === 1) telefonoRef.current?.focus();
+    if (Object.keys(errores).length > 0) return false;
+    setPaso(PASO_TERMINOS);
+    return true;
+  };
 
   // ---- Paso 3: código ------------------------------------------------------
   const cambiarDigito = (indice, valor) => {

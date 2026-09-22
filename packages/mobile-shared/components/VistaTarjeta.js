@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text } from "react-native";
 import Svg, { Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import { colors } from "../theme/colors";
 import { detectarMarca } from "./FormularioTarjeta";
@@ -20,8 +20,13 @@ function numeroConPuntos(numero) {
 export function VistaTarjeta({ numero, vencimiento, titular }) {
   const marca = detectarMarca(numero);
   return (
-    <View style={styles.tarjeta} accessible accessibilityLabel="Vista previa de tu tarjeta">
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View
+      className="h-[156px] rounded-[18px] p-4 justify-between overflow-hidden shadow-lg"
+      style={{ elevation: 6 }}
+      accessible
+      accessibilityLabel="Vista previa de tu tarjeta"
+    >
+      <View className="absolute inset-0" pointerEvents="none">
         <Svg width="100%" height="100%">
           <Defs>
             <LinearGradient id="vistaTarjetaGrad" x1="0" y1="0" x2="1" y2="1">
@@ -34,50 +39,30 @@ export function VistaTarjeta({ numero, vencimiento, titular }) {
         </Svg>
       </View>
 
-      <View style={styles.fila}>
-        <View style={styles.chip} />
-        <Text style={styles.marca}>{NOMBRE_MARCA[marca]}</Text>
+      <View className="flex-row justify-between items-end">
+        <View className="w-[34px] h-6 rounded-md bg-[#D9C27C]" />
+        <Text className="text-white text-xs font-extrabold tracking-wider">{NOMBRE_MARCA[marca]}</Text>
       </View>
 
-      <Text style={styles.numero}>{numeroConPuntos(numero)}</Text>
+      <Text
+        className="text-white text-lg tracking-widest"
+        style={{ fontVariant: ["tabular-nums"] }}
+      >
+        {numeroConPuntos(numero)}
+      </Text>
 
-      <View style={styles.fila}>
-        <View style={styles.dato}>
-          <Text style={styles.etiqueta}>Titular</Text>
-          <Text style={styles.valor} numberOfLines={1}>
+      <View className="flex-row justify-between items-end">
+        <View className="shrink gap-[1px]">
+          <Text className="text-white/70 text-[9px] tracking-widest uppercase">Titular</Text>
+          <Text className="text-white text-[11.5px] font-semibold" numberOfLines={1}>
             {(titular || "").trim().toUpperCase() || "TU NOMBRE"}
           </Text>
         </View>
-        <View style={[styles.dato, styles.datoDerecha]}>
-          <Text style={styles.etiqueta}>Vence</Text>
-          <Text style={styles.valor}>{vencimiento || "MM/AA"}</Text>
+        <View className="items-end shrink-0 ml-3 gap-[1px]">
+          <Text className="text-white/70 text-[9px] tracking-widest uppercase">Vence</Text>
+          <Text className="text-white text-[11.5px] font-semibold">{vencimiento || "MM/AA"}</Text>
         </View>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  tarjeta: {
-    height: 156,
-    borderRadius: 18,
-    padding: 16,
-    justifyContent: "space-between",
-    overflow: "hidden",
-    boxShadow: "0 10px 22px rgba(15, 61, 62, 0.28)",
-    elevation: 6,
-  },
-  fila: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  chip: { width: 34, height: 24, borderRadius: 6, backgroundColor: "#D9C27C" },
-  marca: { color: colors.textWhite, fontSize: 12, fontWeight: "800", letterSpacing: 0.6 },
-  numero: {
-    color: colors.textWhite,
-    fontSize: 18,
-    letterSpacing: 1.2,
-    fontVariant: ["tabular-nums"],
-  },
-  dato: { flexShrink: 1, gap: 1 },
-  datoDerecha: { alignItems: "flex-end", flexShrink: 0, marginLeft: 12 },
-  etiqueta: { color: "rgba(255,255,255,0.65)", fontSize: 9, letterSpacing: 1, textTransform: "uppercase" },
-  valor: { color: colors.textWhite, fontSize: 11.5, fontWeight: "600" },
-});

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Image, StyleSheet } from "react-native";
+import { View, Image } from "react-native";
 import { colors } from "../theme/colors";
 import { useApp } from "../context/AppContext";
 import { Icon } from "./Icon";
@@ -21,7 +21,7 @@ import { Skeleton } from "./Skeleton";
  *  - iconSize / iconColor: del placeholder
  *  - style: estilo extra del contenedor
  */
-export function AvatarFoto({ size = 56, uri, iconSize, iconColor, style }) {
+export function AvatarFoto({ size = 56, uri, iconSize, iconColor, style, className = "" }) {
   const { currentUser, syncProfile } = useApp();
   const fuente =
     uri || currentUser?.foto_perfil_verificada_url || currentUser?.foto_perfil_url || null;
@@ -54,14 +54,14 @@ export function AvatarFoto({ size = 56, uri, iconSize, iconColor, style }) {
 
   if (!fuente || error) {
     return (
-      <View style={[styles.empty, dim, style]}>
+      <View className={`bg-surfaceSecondary items-center justify-center ${className}`} style={[dim, style]}>
         <Icon name="user" size={iconSize || Math.round(size * 0.42)} color={iconColor || colors.textMuted} />
       </View>
     );
   }
 
   return (
-    <View style={[dim, style]}>
+    <View className={className} style={[dim, style]}>
       {cargando && <Skeleton style={dim} />}
       <Image
         source={{ uri: fuente }}
@@ -72,11 +72,3 @@ export function AvatarFoto({ size = 56, uri, iconSize, iconColor, style }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  empty: {
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

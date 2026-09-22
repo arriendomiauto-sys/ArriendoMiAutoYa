@@ -2,7 +2,6 @@ import React from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   Modal,
   KeyboardAvoidingView,
@@ -136,15 +135,18 @@ export function ContractSignatureModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.overlay}
+        className="flex-1 bg-[#061e1f]/80 justify-end"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, theme.spacing.xxl) }]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Firma del contrato</Text>
-              <Text style={styles.sub}>
+        <View
+          className="bg-surface rounded-t-2xl max-h-[92%] p-6 gap-2"
+          style={{ paddingBottom: Math.max(insets?.bottom || 0, 32) }}
+        >
+          <View className="w-10 h-1 rounded-full bg-border self-center" />
+          <View className="flex-row pb-2">
+            <View className="flex-1">
+              <Text className="text-lg font-extrabold text-text">Firma del contrato</Text>
+              <Text className="text-[12.5px] text-textMuted mt-1 leading-[17px]">
                 Firmas como {parte === "arrendador" ? "dueño del vehículo" : "arrendatario"}. Tu firma
                 queda registrada con fecha y hora.
               </Text>
@@ -152,33 +154,33 @@ export function ContractSignatureModal({
           </View>
 
           <ScrollView
-            style={styles.body}
-            contentContainerStyle={{ paddingBottom: theme.spacing.md }}
+            className="my-1"
+            contentContainerStyle={{ paddingBottom: 12 }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
             {!modoManual && biometria ? (
-              <View style={styles.bioHero}>
-                <View style={styles.bioCircle}>
+              <View className="items-center gap-1.5 py-3">
+                <View className="w-16 h-16 rounded-full bg-accent-100 items-center justify-center mb-0.5">
                   <Icon
                     name={biometria === "facial" ? "user" : "shield"}
                     size={26}
                     color={colors.accent700}
                   />
                 </View>
-                <Text style={styles.bioHeroTitle}>
+                <Text className="text-base font-extrabold text-text">
                   {biometria === "facial" ? "Confirma con Face ID" : "Confirma con tu huella"}
                 </Text>
-                <Text style={styles.bioHeroText}>
+                <Text className="text-[12.5px] leading-[18px] text-textMuted text-center px-3">
                   Tu huella o rostro no salen del teléfono. Solo se usan para firmar este contrato con
                   fecha y hora.
                 </Text>
               </View>
             ) : null}
 
-            <View style={styles.legalBox}>
+            <View className="flex-row gap-2 items-start bg-surfaceSubtle rounded-xl border border-border p-3">
               <Icon name="document" size={18} color={colors.primary} />
-              <Text style={styles.legalText}>
+              <Text className="flex-1 text-[12.5px] leading-[18px] text-textSecondary">
                 Contrato de arriendo temporal de vehículo · deducible 15 UF (50/50) · jurisdicción
                 Los Ángeles, Chile.
               </Text>
@@ -191,11 +193,11 @@ export function ContractSignatureModal({
                 label="Leer el contrato completo"
                 iconLeft="document"
                 onPress={onVerContrato}
-                style={{ marginTop: 4 }}
+                className="mt-1"
               />
             ) : null}
 
-            <View style={{ marginTop: theme.spacing.md }}>
+            <View className="mt-3">
               <Checkbox
                 testID="check-acepta-contrato"
                 checked={acepta}
@@ -205,8 +207,8 @@ export function ContractSignatureModal({
             </View>
 
             {modoManual ? (
-              <View style={{ marginTop: theme.spacing.lg, gap: theme.spacing.sm }}>
-                <Text style={styles.sectionLabel}>Firma manuscrita</Text>
+              <View className="mt-4 gap-2">
+                <Text className="text-xs font-bold text-textMuted tracking-wider">Firma manuscrita</Text>
                 <SignaturePad onChange={setFirmaSvg} />
                 <Field
                   testID="input-nombre-firma"
@@ -216,14 +218,14 @@ export function ContractSignatureModal({
                   placeholder="Como aparece en tu cédula"
                   autoCapitalize="words"
                 />
-                <Text style={styles.hint}>
+                <Text className="text-[11.5px] leading-4 text-textMuted">
                   Se guarda tu firma, tu nombre y la fecha y hora exactas como respaldo legal.
                 </Text>
               </View>
             ) : null}
           </ScrollView>
 
-          <View style={styles.footer}>
+          <View className="gap-2 pt-2">
             {cargandoBiometria ? (
               <Button label="Preparando…" loading disabled />
             ) : modoManual ? (
@@ -261,47 +263,3 @@ export function ContractSignatureModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.8)", justifyContent: "flex-end" },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
-    maxHeight: "92%",
-    padding: theme.spacing.xl,
-    paddingBottom: theme.spacing.xxl,
-    gap: theme.spacing.sm,
-  },
-  handle: { width: 40, height: 4, borderRadius: 999, backgroundColor: colors.border, alignSelf: "center" },
-  header: { flexDirection: "row", paddingBottom: theme.spacing.sm },
-  title: { fontSize: 18, fontWeight: "800", color: colors.text },
-  sub: { fontSize: 12.5, color: colors.textMuted, marginTop: 3, lineHeight: 17 },
-  body: { marginVertical: 4 },
-  bioHero: { alignItems: "center", gap: 6, paddingVertical: theme.spacing.md },
-  bioCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 2,
-  },
-  bioHeroTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
-  bioHeroText: { fontSize: 12.5, lineHeight: 18, color: colors.textMuted, textAlign: "center", paddingHorizontal: theme.spacing.md },
-  legalBox: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    alignItems: "flex-start",
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: theme.spacing.md,
-  },
-  legalText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: colors.textSecondary },
-  sectionLabel: { fontSize: 12, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.4 },
-  hint: { fontSize: 11.5, lineHeight: 16, color: colors.textMuted },
-  footer: { gap: theme.spacing.sm, paddingTop: theme.spacing.sm },
-});

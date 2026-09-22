@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { useApp } from "../context/AppContext";
 import { showAlert } from "../utils/alert";
 import { PROVEEDORES_OAUTH, NOMBRE_PROVEEDOR } from "../utils/oauth";
@@ -64,6 +63,8 @@ export function BotonesOAuth({
   disabled = false,
   titulo,
   redondeado = false,
+  className = "",
+  style,
 }) {
   const { loginConProveedor } = useApp();
   const [cargando, setCargando] = useState(null); // provider en curso | null
@@ -86,25 +87,24 @@ export function BotonesOAuth({
   };
 
   return (
-    <View style={styles.wrap}>
+    <View className={`gap-2 w-full ${className}`} style={style}>
       {divider ? (
-        <View style={styles.dividerRow}>
-          <View style={styles.line} />
-          <Text style={styles.dividerText}>{titulo || (compact ? "o continúa con" : "o")}</Text>
-          <View style={styles.line} />
+        <View className="flex-row items-center gap-2 my-1">
+          <View className="flex-1 h-[1px] bg-border" />
+          <Text className="text-[13px] text-textMuted">{titulo || (compact ? "o continúa con" : "o")}</Text>
+          <View className="flex-1 h-[1px] bg-border" />
         </View>
       ) : null}
 
-      <View style={compact ? styles.fila : styles.columna}>
+      <View className={compact ? "flex-row gap-2" : "gap-2"}>
         {(PROVEEDORES_OAUTH || ["google"]).map((provider) => (
           <TouchableOpacity
             key={provider}
-            style={[
-              styles.boton,
-              compact && styles.botonCompacto,
-              redondeado && styles.botonPildora,
-              (disabled || (cargando && cargando !== provider)) && styles.botonOff,
-            ]}
+            className={`h-12 border-[1.5px] border-border bg-surface flex-row items-center justify-center gap-2 ${
+              redondeado ? "rounded-full" : "rounded-xl"
+            } ${compact ? "flex-1" : ""} ${
+              (disabled || (cargando && cargando !== provider)) ? "opacity-50" : ""
+            }`}
             activeOpacity={0.7}
             disabled={!!cargando || disabled}
             onPress={() => entrar(provider)}
@@ -117,7 +117,7 @@ export function BotonesOAuth({
             ) : (
               <>
                 <MarcaProveedor provider={provider} size={20} />
-                <Text style={styles.botonTexto}>
+                <Text className="text-[15px] font-semibold text-text">
                   {compact ? nombre(provider) : `Continuar con ${nombre(provider)}`}
                 </Text>
               </>
@@ -128,32 +128,3 @@ export function BotonesOAuth({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { gap: theme.spacing.sm, width: "100%" },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    marginVertical: theme.spacing.xs,
-  },
-  line: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { fontSize: 13, color: colors.textMuted },
-  boton: {
-    height: theme.control.height,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.sm,
-  },
-  columna: { gap: theme.spacing.sm },
-  fila: { flexDirection: "row", gap: theme.spacing.sm },
-  botonCompacto: { flex: 1 },
-  botonPildora: { borderRadius: theme.radius.pill },
-  botonOff: { opacity: 0.5 },
-  botonTexto: { fontSize: 15, fontWeight: "600", color: colors.text },
-});

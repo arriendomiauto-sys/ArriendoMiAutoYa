@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   StatusBar,
   TouchableOpacity,
@@ -10,7 +9,6 @@ import {
   Platform,
 } from "react-native";
 import { colors } from "../../theme/colors";
-import { theme } from "../../theme/tokens";
 import { useApp } from "../../context/AppContext";
 import { Icon } from "../../components/Icon";
 import { Button, Field, ScreenHeader, EmptyState } from "../../components/ui";
@@ -45,7 +43,7 @@ export function ForgotPasswordScreen({ onNavigate }) {
     // En Android el "pan" nativo (app.json) desplaza la ventana al campo
     // enfocado; el KAV es solo para iOS. Detalle completo en LoginScreen.js.
     <KeyboardAvoidingView
-      style={styles.container}
+      className="flex-1 bg-surface"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <StatusBar barStyle="dark-content" />
@@ -53,20 +51,20 @@ export function ForgotPasswordScreen({ onNavigate }) {
       <ScreenHeader title="" onBack={() => onNavigate("login")} />
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
+        className="flex-1"
+        contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: 32, gap: 16 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
         {!enviado ? (
           <>
-            <View style={styles.hero}>
-              <View style={styles.marca}>
+            <View className="items-start gap-2">
+              <View className="w-11 h-11 rounded-[13px] bg-primary-700 items-center justify-center">
                 <Icon name="key" size={24} color={colors.accent} />
               </View>
-              <Text style={styles.title}>Recupera tu acceso</Text>
-              <Text style={styles.subtitle}>
+              <Text className="text-[28px] leading-[34px] font-bold text-gray-900 mt-1">Recupera tu acceso</Text>
+              <Text className="text-base text-gray-500">
                 Escribe tu correo y te enviamos un enlace para crear una contraseña nueva.
               </Text>
             </View>
@@ -88,19 +86,19 @@ export function ForgotPasswordScreen({ onNavigate }) {
               onSubmitEditing={() => enviar(email)}
             />
 
-            <View style={styles.spacer} />
+            <View className="grow min-h-[20px]" />
 
             <Button testID="btn-enviar-enlace" label="Enviar enlace" onPress={() => enviar(email)} loading={loading} />
 
-            <TouchableOpacity style={styles.volverLink} onPress={() => onNavigate("login")} activeOpacity={0.7}>
-              <Text style={styles.volverLinkText}>
-                ¿Ya la recordaste? <Text style={styles.volverLinkHighlight}>Volver a entrar</Text>
+            <TouchableOpacity className="h-10 items-center justify-center" onPress={() => onNavigate("login")} activeOpacity={0.7}>
+              <Text className="text-sm text-gray-500">
+                ¿Ya la recordaste? <Text className="text-accent-700 font-semibold">Volver a entrar</Text>
               </Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <View style={styles.confirmacion}>
+            <View className="grow justify-center">
               <EmptyState
                 icon="mail"
                 title="Revisa tu correo"
@@ -125,61 +123,3 @@ export function ForgotPasswordScreen({ onNavigate }) {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-    padding: theme.spacing.screen,
-    paddingBottom: 32,
-    gap: theme.spacing.lg,
-  },
-  hero: {
-    alignItems: "flex-start",
-    gap: theme.spacing.sm,
-  },
-  marca: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    ...theme.typography.display,
-    color: colors.text,
-    marginTop: theme.spacing.xs,
-  },
-  subtitle: {
-    ...theme.typography.body,
-    color: colors.textMuted,
-  },
-  spacer: {
-    flexGrow: 1,
-    minHeight: theme.spacing.xl,
-  },
-  confirmacion: {
-    flexGrow: 1,
-    justifyContent: "center",
-  },
-  volverLink: {
-    height: theme.control.heightSm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  volverLinkText: {
-    ...theme.typography.callout,
-    color: colors.textMuted,
-  },
-  volverLinkHighlight: {
-    color: colors.accent700,
-    fontWeight: "600",
-  },
-});

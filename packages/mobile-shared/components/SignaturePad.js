@@ -1,8 +1,7 @@
 import React, { useRef, useState } from "react";
-import { View, StyleSheet, PanResponder, Text, TouchableOpacity } from "react-native";
+import { View, PanResponder, Text, TouchableOpacity } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 
 /**
  * Pad de firma dibujada con el dedo, en SVG puro (react-native-svg, ya
@@ -62,10 +61,15 @@ export function SignaturePad({ onChange, height = 180 }) {
   const vacio = trazos.length === 0 || trazos.every((t) => t.length < 2);
 
   return (
-    <View style={styles.wrap}>
-      <View testID="pad-firma" style={[styles.canvas, { height }]} {...panResponder.panHandlers}>
-        {vacio && <Text style={styles.placeholder}>Firma aquí con el dedo</Text>}
-        <Svg style={StyleSheet.absoluteFill}>
+    <View className="gap-2">
+      <View
+        testID="pad-firma"
+        className="border-[1.5px] border-dashed border-gray-300 rounded-xl bg-white overflow-hidden items-center justify-center"
+        style={{ height }}
+        {...panResponder.panHandlers}
+      >
+        {vacio && <Text className="text-sm text-gray-400">Firma aquí con el dedo</Text>}
+        <Svg className="absolute inset-0">
           {trazos.map(
             (t, i) =>
               t.length > 1 && (
@@ -74,8 +78,10 @@ export function SignaturePad({ onChange, height = 180 }) {
           )}
         </Svg>
       </View>
-      <TouchableOpacity onPress={limpiar} style={styles.clearBtn} disabled={vacio}>
-        <Text style={[styles.clearText, vacio && styles.clearTextDisabled]}>Borrar y firmar de nuevo</Text>
+      <TouchableOpacity onPress={limpiar} className="self-center p-1.5" disabled={vacio}>
+        <Text className={`text-[13px] font-semibold ${vacio ? "text-gray-400" : "text-primary-700"}`}>
+          Borrar y firmar de nuevo
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -93,21 +99,3 @@ function aPathD(trazos) {
     .map(trazoAPathD)
     .join(" ");
 }
-
-const styles = StyleSheet.create({
-  wrap: { gap: theme.spacing.sm },
-  canvas: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderStyle: "dashed",
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  placeholder: { fontSize: 14, color: colors.textMuted },
-  clearBtn: { alignSelf: "center", padding: 6 },
-  clearText: { fontSize: 13, fontWeight: "600", color: colors.primary },
-  clearTextDisabled: { color: colors.textMuted },
-});

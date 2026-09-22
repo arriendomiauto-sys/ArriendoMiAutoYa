@@ -359,7 +359,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
           tipoVacio="crédito"
         />
 
-        <Card padded style={{ gap: 12 }}>
+        <Card padded className="gap-3">
           <View className="flex-row justify-between items-center">
             <Text className="text-[15px] text-textMuted">Arriendo · {dias} {dias === 1 ? "día" : "días"}</Text>
             <Text className="text-[15px] text-textDark font-medium">{clp(neto)}</Text>

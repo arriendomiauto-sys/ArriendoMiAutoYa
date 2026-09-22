@@ -88,7 +88,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
       <ScreenHeader title="Extender arriendo" subtitle="Añade días a tu arriendo activo" onBack={onBack} />
 
       <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
-        <Card padded style={{ gap: 12 }}>
+        <Card padded className="gap-3">
           <View className="flex-row justify-between items-center gap-3">
             <View>
               <Text className="text-[15px] font-bold text-textDark">{auto.marca} {auto.modelo}</Text>
@@ -102,7 +102,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
           </View>
         </Card>
 
-        <Card padded style={{ gap: 12 }}>
+        <Card padded className="gap-3">
           <SectionLabel>Tiempo adicional</SectionLabel>
           <View className="flex-row items-center bg-gray-50 rounded-xl border border-border overflow-hidden">
             <TouchableOpacity className="w-[52px] h-14 items-center justify-center bg-white" onPress={() => setDias(Math.max(1, dias - 1))}>
@@ -131,7 +131,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
           ) : null}
         </Card>
 
-        <Card padded style={{ gap: 8 }}>
+        <Card padded className="gap-2">
           <SectionLabel>Monto adicional</SectionLabel>
           <View className="flex-row justify-between">
             <Text className="text-[13px] text-textMuted">

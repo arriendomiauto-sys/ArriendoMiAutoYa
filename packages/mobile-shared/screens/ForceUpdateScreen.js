@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, Linking } from "react-native";
+import { View, Text, Linking } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Button } from "../components/ui";
 import { BrandLogo } from "../components/BrandLogo";
@@ -14,13 +13,13 @@ import { BrandLogo } from "../components/BrandLogo";
  */
 export function ForceUpdateScreen({ urlStore }) {
   return (
-    <View style={styles.container}>
+    <View className="flex-1 items-center justify-center gap-5 px-8 bg-background">
       <BrandLogo size={72} />
-      <View style={styles.iconTile}>
+      <View className="w-14 h-14 rounded-2xl bg-accent-100 items-center justify-center">
         <Icon name="refresh" size={28} color={colors.primary} />
       </View>
-      <Text style={styles.title}>Nueva versión disponible</Text>
-      <Text style={styles.subtitle}>
+      <Text className="text-xl font-bold text-text text-center">Nueva versión disponible</Text>
+      <Text className="text-sm leading-5 text-textMuted text-center">
         Actualizamos la app con mejoras importantes. Necesitas instalar la última versión para
         seguir usándola.
       </Text>
@@ -28,35 +27,8 @@ export function ForceUpdateScreen({ urlStore }) {
         label="Actualizar ahora"
         onPress={() => urlStore && Linking.openURL(urlStore)}
         disabled={!urlStore}
-        style={styles.button}
+        className="mt-3 w-full"
       />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.xxl,
-    backgroundColor: colors.background,
-  },
-  iconTile: {
-    width: 56,
-    height: 56,
-    borderRadius: theme.radius.card,
-    backgroundColor: colors.accent100 || "rgba(47,191,155,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { ...theme.typography.title, color: colors.text, textAlign: "center" },
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textMuted,
-    textAlign: "center",
-  },
-  button: { marginTop: theme.spacing.md, width: "100%" },
-});

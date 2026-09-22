@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -15,7 +14,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { useApp } from "../context/AppContext";
 import { Icon } from "../components/Icon";
 import { ScreenHeader, EmptyState } from "../components/ui";
@@ -374,7 +372,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
 
   if (!reservation?.id) {
     return (
-      <View style={[styles.container, { backgroundColor: c.bg }]}>
+      <View className="flex-1" style={{ backgroundColor: c.bg }}>
         <ScreenHeader title="Mensajes" onBack={onBack} />
         <EmptyState
           icon="chat"
@@ -397,7 +395,7 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     return (
       <Wrapper
         key={m._clientId || m.id}
-        style={[styles.bubbleWrap, mine ? styles.wrapMine : styles.wrapThem]}
+        className={`mb-2 max-w-[82%] ${mine ? "self-end" : "self-start"}`}
         {...(fallido
           ? {
               onPress: () => intentarEnviar(m),
@@ -408,39 +406,51 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
           : {})}
       >
         <View
-          style={[
-            styles.bubble,
+          className={`py-2.5 px-3.5 rounded-2xl ${
             mine
+              ? esOwner
+                ? "bg-primary-900 rounded-br"
+                : "bg-primary rounded-br"
+              : "rounded-bl border"
+          } ${enviando ? "opacity-60" : ""} ${
+            fallido ? "bg-red-50 border border-red-300" : ""
+          }`}
+          style={
+            !mine
               ? {
-                  // Acento premium del dueño: mis burbujas en teal casi negro.
-                  backgroundColor: esOwner ? colors.primary900 : colors.primary,
-                  borderBottomRightRadius: 4,
-                }
-              : {
                   backgroundColor: c.surface,
-                  borderWidth: 1,
                   borderColor: c.border,
-                  borderBottomLeftRadius: 4,
-                },
-            enviando && styles.bubbleEnviando,
-            fallido && styles.bubbleFallido,
-          ]}
+                }
+              : undefined
+          }
         >
-          <Text style={[styles.bubbleText, { color: mine && !fallido ? "#FFFFFF" : fallido ? colors.dangerText : c.text }]}>
+          <Text
+            className={`text-[14px] leading-[19px] ${
+              mine && !fallido
+                ? "text-white"
+                : fallido
+                ? "text-red-700 font-medium"
+                : ""
+            }`}
+            style={!mine && !fallido ? { color: c.text } : undefined}
+          >
             {m.texto}
           </Text>
           <Text
-            style={[
-              styles.time,
-              { color: mine && !fallido ? "rgba(255,255,255,0.7)" : c.muted },
-              fallido && { color: colors.dangerText, fontWeight: "700" },
-            ]}
+            className={`text-[10px] mt-0.5 text-right ${
+              mine && !fallido
+                ? "text-white/70"
+                : fallido
+                ? "text-red-600 font-bold"
+                : ""
+            }`}
+            style={!mine && !fallido ? { color: c.muted } : undefined}
           >
             {fallido
               ? "No se envió · toca para reintentar"
               : enviando
-                ? "Enviando…"
-                : new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              ? "Enviando…"
+              : new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </Text>
         </View>
       </Wrapper>
@@ -449,7 +459,8 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: c.bg }]}
+      className="flex-1"
+      style={{ backgroundColor: c.bg }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScreenHeader
@@ -476,8 +487,13 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
 
       <ScrollView
         ref={scrollRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={styles.msgs}
+        className="flex-1"
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "flex-end",
+          padding: 16,
+          paddingBottom: 8,
+        }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
@@ -491,59 +507,70 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
           if (alFondoRef.current) scrollRef.current?.scrollToEnd({ animated: true });
         }}
       >
-        <View style={[styles.notice, { backgroundColor: colors.surfaceSubtle }]}>
+        <View className="flex-row items-center justify-center gap-1.5 self-center py-1.5 px-3 rounded-full mb-3 bg-gray-100">
           <Icon name="shield" size={12} color={c.muted} />
-          <Text style={[styles.noticeText, { color: c.muted }]}>
+          <Text className="text-[11px] font-semibold" style={{ color: c.muted }}>
             Reserva #{reservation.id.slice(0, 8).toUpperCase()}
           </Text>
         </View>
 
         {loading ? (
-          <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
+          <ActivityIndicator color={colors.accent} className="mt-5" />
         ) : messages.length === 0 ? (
-          <Text style={[styles.emptyMsg, { color: c.muted }]}>Aún no hay mensajes. Escribe el primero.</Text>
+          <Text className="text-[13px] text-center mt-5" style={{ color: c.muted }}>Aún no hay mensajes. Escribe el primero.</Text>
         ) : (
           messages.map(renderBurbuja)
         )}
 
         {otroEscribiendo ? (
-          <View style={[styles.bubbleWrap, styles.wrapThem]}>
+          <View className="mb-2 max-w-[82%] self-start">
             <View
-              style={[
-                styles.bubble,
-                { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderBottomLeftRadius: 4 },
-              ]}
+              className="py-2.5 px-3.5 rounded-2xl rounded-bl border"
+              style={{ backgroundColor: c.surface, borderColor: c.border }}
             >
-              <Text style={[styles.bubbleText, { color: c.muted, fontStyle: "italic" }]}>escribiendo…</Text>
+              <Text className="text-[14px] leading-[19px] italic" style={{ color: c.muted }}>escribiendo…</Text>
             </View>
           </View>
         ) : null}
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.quickWrap, { borderTopColor: c.border }]} contentContainerStyle={styles.quickRow} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="border-t max-h-[46px]"
+        style={{ borderTopColor: c.border }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {QUICK.map((q) => (
           <TouchableOpacity
             key={q}
-            style={[styles.quickChip, { backgroundColor: c.surface, borderColor: c.border }]}
+            className="py-1.5 px-3 rounded-full border"
+            style={{ backgroundColor: c.surface, borderColor: c.border }}
             onPress={() => setInput(q)}
           >
-            <Text style={[styles.quickText, { color: c.muted }]}>{q}</Text>
+            <Text className="text-xs font-medium" style={{ color: c.muted }}>{q}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
       <View
-        style={[
-          styles.inputBar,
-          {
-            backgroundColor: c.surface,
-            borderTopColor: c.border,
-            paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 12),
-          },
-        ]}
+        className="flex-row items-end gap-2 px-4 pt-3 border-t"
+        style={{
+          backgroundColor: c.surface,
+          borderTopColor: c.border,
+          paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 12),
+        }}
       >
         <TextInput
-          style={[styles.input, { backgroundColor: c.input, borderColor: c.border, color: c.text }]}
+          className="flex-1 min-h-[40px] max-h-[120px] rounded-xl border-[1.5px] px-4 text-[15px]"
+          style={{
+            backgroundColor: c.input,
+            borderColor: c.border,
+            color: c.text,
+            paddingTop: Platform.OS === "ios" ? 11 : 8,
+            paddingBottom: Platform.OS === "ios" ? 11 : 8,
+          }}
           placeholder="Escribe un mensaje…"
           placeholderTextColor={c.muted}
           value={input}
@@ -558,11 +585,9 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
           multiline
         />
         <TouchableOpacity
-          style={[
-            styles.sendBtn,
-            esOwner && { backgroundColor: colors.primary900 },
-            !input.trim() && { opacity: 0.5 },
-          ]}
+          className={`w-11 h-11 rounded-full items-center justify-center ${
+            esOwner ? "bg-primary-900" : "bg-primary"
+          } ${!input.trim() ? "opacity-50" : ""}`}
           onPress={handleSend}
           disabled={!input.trim()}
           accessibilityRole="button"
@@ -574,65 +599,3 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  msgs: {
-    flexGrow: 1,
-    justifyContent: "flex-end",
-    padding: theme.spacing.screen,
-    paddingBottom: theme.spacing.sm,
-  },
-  notice: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    alignSelf: "center",
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.pill,
-    marginBottom: theme.spacing.md,
-  },
-  noticeText: { fontSize: 11, fontWeight: "600" },
-  emptyMsg: { fontSize: 13, textAlign: "center", marginTop: 20 },
-  bubbleWrap: { marginBottom: theme.spacing.sm, maxWidth: "82%" },
-  wrapMine: { alignSelf: "flex-end" },
-  wrapThem: { alignSelf: "flex-start" },
-  bubble: { paddingVertical: 9, paddingHorizontal: 13, borderRadius: theme.radius.card },
-  bubbleEnviando: { opacity: 0.6 },
-  bubbleFallido: { backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder },
-  bubbleText: { fontSize: 14, lineHeight: 19 },
-  time: { fontSize: 10, marginTop: 3, textAlign: "right" },
-  quickWrap: { borderTopWidth: 1, maxHeight: 46 },
-  quickRow: { paddingHorizontal: theme.spacing.screen, paddingVertical: theme.spacing.sm, gap: theme.spacing.sm },
-  quickChip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: theme.radius.pill, borderWidth: 1 },
-  quickText: { fontSize: 12, fontWeight: "500" },
-  inputBar: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-  },
-  input: {
-    flex: 1,
-    minHeight: theme.control.heightSm,
-    maxHeight: 120,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1.5,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: Platform.OS === "ios" ? 11 : 8,
-    paddingBottom: Platform.OS === "ios" ? 11 : 8,
-    fontSize: 15,
-  },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

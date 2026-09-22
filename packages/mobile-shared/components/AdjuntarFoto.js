@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
@@ -15,7 +15,7 @@ import { msjError } from "../utils/msjError";
  * el cargo se aplicaba sin respaldo. Extraído de ReportFineModal para que
  * CobroPosteriorModal (peajes/fotomultas) lo reutilice igual.
  */
-export function AdjuntarFoto({ etiqueta, ayuda, url, onUrl, bucket, ajustes, obligatorio }) {
+export function AdjuntarFoto({ etiqueta, ayuda, url, onUrl, bucket, ajustes, obligatorio, className = "", style }) {
   const [subiendo, setSubiendo] = useState(false);
 
   const adjuntar = async (origen) => {
@@ -36,27 +36,27 @@ export function AdjuntarFoto({ etiqueta, ayuda, url, onUrl, bucket, ajustes, obl
   };
 
   return (
-    <View style={styles.inputGroup}>
-      <Text style={styles.inputLabel}>
+    <View className={`gap-1.5 ${className}`} style={style}>
+      <Text className="text-[13px] font-semibold text-text">
         {etiqueta}
         {obligatorio ? "" : " (opcional)"}
       </Text>
-      {ayuda ? <Text style={styles.adjuntoAyuda}>{ayuda}</Text> : null}
+      {ayuda ? <Text className="text-xs leading-[17px] text-textMuted -mt-0.5">{ayuda}</Text> : null}
 
       {url ? (
-        <View style={styles.adjuntoListo}>
+        <View className="flex-row items-center gap-2 h-11 px-3.5 rounded-xl border-[1.5px] border-accent-700 bg-surfaceSubtle">
           <Icon name="check" size={16} color={colors.accent700} />
-          <Text style={styles.adjuntoListoTexto} numberOfLines={1}>
+          <Text className="flex-1 text-[13px] font-bold text-text" numberOfLines={1}>
             Adjuntado
           </Text>
           <TouchableOpacity onPress={() => onUrl("")} hitSlop={theme.control.hitSlop}>
-            <Text style={styles.adjuntoQuitar}>Quitar</Text>
+            <Text className="text-[13px] font-bold text-textMuted">Quitar</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.adjuntoBotones}>
+        <View className="flex-row gap-2">
           <TouchableOpacity
-            style={styles.adjuntoBoton}
+            className="flex-1 flex-row items-center justify-center gap-1.5 h-11 rounded-xl border-[1.5px] border-border bg-surface"
             onPress={() => adjuntar("camera")}
             disabled={subiendo}
             activeOpacity={0.8}
@@ -66,59 +66,21 @@ export function AdjuntarFoto({ etiqueta, ayuda, url, onUrl, bucket, ajustes, obl
             ) : (
               <>
                 <Icon name="camera" size={16} color={colors.primary} />
-                <Text style={styles.adjuntoBotonTexto}>Tomar foto</Text>
+                <Text className="text-[13px] font-bold text-primary">Tomar foto</Text>
               </>
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.adjuntoBoton}
+            className="flex-1 flex-row items-center justify-center gap-1.5 h-11 rounded-xl border-[1.5px] border-border bg-surface"
             onPress={() => adjuntar("library")}
             disabled={subiendo}
             activeOpacity={0.8}
           >
             <Icon name="document" size={16} color={colors.primary} />
-            <Text style={styles.adjuntoBotonTexto}>Desde galería</Text>
+            <Text className="text-[13px] font-bold text-primary">Desde galería</Text>
           </TouchableOpacity>
         </View>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  inputGroup: { gap: 6 },
-  inputLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
-  adjuntoAyuda: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.textMuted,
-    marginTop: -2,
-  },
-  adjuntoBotones: { flexDirection: "row", gap: theme.spacing.sm },
-  adjuntoBoton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    height: 44,
-    borderRadius: theme.radius.field,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  adjuntoBotonTexto: { fontSize: 13, fontWeight: "700", color: colors.primary },
-  adjuntoListo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    height: 44,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.field,
-    borderWidth: 1.5,
-    borderColor: colors.accent700,
-    backgroundColor: colors.surfaceSubtle,
-  },
-  adjuntoListoTexto: { flex: 1, fontSize: 13, fontWeight: "700", color: colors.text },
-  adjuntoQuitar: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
-});

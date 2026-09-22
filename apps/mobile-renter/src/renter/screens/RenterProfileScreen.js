@@ -154,7 +154,7 @@ export function RenterProfileScreen({
                 {user.nombre || user.email || "Mi cuenta"}
               </Text>
               {ratingNum ? (
-                <Rating value={ratingNum} count={totalArriendos} size="sm" style={{ marginTop: 3 }} />
+                <Rating value={ratingNum} count={totalArriendos} size="sm" className="mt-1" />
               ) : (
                 <Text className="text-[13px] text-textMuted mt-0.5">
                   {totalArriendos > 0

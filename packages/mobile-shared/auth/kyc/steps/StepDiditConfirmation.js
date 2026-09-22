@@ -10,12 +10,9 @@ import {
   AccessibilityInfo,
   KeyboardAvoidingView,
   Platform,
-  StyleSheet,
 } from "react-native";
 import { Icon } from "../../../components/Icon";
 import { colors } from "../../../theme/colors";
-import { shadow } from "../../../theme/tokens";
-import { kycStyles } from "../styles/kycStyles";
 
 // ============================================================================
 // Pantalla 2: Confirmación de los datos extraídos por Didit
@@ -29,9 +26,17 @@ import { kycStyles } from "../styles/kycStyles";
 // ----------------------------------------------------------------------------
 function CredentialField({ label, value, emphasis }) {
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={emphasis ? styles.fieldValueRut : styles.fieldValueName}>{value}</Text>
+    <View className="mb-3">
+      <Text className="text-[10px] font-bold tracking-[1.3px] text-accent-300 mb-[3px]">{label}</Text>
+      <Text
+        className={
+          emphasis
+            ? "text-xl font-bold tracking-[0.4px] text-white [font-variant:tabular-nums]"
+            : "text-[15.5px] font-bold leading-5 text-white"
+        }
+      >
+        {value}
+      </Text>
     </View>
   );
 }
@@ -41,9 +46,11 @@ function CredentialField({ label, value, emphasis }) {
 // ----------------------------------------------------------------------------
 function DetailRow({ label, value, tabular }) {
   return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={[styles.detailValue, tabular && styles.tabular]}>{value}</Text>
+    <View className="flex-row justify-between items-baseline py-[7px]">
+      <Text className="text-[13px] text-text-secondary">{label}</Text>
+      <Text className={`text-[13px] font-semibold text-text ${tabular ? "[font-variant:tabular-nums]" : ""}`}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -87,13 +94,14 @@ function VerificationSeal() {
 
   return (
     <Animated.View
-      style={[styles.seal, animatedStyle]}
+      className="absolute top-4 right-4 w-[54px] items-center"
+      style={animatedStyle}
       accessibilityLabel="Verificado por Didit"
     >
-      <View style={styles.sealDisc}>
+      <View className="w-11 h-11 rounded-full bg-accent-700 border-[1.5px] border-accent-300 justify-center items-center mb-[3px]">
         <Icon name="check" size={18} color={colors.textWhite} strokeWidth={2.6} />
       </View>
-      <Text style={styles.sealCaption}>DIDIT</Text>
+      <Text className="text-[8.5px] font-bold tracking-[1.2px] text-accent-200">DIDIT</Text>
     </Animated.View>
   );
 }
@@ -122,319 +130,119 @@ export function StepDiditConfirmation({
     // KAV para que el teclado no tape los campos de la tarjeta (convención del
     // proyecto: KAV + ScrollView + keyboardShouldPersistTaps).
     <KeyboardAvoidingView
-      style={kycStyles.screenContainer}
+      className="flex-1 bg-background"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-    <ScrollView
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-    >
-      {/* Bloque cabecera: estado verificado + promesa de revisión */}
-      <View style={styles.header}>
-        <View style={kycStyles.badgeVerified}>
-          <Icon name="check" size={13} color={colors.accent800} strokeWidth={2.6} />
-          <Text style={kycStyles.badgeVerifiedText}>Identidad y licencia verificadas</Text>
+      <ScrollView
+        contentContainerClassName="p-5 pb-10"
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {/* Bloque cabecera: estado verificado + promesa de revisión */}
+        <View className="mb-4">
+          <View className="flex-row items-center gap-1.5 bg-accent-100 px-3 py-1.5 rounded-full self-start">
+            <Icon name="check" size={13} color={colors.accent800} strokeWidth={2.6} />
+            <Text className="text-accent-800 text-xs font-bold">Identidad y licencia verificadas</Text>
+          </View>
+          <Text className="text-[22px] font-extrabold tracking-[-0.3px] text-primary-700 mt-3">
+            Tus datos están listos
+          </Text>
+          <Text className="text-sm leading-[21px] text-text-secondary mt-1.5">
+            Didit validó tus documentos. Revisa que la información sea correcta antes
+            de continuar.
+          </Text>
         </View>
-        <Text style={styles.title}>Tus datos están listos</Text>
-        <Text style={styles.subtitle}>
-          Didit validó tus documentos. Revisa que la información sea correcta antes
-          de continuar.
-        </Text>
-      </View>
 
-      {/* Bloque credencial: la cédula reconstruida como tarjeta verificada */}
-      <View style={styles.credential}>
-        <View style={styles.credentialStripe} />
+        {/* Bloque credencial: la cédula reconstruida como tarjeta verificada */}
+        <View className="relative rounded-2xl bg-primary-800 p-[18px] overflow-hidden shadow-md">
+          <View className="absolute top-0 left-0 right-0 h-[5px] bg-accent-500" />
 
-        <View style={styles.credentialRow}>
-          {showPortrait ? (
-            <Image
-              source={{ uri: photoUrl }}
-              style={styles.portrait}
-              onError={() => setPortraitFailed(true)}
-              accessibilityLabel="Retrato verificado"
-            />
-          ) : (
-            <View style={[styles.portrait, styles.portraitPlaceholder]}>
-              <Icon name="user" size={26} color={colors.primary300} />
+          <View className="flex-row gap-4 pt-2">
+            {showPortrait ? (
+              <Image
+                source={{ uri: photoUrl }}
+                className="w-[74px] h-[94px] rounded-[6px] border border-accent-300 bg-primary-700"
+                onError={() => setPortraitFailed(true)}
+                accessibilityLabel="Retrato verificado"
+              />
+            ) : (
+              <View className="w-[74px] h-[94px] rounded-[6px] border border-accent-300 bg-primary-700 justify-center items-center">
+                <Icon name="user" size={26} color={colors.primary300} />
+              </View>
+            )}
+
+            <View className="flex-1 pr-[54px]">
+              <CredentialField label="NOMBRE" value={fullName || "Nombre verificado"} />
+              <CredentialField label="RUN" value={rut || "—"} emphasis />
             </View>
+          </View>
+
+          <VerificationSeal />
+
+          <View className="h-[1px] bg-darkBorder mt-4 mb-2.5" />
+          <View className="flex-row items-center gap-[7px]">
+            <Icon name="check" size={14} color={colors.accent200} strokeWidth={2.4} />
+            <Text className="text-[12.5px] font-semibold text-accent-200">Identidad y licencia verificadas</Text>
+          </View>
+        </View>
+
+        {/* Bloque licencia: tarjeta de apoyo con el estado de habilitación */}
+        <View className="mt-3.5 bg-surface border border-border rounded-2xl p-4">
+          <View className="flex-row items-center gap-2 mb-3">
+            <Icon name="card" size={20} color={colors.primary700} strokeWidth={1.6} />
+            <Text className="text-[14.5px] font-bold text-primary-700">Licencia de conducir</Text>
+            <View className="ml-auto bg-accent-100 px-2.5 py-1 rounded-full">
+              <Text className="text-[11px] font-bold text-accent-800">Vigente</Text>
+            </View>
+          </View>
+
+          <DetailRow label="Categoría" value={licenseCategory || "Clase B"} />
+          <DetailRow
+            label="Fecha de control"
+            value={licenseExpiration || "Al día"}
+            tabular={!!licenseExpiration}
+          />
+
+          <View className="h-[1px] bg-border mt-2 mb-2.5" />
+          <View className="flex-row gap-2 items-start">
+            <Icon name="check" size={14} color={colors.accent700} strokeWidth={2.2} />
+            <Text className="flex-1 text-[12.5px] leading-[18px] text-text">
+              Habilitado para arrendar en la plataforma.
+            </Text>
+          </View>
+        </View>
+
+        {/* Bloque acciones: confirmar o reintentar la verificación */}
+        <TouchableOpacity
+          className={`rounded-[14px] py-4 items-center justify-center mx-4 my-2 ${
+            submitDisabled ? "bg-disabled-bg" : "bg-primary-700"
+          }`}
+          onPress={onConfirmAndProceed}
+          disabled={submitDisabled}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Confirmar y continuar"
+        >
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color={colors.textWhite} />
+          ) : (
+            <Text className="text-white text-base font-bold">
+              Confirmar y continuar
+            </Text>
           )}
+        </TouchableOpacity>
 
-          <View style={styles.credentialFields}>
-            <CredentialField label="NOMBRE" value={fullName || "Nombre verificado"} />
-            <CredentialField label="RUN" value={rut || "—"} emphasis />
-          </View>
-        </View>
-
-        <VerificationSeal />
-
-        <View style={styles.credentialDivider} />
-        <View style={styles.credentialStatus}>
-          <Icon name="check" size={14} color={colors.accent200} strokeWidth={2.4} />
-          <Text style={styles.credentialStatusText}>Identidad y licencia verificadas</Text>
-        </View>
-      </View>
-
-      {/* Bloque licencia: tarjeta de apoyo con el estado de habilitación */}
-      <View style={styles.licenseCard}>
-        <View style={styles.licenseHeader}>
-          <Icon name="card" size={20} color={colors.primary700} strokeWidth={1.6} />
-          <Text style={styles.licenseTitle}>Licencia de conducir</Text>
-          <View style={styles.badgeLive}>
-            <Text style={styles.badgeLiveText}>Vigente</Text>
-          </View>
-        </View>
-
-        <DetailRow label="Categoría" value={licenseCategory || "Clase B"} />
-        <DetailRow
-          label="Fecha de control"
-          value={licenseExpiration || "Al día"}
-          tabular={!!licenseExpiration}
-        />
-
-        <View style={styles.licenseDivider} />
-        <View style={styles.licenseNote}>
-          <Icon name="check" size={14} color={colors.accent700} strokeWidth={2.2} />
-          <Text style={styles.licenseNoteText}>
-            Habilitado para arrendar en la plataforma.
-          </Text>
-        </View>
-      </View>
-
-      {/* Bloque acciones: confirmar o reintentar la verificación */}
-      <TouchableOpacity
-        style={[kycStyles.primaryButton, submitDisabled && kycStyles.primaryButtonDisabled]}
-        onPress={onConfirmAndProceed}
-        disabled={submitDisabled}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel="Confirmar y continuar"
-      >
-        {isSubmitting ? (
-          <ActivityIndicator size="small" color={colors.textWhite} />
-        ) : (
-          <Text
-            style={[
-              kycStyles.primaryButtonText,
-              submitDisabled && kycStyles.primaryButtonTextDisabled,
-            ]}
-          >
-            Confirmar y continuar
-          </Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={kycStyles.secondaryButton}
-        onPress={onRetry}
-        disabled={isSubmitting}
-        accessibilityRole="button"
-        accessibilityLabel="Reintentar"
-      >
-        <Text style={kycStyles.secondaryButtonText}>Reintentar</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity
+          className="bg-transparent rounded-[14px] py-3.5 items-center justify-center mx-4"
+          onPress={onRetry}
+          disabled={isSubmitting}
+          accessibilityRole="button"
+          accessibilityLabel="Reintentar"
+        >
+          <Text className="text-primary-600 text-sm font-semibold">Reintentar</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-
-  // Cabecera
-  header: {
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: -0.3,
-    color: colors.primary700,
-    marginTop: 12,
-  },
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.textSecondary,
-    marginTop: 6,
-  },
-
-  // Tarjeta-credencial (pino)
-  credential: {
-    position: "relative",
-    borderRadius: 16,
-    backgroundColor: colors.primary800,
-    padding: 18,
-    overflow: "hidden",
-    ...shadow.md,
-  },
-  // Franja superior tipo guilloché de la cédula.
-  credentialStripe: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 5,
-    backgroundColor: colors.accent500,
-  },
-  credentialRow: {
-    flexDirection: "row",
-    gap: 16,
-    paddingTop: 8,
-  },
-  portrait: {
-    width: 74,
-    height: 94,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.accent300,
-    backgroundColor: colors.primary700,
-  },
-  portraitPlaceholder: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  credentialFields: {
-    flex: 1,
-    paddingRight: 54,
-  },
-  field: {
-    marginBottom: 12,
-  },
-  fieldLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1.3,
-    color: colors.accent300,
-    marginBottom: 3,
-  },
-  fieldValueName: {
-    fontSize: 15.5,
-    fontWeight: "700",
-    lineHeight: 20,
-    color: colors.textWhite,
-  },
-  fieldValueRut: {
-    fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    color: colors.textWhite,
-    fontVariant: ["tabular-nums"],
-  },
-
-  // Sello Didit
-  seal: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    width: 54,
-    alignItems: "center",
-  },
-  sealDisc: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.accent700,
-    borderWidth: 1.5,
-    borderColor: colors.accent300,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 3,
-  },
-  sealCaption: {
-    fontSize: 8.5,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    color: colors.accent200,
-  },
-
-  credentialDivider: {
-    height: 1,
-    backgroundColor: colors.darkBorder,
-    marginTop: 16,
-    marginBottom: 10,
-  },
-  credentialStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-  credentialStatusText: {
-    fontSize: 12.5,
-    fontWeight: "600",
-    color: colors.accent200,
-  },
-
-  // Tarjeta de licencia (superficie clara)
-  licenseCard: {
-    marginTop: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 16,
-  },
-  licenseHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  licenseTitle: {
-    fontSize: 14.5,
-    fontWeight: "700",
-    color: colors.primary700,
-  },
-  badgeLive: {
-    marginLeft: "auto",
-    backgroundColor: colors.accent100,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  badgeLiveText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.accent800,
-  },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-    paddingVertical: 7,
-  },
-  detailLabel: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  detailValue: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  tabular: {
-    fontVariant: ["tabular-nums"],
-  },
-  licenseDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginTop: 8,
-    marginBottom: 10,
-  },
-  licenseNote: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "flex-start",
-  },
-  licenseNoteText: {
-    flex: 1,
-    fontSize: 12.5,
-    lineHeight: 18,
-    color: colors.text,
-  },
-});

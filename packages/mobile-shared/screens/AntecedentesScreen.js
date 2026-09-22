@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, StatusBar, ScrollView, TouchableOpacity, Linking } from "react-native";
+import { View, Text, StatusBar, ScrollView, TouchableOpacity, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
@@ -95,21 +95,29 @@ export function AntecedentesScreen({ onBack }) {
   const bloqueado = datos?.estado === "bloqueado";
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Antecedentes" onBack={onBack} />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+        contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
         showsVerticalScrollIndicator={false}
       >
         {datos ? (
-          <View style={[styles.resumen, datos.estado === "limpio" && styles.resumenOk, bloqueado && styles.resumenMal]}>
-            <Text style={styles.resumenTexto}>{RESUMEN[datos.estado] || RESUMEN.pendiente}</Text>
+          <View
+            className={`border rounded-xl p-3 ${
+              datos.estado === "limpio"
+                ? "bg-emerald-50 border-emerald-200"
+                : bloqueado
+                ? "bg-red-50 border-red-200"
+                : "bg-amber-50 border-amber-200"
+            }`}
+          >
+            <Text className="text-sm font-bold text-text">{RESUMEN[datos.estado] || RESUMEN.pendiente}</Text>
           </View>
         ) : null}
 
-        <Text style={styles.intro}>
+        <Text className="text-sm text-text leading-5">
           Para reservar necesitamos dos certificados oficiales del Registro Civil. Son gratis: se descargan con tu
           ClaveÚnica en registrocivil.cl y se suben aquí en PDF.
         </Text>
@@ -117,21 +125,21 @@ export function AntecedentesScreen({ onBack }) {
           label="Abrir registrocivil.cl"
           variant="secondary"
           fullWidth={false}
-          style={{ alignSelf: "flex-start" }}
+          className="self-start"
           onPress={() => Linking.openURL(URL_REGISTRO_CIVIL)}
         />
 
         <TouchableOpacity
-          style={styles.consentimiento}
+          className="flex-row items-start gap-3"
           onPress={() => setConsiente((v) => !v)}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: consiente }}
           activeOpacity={0.8}
         >
-          <View style={[styles.caja, consiente && styles.cajaMarcada]}>
+          <View className={`w-[22px] h-[22px] rounded-md border-[1.5px] border-primary items-center justify-center mt-0.5 ${consiente ? "bg-primary" : ""}`}>
             {consiente ? <Icon name="check" size={14} color={colors.textWhite} /> : null}
           </View>
-          <Text style={styles.consentimientoTexto}>
+          <Text className="flex-1 text-[12.5px] text-textMuted leading-[18px]">
             Autorizo a Arrienda Tu Auto a revisar estos certificados. Contienen datos personales sensibles: solo los ve
             un ejecutivo y se eliminan del sistema una vez resueltos.
           </Text>
@@ -139,24 +147,24 @@ export function AntecedentesScreen({ onBack }) {
 
         {error ? (
           <Card padded>
-            <Text style={styles.errorTitulo}>{error}</Text>
-            <Button label="Reintentar" variant="secondary" fullWidth={false} onPress={cargar} style={{ alignSelf: "flex-start" }} />
+            <Text className="text-sm text-text mb-2">{error}</Text>
+            <Button label="Reintentar" variant="secondary" fullWidth={false} onPress={cargar} className="self-start" />
           </Card>
         ) : cargando ? (
-          <Text style={styles.cargando}>Cargando…</Text>
+          <Text className="text-sm text-textMuted text-center py-6">Cargando…</Text>
         ) : (
           DOCUMENTOS.map((doc) => {
             const d = porTipo[doc.tipo] || { estado: "sin_subir" };
             const badge = BADGE[d.estado] || BADGE.sin_subir;
             const puedeSubir = d.estado !== "aprobado" && d.estado !== "revision" && !bloqueado;
             return (
-              <Card key={doc.tipo} padded style={{ gap: theme.spacing.sm }}>
-                <View style={styles.filaTitulo}>
-                  <Text style={styles.titulo}>{doc.titulo}</Text>
+              <Card key={doc.tipo} padded className="gap-2">
+                <View className="flex-row items-center justify-between gap-2">
+                  <Text className="flex-1 text-[15px] font-bold text-text">{doc.titulo}</Text>
                   <Badge variant={badge.variant} label={badge.label} />
                 </View>
-                <Text style={styles.ayuda}>{doc.ayuda}</Text>
-                {d.motivo && d.estado === "rechazado" ? <Text style={styles.motivo}>{d.motivo}</Text> : null}
+                <Text className="text-[12.5px] text-textMuted leading-[18px]">{doc.ayuda}</Text>
+                {d.motivo && d.estado === "rechazado" ? <Text className="text-[12.5px] text-red-600 leading-[18px]">{d.motivo}</Text> : null}
                 {puedeSubir ? (
                   <Button
                     label={d.estado === "rechazado" ? "Subir de nuevo" : doc.boton}
@@ -173,38 +181,3 @@ export function AntecedentesScreen({ onBack }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  cargando: { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingVertical: theme.spacing.xl },
-  intro: { fontSize: 14, color: colors.text, lineHeight: 20 },
-  resumen: {
-    backgroundColor: colors.warningBg,
-    borderColor: colors.warningBorder,
-    borderWidth: 1,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.md,
-  },
-  resumenOk: { backgroundColor: colors.successBg, borderColor: colors.successBg },
-  resumenMal: { backgroundColor: colors.dangerBg, borderColor: colors.dangerBg },
-  resumenTexto: { fontSize: 14, fontWeight: "700", color: colors.text },
-  consentimiento: { flexDirection: "row", alignItems: "flex-start", gap: theme.spacing.md },
-  caja: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 1,
-  },
-  cajaMarcada: { backgroundColor: colors.primary },
-  consentimientoTexto: { flex: 1, fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
-  filaTitulo: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
-  titulo: { flex: 1, fontSize: 15, fontWeight: "700", color: colors.text },
-  ayuda: { fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
-  motivo: { fontSize: 12.5, color: colors.dangerText, lineHeight: 18 },
-  errorTitulo: { fontSize: 14, color: colors.text, marginBottom: theme.spacing.sm },
-});

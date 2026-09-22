@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, Modal, ScrollView, TouchableOpacity } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
@@ -74,37 +74,39 @@ export function DateTimeField({
   // [{ fecha_inicio, fecha_fin }] — rangos ya reservados de este auto: sus
   // días salen deshabilitados para no elegir fechas que el backend rechaza.
   rangosBloqueados = [],
+  className = "",
+  style,
 }) {
   const [abierto, setAbierto] = useState(false);
   const valido = value instanceof Date && !isNaN(value);
 
   return (
-    <View style={{ flex: 1, gap: 6 }}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+    <View className={`flex-1 gap-1.5 ${className}`} style={style}>
+      {label ? <Text className="text-xs font-semibold text-textMuted uppercase tracking-wider">{label}</Text> : null}
 
       <TouchableOpacity
-        style={[styles.field, disabled && styles.fieldDisabled]}
+        className={`border-[1.5px] border-border rounded-xl bg-surface px-3 py-2.5 gap-2 ${disabled ? "bg-disabledBg" : ""}`}
         onPress={() => !disabled && setAbierto(true)}
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityLabel={`${label || "Fecha"}: ${valido ? formatearFechaHora(value) : "sin elegir"}`}
       >
-        <View style={styles.fieldRow}>
+        <View className="flex-row items-center gap-2">
           <Icon name="calendar" size={16} color={colors.primary} />
-          <Text style={[styles.fieldText, !valido && styles.fieldPlaceholder]} numberOfLines={1}>
+          <Text className={`flex-1 text-sm font-semibold ${valido ? "text-text" : "text-textPlaceholder font-normal"}`} numberOfLines={1}>
             {valido ? formatearFecha(value) : "Elegir fecha"}
           </Text>
         </View>
-        <View style={styles.fieldRow}>
+        <View className="flex-row items-center gap-2">
           <Icon name="history" size={16} color={colors.primary} />
-          <Text style={[styles.fieldText, !valido && styles.fieldPlaceholder]}>
+          <Text className={`flex-1 text-sm font-semibold ${valido ? "text-text" : "text-textPlaceholder font-normal"}`}>
             {valido ? formatearHora(value) : "--:--"}
           </Text>
           <Icon name="chevron-down" size={14} color={colors.textMuted} />
         </View>
       </TouchableOpacity>
 
-      {helper ? <Text style={styles.helper}>{helper}</Text> : null}
+      {helper ? <Text className="text-xs text-textMuted">{helper}</Text> : null}
 
       <DateTimePickerModal
         visible={abierto}
@@ -225,16 +227,16 @@ export function DateTimePickerModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{title || "Elige fecha y hora"}</Text>
+      <View className="flex-1 bg-[#061e1f]/55 justify-center p-6">
+        <View className="bg-surface rounded-2xl p-4 gap-2 shadow-lg">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-base font-bold text-text">{title || "Elige fecha y hora"}</Text>
             <TouchableOpacity onPress={onCancel} hitSlop={theme.control.hitSlop} accessibilityLabel="Cerrar">
               <Icon name="close" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.monthRow}>
+          <View className="flex-row items-center justify-between py-2">
             <TouchableOpacity
               onPress={() => puedeMesAnterior && setMesVisible(new Date(anio, mes - 1, 1))}
               disabled={!puedeMesAnterior}
@@ -247,7 +249,7 @@ export function DateTimePickerModal({
                 color={puedeMesAnterior ? colors.primary : colors.textDisabled}
               />
             </TouchableOpacity>
-            <Text style={styles.monthLabel}>{MESES[mes]} {anio}</Text>
+            <Text className="text-[15px] font-bold text-text">{MESES[mes]} {anio}</Text>
             <TouchableOpacity
               onPress={() => puedeMesSiguiente && setMesVisible(new Date(anio, mes + 1, 1))}
               disabled={!puedeMesSiguiente}
@@ -262,15 +264,15 @@ export function DateTimePickerModal({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.weekRow}>
+          <View className="flex-row">
             {DIAS_SEMANA.map((d) => (
-              <Text key={d} style={styles.weekday}>{d}</Text>
+              <Text key={d} className="flex-1 text-[11px] font-bold text-textMuted text-center">{d}</Text>
             ))}
           </View>
 
-          <View style={styles.grid}>
+          <View className="flex-row flex-wrap">
             {Array.from({ length: offset }, (_, i) => (
-              <View key={`e${i}`} style={styles.cellEmpty} />
+              <View key={`e${i}`} className="w-[14.28%] h-10" />
             ))}
             {Array.from({ length: diasEnMes }, (_, i) => i + 1).map((dia) => {
               const bloqueado = fechaBloqueada(new Date(anio, mes, dia));
@@ -280,7 +282,9 @@ export function DateTimePickerModal({
               return (
                 <TouchableOpacity
                   key={dia}
-                  style={[styles.cell, elegido && styles.cellSelected, bloqueado && styles.cellBloqueado]}
+                  className={`w-[14.28%] h-10 items-center justify-center rounded-md ${
+                    elegido ? "bg-primary" : bloqueado ? "bg-red-50" : ""
+                  }`}
                   onPress={() => elegirDia(dia)}
                   disabled={!habilitado}
                   activeOpacity={0.8}
@@ -289,13 +293,17 @@ export function DateTimePickerModal({
                   accessibilityState={{ disabled: !habilitado, selected: elegido }}
                 >
                   <Text
-                    style={[
-                      styles.dayNum,
-                      !habilitado && styles.dayDisabled,
-                      bloqueado && styles.dayBloqueado,
-                      elegido && styles.daySelected,
-                      esHoy && !elegido && styles.dayToday,
-                    ]}
+                    className={`text-sm font-semibold ${
+                      elegido
+                        ? "text-white font-extrabold"
+                        : !habilitado
+                        ? "text-gray-300"
+                        : bloqueado
+                        ? "text-red-700 line-through"
+                        : esHoy
+                        ? "text-accent-dark underline"
+                        : "text-text"
+                    }`}
                   >
                     {String(dia)}
                   </Text>
@@ -305,13 +313,13 @@ export function DateTimePickerModal({
           </View>
 
           {hayBloqueadosEsteMes ? (
-            <Text style={styles.leyendaBloqueo}>
+            <Text className="text-[11.5px] text-textMuted mt-1">
               Los días tachados ya están reservados para este auto.
             </Text>
           ) : null}
 
-          <Text style={styles.timeLabel}>Hora</Text>
-          <ScrollView style={styles.timeBox} contentContainerStyle={styles.timeGrid}>
+          <Text className="text-xs font-semibold text-textMuted uppercase tracking-wider mt-2">Hora</Text>
+          <ScrollView className="max-h-[132px]" contentContainerStyle={{ flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 2 }}>
             {horas.map(({ h, m }) => {
               const fecha = conHora(seleccion, h, m);
               const habilitada = horaHabilitada(fecha);
@@ -319,7 +327,9 @@ export function DateTimePickerModal({
               return (
                 <TouchableOpacity
                   key={`${h}-${m}`}
-                  style={[styles.timeChip, elegida && styles.timeChipSelected]}
+                  className={`py-1.5 px-3 rounded-full border border-border bg-surface ${
+                    elegida ? "bg-primary border-primary" : ""
+                  }`}
                   onPress={() => setSeleccion(fecha)}
                   disabled={!habilitada}
                   activeOpacity={0.8}
@@ -327,11 +337,9 @@ export function DateTimePickerModal({
                   accessibilityState={{ disabled: !habilitada, selected: elegida }}
                 >
                   <Text
-                    style={[
-                      styles.timeText,
-                      !habilitada && styles.dayDisabled,
-                      elegida && styles.timeTextSelected,
-                    ]}
+                    className={`text-[13px] font-semibold ${
+                      elegida ? "text-white" : !habilitada ? "text-gray-300" : "text-text"
+                    }`}
                   >
                     {dosDigitos(h)}:{dosDigitos(m)}
                   </Text>
@@ -340,8 +348,8 @@ export function DateTimePickerModal({
             })}
           </ScrollView>
 
-          <View style={styles.sheetFooter}>
-            <Text style={styles.resumen} numberOfLines={1}>{formatearFechaHora(seleccion)}</Text>
+          <View className="flex-row items-center justify-between gap-3 mt-2 pt-3 border-t border-border">
+            <Text className="flex-1 text-[13px] font-semibold text-textMuted" numberOfLines={1}>{formatearFechaHora(seleccion)}</Text>
             <Button
               label="Confirmar"
               size="sm"
@@ -355,92 +363,3 @@ export function DateTimePickerModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  label: { ...theme.typography.label, color: colors.textMuted },
-  field: {
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  fieldDisabled: { backgroundColor: colors.disabledBg, borderColor: colors.border },
-  fieldRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  fieldText: { flex: 1, fontSize: 14, fontWeight: "600", color: colors.text },
-  fieldPlaceholder: { color: colors.textPlaceholder, fontWeight: "400" },
-  helper: { fontSize: 12, color: colors.textMuted },
-
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(6,30,31,0.55)",
-    justifyContent: "center",
-    padding: theme.spacing.xl,
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.sm,
-    ...theme.shadow.lg,
-  },
-  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sheetTitle: { ...theme.typography.heading, color: colors.text },
-
-  monthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: theme.spacing.sm,
-  },
-  monthLabel: { fontSize: 15, fontWeight: "700", color: colors.text },
-
-  weekRow: { flexDirection: "row" },
-  weekday: { flex: 1, fontSize: 11, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
-  grid: { flexDirection: "row", flexWrap: "wrap" },
-  cellEmpty: { width: `${100 / 7}%`, height: 40 },
-  cell: {
-    width: `${100 / 7}%`,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.sm,
-  },
-  cellSelected: { backgroundColor: colors.primary },
-  cellBloqueado: { backgroundColor: colors.dangerBg },
-  dayNum: { fontSize: 14, fontWeight: "600", color: colors.text },
-  daySelected: { color: colors.textWhite, fontWeight: "800" },
-  dayDisabled: { color: colors.textDisabled },
-  dayBloqueado: { color: colors.dangerText, textDecorationLine: "line-through" },
-  dayToday: { color: colors.accentDark, textDecorationLine: "underline" },
-  leyendaBloqueo: { fontSize: 11.5, color: colors.textMuted, marginTop: 4 },
-
-  timeLabel: { ...theme.typography.label, color: colors.textMuted, marginTop: theme.spacing.sm },
-  timeBox: { maxHeight: 132 },
-  timeGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm, paddingVertical: 2 },
-  timeChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  timeChipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  timeText: { fontSize: 13, fontWeight: "600", color: colors.text },
-  timeTextSelected: { color: colors.textWhite },
-
-  sheetFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  resumen: { flex: 1, fontSize: 13, fontWeight: "600", color: colors.textMuted },
-});

@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 
 /**
@@ -9,30 +8,19 @@ import { Icon } from "./Icon";
  * a la vista mientras la persona corrige el formulario. Se anuncia como alerta
  * y lleva ícono, así que no depende solo del rojo para entenderse.
  */
-export function AlertaInline({ titulo, mensaje, testID }) {
+export function AlertaInline({ titulo, mensaje, testID, className = "", style }) {
   return (
-    <View testID={testID} style={styles.caja} accessibilityRole="alert">
+    <View
+      testID={testID}
+      className={`flex-row items-start gap-2 p-3 rounded-xl border border-red-200 bg-red-50 ${className}`}
+      style={style}
+      accessibilityRole="alert"
+    >
       <Icon name="alert" size={16} color={colors.dangerText} />
-      <View style={styles.textos}>
-        <Text style={styles.titulo}>{titulo}</Text>
-        <Text style={styles.mensaje}>{mensaje}</Text>
+      <View className="flex-1">
+        <Text className="text-[13px] leading-[18px] font-bold text-red-700">{titulo}</Text>
+        <Text className="text-[13px] leading-[18px] text-red-700">{mensaje}</Text>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  caja: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: theme.spacing.sm,
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.dangerBorder,
-    backgroundColor: colors.dangerBg,
-  },
-  textos: { flex: 1 },
-  titulo: { ...theme.typography.callout, fontWeight: "700", color: colors.dangerText },
-  mensaje: { ...theme.typography.callout, color: colors.dangerText },
-});

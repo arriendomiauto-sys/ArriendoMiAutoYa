@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Modal, View, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, Image } from "react-native";
+import { Modal, View, TouchableOpacity, ScrollView, useWindowDimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 let GestureDetector = null;
 let Gesture = null;
@@ -131,8 +131,8 @@ function FotoConGestosInterno({ uri, width, height, onZoomChange, onDismiss }) {
 
   return (
     <GestureDetector gesture={gestoCompuesto}>
-      <Animated.View style={[{ width, height }, styles.slide, estiloAnimado]}>
-        <Image source={{ uri }} style={styles.imagen} resizeMode="contain" />
+      <Animated.View className="items-center justify-center" style={[{ width, height }, estiloAnimado]}>
+        <Image source={{ uri }} className="w-full h-full" resizeMode="contain" />
       </Animated.View>
     </GestureDetector>
   );
@@ -140,8 +140,8 @@ function FotoConGestosInterno({ uri, width, height, onZoomChange, onDismiss }) {
 
 function FotoSimple({ uri, width, height }) {
   return (
-    <View style={[{ width, height }, styles.slide]}>
-      <Image source={{ uri }} style={styles.imagen} resizeMode="contain" />
+    <View className="items-center justify-center" style={{ width, height }}>
+      <Image source={{ uri }} className="w-full h-full" resizeMode="contain" />
     </View>
   );
 }
@@ -175,9 +175,10 @@ export function PhotoViewer({ visible, photos, initialIndex = 0, onClose }) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.overlay}>
+      <View className="flex-1 bg-primary-950">
         <TouchableOpacity
-          style={[styles.cerrar, { top: insets.top + 12 }]}
+          className="absolute right-4 z-10 w-[38px] h-[38px] rounded-full bg-white/15 items-center justify-center"
+          style={{ top: insets.top + 12 }}
           onPress={onClose}
           hitSlop={theme.control.hitSlop}
           accessibilityRole="button"
@@ -208,9 +209,12 @@ export function PhotoViewer({ visible, photos, initialIndex = 0, onClose }) {
         </ScrollView>
 
         {fotos.length > 1 && (
-          <View style={styles.dots}>
+          <View className="absolute bottom-7 left-0 right-0 flex-row justify-center gap-1.5">
             {fotos.map((_, i) => (
-              <View key={i} style={[styles.dot, i === indiceActivo ? styles.dotOn : styles.dotOff]} />
+              <View
+                key={i}
+                className={`h-1.5 rounded-full ${i === indiceActivo ? "w-5 bg-white" : "w-1.5 bg-white/60"}`}
+              />
             ))}
           </View>
         )}
@@ -218,24 +222,3 @@ export function PhotoViewer({ visible, photos, initialIndex = 0, onClose }) {
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: colors.primary900 },
-  cerrar: {
-    position: "absolute",
-    right: theme.spacing.screen,
-    zIndex: 1,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  slide: { alignItems: "center", justifyContent: "center" },
-  imagen: { width: "100%", height: "100%" },
-  dots: { position: "absolute", bottom: 28, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 6 },
-  dot: { height: 6, borderRadius: 999 },
-  dotOn: { width: 20, backgroundColor: "#FFFFFF" },
-  dotOff: { width: 6, backgroundColor: "rgba(255,255,255,0.6)" },
-});

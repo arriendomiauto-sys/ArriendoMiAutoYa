@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors } from "../../theme/colors";
 import { BackButton } from "../../components/ui";
 import { DocumentCameraModal } from "../../components/DocumentCameraModal";
 import { SelfieLivenessModal } from "../../components/SelfieLivenessModal";
@@ -47,12 +46,12 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
   const documentCaptureOpen = captureSlot === "id_front" || captureSlot === "id_back" || captureSlot === "license";
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Cabecera común con botón para volver */}
-      <View style={styles.navBar}>
+      <View className="h-[52px] flex-row items-center justify-between px-4 border-b border-border bg-surface">
         <BackButton onPress={onBack || (() => setCurrentStep("didit_activation"))} />
-        <Text style={styles.navTitle}>Verificación de cuenta</Text>
-        <View style={{ width: 40 }} />
+        <Text className="text-base font-bold text-text">Verificación de cuenta</Text>
+        <View className="w-10" />
       </View>
 
       {/* Renderizado condicional por paso */}
@@ -103,25 +102,3 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  navBar: {
-    height: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  navTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-  },
-});

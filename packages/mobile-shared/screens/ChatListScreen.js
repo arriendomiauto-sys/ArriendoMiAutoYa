@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Badge, EmptyState, ScreenHeader } from "../components/ui";
 import { ApiClient } from "../api/client";
@@ -29,51 +28,65 @@ function tiempoRelativo(iso) {
   const d = Math.round(h / 24);
   if (d === 1) return "ayer";
   if (d < 7) return `${d} d`;
-  return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
+  const fecha = new Date(iso);
+  return fecha.toLocaleDateString("es-CL", { day: "numeric", month: "short" });
 }
 
 /**
- * Lista de conversaciones por reserva. La usan tanto el dueño como el
- * arrendatario — `rol` decide de quién son las reservas que se piden y el
- * texto vacío.
- *
- * No hay un endpoint único de "conversaciones": se cruza el resumen de
- * mensajes (`/reservas/mensajes/resumen` — última línea + no leídos) con las
- * reservas del usuario, para pintar la lista con vista previa sin abrir cada
- * chat.
+ * Lista de conversaciones activas asociadas a las reservas del usuario.
+ * Tanto dueño como arrendatario ven una fila por reserva confirmada o activa.
  */
-export function ChatListScreen({ rol = "owner", onSelectReserva, onBack }) {
+export function ChatListScreen({ rol = "renter", onSelectReserva, onBack }) {
   const insets = useSafeAreaInsets();
-  // El resumen (última línea + no leídos) viene del hook, que se mantiene al
-  // día con el poll de notificaciones — así la lista se refresca sola si llega
-  // un mensaje mientras está abierta.
-  const { conversaciones, refrescar: refrescarResumen } = useConversaciones();
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
+
+  // Hook que mantiene en memoria el último mensaje y el conteo de no-leídos
+  // por reserva, y se entera vía Socket.IO en tiempo real.
+  const { conversaciones, refrescar: refrescarResumen } = useConversaciones();
 
   const rolBackend = rol === "owner" ? "dueno" : "cliente";
 
   const cargarReservas = useCallback(async () => {
     try {
-      const data = await ApiClient.getReservas(rolBackend);
+      let data = [];
+      if (typeof ApiClient.getReservas === "function") {
+        data = await ApiClient.getReservas(rolBackend);
+      } else {
+        // Las reservas activas y confirmadas son las que tienen chat habilitado.
+        const endpoint = rol === "owner" ? "/reservas/owner" : "/reservas/mis-reservas";
+        const res = await ApiClient.get(endpoint);
+        if (res.ok && Array.isArray(res.data)) {
+          data = res.data;
+        }
+      }
       setReservas((data || []).filter((r) => r.estado !== "cancelada"));
     } catch {
+      // El usuario puede refrescar tirando de la lista si falla.
       setReservas([]);
     } finally {
       setLoading(false);
       setRefrescando(false);
     }
-  }, [rolBackend]);
+  }, [rol, rolBackend]);
 
   useEffect(() => {
     cargarReservas();
   }, [cargarReservas]);
 
+  // Cruzamos las reservas con el resumen del chat. Ordenamos:
+  // 1) las que tienen mensaje más reciente primero
+  // 2) el resto por fecha de inicio de reserva
   const items = useMemo(() => {
-    const porReserva = Object.fromEntries((conversaciones || []).map((r) => [r.reserva_id, r]));
-    const lista = reservas.map((r) => ({ ...r, _resumen: porReserva[r.id] || null }));
-    // Con mensajes primero, por el más reciente; el resto por fecha de inicio.
+    const porReserva = Array.isArray(conversaciones)
+      ? Object.fromEntries(conversaciones.map((r) => [r.reserva_id, r]))
+      : (conversaciones || {});
+
+    const lista = reservas.map((r) => ({
+      ...r,
+      _resumen: porReserva[r.id] || null,
+    }));
     lista.sort((a, b) => {
       const ta = a._resumen?.ultimo_timestamp;
       const tb = b._resumen?.ultimo_timestamp;
@@ -105,30 +118,34 @@ export function ChatListScreen({ rol = "owner", onSelectReserva, onBack }) {
       : "Sin mensajes aún · toca para coordinar";
 
     return (
-      <TouchableOpacity style={styles.card} onPress={() => onSelectReserva(item)} activeOpacity={0.8}>
-        <View style={styles.avatar}>
+      <TouchableOpacity
+        className="flex-row items-center gap-3 bg-surface rounded-2xl p-3.5 border border-border shadow-sm active:opacity-80"
+        onPress={() => onSelectReserva(item)}
+        activeOpacity={0.8}
+      >
+        <View className="w-[42px] h-[42px] rounded-full bg-primary-100 items-center justify-center">
           <Icon name="user" size={18} color={colors.primary} />
           {noLeidos > 0 ? (
-            <View style={styles.dot}>
-              <Text style={styles.dotText} allowFontScaling={false}>
+            <View className="absolute -top-[3px] -right-[3px] min-w-[18px] h-[18px] rounded-full px-1 bg-danger border-2 border-background items-center justify-center">
+              <Text className="text-[10px] font-bold text-white" allowFontScaling={false}>
                 {noLeidos > 9 ? "9+" : noLeidos}
               </Text>
             </View>
           ) : null}
         </View>
-        <View style={{ flex: 1, gap: 3 }}>
-          <View style={styles.cardHead}>
-            <Text style={styles.carName} numberOfLines={1}>
+        <View className="flex-1 gap-1">
+          <View className="flex-row items-center justify-between gap-2">
+            <Text className="text-[15px] font-bold text-textDark flex-1" numberOfLines={1}>
               {nombre}
             </Text>
             {r?.ultimo_timestamp ? (
-              <Text style={styles.time}>{tiempoRelativo(r.ultimo_timestamp)}</Text>
+              <Text className="text-xs text-textMuted">{tiempoRelativo(r.ultimo_timestamp)}</Text>
             ) : badge ? (
               <Badge variant={badge.variant} label={badge.label} />
             ) : null}
           </View>
           <Text
-            style={[styles.preview, noLeidos > 0 && styles.previewFuerte]}
+            className={`text-[13px] ${noLeidos > 0 ? "text-textDark font-semibold" : "text-textMuted"}`}
             numberOfLines={1}
           >
             {preview}
@@ -140,7 +157,7 @@ export function ChatListScreen({ rol = "owner", onSelectReserva, onBack }) {
   };
 
   return (
-    <View style={[styles.screen, { paddingTop: Math.max(insets.top, 12) }]}>
+    <View className="flex-1 bg-background" style={{ paddingTop: Math.max(insets.top, 12) }}>
       <ScreenHeader
         title="Mensajes"
         subtitle={
@@ -152,12 +169,12 @@ export function ChatListScreen({ rol = "owner", onSelectReserva, onBack }) {
       />
 
       {loading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.primary} className="mt-10" />
       ) : (
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refrescando} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -179,47 +196,3 @@ export function ChatListScreen({ rol = "owner", onSelectReserva, onBack }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  listContent: { paddingHorizontal: theme.spacing.screen, gap: theme.spacing.sm },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...theme.shadow.sm,
-  },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dot: {
-    position: "absolute",
-    top: -3,
-    right: -3,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    backgroundColor: colors.danger,
-    borderWidth: 2,
-    borderColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dotText: { fontSize: 10, fontWeight: "700", color: "#FFFFFF" },
-  cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
-  carName: { fontSize: 15, fontWeight: "700", color: colors.text, flex: 1 },
-  time: { fontSize: 12, color: colors.textMuted },
-  preview: { fontSize: 13, color: colors.textMuted },
-  previewFuerte: { color: colors.text, fontWeight: "600" },
-});

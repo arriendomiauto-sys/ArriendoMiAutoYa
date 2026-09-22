@@ -229,7 +229,7 @@ export function MyQRCodeScreen({ reservation, onBack }) {
 
         {/* Ficha Resumen del Vehículo y Entrega */}
         {reservation && (
-          <Card padded style={{ gap: 12 }}>
+          <Card padded className="gap-3">
             <View className="flex-row items-center gap-2 pb-1 border-b border-border">
               <Icon name="car" size={18} color="#0F766E" />
               <Text className="text-sm font-bold text-textDark">Detalles de la reserva</Text>

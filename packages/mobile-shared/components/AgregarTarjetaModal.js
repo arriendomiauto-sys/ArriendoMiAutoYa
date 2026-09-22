@@ -2,7 +2,6 @@ import React from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   Modal,
   KeyboardAvoidingView,
@@ -11,7 +10,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 import { Button, Chip } from "./ui";
 import { FormularioTarjeta, validarFormularioTarjeta } from "./FormularioTarjeta";
@@ -137,14 +135,14 @@ export function AgregarTarjetaModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.overlay}
+        className="flex-1 bg-slate-900/80 justify-end"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, theme.spacing.xxl) }]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <Text style={styles.title}>Agregar tarjeta</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={theme.control.hitSlop}>
+        <View className="bg-surface rounded-t-3xl max-h-[92%] p-6 pb-8 gap-2" style={{ paddingBottom: Math.max(insets?.bottom || 0, 32) }}>
+          <View className="w-10 h-1 rounded-full bg-border self-center" />
+          <View className="flex-row items-center justify-between pb-2">
+            <Text className="text-lg font-extrabold text-textDark">Agregar tarjeta</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} className="p-1">
               <Icon name="close" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
@@ -152,12 +150,12 @@ export function AgregarTarjetaModal({
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: theme.spacing.md, gap: theme.spacing.md }}
+            contentContainerStyle={{ paddingBottom: 16, gap: 16 }}
           >
             {modoPrueba ? (
-              <View style={styles.pruebaNota}>
+              <View className="flex-row items-center gap-2 bg-amber-50 rounded-xl p-3">
                 <Icon name="alert" size={15} color={colors.warningText} />
-                <Text style={styles.pruebaNotaTexto}>
+                <Text className="flex-1 text-[12.5px] text-amber-800 leading-[17px]">
                   {puedeContactarMP
                     ? "Modo prueba: usa una tarjeta de prueba de Mercado Pago."
                     : "Modo prueba sin pasarela: se guarda una tarjeta simulada."}
@@ -171,9 +169,9 @@ export function AgregarTarjetaModal({
               titular={tarjeta.nombre || nombreTitular}
             />
 
-            <View style={{ gap: 6 }}>
-              <Text style={styles.tipoLabel}>Tipo de tarjeta</Text>
-              <View style={styles.tipoRow}>
+            <View className="gap-1.5">
+              <Text className="text-xs font-bold text-textMuted tracking-wider">Tipo de tarjeta</Text>
+              <View className="flex-row gap-2">
                 <Chip
                   label="Crédito"
                   selected={tipoManual === "credito"}
@@ -186,14 +184,14 @@ export function AgregarTarjetaModal({
                 />
               </View>
               {detectada ? (
-                <View style={styles.detectada}>
+                <View className="flex-row items-center self-start gap-1.5 bg-accent-100 rounded-full py-0.5 px-2.5">
                   <Icon name="check" size={13} color={colors.accentText} />
-                  <Text style={styles.detectadaTexto}>
+                  <Text className="text-[11.5px] font-semibold text-accent-800">
                     {detectada === "credito" ? "Crédito" : "Débito"} · detectado
                   </Text>
                 </View>
               ) : null}
-              <Text style={styles.tipoAyuda}>
+              <Text className="text-[11.5px] text-textMuted leading-[15px]">
                 {tipoManual === "credito"
                   ? "Crédito: se usa para la garantía retenida (hold) y el arriendo."
                   : "Débito: se usa para el cobro del arriendo."}
@@ -201,9 +199,9 @@ export function AgregarTarjetaModal({
             </View>
 
             {errorRemoto ? (
-              <View style={styles.errorRemoto}>
+              <View className="flex-row items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
                 <Icon name="alert" size={16} color={colors.dangerText} />
-                <Text style={styles.errorRemotoTexto}>{errorRemoto.mensaje}</Text>
+                <Text className="flex-1 text-[12.5px] text-red-700 leading-[17px]">{errorRemoto.mensaje}</Text>
               </View>
             ) : null}
 
@@ -221,16 +219,16 @@ export function AgregarTarjetaModal({
               nombreTitular={nombreTitular}
             />
             {puedeContactarMP ? (
-              <View style={styles.nota}>
+              <View className="flex-row items-start gap-2">
                 <Icon name="shield" size={14} color={colors.accentDark} />
-                <Text style={styles.notaTexto}>
+                <Text className="flex-1 text-[11.5px] text-textMuted leading-4">
                   Tus datos viajan directo a Mercado Pago. Nuestros servidores solo reciben un código de un solo uso.
                 </Text>
               </View>
             ) : null}
           </ScrollView>
 
-          <View style={styles.footer}>
+          <View className="gap-2 pt-2">
             <Button label="Guardar tarjeta" onPress={guardar} loading={guardando} />
             <Button variant="ghost" label="Cancelar" onPress={onClose} disabled={guardando} />
           </View>
@@ -239,61 +237,3 @@ export function AgregarTarjetaModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.8)", justifyContent: "flex-end" },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.lg,
-    borderTopRightRadius: theme.radius.lg,
-    maxHeight: "92%",
-    padding: theme.spacing.xl,
-    paddingBottom: theme.spacing.xxl,
-    gap: theme.spacing.sm,
-  },
-  handle: { width: 40, height: 4, borderRadius: 999, backgroundColor: colors.border, alignSelf: "center" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingBottom: theme.spacing.sm,
-  },
-  title: { fontSize: 18, fontWeight: "800", color: colors.text },
-  pruebaNota: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    backgroundColor: colors.warningBg,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.md,
-  },
-  pruebaNotaTexto: { flex: 1, fontSize: 12.5, color: colors.warningText, lineHeight: 17 },
-  tipoLabel: { fontSize: 12, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.4 },
-  tipoRow: { flexDirection: "row", gap: theme.spacing.sm },
-  tipoAyuda: { fontSize: 11.5, color: colors.textMuted, lineHeight: 15 },
-  detectada: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 5,
-    backgroundColor: colors.accentMuted,
-    borderRadius: theme.radius.pill,
-    paddingVertical: 3,
-    paddingHorizontal: 10,
-  },
-  detectadaTexto: { fontSize: 11.5, fontWeight: "600", color: colors.accentText },
-  nota: { flexDirection: "row", alignItems: "flex-start", gap: theme.spacing.sm },
-  notaTexto: { flex: 1, fontSize: 11.5, color: colors.textMuted, lineHeight: 16 },
-  errorRemoto: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: theme.spacing.sm,
-    backgroundColor: colors.dangerBg,
-    borderColor: colors.dangerBorder,
-    borderWidth: 1,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.md,
-  },
-  errorRemotoTexto: { flex: 1, fontSize: 12.5, color: colors.dangerText, lineHeight: 17 },
-  footer: { gap: theme.spacing.sm, paddingTop: theme.spacing.sm },
-});

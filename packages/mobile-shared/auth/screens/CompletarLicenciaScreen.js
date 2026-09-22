@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
@@ -157,18 +156,18 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
 
   if (enRevision) {
     return (
-      <View style={styles.container}>
-        <View style={styles.center}>
-          <View style={styles.clockCircle}>
+      <View className="flex-1 bg-surface px-5 pt-4">
+        <View className="flex-1 items-center justify-center gap-4">
+          <View className="w-[72px] h-[72px] rounded-full bg-amber-100 items-center justify-center">
             <Icon name="clock" size={36} color="#D97706" />
           </View>
-          <Text style={styles.titulo}>Tu licencia está en revisión</Text>
-          <Text style={styles.sub}>
+          <Text className="text-[21px] font-bold text-gray-900 text-center">Tu licencia está en revisión</Text>
+          <Text className="text-sm text-gray-500 text-center leading-[21px] px-2">
             Ya recibimos tu licencia. Un ejecutivo la está revisando — te avisamos
             apenas puedas reservar.
           </Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={onDone}>
-            <Text style={styles.primaryBtnText}>Entendido</Text>
+          <TouchableOpacity className="w-full h-[54px] rounded-xl bg-primary-700 items-center justify-center" onPress={onDone}>
+            <Text className="text-white text-base font-bold">Entendido</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -177,24 +176,26 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      className="flex-1 bg-surface px-5 pt-4"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <BackButton onPress={onCancel} style={styles.backBtn} />
+      <BackButton onPress={onCancel} className="self-start mb-2" />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.iconCircle}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 48, alignItems: "center", gap: 16 }} keyboardShouldPersistTaps="handled">
+        <View className="w-[68px] h-[68px] rounded-full bg-accent-500 items-center justify-center mt-2">
           <Icon name="camera" size={30} color="#FFFFFF" />
         </View>
-        <Text style={styles.titulo}>Valida tu licencia para arrendar</Text>
-        <Text style={styles.sub}>
+        <Text className="text-[21px] font-bold text-gray-900 text-center">Valida tu licencia para arrendar</Text>
+        <Text className="text-sm text-gray-500 text-center leading-[21px] px-2">
           Tu identidad ya está verificada. Solo falta tu licencia de conducir —
           fotografíala completa, plana y sin reflejos.
         </Text>
 
-        <View style={styles.card}>
+        <View className="w-full bg-white rounded-2xl border border-gray-200 p-4 gap-3">
           <TouchableOpacity
-            style={[styles.docSlot, licenciaUrl && styles.docSlotDone]}
+            className={`flex-row items-center gap-2.5 border-[1.5px] rounded-xl px-3.5 py-3.5 ${
+              licenciaUrl ? "border-accent-500 bg-accent-500/10" : "border-gray-200"
+            }`}
             onPress={() => escanearSlot("licencia")}
             disabled={subiendo || enviando}
             activeOpacity={0.85}
@@ -204,18 +205,18 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
               size={18}
               color={licenciaUrl ? colors.accent : colors.primary}
             />
-            <Text style={styles.docSlotText}>
+            <Text className="flex-1 text-sm font-semibold text-gray-900">
               {licenciaUrl ? "Licencia capturada" : "Fotografiar licencia de conducir"}
             </Text>
           </TouchableOpacity>
 
           {esExtranjero && (
             <>
-              <View style={styles.grupo}>
-                <Text style={styles.label}>PAÍS QUE EMITIÓ LA LICENCIA (2 LETRAS)</Text>
-                <View style={styles.inputBox}>
+              <View className="gap-1.5">
+                <Text className="text-[11px] font-semibold tracking-wider text-gray-500 uppercase">PAÍS QUE EMITIÓ LA LICENCIA (2 LETRAS)</Text>
+                <View className="h-12 border-[1.5px] border-gray-200 rounded-lg bg-surface px-3.5 justify-center">
                   <TextInput
-                    style={styles.input}
+                    className="text-[15px] text-gray-900"
                     value={paisLicencia}
                     onChangeText={(t) => setPaisLicencia(t.toUpperCase().slice(0, 2))}
                     placeholder="Ej. AR"
@@ -227,31 +228,35 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
               </View>
 
               <TouchableOpacity
-                style={[styles.docSlot, esResidente && styles.docSlotDone]}
+                className={`flex-row items-center gap-2.5 border-[1.5px] rounded-xl px-3.5 py-3.5 ${
+                  esResidente ? "border-accent-500 bg-accent-500/10" : "border-gray-200"
+                }`}
                 onPress={() => setEsResidente((v) => !v)}
                 activeOpacity={0.85}
               >
                 <Icon name={esResidente ? "check" : "shield"} size={18} color={colors.primary} />
-                <Text style={styles.docSlotText}>
+                <Text className="flex-1 text-sm font-semibold text-gray-900">
                   {esResidente ? "Soy residente en Chile ✓" : "¿Eres residente en Chile?"}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.docSlot, picUrl && styles.docSlotDone]}
+                className={`flex-row items-center gap-2.5 border-[1.5px] rounded-xl px-3.5 py-3.5 ${
+                  picUrl ? "border-accent-500 bg-accent-500/10" : "border-gray-200"
+                }`}
                 onPress={() => escanearSlot("pic")}
                 disabled={subiendo || enviando}
                 activeOpacity={0.85}
               >
                 <Icon name={picUrl ? "check" : "camera"} size={18} color={colors.primary} />
-                <Text style={styles.docSlotText}>
+                <Text className="flex-1 text-sm font-semibold text-gray-900">
                   {picUrl
                     ? "Permiso Internacional capturado"
                     : "Agregar Permiso Internacional (PIC), si tu país lo requiere"}
                 </Text>
               </TouchableOpacity>
 
-              <Text style={styles.nota}>
+              <Text className="text-xs leading-[17px] text-gray-500">
                 Si tu país no adhirió al Convenio de Viena, además de la licencia
                 necesitas el PIC vigente. Un ejecutivo lo confirma.
               </Text>
@@ -260,14 +265,16 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
         </View>
 
         {subiendo ? (
-          <View style={styles.subiendoRow}>
+          <View className="flex-row items-center gap-2">
             <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={styles.subiendoText}>Subiendo…</Text>
+            <Text className="text-[13px] text-gray-500">Subiendo…</Text>
           </View>
         ) : null}
 
         <TouchableOpacity
-          style={[styles.primaryBtn, (!licenciaUrl || enviando || subiendo) && styles.primaryBtnOff]}
+          className={`w-full h-[54px] rounded-xl bg-primary-700 items-center justify-center ${
+            !licenciaUrl || enviando || subiendo ? "opacity-50" : ""
+          }`}
           onPress={enviar}
           disabled={!licenciaUrl || enviando || subiendo}
           activeOpacity={0.85}
@@ -275,7 +282,7 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
           {enviando ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.primaryBtnText}>Validar licencia</Text>
+            <Text className="text-white text-base font-bold">Validar licencia</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -297,87 +304,3 @@ export function CompletarLicenciaScreen({ onDone, onCancel }) {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 20, paddingTop: 16 },
-  backBtn: { alignSelf: "flex-start", marginBottom: 8 },
-  scroll: { paddingBottom: 48, alignItems: "center", gap: 16 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
-  iconCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.accent500,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
-  },
-  clockCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#FEF3C7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  titulo: { fontSize: 21, fontWeight: "700", color: colors.text, textAlign: "center" },
-  sub: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: "center",
-    lineHeight: 21,
-    paddingHorizontal: 8,
-  },
-  card: {
-    width: "100%",
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    gap: 12,
-  },
-  docSlot: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  docSlotDone: { borderColor: colors.accent500, backgroundColor: colors.accent500 + "12" },
-  docSlotText: { flex: 1, fontSize: 14, fontWeight: "600", color: colors.text },
-  grupo: { gap: 6 },
-  label: {
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 0.6,
-    color: colors.textMuted,
-    textTransform: "uppercase",
-  },
-  inputBox: {
-    height: 48,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 10,
-    backgroundColor: colors.background,
-    paddingHorizontal: 14,
-    justifyContent: "center",
-  },
-  input: { fontSize: 15, color: colors.text },
-  nota: { fontSize: 12, lineHeight: 17, color: colors.textMuted },
-  subiendoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  subiendoText: { fontSize: 13, color: colors.textMuted },
-  primaryBtn: {
-    width: "100%",
-    height: 54,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  primaryBtnOff: { opacity: 0.5 },
-  primaryBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
-});

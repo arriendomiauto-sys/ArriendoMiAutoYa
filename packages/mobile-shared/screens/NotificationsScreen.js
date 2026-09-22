@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, RefreshControl } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { useApp } from "../context/AppContext";
 import { Icon } from "../components/Icon";
 import { ScreenHeader, Chip, EmptyState } from "../components/ui";
@@ -32,9 +31,7 @@ function tiempoRelativo(iso) {
 
 export function NotificationsScreen({ onBack, onSelectNotification, variant = "renter" }) {
   const { notifications, cargarNotificaciones, markNotificationAsRead, clearAllNotifications } = useApp();
-  // El dueño ya no tiene tema oscuro: misma base clara para los dos roles.
   const tone = "light";
-  const dark = false;
   const [filter, setFilter] = useState("todas");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -56,7 +53,7 @@ export function NotificationsScreen({ onBack, onSelectNotification, variant = "r
   const unread = notifications.filter((n) => !n.leido).length;
 
   return (
-    <View style={[styles.container, { backgroundColor: dark ? colors.darkBg : colors.background }]}>
+    <View className="flex-1 bg-background">
       <ScreenHeader
         tone={tone}
         title="Notificaciones"
@@ -64,8 +61,8 @@ export function NotificationsScreen({ onBack, onSelectNotification, variant = "r
         onBack={onBack}
         right={
           unread > 0 ? (
-            <TouchableOpacity onPress={clearAllNotifications} style={[styles.markAll, dark && styles.markAllDark]}>
-              <Text style={[styles.markAllText, { color: dark ? colors.accent : colors.primary }]}>
+            <TouchableOpacity onPress={clearAllNotifications} className="py-1.5 px-2.5 rounded-lg bg-primary-100">
+              <Text className="text-xs font-bold text-primary">
                 Marcar leídas
               </Text>
             </TouchableOpacity>
@@ -73,7 +70,7 @@ export function NotificationsScreen({ onBack, onSelectNotification, variant = "r
         }
       />
 
-      <View style={styles.filters}>
+      <View className="flex-row gap-2 px-4 pb-3">
         {FILTROS.map((f) => (
           <Chip key={f.id} tone={tone} label={f.label} selected={filter === f.id} onPress={() => setFilter(f.id)} />
         ))}
@@ -82,42 +79,38 @@ export function NotificationsScreen({ onBack, onSelectNotification, variant = "r
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 8 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={dark ? colors.accent : colors.primary}
+            tintColor={colors.primary}
           />
         }
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={[
-              styles.card,
-              { backgroundColor: dark ? colors.darkCard : colors.surface, borderColor: dark ? colors.darkBorder : colors.border },
-              !item.leido && { borderColor: dark ? colors.accent : colors.primary },
-            ]}
+            className={`flex-row gap-3 p-3.5 rounded-2xl border bg-surface ${item.leido ? "border-border" : "border-primary"}`}
             onPress={() => {
               markNotificationAsRead(item.id);
               onSelectNotification?.(item);
             }}
             activeOpacity={0.8}
           >
-            <View style={[styles.icon, { backgroundColor: dark ? colors.darkCardSubtle : colors.primary100 }]}>
-              <Icon name={ICONO_TIPO[item.tipo] || "bell"} size={17} color={dark ? colors.accent : colors.primary} />
+            <View className="w-[38px] h-[38px] rounded-xl items-center justify-center bg-primary-100">
+              <Icon name={ICONO_TIPO[item.tipo] || "bell"} size={17} color={colors.primary} />
             </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <View style={styles.cardHead}>
-                <Text style={[styles.cardTitle, { color: dark ? colors.textWhite : colors.text }]} numberOfLines={1}>
+            <View className="flex-1 gap-1">
+              <View className="flex-row items-center gap-1.5">
+                <Text className="text-sm font-bold flex-1 text-textDark" numberOfLines={1}>
                   {item.titulo}
                 </Text>
-                {!item.leido ? <View style={styles.dot} /> : null}
+                {!item.leido ? <View className="w-2 h-2 rounded-full bg-accent" /> : null}
               </View>
-              <Text style={[styles.cardMsg, { color: dark ? colors.textSilver : colors.textMuted }]}>
+              <Text className="text-[13px] leading-[18px] text-textMuted">
                 {item.mensaje}
               </Text>
-              <Text style={styles.cardDate}>{tiempoRelativo(item.creado_en)}</Text>
+              <Text className="text-[11px] text-textMuted font-medium mt-0.5">{tiempoRelativo(item.creado_en)}</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -133,30 +126,3 @@ export function NotificationsScreen({ onBack, onSelectNotification, variant = "r
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  markAll: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: theme.radius.sm, backgroundColor: colors.primary100 },
-  markAllDark: { backgroundColor: colors.darkCard },
-  markAllText: { fontSize: 12, fontWeight: "700" },
-  filters: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.screen,
-    paddingBottom: theme.spacing.md,
-  },
-  list: { paddingHorizontal: theme.spacing.screen, paddingBottom: theme.spacing.xxxl, gap: theme.spacing.sm },
-  card: {
-    flexDirection: "row",
-    gap: theme.spacing.md,
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-  },
-  icon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  cardHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-  cardTitle: { fontSize: 14, fontWeight: "700", flex: 1 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
-  cardMsg: { fontSize: 13, lineHeight: 18 },
-  cardDate: { fontSize: 11, color: colors.textMuted, fontWeight: "500", marginTop: 2 },
-});

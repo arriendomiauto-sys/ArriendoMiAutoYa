@@ -141,7 +141,7 @@ export function ActiveRentalScreen({
               Falta elegir tarjetas y confirmar el pago para asegurar tu reserva.
             </Text>
           </View>
-          <Card padded style={{ width: "100%", gap: 12 }}>
+          <Card padded className="w-full gap-3">
             <Row label="Auto" value={nombre} />
             <Row label="Fechas" value={`${fechaHora(res.fecha_inicio)} → ${fechaHora(res.fecha_fin)}`} />
             <Row label="Garantía (hold)" value={`$${montoHold.toLocaleString("es-CL")}`} strong />
@@ -170,18 +170,18 @@ export function ActiveRentalScreen({
 
   // ------------------------------------------------- ESPERANDO AL DUEÑO
   if (view === "waiting") {
-    const plazo = res.confirmar_dueno_antes_de;
+    const plazo = res.plazo_confirmacion_dueno || res.confirmar_dueno_antes_de;
     return (
       <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Tu reserva" onBack={onBack} />
         <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
-          <View className="items-center gap-2">
-            <View className="w-[68px] h-[68px] rounded-full bg-amber-50 items-center justify-center">
-              <Icon name="clock" size={32} color="#F59E0B" />
-            </View>
+          <View className="w-[68px] h-[68px] rounded-full bg-amber-50 items-center justify-center self-center mt-4">
+            <Icon name="clock" size={32} color="#F59E0B" />
+          </View>
+          <View className="items-center gap-1.5 px-4">
             <Text className="text-xl font-bold text-textDark text-center">Esperando la confirmación del dueño</Text>
-            <Text className="text-[15px] text-textMuted leading-[22px] text-center">
+            <Text className="text-[14px] text-textMuted leading-[21px] text-center">
               {plazo
                 ? `El dueño tiene hasta ${fechaHora(plazo)} para confirmar.`
                 : "El dueño tiene 24 horas para confirmar."}{" "}
@@ -189,14 +189,14 @@ export function ActiveRentalScreen({
             </Text>
           </View>
 
-          <Card padded style={{ gap: 10 }}>
+          <Card padded className="gap-2.5">
             <Row label="Auto" value={nombre} />
             <Row label="Fechas" value={`${fechaHora(res.fecha_inicio)} → ${fechaHora(res.fecha_fin)}`} />
             <Row label="Estado" value="Esperando al dueño" warn />
           </Card>
 
           {res.cobro?.monto ? (
-            <Card padded style={{ gap: 10 }}>
+            <Card padded className="gap-2.5">
               <SectionLabel>Resumen del pago</SectionLabel>
               <Row label="Cobrado hoy" value={clp(res.cobro.monto)} strong />
               <Row label="Garantía retenida" value={clp(res.garantia?.monto ?? res.monto_hold)} />
@@ -243,7 +243,7 @@ export function ActiveRentalScreen({
           </View>
           <Text className="text-xl font-bold text-textDark text-center">Reserva cancelada</Text>
           <Text className="text-[15px] text-textMuted leading-[22px] text-center">{motivo}</Text>
-          <Card padded style={{ width: "100%", gap: 12 }}>
+          <Card padded className="w-full gap-3">
             <Row label="Auto" value={nombre} />
             <Row label="Fechas" value={`${fechaHora(res.fecha_inicio)} → ${fechaHora(res.fecha_fin)}`} />
           </Card>
@@ -270,7 +270,7 @@ export function ActiveRentalScreen({
 
           {/* Resumen del pago: solo si la reserva trae el desglose del cobro */}
           {res.cobro?.monto ? (
-            <Card padded style={{ gap: 10 }}>
+            <Card padded className="gap-2.5">
               <SectionLabel>Resumen del pago</SectionLabel>
               <Row label="Cobrado hoy" value={clp(res.cobro.monto)} strong />
               <Row label="Garantía retenida" value={clp(res.garantia?.monto ?? res.monto_hold)} />
@@ -289,7 +289,7 @@ export function ActiveRentalScreen({
             const dentroDe24h = msHastaRetiro !== null && msHastaRetiro <= 24 * 3600000;
 
             return (
-              <Card padded style={{ gap: 8, backgroundColor: res.precheck_cliente_confirmado ? "#CCFBF1" : "#FFFFFF" }}>
+              <Card padded className={`gap-2 ${res.precheck_cliente_confirmado ? "bg-teal-100" : "bg-white"}`}>
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center gap-2">
                     <Icon name="check" size={18} color={res.precheck_cliente_confirmado ? "#115E59" : "#64748B"} />
@@ -322,13 +322,13 @@ export function ActiveRentalScreen({
             );
           })()}
 
-          <Card padded style={{ gap: 12 }}>
+          <Card padded className="gap-3">
             <SectionLabel>Punto de encuentro</SectionLabel>
             <View className="h-[140px] rounded-xl overflow-hidden bg-teal-50 items-center justify-center">
               {MapView ? (
                 <MapView
-                  style={{ width: "100%", height: "100%" }}
                   className="w-full h-full"
+                  style={{ width: "100%", height: "100%" }}
                   initialRegion={{
                     latitude: Number(res.lugar_entrega_lat || car.latitud || -37.4697),
                     longitude: Number(res.lugar_entrega_lng || car.longitud || -72.3536),
@@ -375,11 +375,11 @@ export function ActiveRentalScreen({
           </Card>
 
           <Card padded className="flex-row items-center gap-3">
-            <View className="w-11 h-11 rounded-full bg-slate-100 items-center justify-center">
+            <View className="w-11 h-11 rounded-full bg-slate-100 items-center justify-center overflow-hidden">
               {duenoFoto && !ownerFotoError ? (
                 <Image
                   source={{ uri: duenoFoto }}
-                  style={{ width: 44, height: 44, borderRadius: 22 }}
+                  className="w-11 h-11 rounded-full"
                   onError={() => setOwnerFotoError(true)}
                 />
               ) : (
@@ -394,7 +394,7 @@ export function ActiveRentalScreen({
           </Card>
 
           {/* Segundo Conductor */}
-          <Card padded style={{ gap: 6 }}>
+          <Card padded className="gap-1.5">
             <View className="flex-row justify-between items-center">
               <View className="flex-row items-center gap-2">
                 <Icon name="user" size={18} color="#0F766E" />
@@ -435,7 +435,7 @@ export function ActiveRentalScreen({
               size="sm"
               label={res.segundo_conductor ? "Gestionar segundo conductor" : "+ Asignar segundo conductor"}
               onPress={() => setModalSegundoConductor(true)}
-              style={{ marginTop: 4 }}
+              className="mt-1"
             />
           </Card>
 
@@ -517,7 +517,7 @@ export function ActiveRentalScreen({
         })()}
 
         {res.estado === "en_curso" && (
-          <Card padded style={{ gap: 6, backgroundColor: "#F0FDF4", borderColor: "#0F766E", borderWidth: 1 }}>
+          <Card padded className="gap-1.5 bg-green-50 border border-teal-700">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-2">
                 <Icon name="pin" size={18} color="#0F766E" />
@@ -538,7 +538,7 @@ export function ActiveRentalScreen({
 
         {/* Resumen: fechas, garantía y cualquier cargo aplicado, todo en una
             sola tarjeta — antes eran dos (o tres) apiladas por separado. */}
-        <Card padded style={{ gap: 12 }}>
+        <Card padded className="gap-3">
           <Row label="Retiro" value={fechaHora(res.fecha_inicio)} />
           <Row label="Devolución" value={fechaHora(res.fecha_fin)} />
           <View className="h-px bg-border" />

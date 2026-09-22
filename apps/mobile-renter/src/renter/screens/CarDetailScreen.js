@@ -456,7 +456,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                       size="sm"
                       value={promedioResenas || dueno?.rating || car?.rating_promedio}
                       count={calificaciones.length || dueno?.viajes || car?.rating_cantidad}
-                      style={{ marginTop: 4 }}
+                      className="mt-1"
                     />
                   ) : null}
                 </View>
@@ -478,7 +478,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             iconRight="arrow-right"
             onPress={() => setStep("dates")}
             fullWidth={false}
-            style={{ flex: 1 }}
+            className="flex-1"
           />
         </View>
 
@@ -534,7 +534,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
         {/* Desglose — el arriendo SE COBRA (IVA incl., ya en la tarifa); la
             garantía es un hold aparte que no se cobra. */}
-        <Card padded style={{ gap: 12 }}>
+        <Card padded className="gap-3">
           <View className="flex-row justify-between items-center">
             <Text className="text-[15px] text-textMuted">Arriendo · {dias} {dias === 1 ? "día" : "días"}</Text>
             <Text className="text-[15px] text-textDark font-medium">{precioCLP(subtotalNeto)}</Text>

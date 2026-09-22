@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   TouchableOpacity,
   TextInput,
@@ -11,7 +10,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
 import { ApiClient } from "../api/client";
@@ -75,33 +73,33 @@ export function RatingModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={cerrar}>
       <KeyboardAvoidingView
-        style={styles.overlay}
+        className="flex-1 bg-slate-900/65 justify-end"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <View style={styles.iconCircle}>
+        <View className="bg-surface rounded-t-3xl" style={{ paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }}>
+          <View className="w-10 h-1 rounded-full bg-borderDark self-center mt-2.5 mb-0.5" />
+          <View className="flex-row items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
+            <View className="w-11 h-11 rounded-full bg-accent-100 items-center justify-center">
               <Icon name="star" size={22} color={colors.accent700} fill={colors.accent700} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Califica tu arriendo</Text>
-              <Text style={styles.subtitle}>
+            <View className="flex-1">
+              <Text className="text-lg font-bold text-textDark">Califica tu arriendo</Text>
+              <Text className="text-[13px] text-textMuted mt-0.5">
                 {destinatarioNombre ? `¿Cómo te fue con ${destinatarioNombre}?` : "¿Cómo te fue?"}
               </Text>
             </View>
-            <TouchableOpacity onPress={cerrar} hitSlop={theme.control.hitSlop} style={styles.closeBtn}>
+            <TouchableOpacity onPress={cerrar} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} className="p-1">
               <Icon name="close" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.body}>
-            <View style={styles.starsRow}>
+          <View className="p-4 gap-4">
+            <View className="flex-row justify-center gap-3">
               {[1, 2, 3, 4, 5].map((n) => (
                 <TouchableOpacity
                   key={n}
                   onPress={() => setPuntaje(n)}
-                  hitSlop={theme.control.hitSlop}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   accessibilityRole="button"
                   accessibilityLabel={`${n} estrella${n === 1 ? "" : "s"}`}
                 >
@@ -116,13 +114,14 @@ export function RatingModal({
             </View>
 
             <TextInput
-              style={styles.input}
+              className="border border-border rounded-xl p-3 text-sm text-textDark min-h-[80px]"
               placeholder="Cuéntanos cómo te fue (opcional)"
               placeholderTextColor={colors.textMuted}
               value={comentario}
               onChangeText={setComentario}
               multiline
               numberOfLines={3}
+              style={{ textAlignVertical: "top" }}
             />
 
             <Button label="Enviar calificación" onPress={enviar} loading={enviando} />
@@ -132,58 +131,3 @@ export function RatingModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(10, 15, 29, 0.65)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.xl,
-    borderTopRightRadius: theme.radius.xl,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderDark,
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 2,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { fontSize: 18, fontWeight: "700", color: colors.text },
-  subtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  closeBtn: { padding: 4 },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  starsRow: { flexDirection: "row", justifyContent: "center", gap: theme.spacing.md },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.md,
-    fontSize: 14,
-    color: colors.text,
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-});

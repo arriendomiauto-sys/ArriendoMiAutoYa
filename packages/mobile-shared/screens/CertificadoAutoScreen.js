@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, StatusBar, ScrollView, TouchableOpacity, Linking } from "react-native";
+import { View, Text, StatusBar, ScrollView, TouchableOpacity, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Button, Card, ScreenHeader, Badge } from "../components/ui";
 import { ApiClient } from "../api/client";
@@ -58,32 +57,32 @@ export function CertificadoAutoScreen({ auto, onBack }) {
   const badge = resultado ? BADGE[resultado.estado] || BADGE.revision : null;
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Verificar mi auto" onBack={onBack} />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+        contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.auto}>
+        <Text className="text-xl font-extrabold text-text">
           {auto.marca} {auto.modelo}
         </Text>
-        <Text style={styles.patente}>{auto.patente}</Text>
+        <Text className="text-sm font-bold text-textMuted -mt-2">{auto.patente}</Text>
 
         {estaAprobado ? (
-          <Card padded style={styles.cardAprobado}>
-            <View style={styles.filaTitulo}>
+          <Card padded className="bg-emerald-50 border border-emerald-200 gap-2">
+            <View className="flex-row items-center gap-2">
               <Icon name="check" size={20} color={colors.accentDark} />
-              <Text style={styles.tituloAprobado}>Documento validado y aprobado</Text>
+              <Text className="text-[15px] font-bold text-accent-dark flex-1">Documento validado y aprobado</Text>
             </View>
-            <Text style={styles.textoAprobado}>
+            <Text className="text-[13px] text-emerald-800 leading-[18px]">
               Este vehículo ya cuenta con su verificación aprobada. La opción para volver a subir o modificar este certificado ha quedado invalidada.
             </Text>
           </Card>
         ) : (
           <>
-            <Text style={styles.intro}>
+            <Text className="text-sm text-text leading-5">
               Para ofrecer tu auto necesitamos el Certificado de anotaciones vigentes del Registro Civil: muestra que la patente
               es tuya y que no tiene prohibiciones ni embargos. Se descarga en registrocivil.cl con tu ClaveÚnica.
             </Text>
@@ -91,12 +90,12 @@ export function CertificadoAutoScreen({ auto, onBack }) {
               label="Abrir registrocivil.cl"
               variant="secondary"
               fullWidth={false}
-              style={{ alignSelf: "flex-start" }}
+              className="self-start"
               onPress={() => Linking.openURL(URL_REGISTRO_CIVIL)}
             />
 
             <TouchableOpacity
-              style={styles.consentimiento}
+              className="flex-row items-start gap-3"
               onPress={() => {
                 if (!estaAprobado) setConsiente((v) => !v);
               }}
@@ -105,10 +104,10 @@ export function CertificadoAutoScreen({ auto, onBack }) {
               activeOpacity={estaAprobado ? 1 : 0.8}
               disabled={estaAprobado}
             >
-              <View style={[styles.caja, consiente && styles.cajaMarcada]}>
+              <View className={`w-[22px] h-[22px] rounded-md border-[1.5px] border-primary items-center justify-center mt-0.5 ${consiente ? "bg-primary" : ""}`}>
                 {consiente ? <Icon name="check" size={14} color={colors.textWhite} /> : null}
               </View>
-              <Text style={styles.consentimientoTexto}>
+              <Text className="flex-1 text-[12.5px] text-textMuted leading-[18px]">
                 Autorizo a Arrienda Tu Auto a revisar este certificado. Solo lo ve un ejecutivo y se elimina del sistema una vez
                 resuelto.
               </Text>
@@ -125,14 +124,14 @@ export function CertificadoAutoScreen({ auto, onBack }) {
         />
 
         {resultado && !yaValidado ? (
-          <Card padded style={{ gap: theme.spacing.sm }}>
-            <View style={styles.filaTitulo}>
-              <Text style={styles.titulo}>Certificado de anotaciones</Text>
+          <Card padded className="gap-2">
+            <View className="flex-row items-center justify-between gap-2">
+              <Text className="flex-1 text-[15px] font-bold text-text">Certificado de anotaciones</Text>
               <Badge variant={badge.variant} label={badge.label} />
             </View>
-            {resultado.motivo ? <Text style={styles.motivo}>{resultado.motivo}</Text> : null}
+            {resultado.motivo ? <Text className="text-[12.5px] text-text leading-[18px]">{resultado.motivo}</Text> : null}
             {resultado.estado === "revision" ? (
-              <Text style={styles.nota}>
+              <Text className="text-[12.5px] text-textMuted leading-[18px]">
                 Un ejecutivo lo revisa y consulta el encargo por robo de la patente. Te avisamos cuando tu auto quede
                 verificado.
               </Text>
@@ -143,45 +142,3 @@ export function CertificadoAutoScreen({ auto, onBack }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  auto: { fontSize: 20, fontWeight: "800", color: colors.text },
-  patente: { fontSize: 14, fontWeight: "700", color: colors.textMuted, marginTop: -theme.spacing.sm },
-  intro: { fontSize: 14, color: colors.text, lineHeight: 20 },
-  consentimiento: { flexDirection: "row", alignItems: "flex-start", gap: theme.spacing.md },
-  caja: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 1,
-  },
-  cajaMarcada: { backgroundColor: colors.primary },
-  consentimientoTexto: { flex: 1, fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
-  filaTitulo: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
-  titulo: { flex: 1, fontSize: 15, fontWeight: "700", color: colors.text },
-  motivo: { fontSize: 12.5, color: colors.text, lineHeight: 18 },
-  nota: { fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
-  cardAprobado: {
-    backgroundColor: "#ECFDF5",
-    borderColor: "#A7F3D0",
-    borderWidth: 1,
-    gap: theme.spacing.sm,
-  },
-  tituloAprobado: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.accentDark,
-    flex: 1,
-  },
-  textoAprobado: {
-    fontSize: 13,
-    color: "#065F46",
-    lineHeight: 18,
-  },
-});

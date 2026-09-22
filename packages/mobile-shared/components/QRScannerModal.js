@@ -3,7 +3,6 @@ import {
   Modal,
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   useWindowDimensions,
   ActivityIndicator,
@@ -14,7 +13,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 import { hapticoExito } from "../utils/haptics";
 
@@ -102,48 +100,48 @@ export function QRScannerModal({
 
     if (!permission) {
       return (
-        <View style={styles.center}>
+        <View className="flex-1 items-center justify-center px-8 bg-[#0A0F1D]">
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Iniciando cámara...</Text>
+          <Text className="text-[#94A3B8] text-[15px] font-medium mt-3.5">Iniciando cámara...</Text>
         </View>
       );
     }
 
     if (!permission.granted) {
       return (
-        <View style={styles.center}>
-          <View style={styles.permIconCircle}>
+        <View className="flex-1 items-center justify-center px-8 bg-[#0A0F1D]">
+          <View className="w-20 h-20 rounded-full bg-blue-600/15 border border-blue-600/30 items-center justify-center mb-4">
             <Icon name="camera" size={40} color={colors.primary} />
           </View>
-          <Text style={styles.permTitle}>Permiso de cámara necesario</Text>
-          <Text style={styles.permText}>
+          <Text className="text-white text-xl font-bold text-center mb-2">Permiso de cámara necesario</Text>
+          <Text className="text-[#94A3B8] text-sm text-center leading-[21px] max-w-[300px] mb-6">
             Para validar la entrega de forma instantánea, necesitamos acceso a la cámara de tu
             dispositivo para escanear el código QR.
           </Text>
           <TouchableOpacity
-            style={styles.permBtn}
+            className="bg-primary-700 px-7 py-3.5 rounded-xl w-full max-w-[280px] items-center shadow-lg shadow-primary-700/30"
             onPress={requestPermission}
             activeOpacity={0.85}
           >
-            <Text style={styles.permBtnText}>Habilitar cámara</Text>
+            <Text className="text-white font-bold text-[15px]">Habilitar cámara</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={cerrar}
-            style={styles.permCancelBtn}
+            className="flex-row items-center mt-4.5 py-2"
             activeOpacity={0.7}
           >
             <Icon name="edit" size={16} color="#94A3B8" style={{ marginRight: 6 }} />
-            <Text style={styles.permCancel}>Escribir código de 8 caracteres a mano</Text>
+            <Text className="text-[#94A3B8] text-sm font-medium underline">Escribir código de 8 caracteres a mano</Text>
           </TouchableOpacity>
         </View>
       );
     }
 
     return (
-      <View style={styles.flex}>
+      <View className="flex-1">
         <CameraView
           key={visible ? "qr-camera-live" : "qr-camera-closed"}
-          style={StyleSheet.absoluteFill}
+          className="absolute inset-0"
           facing="back"
           enableTorch={torch}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
@@ -151,59 +149,55 @@ export function QRScannerModal({
         />
 
         {/* Máscara de oscurecimiento 4 lados */}
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View className="absolute inset-0" pointerEvents="box-none">
           {/* Parte superior */}
-          <View style={[styles.maskDim, { flex: 1 }]} />
+          <View className="bg-[rgba(10,15,29,0.76)] flex-1" />
 
           {/* Fila central con visor */}
           <View style={{ flexDirection: "row", height: WINDOW_SIZE }}>
-            <View style={[styles.maskDim, { flex: 1 }]} />
+            <View className="bg-[rgba(10,15,29,0.76)] flex-1" />
 
             {/* Recuadro de Enfoque */}
             <View
-              style={[
-                styles.reticleWindow,
-                { width: WINDOW_SIZE, height: WINDOW_SIZE },
-              ]}
+              className="rounded-3xl overflow-hidden relative border border-white/15 bg-transparent"
+              style={{ width: WINDOW_SIZE, height: WINDOW_SIZE }}
             >
               {/* 4 esquinas de alta visibilidad */}
-              <View style={[styles.corner, styles.cornerTL]} />
-              <View style={[styles.corner, styles.cornerTR]} />
-              <View style={[styles.corner, styles.cornerBL]} />
-              <View style={[styles.corner, styles.cornerBR]} />
+              <View className="absolute w-8 h-8 border-primary-700 top-[-1px] left-[-1px] border-t-[4.5px] border-l-[4.5px] rounded-tl-[22px]" />
+              <View className="absolute w-8 h-8 border-primary-700 top-[-1px] right-[-1px] border-t-[4.5px] border-r-[4.5px] rounded-tr-[22px]" />
+              <View className="absolute w-8 h-8 border-primary-700 bottom-[-1px] left-[-1px] border-b-[4.5px] border-l-[4.5px] rounded-bl-[22px]" />
+              <View className="absolute w-8 h-8 border-primary-700 bottom-[-1px] right-[-1px] border-b-[4.5px] border-r-[4.5px] rounded-br-[22px]" />
 
               {/* Punto y cruz central sutil */}
-              <View style={styles.centerCrosshair}>
-                <View style={styles.crosshairH} />
-                <View style={styles.crosshairV} />
+              <View className="absolute top-1/2 left-1/2 w-5 h-5 -ml-2.5 -mt-2.5 items-center justify-center opacity-30">
+                <View className="absolute w-4 h-[1.5px] bg-white" />
+                <View className="absolute h-4 w-[1.5px] bg-white" />
               </View>
 
               {/* Láser de escaneo animado */}
               <Animated.View
-                style={[
-                  styles.laserContainer,
-                  {
-                    transform: [{ translateY: laserTranslateY }],
-                  },
-                ]}
+                className="absolute left-2 right-2 h-[18px] justify-center"
+                style={{
+                  transform: [{ translateY: laserTranslateY }],
+                }}
               >
-                <View style={styles.laserBeam} />
-                <View style={styles.laserGlow} />
+                <View className="h-[2.5px] bg-primary-700 rounded-sm shadow-lg shadow-primary-700" />
+                <View className="absolute left-0 right-0 h-3.5 bg-primary-700 opacity-20 rounded-full" />
               </Animated.View>
             </View>
 
-            <View style={[styles.maskDim, { flex: 1 }]} />
+            <View className="bg-[rgba(10,15,29,0.76)] flex-1" />
           </View>
 
           {/* Parte inferior */}
-          <View style={[styles.maskDim, { flex: 1.35 }]} />
+          <View className="bg-[rgba(10,15,29,0.76)]" style={{ flex: 1.35 }} />
         </View>
 
         {/* Barra superior flotante */}
-        <View style={[styles.topBar, { top: insets.top + 8 }]}>
+        <View className="absolute left-4 right-4 flex-row items-center justify-between" style={{ top: insets.top + 8 }}>
           <TouchableOpacity
             onPress={cerrar}
-            style={styles.actionCircleBtn}
+            className="w-11 h-11 rounded-full bg-slate-900/70 border border-white/15 items-center justify-center"
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Cerrar escáner"
@@ -211,19 +205,23 @@ export function QRScannerModal({
             <Icon name="close" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <View style={styles.topTitlesContainer}>
-            <Text style={styles.topMainTitle} numberOfLines={1}>
+          <View className="flex-1 items-center px-3">
+            <Text className="text-white text-base font-bold tracking-tight" numberOfLines={1}>
               {titulo}
             </Text>
-            <View style={styles.topSubtitleBadge}>
-              <View style={styles.liveIndicatorDot} />
-              <Text style={styles.topSubtitleText}>Escáner activo</Text>
+            <View className="flex-row items-center bg-slate-900/60 px-2.5 py-[3px] rounded-xl mt-1 border border-white/10">
+              <View className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />
+              <Text className="text-[#94A3B8] text-[11px] font-semibold">Escáner activo</Text>
             </View>
           </View>
 
           <TouchableOpacity
             onPress={() => setTorch((prev) => !prev)}
-            style={[styles.actionCircleBtn, torch && styles.actionCircleBtnTorchOn]}
+            className={`w-11 h-11 rounded-full border items-center justify-center ${
+              torch
+                ? "bg-amber-500/25 border-amber-500 shadow-md shadow-amber-500/60"
+                : "bg-slate-900/70 border-white/15"
+            }`}
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel={torch ? "Apagar linterna" : "Encender linterna"}
@@ -239,25 +237,23 @@ export function QRScannerModal({
 
         {/* Barra inferior flotante */}
         <View
-          style={[
-            styles.bottomControls,
-            { bottom: Math.max(insets.bottom, 16) + 16 },
-          ]}
+          className="absolute left-5 right-5 items-center gap-3"
+          style={{ bottom: Math.max(insets.bottom, 16) + 16 }}
         >
-          <View style={styles.hintBubble}>
+          <View className="flex-row items-center bg-slate-900/80 px-4 py-2.5 rounded-full border border-white/15 max-w-[92%]">
             <Icon name="sparkles" size={16} color={colors.primary} style={{ marginRight: 6 }} />
-            <Text style={styles.hintText}>{hint}</Text>
+            <Text className="text-slate-100 text-[13px] font-medium text-center shrink">{hint}</Text>
           </View>
 
           <TouchableOpacity
-            style={styles.manualEntryBtn}
+            className="flex-row items-center justify-center px-5 py-3 rounded-xl bg-white/15 border border-white/30 w-full max-w-[290px]"
             onPress={cerrar}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel="Ingresar código manual"
           >
             <Icon name="edit" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.manualEntryText}>Ingresar código a mano</Text>
+            <Text className="text-white text-sm font-semibold tracking-wide">Ingresar código a mano</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -273,303 +269,9 @@ export function QRScannerModal({
       transparent={false}
     >
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <View style={[styles.root, { width: SCREEN_W, height: SCREEN_H }]}>
+      <View className="flex-1 bg-[#0A0F1D]" style={{ width: SCREEN_W, height: SCREEN_H }}>
         {renderContenido()}
       </View>
     </Modal>
   );
 }
-
-const DIM_COLOR = "rgba(10, 15, 29, 0.76)";
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#0A0F1D",
-  },
-  flex: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    backgroundColor: "#0A0F1D",
-  },
-  loadingText: {
-    color: "#94A3B8",
-    fontSize: 15,
-    fontWeight: "500",
-    marginTop: 14,
-  },
-
-  // Pantalla de Permiso
-  permIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(37, 99, 235, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(37, 99, 235, 0.3)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  permTitle: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  permText: {
-    color: "#94A3B8",
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 21,
-    maxWidth: 300,
-    marginBottom: 24,
-  },
-  permBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: theme.radius.field || 12,
-    width: "100%",
-    maxWidth: 280,
-    alignItems: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  permBtnText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  permCancelBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 18,
-    paddingVertical: 8,
-  },
-  permCancel: {
-    color: "#94A3B8",
-    fontSize: 14,
-    fontWeight: "500",
-    textDecorationLine: "underline",
-  },
-
-  // Máscaras y Visor
-  maskDim: {
-    backgroundColor: DIM_COLOR,
-  },
-  reticleWindow: {
-    borderRadius: 24,
-    overflow: "hidden",
-    position: "relative",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    backgroundColor: "transparent",
-  },
-  corner: {
-    position: "absolute",
-    width: 32,
-    height: 32,
-    borderColor: colors.primary,
-  },
-  cornerTL: {
-    top: -1,
-    left: -1,
-    borderTopWidth: 4.5,
-    borderLeftWidth: 4.5,
-    borderTopLeftRadius: 22,
-  },
-  cornerTR: {
-    top: -1,
-    right: -1,
-    borderTopWidth: 4.5,
-    borderRightWidth: 4.5,
-    borderTopRightRadius: 22,
-  },
-  cornerBL: {
-    bottom: -1,
-    left: -1,
-    borderBottomWidth: 4.5,
-    borderLeftWidth: 4.5,
-    borderBottomLeftRadius: 22,
-  },
-  cornerBR: {
-    bottom: -1,
-    right: -1,
-    borderBottomWidth: 4.5,
-    borderRightWidth: 4.5,
-    borderBottomRightRadius: 22,
-  },
-
-  // Punto y cruz central
-  centerCrosshair: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    width: 20,
-    height: 20,
-    marginLeft: -10,
-    marginTop: -10,
-    alignItems: "center",
-    justifyContent: "center",
-    opacity: 0.3,
-  },
-  crosshairH: {
-    position: "absolute",
-    width: 16,
-    height: 1.5,
-    backgroundColor: "#FFFFFF",
-  },
-  crosshairV: {
-    position: "absolute",
-    height: 16,
-    width: 1.5,
-    backgroundColor: "#FFFFFF",
-  },
-
-  // Haz Láser de Escaneo
-  laserContainer: {
-    position: "absolute",
-    left: 8,
-    right: 8,
-    height: 18,
-    justifyContent: "center",
-  },
-  laserBeam: {
-    height: 2.5,
-    backgroundColor: colors.primary,
-    borderRadius: 2,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  laserGlow: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: 14,
-    backgroundColor: colors.primary,
-    opacity: 0.18,
-    borderRadius: 7,
-  },
-
-  // Barra Superior
-  topBar: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  topTitlesContainer: {
-    flex: 1,
-    alignItems: "center",
-    paddingHorizontal: 12,
-  },
-  topMainTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  topSubtitleBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.6)",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-  },
-  liveIndicatorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#10B981",
-    marginRight: 6,
-  },
-  topSubtitleText: {
-    color: "#94A3B8",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  actionCircleBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(15, 23, 42, 0.7)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionCircleBtnTorchOn: {
-    backgroundColor: "rgba(245, 158, 11, 0.25)",
-    borderColor: "#F59E0B",
-    shadowColor: "#F59E0B",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-
-  // Barra Inferior
-  bottomControls: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    alignItems: "center",
-    gap: 12,
-  },
-  hintBubble: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.8)",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.14)",
-    maxWidth: "92%",
-  },
-  hintText: {
-    color: "#F1F5F9",
-    fontSize: 13,
-    fontWeight: "500",
-    textAlign: "center",
-    flexShrink: 1,
-  },
-  manualEntryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 22,
-    paddingVertical: 13,
-    borderRadius: theme.radius.field || 12,
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
-    width: "100%",
-    maxWidth: 290,
-  },
-  manualEntryText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-  },
-});

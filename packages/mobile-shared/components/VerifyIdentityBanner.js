@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 
 /**
@@ -13,68 +12,31 @@ import { Icon } from "./Icon";
  * flotante. Superficie pino oscuro con hairline menta, igual que los
  * bloques de seguridad del KYC.
  */
-export function VerifyIdentityBanner({ onPress, role = "renter" }) {
+export function VerifyIdentityBanner({ onPress, role = "renter", className = "", style }) {
   return (
     <TouchableOpacity
-      style={styles.banner}
+      className={`flex-row items-center gap-3 bg-primary-900 rounded-2xl p-3.5 overflow-hidden relative ${className}`}
+      style={style}
       onPress={onPress}
       activeOpacity={0.9}
       accessibilityRole="button"
       accessibilityLabel="Verifica tu identidad"
     >
-      <View style={styles.hairline} />
-      <View style={styles.iconTile}>
+      <View className="absolute top-0 left-3.5 right-3.5 h-[1px] bg-accent-500" />
+      <View className="w-[34px] h-[34px] rounded-xl bg-accent-500/20 items-center justify-center">
         <Icon name="shield" size={16} color={colors.accent500} />
       </View>
-      <View style={styles.body}>
-        <Text style={styles.title}>Verifica tu identidad</Text>
-        <Text style={styles.desc}>
+      <View className="flex-1">
+        <Text className="text-sm font-semibold text-white">Verifica tu identidad</Text>
+        <Text className="text-[12.5px] text-accent-200 mt-0.5 leading-[17px]">
           {role === "owner"
             ? "Toma unos minutos y te habilita para publicar"
             : "Toma unos minutos y te habilita para reservar"}
         </Text>
       </View>
-      <View style={styles.cta}>
-        <Text style={styles.ctaText}>Empezar</Text>
+      <View className="px-3 py-2 rounded-full bg-accent-500">
+        <Text className="text-[13px] font-bold text-primary-900">Empezar</Text>
       </View>
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.primary900,
-    borderRadius: theme.radius.card,
-    padding: 14,
-    overflow: "hidden",
-  },
-  hairline: {
-    position: "absolute",
-    top: 0,
-    left: 14,
-    right: 14,
-    height: 1,
-    backgroundColor: colors.accent500,
-  },
-  iconTile: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "rgba(47,191,155,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  body: { flex: 1 },
-  title: { fontSize: 14, fontWeight: "600", color: colors.textWhite },
-  desc: { fontSize: 12.5, color: colors.accent200, marginTop: 2, lineHeight: 17 },
-  cta: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: colors.accent500,
-  },
-  ctaText: { fontSize: 13, fontWeight: "700", color: colors.primary900 },
-});

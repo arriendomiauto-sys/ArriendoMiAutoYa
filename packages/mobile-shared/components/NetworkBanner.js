@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, StyleSheet, Text } from "react-native";
+import { Animated, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 
 /**
@@ -35,44 +34,18 @@ export function NetworkBanner({ visible }) {
   return (
     <Animated.View
       pointerEvents="none"
-      style={[
-        styles.banner,
-        {
-          top: insets.top + theme.spacing.sm,
-          opacity,
-          transform: [{ translateY }],
-        },
-      ]}
+      className="absolute left-4 right-4 z-[999] flex-row items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl py-2.5 px-3.5 shadow-md"
+      style={{
+        top: insets.top + 8,
+        opacity,
+        transform: [{ translateY }],
+      }}
       accessibilityLiveRegion="polite"
     >
       <Icon name="alert-triangle" size={16} color={colors.warningText} />
-      <Text style={styles.text}>Sin conexión a internet. Los cambios se sincronizarán al reconectar.</Text>
+      <Text className="flex-1 text-[12.5px] font-semibold text-amber-900 leading-[17px]">
+        Sin conexión a internet. Los cambios se sincronizarán al reconectar.
+      </Text>
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  banner: {
-    position: "absolute",
-    left: theme.spacing.lg,
-    right: theme.spacing.lg,
-    zIndex: 999,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: colors.warningBg,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    borderRadius: theme.radius.card,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    ...theme.shadow.md,
-  },
-  text: {
-    flex: 1,
-    fontSize: 12.5,
-    fontWeight: "600",
-    color: colors.warningText,
-    lineHeight: 17,
-  },
-});

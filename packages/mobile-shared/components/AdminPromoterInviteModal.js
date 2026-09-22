@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Modal,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
   Share,
@@ -11,7 +10,6 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 import { Button } from "./ui";
 import { ApiClient } from "../api/client";
@@ -83,24 +81,24 @@ export function AdminPromoterInviteModal({ visible, onClose }) {
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
+      <View className="flex-1 bg-black/50 justify-end">
+        <View className="bg-white rounded-t-3xl max-h-[85%] pb-6">
           {/* Header */}
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.titulo}>Invitar Promotores</Text>
-              <Text style={styles.subtitulo}>
+          <View className="flex-row items-center px-5 pt-5 pb-3.5 border-b border-slate-100">
+            <View className="flex-1">
+              <Text className="text-lg font-extrabold text-slate-900">Invitar Promotores</Text>
+              <Text className="text-[13px] text-slate-500 mt-0.5">
                 Genera códigos de un solo uso para nombrar nuevos promotores.
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.btnCerrar}>
+            <TouchableOpacity onPress={onClose} className="p-2 rounded-full bg-slate-50">
               <Icon name="x" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          <ScrollView className="px-5 pt-4" showsVerticalScrollIndicator={false}>
             {/* Botón Acción Principal */}
-            <View style={styles.actionCard}>
+            <View className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mb-4">
               <Button
                 label={generando ? "Generando código..." : "Generar invitación de Promotor"}
                 iconLeft="plus"
@@ -108,76 +106,74 @@ export function AdminPromoterInviteModal({ visible, onClose }) {
                 onPress={generarCodigo}
                 disabled={generando}
               />
-              <Text style={styles.actionAviso}>
+              <Text className="text-xs text-slate-500 leading-4 mt-2.5 text-center">
                 Cada enlace es de un solo uso y activará automáticamente el rol de promotor en ambas apps (owner y renter) a la persona invitada.
               </Text>
             </View>
 
             {/* Código Recién Generado */}
             {ultimaInvitacion ? (
-              <View style={styles.nuevaCard}>
-                <View style={styles.nuevaHeader}>
+              <View className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-4">
+                <View className="flex-row items-center gap-1.5 mb-2">
                   <Icon name="check-circle" size={16} color="#0F3D3E" />
-                  <Text style={styles.nuevaTitulo}>Invitación activa generada</Text>
+                  <Text className="text-[13px] font-bold text-emerald-800">Invitación activa generada</Text>
                 </View>
-                <Text style={styles.nuevaCodigo}>{ultimaInvitacion.codigo}</Text>
-                <Text style={styles.nuevaLink} numberOfLines={1}>{ultimaInvitacion.link}</Text>
+                <Text className="text-2xl font-black text-primary-900 tracking-wider mb-1">{ultimaInvitacion.codigo}</Text>
+                <Text className="text-xs text-emerald-800 mb-3" numberOfLines={1}>{ultimaInvitacion.link}</Text>
 
-                <View style={styles.nuevaBotones}>
+                <View className="flex-row gap-2.5">
                   <TouchableOpacity
-                    style={styles.btnSecundario}
+                    className="flex-1 flex-row items-center justify-center bg-white border border-primary-900 py-2.5 rounded-xl gap-1.5"
                     onPress={() => copiarLink(ultimaInvitacion.link)}
                   >
                     <Icon name={copiado ? "check" : "copy"} size={14} color="#0F3D3E" />
-                    <Text style={styles.btnSecundarioTexto}>
+                    <Text className="text-[13px] font-bold text-primary-900">
                       {copiado ? "Copiado" : "Copiar Link"}
                     </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.btnPrimario}
+                    className="flex-1 flex-row items-center justify-center bg-primary-900 py-2.5 rounded-xl gap-1.5"
                     onPress={() => compartir(ultimaInvitacion)}
                   >
                     <Icon name="share" size={14} color="#FFFFFF" />
-                    <Text style={styles.btnPrimarioTexto}>Compartir</Text>
+                    <Text className="text-[13px] font-bold text-white">Compartir</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ) : null}
 
             {/* Historial de Invitaciones */}
-            <View style={styles.historialSeccion}>
-              <Text style={styles.historialTitulo}>Historial de invitaciones a promotores</Text>
+            <View className="mt-2 mb-6">
+              <Text className="text-sm font-bold text-slate-700 mb-3">Historial de invitaciones a promotores</Text>
 
               {cargando ? (
-                <ActivityIndicator size="small" color="#0F3D3E" style={{ marginVertical: 16 }} />
+                <ActivityIndicator size="small" color="#0F3D3E" className="my-4" />
               ) : invitaciones.length === 0 ? (
-                <Text style={styles.historialVacio}>
+                <Text className="text-[13px] text-slate-400 italic text-center my-3">
                   Aún no has generado códigos de promotor.
                 </Text>
               ) : (
                 invitaciones.map((inv) => (
-                  <View key={inv.id || inv.codigo} style={styles.invItem}>
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.invCodigoRow}>
-                        <Text style={styles.invCodigo}>{inv.codigo}</Text>
+                  <View key={inv.id || inv.codigo} className="flex-row items-center bg-white border border-slate-200 rounded-xl p-3 mb-2">
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-2">
+                        <Text className="text-base font-extrabold text-slate-900 tracking-wide">{inv.codigo}</Text>
                         <View
-                          style={[
-                            styles.invEstadoBadge,
-                            inv.usado ? styles.invEstadoUsado : styles.invEstadoActivo,
-                          ]}
+                          className={`px-2 py-0.5 rounded-lg ${
+                            inv.usado ? "bg-slate-100" : "bg-emerald-100"
+                          }`}
                         >
                           <Text
-                            style={[
-                              styles.invEstadoTexto,
-                              inv.usado ? styles.invEstadoTextoUsado : styles.invEstadoTextoActivo,
-                            ]}
+                            className={`text-[11px] font-bold ${
+                              inv.usado ? "text-slate-500" : "text-emerald-800"
+                            }`}
                           >
                             {inv.usado ? "Canjeado" : "Disponible"}
                           </Text>
                         </View>
                       </View>
-                      <Text style={styles.invDetalle}>
+                      <Text className="text-xs text-slate-500 mt-0.5">
                         {inv.usado
                           ? `Usado por ${inv.usado_por_nombre || "Usuario"}`
                           : "Pendiente de registro"}
@@ -186,7 +182,7 @@ export function AdminPromoterInviteModal({ visible, onClose }) {
 
                     {!inv.usado ? (
                       <TouchableOpacity
-                        style={styles.btnItemCompartir}
+                        className="p-2 rounded-lg bg-slate-50"
                         onPress={() => compartir(inv)}
                       >
                         <Icon name="share" size={16} color="#0F3D3E" />
@@ -202,197 +198,3 @@ export function AdminPromoterInviteModal({ visible, onClose }) {
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "85%",
-    paddingBottom: 24,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
-  titulo: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-  subtitulo: {
-    fontSize: 13,
-    color: "#64748B",
-    marginTop: 2,
-  },
-  btnCerrar: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: "#F8FAFC",
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  actionCard: {
-    backgroundColor: "#F8FAFC",
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    marginBottom: 16,
-  },
-  actionAviso: {
-    fontSize: 12,
-    color: "#64748B",
-    lineHeight: 16,
-    marginTop: 10,
-    textAlign: "center",
-  },
-  nuevaCard: {
-    backgroundColor: "#F0FDF4",
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  nuevaHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 8,
-  },
-  nuevaTitulo: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#166534",
-  },
-  nuevaCodigo: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: "#0F3D3E",
-    letterSpacing: 2,
-    marginBottom: 4,
-  },
-  nuevaLink: {
-    fontSize: 12,
-    color: "#166534",
-    marginBottom: 12,
-  },
-  nuevaBotones: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  btnSecundario: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#0F3D3E",
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 6,
-  },
-  btnSecundarioTexto: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#0F3D3E",
-  },
-  btnPrimario: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0F3D3E",
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 6,
-  },
-  btnPrimarioTexto: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  historialSeccion: {
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  historialTitulo: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#334155",
-    marginBottom: 12,
-  },
-  historialVacio: {
-    fontSize: 13,
-    color: "#94A3B8",
-    fontStyle: "italic",
-    textAlign: "center",
-    marginVertical: 12,
-  },
-  invItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  invCodigoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  invCodigo: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#0F172A",
-    letterSpacing: 1,
-  },
-  invEstadoBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  invEstadoActivo: {
-    backgroundColor: "#DCFCE7",
-  },
-  invEstadoUsado: {
-    backgroundColor: "#F1F5F9",
-  },
-  invEstadoTexto: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  invEstadoTextoActivo: {
-    color: "#166534",
-  },
-  invEstadoTextoUsado: {
-    color: "#64748B",
-  },
-  invDetalle: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 3,
-  },
-  btnItemCompartir: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#F8FAFC",
-  },
-});

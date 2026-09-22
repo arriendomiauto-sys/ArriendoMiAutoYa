@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated, Easing } from "react-native";
+import { View, Text, Animated, Easing } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 
 /**
@@ -13,7 +12,7 @@ import { Icon } from "./Icon";
  * Usa el `Animated` del core de React Native (como SwitchingScreen), sin
  * dependencias nuevas.
  */
-export function SuccessCheck({ size = 72, iconSize = 36, style }) {
+export function SuccessCheck({ size = 72, iconSize = 36, style, className = "" }) {
   const escala = useRef(new Animated.Value(0)).current;
   const anillo = useRef(new Animated.Value(0)).current;
 
@@ -37,25 +36,24 @@ export function SuccessCheck({ size = 72, iconSize = 36, style }) {
   }, [escala, anillo]);
 
   return (
-    <View style={[{ width: size, height: size, alignItems: "center", justifyContent: "center" }, style]}>
+    <View
+      className={`items-center justify-center ${className}`}
+      style={[{ width: size, height: size }, style]}
+    >
       <Animated.View
         pointerEvents="none"
-        style={[
-          styles.anillo,
-          {
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            opacity: anillo.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
-            transform: [{ scale: anillo.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.6] }) }],
-          },
-        ]}
+        className="absolute border-2 border-accent"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          opacity: anillo.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] }),
+          transform: [{ scale: anillo.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.6] }) }],
+        }}
       />
       <Animated.View
-        style={[
-          styles.circulo,
-          { width: size, height: size, borderRadius: size / 2, transform: [{ scale: escala }] },
-        ]}
+        className="bg-accent-100 items-center justify-center"
+        style={{ width: size, height: size, borderRadius: size / 2, transform: [{ scale: escala }] }}
       >
         <Icon name="check" size={iconSize} color={colors.accent700} />
       </Animated.View>
@@ -92,39 +90,14 @@ export function SuccessFlash({ label, duracion = 1100, onDone }) {
 
   return (
     <Animated.View
-      style={[StyleSheet.absoluteFill, styles.flash, { opacity: opacidad }]}
+      className="absolute inset-0 bg-[#061e1f]/[0.78] items-center justify-center gap-3 z-20"
+      style={{ opacity: opacidad }}
       pointerEvents="none"
       accessibilityRole="alert"
       accessibilityLabel={label || "Verificado"}
     >
       <SuccessCheck size={84} iconSize={42} />
-      {label ? <Text style={styles.flashLabel}>{label}</Text> : null}
+      {label ? <Text className="text-white text-base font-bold tracking-wide">{label}</Text> : null}
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  circulo: {
-    backgroundColor: colors.accent100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  anillo: {
-    position: "absolute",
-    borderWidth: 2,
-    borderColor: colors.accent,
-  },
-  flash: {
-    backgroundColor: "rgba(6,30,31,0.78)",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.md,
-    zIndex: 20,
-  },
-  flashLabel: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-});

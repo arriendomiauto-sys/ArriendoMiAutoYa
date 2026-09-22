@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native";
+import { View, Text, TouchableOpacity, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 
 /**
@@ -26,8 +25,8 @@ function Globo({ cantidad }) {
   if (!cantidad || cantidad < 1) return null;
   const texto = cantidad > MAXIMO_VISIBLE ? `${MAXIMO_VISIBLE}+` : String(cantidad);
   return (
-    <View style={styles.globo}>
-      <Text style={styles.globoTexto} allowFontScaling={false}>
+    <View className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] rounded-full px-1 bg-danger items-center justify-center">
+      <Text className="text-[10px] font-bold text-white" allowFontScaling={false}>
         {texto}
       </Text>
     </View>
@@ -53,7 +52,7 @@ function Item({ tab, activa, apagado, onPress }) {
   return (
     <TouchableOpacity
       testID={`tab-${tab.id}`}
-      style={styles.item}
+      className="items-center gap-1 min-w-[60px] min-h-[48px] px-0.5"
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="tab"
@@ -66,7 +65,8 @@ function Item({ tab, activa, apagado, onPress }) {
         <Globo cantidad={tab.badge} />
       </Animated.View>
       <Text
-        style={[styles.etiqueta, { color: activa ? colors.primary : apagado }, activa && styles.etiquetaActiva]}
+        className={`text-[11px] ${activa ? "font-bold" : ""}`}
+        style={{ color: activa ? colors.primary : apagado }}
         numberOfLines={1}
       >
         {tab.label}
@@ -83,7 +83,7 @@ function BotonCentral({ accion, fondo }) {
     Animated.spring(escala, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
 
   return (
-    <View style={styles.centro}>
+    <View className="items-center gap-1 min-w-[60px] -mt-6">
       <Animated.View style={{ transform: [{ scale: escala }] }}>
         <TouchableOpacity
           onPress={accion.onPress}
@@ -92,12 +92,13 @@ function BotonCentral({ accion, fondo }) {
           activeOpacity={0.9}
           accessibilityRole="button"
           accessibilityLabel={accion.label || "Agregar"}
-          style={[styles.fab, { borderColor: fondo }]}
+          className="w-[58px] h-[58px] rounded-full bg-primary-900 items-center justify-center border-4 shadow-lg"
+          style={{ borderColor: fondo }}
         >
           <Icon name={accion.icon || "plus"} size={28} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
       </Animated.View>
-      {accion.label ? <Text style={styles.centroLabel}>{accion.label}</Text> : null}
+      {accion.label ? <Text className="text-[11px] font-bold text-primary">{accion.label}</Text> : null}
     </View>
   );
 }
@@ -139,54 +140,11 @@ export function TabBar({ tabs, activeTab, onChange, tone = "light", centerAction
 
   return (
     <View
-      style={[
-        styles.barra,
-        { backgroundColor: c.fondo, borderTopColor: c.borde, paddingBottom: Math.max(insets.bottom, 12) },
-      ]}
+      className={`border-t flex-row justify-around items-start pt-2.5 ${oscuro ? "bg-darkCard border-darkBorder" : "bg-surface border-border"}`}
+      style={{ paddingBottom: Math.max(insets.bottom, 12) }}
       accessibilityRole="tablist"
     >
       {contenido}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  barra: {
-    borderTopWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-start",
-    paddingTop: 10,
-  },
-  // 48 de alto es el mínimo cómodo para tocar sin apuntar. Antes el área
-  // efectiva era la del icono más su texto y quedaba corta.
-  item: { alignItems: "center", gap: 4, minWidth: 60, minHeight: 48, paddingHorizontal: 2 },
-  etiqueta: { fontSize: 11 },
-  etiquetaActiva: { fontWeight: "700" },
-  globo: {
-    position: "absolute",
-    top: -6,
-    right: -10,
-    minWidth: 17,
-    height: 17,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    backgroundColor: colors.danger,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  globoTexto: { fontSize: 10, fontWeight: "700", color: "#FFFFFF" },
-  centro: { alignItems: "center", gap: 4, minWidth: 60, marginTop: -24 },
-  fab: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    // Acento premium del dueño: teal casi negro (el renter no usa centerAction).
-    backgroundColor: colors.primary900,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 4,
-    ...theme.shadow.lg,
-  },
-  centroLabel: { fontSize: 11, fontWeight: "700", color: colors.primary },
-});

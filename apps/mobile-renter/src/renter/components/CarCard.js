@@ -8,9 +8,9 @@ export function CarCardSkeleton() {
     <View className="flex-row h-[104px] bg-gray-100 rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
       <Skeleton testID="skeleton-foto" className="w-[116px] h-full bg-gray-50" />
       <View className="flex-1 py-3 px-3.5 gap-1.5">
-        <Skeleton style={{ width: "62%", height: 14 }} />
-        <Skeleton style={{ width: "40%", height: 12 }} />
-        <Skeleton style={{ width: "30%", height: 14, marginTop: "auto" }} />
+        <Skeleton className="w-[62%] h-3.5" />
+        <Skeleton className="w-[40%] h-3" />
+        <Skeleton className="w-[30%] h-3.5 mt-auto" />
       </View>
     </View>
   );

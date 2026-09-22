@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from "react-native";
+import { View, Text, TouchableOpacity, StatusBar } from "react-native";
 import { colors } from "../../theme/colors";
-import { theme } from "../../theme/tokens";
 import { Icon } from "../../components/Icon";
 import { BrandLogo } from "../../components/BrandLogo";
 import { Button, Card, BottomBar } from "../../components/ui";
@@ -26,17 +25,17 @@ const ROLE_OPTIONS = [
 
 export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter", fixedRole }) {
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-surface justify-between">
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.content}>
-        <View style={styles.logoRow}>
+      <View className="flex-1 px-8 pt-10 gap-8">
+        <View className="h-12 justify-center">
           <BrandLogo size={52} />
         </View>
 
-        <View style={styles.textBox}>
-          <Text style={styles.title}>El auto del vecino, arrendado en minutos</Text>
-          <Text style={styles.subtitle}>
+        <View className="gap-2">
+          <Text className="text-[28px] leading-[34px] font-bold text-gray-900">El auto del vecino, arrendado en minutos</Text>
+          <Text className="text-base leading-[25px] text-gray-500">
             Publica tu auto o arrienda el de otra persona, con garantía protegida
             y entrega 100% digital. ¿Qué quieres hacer?
           </Text>
@@ -45,7 +44,7 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter", fixed
         {/* Selección de rol: define el modo con el que arranca la app.
             Con `fixedRole`, la app solo tiene un rol posible — se muestra
             nada más la tarjeta de ese rol, sin picker. */}
-        <View style={styles.cardsContainer}>
+        <View className="gap-4 mt-2">
           {ROLE_OPTIONS.filter((opt) => !fixedRole || opt.key === fixedRole).map((opt) => {
             const selected = role === opt.key;
             return (
@@ -58,14 +57,14 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter", fixed
                 disabled={!!fixedRole}
               >
                 <Card
-                  style={[styles.optionCard, selected && styles.optionCardSelected]}
+                  className={`p-5 gap-2 ${selected ? "border-[1.5px] border-primary-700" : ""}`}
                   elevated={selected}
                 >
-                  <View style={styles.cardHeader}>
+                  <View className="flex-row items-center gap-2">
                     <Icon name={opt.cardIcon} size={24} color={colors.primary} />
-                    <Text style={styles.cardTitle}>{opt.cardTitle}</Text>
+                    <Text className="text-base font-bold text-gray-900">{opt.cardTitle}</Text>
                   </View>
-                  <Text style={styles.cardDesc}>{opt.cardDesc}</Text>
+                  <Text className="text-sm text-gray-500">{opt.cardDesc}</Text>
                 </Card>
               </TouchableOpacity>
             );
@@ -73,95 +72,22 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter", fixed
         </View>
       </View>
 
-      <BottomBar bordered={false} style={styles.bottomBar}>
+      <BottomBar bordered={false} className="px-8 bg-transparent">
         <Button label="Crear mi cuenta" onPress={() => onNavigate("register")} />
 
         <BotonesOAuth preferredMode={role} />
 
         <TouchableOpacity
           testID="link-login"
-          style={styles.loginLink}
+          className="h-10 items-center justify-center"
           onPress={() => onNavigate("login")}
           activeOpacity={0.7}
         >
-          <Text style={styles.loginLinkText}>
-            Ya tengo cuenta <Text style={styles.loginHighlight}>Iniciar sesión</Text>
+          <Text className="text-sm font-normal text-gray-500">
+            Ya tengo cuenta <Text className="text-accent-700 font-semibold">Iniciar sesión</Text>
           </Text>
         </TouchableOpacity>
       </BottomBar>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "space-between",
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.xxl,
-    paddingTop: theme.spacing.xxxl,
-    gap: theme.spacing.xxl,
-  },
-  logoRow: {
-    height: 48,
-    justifyContent: "center",
-  },
-  textBox: {
-    gap: theme.spacing.sm,
-  },
-  title: {
-    ...theme.typography.display,
-    color: colors.text,
-  },
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 25,
-    color: colors.textMuted,
-  },
-  cardsContainer: {
-    gap: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-  },
-  optionCard: {
-    padding: theme.spacing.xl,
-    gap: theme.spacing.sm,
-  },
-  optionCardSelected: {
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-  },
-  cardTitle: {
-    ...theme.typography.heading,
-    color: colors.text,
-  },
-  cardDesc: {
-    ...theme.typography.body,
-    color: colors.textMuted,
-  },
-  bottomBar: {
-    paddingHorizontal: theme.spacing.xxl,
-    backgroundColor: "transparent",
-  },
-  loginLink: {
-    height: theme.control.heightSm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loginLinkText: {
-    ...theme.typography.bodyStrong,
-    fontWeight: "400",
-    color: colors.textMuted,
-  },
-  loginHighlight: {
-    color: colors.accent700,
-    fontWeight: "600",
-  },
-});

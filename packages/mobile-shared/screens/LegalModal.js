@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { colors } from "../theme/colors";
@@ -25,24 +25,24 @@ export function CuerpoDocumentoLegal({ documento }) {
 
   return (
     <>
-      <Text style={styles.actualizado}>{documento.actualizado}</Text>
+      <Text className="text-xs text-textMuted italic">{documento.actualizado}</Text>
 
       {documento.secciones.map((s) => (
-        <View key={s.h} style={styles.seccion}>
-          <Text style={styles.seccionTitulo}>{s.h}</Text>
-          {s.p ? <Text style={styles.parrafo}>{s.p}</Text> : null}
+        <View key={s.h} className="gap-1.5">
+          <Text className="text-[15px] font-bold text-text">{s.h}</Text>
+          {s.p ? <Text className="text-sm text-textSecondary leading-[21px]">{s.p}</Text> : null}
           {(s.items || []).map((item) => (
-            <View key={item} style={styles.item}>
-              <Text style={styles.bullet}>•</Text>
-              <Text style={styles.itemTexto}>{item}</Text>
+            <View key={item} className="flex-row gap-2 pl-1">
+              <Text className="text-sm text-accent-dark leading-[21px]">•</Text>
+              <Text className="flex-1 text-sm text-textSecondary leading-[21px]">{item}</Text>
             </View>
           ))}
         </View>
       ))}
 
-      <TouchableOpacity style={styles.linkSitio} onPress={abrirEnElSitio} activeOpacity={0.8}>
+      <TouchableOpacity className="flex-row items-center gap-2 py-2" onPress={abrirEnElSitio} activeOpacity={0.8}>
         <Icon name="document" size={15} color={colors.accentDark} />
-        <Text style={styles.linkSitioTexto}>Ver la versión completa en el sitio</Text>
+        <Text className="text-sm font-semibold text-accent-dark">Ver la versión completa en el sitio</Text>
       </TouchableOpacity>
     </>
   );
@@ -72,21 +72,24 @@ export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
-          <View style={styles.handle} />
+      <View className="flex-1 bg-[#061e1f]/55 justify-end">
+        <View
+          className="max-h-[90%] bg-surface rounded-t-2xl p-5 gap-3"
+          style={{ paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }}
+        >
+          <View className="self-center w-11 h-1 rounded-full bg-border" />
 
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{documento.titulo}</Text>
-              <Text style={styles.sub}>{documento.subtitulo}</Text>
+          <View className="flex-row items-start gap-3">
+            <View className="flex-1">
+              <Text className="text-xl font-bold text-text">{documento.titulo}</Text>
+              <Text className="text-[13px] text-textMuted mt-0.5">{documento.subtitulo}</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={theme.control.hitSlop} accessibilityLabel="Cerrar">
               <Icon name="close" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.tabs}>
+          <View className="flex-row gap-2">
             {Object.values(DOCUMENTOS_LEGALES).map((d) => (
               <Chip
                 key={d.id}
@@ -97,14 +100,14 @@ export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
             ))}
           </View>
 
-          <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+          <ScrollView className="grow-0" contentContainerStyle={{ gap: 20, paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
             <CuerpoDocumentoLegal documento={documento} />
           </ScrollView>
 
-          <View style={styles.footer}>
+          <View className="flex-row gap-3 pt-3 border-t border-border">
             {onAccept ? (
               <>
-                <Button label="Cerrar" variant="secondary" onPress={onClose} fullWidth={false} style={{ flex: 1 }} />
+                <Button label="Cerrar" variant="secondary" onPress={onClose} fullWidth={false} className="flex-1" />
                 <Button
                   label="Acepto"
                   onPress={() => {
@@ -112,7 +115,7 @@ export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
                     onClose?.();
                   }}
                   fullWidth={false}
-                  style={{ flex: 1 }}
+                  className="flex-1"
                 />
               </>
             ) : (
@@ -124,54 +127,3 @@ export function LegalModal({ visible, doc = "terminos", onClose, onAccept }) {
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(6,30,31,0.55)", justifyContent: "flex-end" },
-  sheet: {
-    maxHeight: "90%",
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.card,
-    borderTopRightRadius: theme.radius.card,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.md,
-  },
-  handle: {
-    alignSelf: "center",
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-  },
-  header: { flexDirection: "row", alignItems: "flex-start", gap: theme.spacing.md },
-  title: { ...theme.typography.title, color: colors.text },
-  sub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-
-  tabs: { flexDirection: "row", gap: theme.spacing.sm },
-
-  body: { flexGrow: 0 },
-  bodyContent: { gap: theme.spacing.lg, paddingBottom: theme.spacing.md },
-  actualizado: { fontSize: 12, color: colors.textMuted, fontStyle: "italic" },
-
-  seccion: { gap: 6 },
-  seccionTitulo: { fontSize: 15, fontWeight: "700", color: colors.text },
-  parrafo: { fontSize: 14, color: colors.textSecondary, lineHeight: 21 },
-  item: { flexDirection: "row", gap: 8, paddingLeft: 4 },
-  bullet: { fontSize: 14, color: colors.accentDark, lineHeight: 21 },
-  itemTexto: { flex: 1, fontSize: 14, color: colors.textSecondary, lineHeight: 21 },
-
-  linkSitio: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: theme.spacing.sm,
-  },
-  linkSitioTexto: { fontSize: 14, fontWeight: "600", color: colors.accentDark },
-
-  footer: {
-    flexDirection: "row",
-    gap: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-});

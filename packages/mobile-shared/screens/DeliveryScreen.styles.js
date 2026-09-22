@@ -1,11 +1,10 @@
-import { StyleSheet } from "react-native";
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 
 // Estilos de la pantalla de entrega/devolución. Viven aparte de
 // DeliveryScreen.js — es la parte que menos tiene que ver con el flujo, y
 // dejar el archivo solo con estado, cámara y checklist ayuda a leerlo.
-export const styles = StyleSheet.create({
+export const styles = {
   light: { flex: 1, backgroundColor: colors.background },
   body: { padding: theme.spacing.screen, gap: theme.spacing.lg, paddingBottom: theme.spacing.xxl },
   centerBody: { padding: theme.spacing.xxl, alignItems: "center", gap: theme.spacing.lg },
@@ -412,4 +411,4 @@ export const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 2,
   },
-});
+};

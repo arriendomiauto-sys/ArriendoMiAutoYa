@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Image, StyleSheet } from "react-native";
+import { View, Image } from "react-native";
 
 /**
  * Componente oficial BrandLogo - Arriendo Mi Auto Ya
@@ -9,11 +9,14 @@ import { View, Image, StyleSheet } from "react-native";
  * `overflow: hidden`), para logos cuyo PNG trae de fábrica un margen vacío
  * alrededor del isotipo: sin esto, ese margen se ve como un doble marco.
  */
-export function BrandLogo({ size = 56, style, source, zoom = 1, ...props }) {
+export function BrandLogo({ size = 56, style, source, zoom = 1, className = "", ...props }) {
   const borderRadius = Math.round(size * 0.22);
   const imageSize = Math.round(size * zoom);
   return (
-    <View style={[styles.logo, { width: size, height: size, borderRadius }]}>
+    <View
+      className={`overflow-hidden items-center justify-center ${className}`}
+      style={{ width: size, height: size, borderRadius }}
+    >
       <Image
         source={source || require("../assets/logo.png")}
         style={[{ width: imageSize, height: imageSize }, style]}
@@ -25,11 +28,3 @@ export function BrandLogo({ size = 56, style, source, zoom = 1, ...props }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  logo: {
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

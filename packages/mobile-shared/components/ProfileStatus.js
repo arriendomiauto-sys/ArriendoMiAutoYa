@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 
 /**
@@ -41,9 +40,9 @@ export function estadoCuenta({ estadoDocumentos, tarjetaEstado, rol = "renter" }
 }
 
 const BANDA_COLORES = {
-  ok: { bg: colors.accent100, ink: colors.accent800, icon: "check" },
-  espera: { bg: colors.warningBg, ink: colors.warningText, icon: "clock" },
-  accion: { bg: colors.warningBg, ink: colors.warningText, icon: "alert" },
+  ok: { bgClass: "bg-accent-100", ink: colors.accent800, icon: "check" },
+  espera: { bgClass: "bg-amber-50", ink: colors.warningText, icon: "clock" },
+  accion: { bgClass: "bg-amber-50", ink: colors.warningText, icon: "alert" },
 };
 
 /**
@@ -57,6 +56,7 @@ export function ReadinessBand({
   rol = "renter",
   onResolver,
   standalone = false,
+  className = "",
   style,
 }) {
   const e = estadoCuenta({ estadoDocumentos, tarjetaEstado, rol });
@@ -65,27 +65,25 @@ export function ReadinessBand({
 
   const contenido = (
     <>
-      <View style={[styles.bandIcon, { backgroundColor: "rgba(0,0,0,0.05)" }]}>
+      <View className="w-[22px] h-[22px] rounded-lg items-center justify-center bg-black/5">
         <Icon name={c.icon} size={13} color={c.ink} />
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.bandTitle, { color: c.ink }]}>{e.titulo}</Text>
-        <Text style={[styles.bandDetail, { color: c.ink }]}>{e.detalle}</Text>
+      <View className="flex-1">
+        <Text className="text-[13.5px] font-bold" style={{ color: c.ink }}>{e.titulo}</Text>
+        <Text className="text-xs mt-0.5 opacity-85 leading-4" style={{ color: c.ink }}>{e.detalle}</Text>
       </View>
       {accionable ? <Icon name="chevron-right" size={16} color={c.ink} /> : null}
     </>
   );
 
-  const estilo = [
-    styles.band,
-    { backgroundColor: c.bg },
-    standalone ? styles.bandStandalone : styles.bandAttached,
-    style,
-  ];
+  const baseClasses = `flex-row items-center gap-2 py-3 px-4 ${c.bgClass} ${
+    standalone ? "border border-border rounded-2xl" : "border-t border-border rounded-b-2xl"
+  } ${className}`;
 
   return accionable ? (
     <TouchableOpacity
-      style={estilo}
+      className={baseClasses}
+      style={style}
       onPress={() => onResolver(e.resolver)}
       activeOpacity={0.8}
       accessibilityRole="button"
@@ -94,7 +92,7 @@ export function ReadinessBand({
       {contenido}
     </TouchableOpacity>
   ) : (
-    <View style={estilo} accessibilityRole="text" accessibilityLabel={`${e.titulo}. ${e.detalle}`}>
+    <View className={baseClasses} style={style} accessibilityRole="text" accessibilityLabel={`${e.titulo}. ${e.detalle}`}>
       {contenido}
     </View>
   );
@@ -104,78 +102,28 @@ export function ReadinessBand({
  * Botón de cambio de rol. Central en una app que es un solo binario con dos
  * experiencias.
  */
-export function ModeSwitchRow({ target, title, desc, onPress, tone = "light" }) {
+export function ModeSwitchRow({ target, title, desc, onPress, tone = "light", className = "", style }) {
   const dark = tone === "dark";
   const accent = dark ? colors.accent : colors.primary;
   return (
     <TouchableOpacity
-      style={[
-        styles.switch,
-        dark
-          ? { backgroundColor: colors.darkCard, borderColor: colors.darkBorder }
-          : { backgroundColor: colors.primary100, borderColor: colors.primary200 },
-      ]}
+      className={`flex-row items-center gap-3 p-4 rounded-2xl border ${
+        dark ? "bg-darkCard border-darkBorder" : "bg-primary-100 border-primary-200"
+      } ${className}`}
+      style={style}
       onPress={onPress}
       activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={title}
     >
-      <View style={[styles.switchIcon, { backgroundColor: dark ? colors.darkCardSubtle : colors.surface }]}>
+      <View className={`w-[38px] h-[38px] rounded-full items-center justify-center ${dark ? "bg-darkCardSubtle" : "bg-surface"}`}>
         <Icon name={target === "owner" ? "car" : "key"} size={18} color={accent} />
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.switchTitle, { color: dark ? colors.textWhite : colors.primary }]}>{title}</Text>
-        <Text style={[styles.switchDesc, { color: dark ? colors.textSilver : colors.textMuted }]}>{desc}</Text>
+      <View className="flex-1">
+        <Text className={`text-[15px] font-bold ${dark ? "text-white" : "text-primary"}`}>{title}</Text>
+        <Text className={`text-[13px] mt-0.5 ${dark ? "text-textSilver" : "text-textMuted"}`}>{desc}</Text>
       </View>
       <Icon name="arrow-right" size={16} color={dark ? colors.textSilver : colors.textMuted} />
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  band: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    paddingVertical: 12,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  bandAttached: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    borderBottomLeftRadius: theme.radius.card - 1,
-    borderBottomRightRadius: theme.radius.card - 1,
-  },
-  bandStandalone: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: theme.radius.card,
-  },
-  bandIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bandTitle: { fontSize: 13.5, fontWeight: "700" },
-  bandDetail: { fontSize: 12, marginTop: 1, opacity: 0.85, lineHeight: 16 },
-
-  switch: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    padding: theme.spacing.lg,
-    borderRadius: theme.radius.card,
-    borderWidth: 1,
-  },
-  switchIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  switchTitle: { fontSize: 15, fontWeight: "700" },
-  switchDesc: { fontSize: 13, marginTop: 1 },
-});

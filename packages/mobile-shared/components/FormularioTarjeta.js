@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TextInput } from "react-native";
+import { View, Text, TextInput } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 
 /**
@@ -105,14 +104,16 @@ export function FormularioTarjeta({ valor, onChange, errores = {}, onFocus, nomb
   const errorDe = (campo) => (tocado[campo] || errores.mostrarTodos ? errores[campo] : null);
 
   return (
-    <View style={styles.contenedor}>
-      <View style={styles.campo}>
-        <View style={styles.etiquetaFila}>
-          <Text style={styles.etiqueta}>Número de la tarjeta</Text>
-          {nombreMarca ? <Text style={styles.marca}>{nombreMarca}</Text> : null}
+    <View className="gap-4">
+      <View className="gap-1.5">
+        <View className="flex-row justify-between items-center">
+          <Text className="text-xs font-bold text-gray-500 tracking-wider">Número de la tarjeta</Text>
+          {nombreMarca ? <Text className="text-xs font-bold text-primary-700">{nombreMarca}</Text> : null}
         </View>
         <TextInput
-          style={[styles.input, errorDe("numero") && styles.inputError]}
+          className={`h-12 border-[1.5px] rounded-xl px-4 text-[15px] text-gray-900 bg-white ${
+            errorDe("numero") ? "border-danger-600" : "border-gray-200"
+          }`}
           value={valor.numero}
           onChangeText={(t) => set("numero")(formatearNumero(t))}
           onBlur={marcarTocado("numero")}
@@ -125,17 +126,19 @@ export function FormularioTarjeta({ valor, onChange, errores = {}, onFocus, nomb
           maxLength={23}
         />
         {errorDe("numero") ? (
-          <Text style={styles.error} accessibilityRole="alert">
+          <Text className="text-xs leading-[17px] text-danger-600" accessibilityRole="alert">
             {errorDe("numero")}
           </Text>
         ) : null}
       </View>
 
-      <View style={styles.fila}>
-        <View style={[styles.campo, { flex: 1 }]}>
-          <Text style={styles.etiqueta}>Vence</Text>
+      <View className="flex-row gap-4">
+        <View className="flex-1 gap-1.5">
+          <Text className="text-xs font-bold text-gray-500 tracking-wider">Vence</Text>
           <TextInput
-            style={[styles.input, errorDe("vencimiento") && styles.inputError]}
+            className={`h-12 border-[1.5px] rounded-xl px-4 text-[15px] text-gray-900 bg-white ${
+              errorDe("vencimiento") ? "border-danger-600" : "border-gray-200"
+            }`}
             value={valor.vencimiento}
             onChangeText={(t) => set("vencimiento")(formatearVencimiento(t))}
             onBlur={marcarTocado("vencimiento")}
@@ -146,16 +149,18 @@ export function FormularioTarjeta({ valor, onChange, errores = {}, onFocus, nomb
             maxLength={5}
           />
           {errorDe("vencimiento") ? (
-            <Text style={styles.error} accessibilityRole="alert">
+            <Text className="text-xs leading-[17px] text-danger-600" accessibilityRole="alert">
               {errorDe("vencimiento")}
             </Text>
           ) : null}
         </View>
 
-        <View style={[styles.campo, { flex: 1 }]}>
-          <Text style={styles.etiqueta}>Código de seguridad</Text>
+        <View className="flex-1 gap-1.5">
+          <Text className="text-xs font-bold text-gray-500 tracking-wider">Código de seguridad</Text>
           <TextInput
-            style={[styles.input, errorDe("cvv") && styles.inputError]}
+            className={`h-12 border-[1.5px] rounded-xl px-4 text-[15px] text-gray-900 bg-white ${
+              errorDe("cvv") ? "border-danger-600" : "border-gray-200"
+            }`}
             value={valor.cvv}
             onChangeText={(t) => set("cvv")(t.replace(/\D/g, "").slice(0, 4))}
             onBlur={marcarTocado("cvv")}
@@ -167,22 +172,22 @@ export function FormularioTarjeta({ valor, onChange, errores = {}, onFocus, nomb
             maxLength={4}
           />
           {errorDe("cvv") ? (
-            <Text style={styles.error} accessibilityRole="alert">
+            <Text className="text-xs leading-[17px] text-danger-600" accessibilityRole="alert">
               {errorDe("cvv")}
             </Text>
           ) : null}
         </View>
       </View>
 
-      <View style={styles.campo}>
-        <Text style={styles.etiqueta}>Nombre del titular</Text>
+      <View className="gap-1.5">
+        <Text className="text-xs font-bold text-gray-500 tracking-wider">Nombre del titular</Text>
         {nombreTitular ? (
-          <View style={[styles.input, styles.inputBloqueado]}>
-            <Text style={styles.inputBloqueadoTexto}>{nombreTitular}</Text>
+          <View className="h-12 border-[1.5px] border-gray-200 rounded-xl px-4 bg-gray-50 justify-center">
+            <Text className="text-[15px] text-gray-500 font-semibold">{nombreTitular}</Text>
           </View>
         ) : (
           <TextInput
-            style={styles.input}
+            className="h-12 border-[1.5px] border-gray-200 rounded-xl px-4 text-[15px] text-gray-900 bg-white"
             value={valor.nombre}
             onChangeText={set("nombre")}
             onFocus={onFocus}
@@ -192,15 +197,15 @@ export function FormularioTarjeta({ valor, onChange, errores = {}, onFocus, nomb
           />
         )}
         {nombreTitular ? (
-          <Text style={styles.ayudaBloqueo}>
+          <Text className="text-xs text-gray-500 mt-0.5">
             Por seguridad, la tarjeta debe estar a tu propio nombre.
           </Text>
         ) : null}
       </View>
 
-      <View style={styles.nota}>
+      <View className="flex-row items-start gap-2">
         <Icon name="shield" size={16} color={colors.accent700} />
-        <Text style={styles.notaTexto}>
+        <Text className="flex-1 text-xs leading-[17px] text-gray-500">
           No guardamos el número de tu tarjeta. Solo quedan los últimos 4 dígitos para que la
           reconozcas.
         </Text>
@@ -224,29 +229,3 @@ export function validarFormularioTarjeta(valor) {
 
   return e;
 }
-
-const styles = StyleSheet.create({
-  contenedor: { gap: theme.spacing.md },
-  campo: { gap: 6 },
-  fila: { flexDirection: "row", gap: theme.spacing.md },
-  etiquetaFila: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  etiqueta: { fontSize: 12, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.4 },
-  marca: { fontSize: 12, fontWeight: "700", color: colors.primary },
-  input: {
-    height: 48,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: theme.radius.field,
-    paddingHorizontal: theme.spacing.md,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.surface,
-  },
-  inputError: { borderColor: colors.danger },
-  inputBloqueado: { backgroundColor: colors.surfaceSubtle, justifyContent: "center" },
-  inputBloqueadoTexto: { fontSize: 15, color: colors.textMuted, fontWeight: "600" },
-  ayudaBloqueo: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  error: { fontSize: 12, lineHeight: 17, color: colors.danger },
-  nota: { flexDirection: "row", alignItems: "flex-start", gap: theme.spacing.sm },
-  notaTexto: { flex: 1, fontSize: 12, lineHeight: 17, color: colors.textMuted },
-});

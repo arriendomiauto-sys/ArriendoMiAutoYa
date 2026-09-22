@@ -6,11 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  StyleSheet,
 } from "react-native";
 import { Icon } from "../../../components/Icon";
 import { colors } from "../../../theme/colors";
-import { kycStyles } from "../styles/kycStyles";
 
 // ============================================================================
 // Pantalla 3: Captura manual (respaldo cuando Didit no está disponible)
@@ -27,9 +25,22 @@ import { kycStyles } from "../styles/kycStyles";
 // ----------------------------------------------------------------------------
 function CaptureTile({ thumbnailUri, icon, title, hint, done, busy, locked, onPress }) {
   const disabled = busy || locked;
+  const tileClasses = [
+    "flex-row items-center gap-3 p-3 rounded-[14px] border",
+    done ? "border-accent-200 bg-surface-subtle" : "border-border bg-surface",
+    locked && !busy ? "opacity-50" : "",
+  ].filter(Boolean).join(" ");
+
+  const thumbClasses = [
+    "w-[46px] h-[46px] rounded-[9px] justify-center items-center overflow-hidden border",
+    thumbnailUri
+      ? "border-accent-300"
+      : "border-borderLight border-dashed bg-surface-subtle",
+  ].filter(Boolean).join(" ");
+
   return (
     <TouchableOpacity
-      style={[styles.tile, done && styles.tileDone, locked && !busy && styles.tileLocked]}
+      className={tileClasses}
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.7}
@@ -39,30 +50,30 @@ function CaptureTile({ thumbnailUri, icon, title, hint, done, busy, locked, onPr
         busy ? "Subiendo foto" : done ? "Listo, toca para repetir" : "Pendiente"
       }`}
     >
-      <View style={[styles.thumb, thumbnailUri ? styles.thumbFilled : styles.thumbEmpty]}>
+      <View className={thumbClasses}>
         {thumbnailUri ? (
-          <Image source={{ uri: thumbnailUri }} style={styles.thumbImage} />
+          <Image source={{ uri: thumbnailUri }} className="w-full h-full" />
         ) : (
           <Icon name={icon} size={20} color={colors.primary300} strokeWidth={1.6} />
         )}
       </View>
 
-      <View style={styles.tileBody}>
-        <Text style={styles.tileTitle}>{title}</Text>
-        <Text style={styles.tileHint}>{busy ? "Subiendo foto…" : hint}</Text>
+      <View className="flex-1">
+        <Text className="text-[13.5px] font-bold text-text">{title}</Text>
+        <Text className="text-[11.5px] text-text-secondary mt-0.5">{busy ? "Subiendo foto…" : hint}</Text>
       </View>
 
-      <View style={styles.tileStatus}>
+      <View className="flex-row items-center gap-1.5">
         {busy ? (
           <ActivityIndicator size="small" color={colors.accent700} />
         ) : done ? (
-          <View style={styles.pillOk}>
-            <Text style={styles.pillOkText}>Listo</Text>
+          <View className="bg-accent-100 px-[9px] py-[3px] rounded-full">
+            <Text className="text-[10.5px] font-bold text-accent-800">Listo</Text>
           </View>
         ) : (
           <>
-            <View style={styles.pillWait}>
-              <Text style={styles.pillWaitText}>Pendiente</Text>
+            <View className="bg-surface-secondary px-[9px] py-[3px] rounded-full">
+              <Text className="text-[10.5px] font-bold text-text-secondary">Pendiente</Text>
             </View>
             <Icon name="chevron-right" size={16} color={colors.textPlaceholder} />
           </>
@@ -137,30 +148,33 @@ export function StepManualCapture({
   });
 
   return (
-    <View style={kycStyles.screenContainer}>
+    <View className="flex-1 bg-background">
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerClassName="p-5"
         showsVerticalScrollIndicator={false}
       >
         {/* Bloque cabecera: qué se pide y en qué términos */}
-        <Text style={styles.title}>Verificación manual</Text>
-        <Text style={styles.subtitle}>
+        <Text className="text-[22px] font-extrabold tracking-[-0.3px] text-primary-700 mb-2">Verificación manual</Text>
+        <Text className="text-sm leading-[21px] text-text-secondary mb-5">
           Toma 3 fotos. Puedes hacerlas en cualquier orden y repetir cualquiera
           antes de enviar.
         </Text>
 
         {/* Bloque progreso: reemplaza el "Paso X de 3" repetido en cada pantalla */}
-        <View style={styles.progress}>
-          <View style={styles.progressBars}>
+        <View className="flex-row items-center gap-2.5 mb-[18px]">
+          <View className="flex-row gap-[5px] flex-1">
             {[0, 1, 2].map((i) => (
-              <View key={i} style={[styles.progressSeg, i < readyCount && styles.progressSegOn]} />
+              <View
+                key={i}
+                className={`flex-1 h-1 rounded ${i < readyCount ? "bg-accent-500" : "bg-surface-secondary"}`}
+              />
             ))}
           </View>
-          <Text style={styles.progressCount}>{readyCount} / 3</Text>
+          <Text className="text-[11.5px] font-bold text-accent-700 [font-variant:tabular-nums]">{readyCount} / 3</Text>
         </View>
 
         {/* Bloque lista: una fila por documento, cada una abre su cámara */}
-        <View style={styles.tiles}>
+        <View className="gap-2.5">
           <CaptureTile
             thumbnailUri={idCardFrontUrl}
             icon="card"
@@ -194,20 +208,22 @@ export function StepManualCapture({
         </View>
 
         {/* Bloque privacidad: destino de las fotos */}
-        <View style={styles.privacy}>
+        <View className="flex-row gap-2.5 items-start mt-[22px] p-3.5 rounded-xl bg-surface-subtle">
           <Icon name="lock" size={16} color={colors.accent800} strokeWidth={1.7} />
-          <Text style={styles.privacyText}>
+          <Text className="flex-1 text-[12.5px] leading-[18px] text-accent-800">
             Tus fotos viajan cifradas y solo las revisa el equipo de verificación.
           </Text>
         </View>
       </ScrollView>
 
       {/* Bloque acciones: enviar (solo con 3/3) o volver a la ruta rápida */}
-      <View style={[kycStyles.footerBar, styles.footer]}>
-        {!allReady && helpText ? <Text style={kycStyles.ctaHelp}>{helpText}</Text> : null}
+      <View className="border-t border-border bg-surface pt-3 pb-4">
+        {!allReady && helpText ? <Text className="text-center text-xs text-text-secondary mb-1">{helpText}</Text> : null}
 
         <TouchableOpacity
-          style={[kycStyles.primaryButton, (!allReady || isSubmitting) && kycStyles.primaryButtonDisabled]}
+          className={`rounded-[14px] py-4 items-center justify-center mx-4 my-2 ${
+            (!allReady || isSubmitting) ? "bg-disabled-bg" : "bg-primary-700"
+          }`}
           onPress={onSubmit}
           disabled={!allReady || isSubmitting}
           activeOpacity={0.85}
@@ -217,22 +233,20 @@ export function StepManualCapture({
           {isSubmitting ? (
             <ActivityIndicator size="small" color={colors.textWhite} />
           ) : (
-            <Text
-              style={[kycStyles.primaryButtonText, !allReady && kycStyles.primaryButtonTextDisabled]}
-            >
+            <Text className="text-white text-base font-bold">
               Enviar para verificación
             </Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={kycStyles.secondaryButton}
+          className="bg-transparent rounded-[14px] py-3.5 items-center justify-center mx-4"
           onPress={onBackToDidit}
           disabled={isSubmitting}
           accessibilityRole="button"
           accessibilityLabel="Volver a la verificación rápida con Didit"
         >
-          <Text style={kycStyles.secondaryButtonText}>
+          <Text className="text-primary-600 text-sm font-semibold">
             Volver a la verificación rápida con Didit
           </Text>
         </TouchableOpacity>
@@ -240,158 +254,3 @@ export function StepManualCapture({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollContent: {
-    padding: 20,
-  },
-
-  // Cabecera
-  title: {
-    fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: -0.3,
-    color: colors.primary700,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 21,
-    color: colors.textSecondary,
-    marginBottom: 20,
-  },
-
-  // Progreso agregado
-  progress: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 18,
-  },
-  progressBars: {
-    flexDirection: "row",
-    gap: 5,
-    flex: 1,
-  },
-  progressSeg: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.surfaceSecondary,
-  },
-  progressSegOn: {
-    backgroundColor: colors.accent500,
-  },
-  progressCount: {
-    fontSize: 11.5,
-    fontWeight: "700",
-    color: colors.accent700,
-    fontVariant: ["tabular-nums"],
-  },
-
-  // Lista de captura
-  tiles: {
-    gap: 10,
-  },
-  tile: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  tileDone: {
-    borderColor: colors.accent200,
-    backgroundColor: colors.surfaceSubtle,
-  },
-  tileLocked: {
-    opacity: 0.5,
-  },
-  thumb: {
-    width: 46,
-    height: 46,
-    borderRadius: 9,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-  },
-  thumbFilled: {
-    borderWidth: 1,
-    borderColor: colors.accent300,
-  },
-  thumbEmpty: {
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderStyle: "dashed",
-    backgroundColor: colors.surfaceSubtle,
-  },
-  thumbImage: {
-    width: "100%",
-    height: "100%",
-  },
-  tileBody: {
-    flex: 1,
-  },
-  tileTitle: {
-    fontSize: 13.5,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  tileHint: {
-    fontSize: 11.5,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  tileStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  pillOk: {
-    backgroundColor: colors.accent100,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  pillOkText: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    color: colors.accent800,
-  },
-  pillWait: {
-    backgroundColor: colors.surfaceSecondary,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  pillWaitText: {
-    fontSize: 10.5,
-    fontWeight: "700",
-    color: colors.textSecondary,
-  },
-
-  // Nota de privacidad
-  privacy: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
-    marginTop: 22,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceSubtle,
-  },
-  privacyText: {
-    flex: 1,
-    fontSize: 12.5,
-    lineHeight: 18,
-    color: colors.accent800,
-  },
-
-  // Pie de acciones
-  footer: {
-    paddingBottom: 16,
-  },
-});

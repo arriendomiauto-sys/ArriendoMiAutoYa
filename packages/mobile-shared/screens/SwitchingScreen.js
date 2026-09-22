@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, Animated } from "react-native";
+import { View, Text, ActivityIndicator, Animated } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { BrandLogo } from "../components/BrandLogo";
 import { SuccessCheck } from "../components/SuccessCheck";
 
@@ -28,10 +27,6 @@ export function SwitchingScreen({
   overlay = false,
   exito = false,
 }) {
-  const bg = colors.background;
-  const text = colors.text;
-  const muted = colors.textMuted;
-
   // Entra con un fundido corto. El título cambia (rol, cuenta, sesión) sin
   // que la pantalla se desmonte, así que también sirve como transición
   // suave entre un mensaje y el siguiente en vez de un corte seco de texto.
@@ -43,15 +38,16 @@ export function SwitchingScreen({
 
   const contenido = (
     <Animated.View
-      style={[styles.container, { backgroundColor: bg, opacity: entrada }]}
+      className="flex-1 items-center justify-center gap-6 px-8 bg-background"
+      style={{ opacity: entrada }}
       accessibilityRole="progressbar"
       accessibilityLabel={title}
     >
       {/* `exito`: las credenciales ya se aceptaron; el check reemplaza al logo mientras carga el perfil. */}
       {exito ? <SuccessCheck size={80} iconSize={40} /> : <BrandLogo size={80} />}
-      <View style={styles.textBox}>
-        <Text style={[styles.title, { color: text }]}>{title}</Text>
-        {subtitle ? <Text style={[styles.subtitle, { color: muted }]}>{subtitle}</Text> : null}
+      <View className="items-center gap-1.5">
+        <Text className="text-xl font-bold text-text text-center">{title}</Text>
+        {subtitle ? <Text className="text-sm leading-5 text-textMuted text-center">{subtitle}</Text> : null}
       </View>
       <ActivityIndicator size="small" color={colors.primary} />
     </Animated.View>
@@ -66,30 +62,12 @@ export function SwitchingScreen({
   // solo alcanza en iOS.
   if (!overlay) return contenido;
   return (
-    <View style={styles.overlayWrap} pointerEvents="auto">
+    <View
+      className="absolute inset-0 z-[999] [elevation:999]"
+      style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, elevation: 999, zIndex: 999 }}
+      pointerEvents="auto"
+    >
       {contenido}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  overlayWrap: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 999,
-    elevation: 999,
-  },
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.xxl,
-  },
-  textBox: { alignItems: "center", gap: 6 },
-  title: { ...theme.typography.title, textAlign: "center" },
-  subtitle: { fontSize: 14, lineHeight: 20, textAlign: "center" },
-});

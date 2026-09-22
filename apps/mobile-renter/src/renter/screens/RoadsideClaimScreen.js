@@ -108,11 +108,11 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
 
       <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View className="flex-row gap-2">
-          <Button variant="danger" label="Solicitar grúa" iconLeft="shield" onPress={solicitarGrua} style={{ flex: 1 }} />
-          <Button label="Carabineros 133" onPress={() => Linking.openURL("tel:133")} style={{ flex: 1 }} />
+          <Button variant="danger" label="Solicitar grúa" iconLeft="shield" onPress={solicitarGrua} className="flex-1" />
+          <Button label="Carabineros 133" onPress={() => Linking.openURL("tel:133")} className="flex-1" />
         </View>
 
-        <Card padded style={{ gap: 12 }}>
+        <Card padded className="gap-3">
           <SectionLabel>Tipo de incidente</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {TIPOS.map((t) => (
@@ -121,7 +121,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
           </View>
         </Card>
 
-        <Card padded style={{ gap: 8 }}>
+        <Card padded className="gap-2">
           <SectionLabel>Detalle de lo ocurrido</SectionLabel>
           <TextInput
             className="min-h-[90px] border-[1.5px] border-border rounded-xl bg-white p-3.5 text-[15px] text-textDark"
@@ -135,14 +135,14 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
         </Card>
 
         {tipo === "colision" && (
-          <Card padded style={{ gap: 12 }}>
+          <Card padded className="gap-3">
             <SectionLabel>Tercero involucrado (opcional)</SectionLabel>
             {[
               { k: "patente", label: "Patente del otro auto", cap: "characters" },
               { k: "conductor", label: "Nombre del conductor" },
               { k: "aseguradora", label: "Aseguradora del tercero" },
             ].map((f) => (
-              <View key={f.k} style={{ gap: 6 }}>
+              <View key={f.k} className="gap-1.5">
                 <Text className="text-[13px] text-textMuted font-medium">{f.label}</Text>
                 <TextInput
                   className="h-10 border-[1.5px] border-border rounded-xl bg-white px-3.5 text-[15px] text-textDark"
@@ -156,7 +156,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
           </Card>
         )}
 
-        <Card padded style={{ gap: 12 }}>
+        <Card padded className="gap-3">
           <SectionLabel>Registro fotográfico del daño</SectionLabel>
           <View className="flex-row flex-wrap gap-2">
             {fotos.map((p, i) => (

@@ -235,7 +235,7 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, currentUserId, onCam
               ))}
             </View>
 
-            <SectionLabel style={{ marginTop: 16 }}>Tarifa máxima por día</SectionLabel>
+            <SectionLabel className="mt-4">Tarifa máxima por día</SectionLabel>
             <SliderPrecio
               min={min}
               max={max}
@@ -243,7 +243,7 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, currentUserId, onCam
               onChange={(t) => setBorrador((p) => ({ ...p, tarifaMax: t }))}
             />
 
-            <SectionLabel style={{ marginTop: 16 }}>Transmisión</SectionLabel>
+            <SectionLabel className="mt-4">Transmisión</SectionLabel>
             <View className="flex-row flex-wrap gap-2 mt-2">
               {TRANSMISIONES.map((o) => (
                 <Chip
@@ -255,7 +255,7 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, currentUserId, onCam
               ))}
             </View>
 
-            <SectionLabel style={{ marginTop: 16 }}>Combustible</SectionLabel>
+            <SectionLabel className="mt-4">Combustible</SectionLabel>
             <View className="flex-row flex-wrap gap-2 mt-2">
               {COMBUSTIBLES.map((o) => (
                 <Chip
@@ -277,13 +277,13 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, currentUserId, onCam
                 onLimpiar();
               }}
               fullWidth={false}
-              style={{ flex: 1 }}
+              className="flex-1"
             />
             <Button
               label={`Aplicar · ${nResultados} ${nResultados === 1 ? "auto" : "autos"}`}
               onPress={() => onCambiar(borrador)}
               fullWidth={false}
-              style={{ flex: 1.6 }}
+              className="flex-[1.6]"
             />
           </View>
         </View>

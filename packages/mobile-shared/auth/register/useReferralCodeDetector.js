@@ -77,13 +77,16 @@ export function useReferralCodeDetector() {
     detectar();
 
     // 4. Escuchar URLs entrantes mientras la app está abierta
-    const subscription = Linking.addEventListener("url", async (event) => {
-      const code = extraerCodigoDeUrl(event.url);
-      if (code && activo) {
-        setDetectedCode(code);
-        await AsyncStorage.setItem(STORAGE_KEY, code);
-      }
-    });
+    const subscription =
+      typeof Linking?.addEventListener === "function"
+        ? Linking.addEventListener("url", async (event) => {
+            const code = extraerCodigoDeUrl(event.url);
+            if (code && activo) {
+              setDetectedCode(code);
+              await AsyncStorage.setItem(STORAGE_KEY, code);
+            }
+          })
+        : null;
 
     return () => {
       activo = false;

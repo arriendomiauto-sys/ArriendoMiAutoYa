@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 
 /**
  * Campo de texto con sugerencias de un catálogo cerrado o semiabierto.
@@ -40,6 +39,8 @@ export function CampoConSugerencias({
   error,
   autoCapitalize = "words",
   tone = "light",
+  className = "",
+  style,
 }) {
   const p = palette(tone);
   const [abierto, setAbierto] = useState(false);
@@ -49,15 +50,14 @@ export function CampoConSugerencias({
   const mostrarLista = abierto && opciones.length > 0 && !yaEsExacta;
 
   return (
-    <View style={styles.field}>
+    <View className={`gap-1.5 ${className}`} style={style}>
       {etiqueta ? (
-        <Text style={[styles.fieldLabel, { color: p.textMuted }]}>{etiqueta}</Text>
+        <Text className="text-xs font-semibold tracking-wider uppercase" style={{ color: p.textMuted }}>{etiqueta}</Text>
       ) : null}
       <TextInput
+        className={`rounded-xl px-3.5 h-12 border-[1.5px] text-[15px] ${error ? "border-red-500" : ""}`}
         style={[
-          styles.input,
-          { backgroundColor: p.surface, borderColor: p.border, color: p.text },
-          error && styles.inputError,
+          { backgroundColor: p.surface, borderColor: error ? colors.danger : p.border, color: p.text },
         ]}
         placeholder={placeholder}
         placeholderTextColor={p.placeholder}
@@ -78,22 +78,23 @@ export function CampoConSugerencias({
         accessibilityLabel={etiqueta}
       />
       {ayuda && !error ? (
-        <Text style={[styles.fieldHint, { color: p.textMuted }]}>{ayuda}</Text>
+        <Text className="text-xs leading-4" style={{ color: p.textMuted }}>{ayuda}</Text>
       ) : null}
       {mostrarLista && (
-        <View style={[styles.suggestBox, { backgroundColor: p.surfaceList, borderColor: p.borderStrong }]}>
-          <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled style={styles.suggestScroll}>
+        <View className="mt-1 rounded-xl border overflow-hidden" style={{ backgroundColor: p.surfaceList, borderColor: p.borderStrong }}>
+          <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled className="max-h-[220px]">
             {opciones.slice(0, 8).map((opcion) => (
               <TouchableOpacity
                 key={opcion}
-                style={[styles.suggestRow, { borderBottomColor: p.border }]}
+                className="py-3 px-3.5 border-b"
+                style={{ borderBottomColor: p.border }}
                 onPress={() => {
                   onChange(opcion);
                   setAbierto(false);
                 }}
                 accessibilityRole="button"
               >
-                <Text style={[styles.suggestText, { color: p.text }]}>{opcion}</Text>
+                <Text className="text-[15px] font-medium" style={{ color: p.text }}>{opcion}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -102,35 +103,3 @@ export function CampoConSugerencias({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  field: { gap: 6 },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  input: {
-    borderRadius: theme.radius.field,
-    paddingHorizontal: 14,
-    height: theme.control.height,
-    borderWidth: 1.5,
-    fontSize: 15,
-  },
-  inputError: { borderColor: colors.danger },
-  fieldHint: { fontSize: 12, lineHeight: 16 },
-  suggestBox: {
-    marginTop: 4,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  suggestScroll: { maxHeight: 220 },
-  suggestRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-  },
-  suggestText: { fontSize: 15, fontWeight: "500" },
-});

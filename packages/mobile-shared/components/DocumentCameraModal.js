@@ -4,7 +4,6 @@ import {
   View,
   Text,
   Image,
-  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   useWindowDimensions,
@@ -281,7 +280,7 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     // 1. Permiso de cámara aún no resuelto
     if (!permission) {
       return (
-        <View style={styles.centerBox}>
+        <View className="flex-1 items-center justify-center px-8 gap-3 bg-primary-900">
           <ActivityIndicator color="#FFFFFF" />
         </View>
       );
@@ -290,19 +289,19 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     // 2. Permiso denegado
     if (!permission.granted) {
       return (
-        <View style={styles.centerBox}>
-          <View style={styles.permIconTile}>
+        <View className="flex-1 items-center justify-center px-8 gap-3 bg-primary-900">
+          <View className="w-[60px] h-[60px] rounded-[18px] bg-primary-800 border border-slate-700 items-center justify-center">
             <Icon name="camera" size={30} color={colors.accent500} />
           </View>
-          <Text style={styles.permTitle}>Necesitamos tu cámara</Text>
-          <Text style={styles.permText}>
+          <Text className="text-white text-xl font-extrabold mt-2">Necesitamos tu cámara</Text>
+          <Text className="text-slate-400 text-sm text-center leading-5">
             Para verificar tu identidad hay que fotografiar tu documento y una selfie.
           </Text>
-          <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
-            <Text style={styles.permBtnText}>Permitir cámara</Text>
+          <TouchableOpacity className="mt-4.5 bg-accent-500 px-6 py-3.5 rounded-xl" onPress={requestPermission}>
+            <Text className="text-primary-900 font-extrabold text-[15px]">Permitir cámara</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={cerrar} style={{ marginTop: 14 }}>
-            <Text style={styles.permCancel}>Cancelar</Text>
+          <TouchableOpacity onPress={cerrar} className="mt-3.5">
+            <Text className="text-slate-400 text-sm">Cancelar</Text>
           </TouchableOpacity>
         </View>
       );
@@ -312,8 +311,8 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     if (preview) {
       if (cfg.censurarPatente) {
         return (
-          <View style={styles.flex}>
-            <View style={styles.previewCenter}>
+          <View className="flex-1">
+            <View className="flex-1 items-center justify-center">
               {/* Lo que se rasteriza al confirmar: foto + barra encima. */}
               <View
                 ref={shotRef}
@@ -326,40 +325,38 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
                   <>
                     <Image source={{ uri: preview }} style={{ width: cajaW, height: cajaH }} resizeMode="cover" />
                     <View
-                      style={[
-                        styles.censorBar,
-                        {
-                          left: (censor.cx - BANDA_PATENTE.w / 2) * cajaW,
-                          top: (censor.cy - BANDA_PATENTE.h / 2) * cajaH,
-                          width: BANDA_PATENTE.w * cajaW,
-                          height: BANDA_PATENTE.h * cajaH,
-                        },
-                      ]}
+                      className="absolute bg-black rounded"
+                      style={{
+                        left: (censor.cx - BANDA_PATENTE.w / 2) * cajaW,
+                        top: (censor.cy - BANDA_PATENTE.h / 2) * cajaH,
+                        width: BANDA_PATENTE.w * cajaW,
+                        height: BANDA_PATENTE.h * cajaH,
+                      }}
                     />
                   </>
                 ) : (
                   // Mientras se mide el archivo real (Image.getSize), evita
                   // dejar ver el fondo negro sólido del contenedor a solas.
-                  <View style={styles.previewLoadingBox}>
+                  <View className="flex-1 items-center justify-center">
                     <ActivityIndicator color="#FFFFFF" />
                   </View>
                 )}
               </View>
             </View>
-            <Text style={styles.previewAsk}>
+            <Text className="text-white text-base font-extrabold text-center pt-4 pb-2">
               Así se va a publicar: la patente queda tapada. Si la barra no quedó
               encima, toca la patente para moverla.
             </Text>
-            <View style={styles.previewActions}>
-              <TouchableOpacity style={styles.retakeBtn} onPress={() => setPreview(null)} disabled={busy}>
+            <View className="flex-row gap-3 px-5 pt-2 pb-9">
+              <TouchableOpacity className="flex-1 h-[52px] rounded-xl border-[1.5px] border-white/30 flex-row items-center justify-center gap-2" onPress={() => setPreview(null)} disabled={busy}>
                 <Icon name="arrow-left" size={16} color="#FFFFFF" />
-                <Text style={styles.retakeText}>Repetir</Text>
+                <Text className="text-white text-[15px] font-bold">Repetir</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.useBtn} onPress={confirmar} disabled={busy}>
+              <TouchableOpacity className="flex-[1.6] h-[52px] rounded-xl bg-accent-500 items-center justify-center" onPress={confirmar} disabled={busy}>
                 {busy ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.useText}>Usar esta foto</Text>
+                  <Text className="text-primary-900 text-[15px] font-extrabold">Usar esta foto</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -368,31 +365,31 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
       }
 
       return (
-        <View style={styles.flex}>
-          <Image source={{ uri: preview }} style={styles.previewImg} resizeMode="contain" />
-          <Text style={styles.previewAsk}>
+        <View className="flex-1">
+          <Image source={{ uri: preview }} className="flex-1 w-full bg-black" resizeMode="contain" />
+          <Text className="text-white text-base font-extrabold text-center pt-4 pb-2">
             {esVehiculo ? "¿Se ve el auto completo y nítido?" : "¿Se lee todo y está completo?"}
           </Text>
           {/* Checklist de lo que el OCR necesita — solo para documentos ID-1 */}
           {!esVehiculo && cfg.shape === "card" ? (
-            <View style={styles.previewChecklist}>
-              <View style={styles.previewCheckRow}>
+            <View className="gap-1.5 px-6 pb-2.5">
+              <View className="flex-row items-center gap-2">
                 <Icon name="check" size={14} color={colors.accent500} strokeWidth={2.4} />
-                <Text style={styles.previewCheckText}>Los datos se leen sin esfuerzo</Text>
+                <Text className="text-white/85 text-[12.5px]">Los datos se leen sin esfuerzo</Text>
               </View>
-              <View style={styles.previewCheckRow}>
+              <View className="flex-row items-center gap-2">
                 <Icon name="check" size={14} color={colors.accent500} strokeWidth={2.4} />
-                <Text style={styles.previewCheckText}>Sin reflejos ni bordes recortados</Text>
+                <Text className="text-white/85 text-[12.5px]">Sin reflejos ni bordes recortados</Text>
               </View>
             </View>
           ) : null}
-          <View style={styles.previewActions}>
-            <TouchableOpacity style={styles.retakeBtn} onPress={() => setPreview(null)}>
+          <View className="flex-row gap-3 px-5 pt-2 pb-9">
+            <TouchableOpacity className="flex-1 h-[52px] rounded-xl border-[1.5px] border-white/30 flex-row items-center justify-center gap-2" onPress={() => setPreview(null)}>
               <Icon name="arrow-left" size={16} color="#FFFFFF" />
-              <Text style={styles.retakeText}>Repetir</Text>
+              <Text className="text-white text-[15px] font-bold">Repetir</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.useBtn} onPress={confirmar}>
-              <Text style={styles.useText}>Usar esta foto</Text>
+            <TouchableOpacity className="flex-[1.6] h-[52px] rounded-xl bg-accent-500 items-center justify-center" onPress={confirmar}>
+              <Text className="text-primary-900 text-[15px] font-extrabold">Usar esta foto</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -401,102 +398,98 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
 
     // 4. Cámara en vivo con marco guía
     return (
-      <View style={styles.flex}>
-        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cfg.facing} {...zoomProps} />
+      <View className="flex-1">
+        <CameraView ref={cameraRef} className="absolute inset-0" facing={cfg.facing} {...zoomProps} />
 
         {/* Máscara oscura (arriba / abajo / lados) con la ventana transparente
-            centrada. Antes solo oscurecía los costados y el marco se
-            posicionaba con geometría de pantalla, lo que lo dejaba
-            descentrado en varios equipos. */}
-        <View style={[styles.maskFill, { height: SCREEN_H, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-          <View style={styles.maskBlock} />
-          <View style={[styles.maskMiddle, { height: frameH }]}>
-            <View style={styles.maskBlock} />
+            centrada. */}
+        <View className="absolute inset-0 flex-col" style={{ height: SCREEN_H, paddingTop: insets.top, paddingBottom: insets.bottom }}>
+          <View className="flex-1 bg-[rgba(6,30,31,0.68)]" />
+          <View className="flex-row" style={{ height: frameH }}>
+            <View className="flex-1 bg-[rgba(6,30,31,0.68)]" />
             <View
+              className="border-[1.5px] border-white/55"
               style={[
-                styles.window,
                 { width: frameW, height: frameH, borderRadius: cfg.shape === "face" ? frameH / 2 : 16 },
               ]}
             >
-              <View style={[styles.corner, styles.cornerTL]} />
-              <View style={[styles.corner, styles.cornerTR]} />
-              <View style={[styles.corner, styles.cornerBL]} />
-              <View style={[styles.corner, styles.cornerBR]} />
+              <View className="absolute w-[26px] h-[26px] border-accent-500 top-[-2px] left-[-2px] border-t-4 border-l-4 rounded-tl-[10px]" />
+              <View className="absolute w-[26px] h-[26px] border-accent-500 top-[-2px] right-[-2px] border-t-4 border-r-4 rounded-tr-[10px]" />
+              <View className="absolute w-[26px] h-[26px] border-accent-500 bottom-[-2px] left-[-2px] border-b-4 border-l-4 rounded-bl-[10px]" />
+              <View className="absolute w-[26px] h-[26px] border-accent-500 bottom-[-2px] right-[-2px] border-b-4 border-r-4 rounded-br-[10px]" />
 
               {cfg.censurarPatente ? (
                 <View
-                  style={[
-                    styles.bandaPatente,
-                    {
-                      left: (BANDA_PATENTE.cx - BANDA_PATENTE.w / 2) * frameW,
-                      top: (BANDA_PATENTE.cy - BANDA_PATENTE.h / 2) * frameH,
-                      width: BANDA_PATENTE.w * frameW,
-                      height: BANDA_PATENTE.h * frameH,
-                    },
-                  ]}
+                  className="absolute border-2 border-dashed border-accent-500 rounded-md items-center justify-center bg-[rgba(47,191,155,0.18)]"
+                  style={{
+                    left: (BANDA_PATENTE.cx - BANDA_PATENTE.w / 2) * frameW,
+                    top: (BANDA_PATENTE.cy - BANDA_PATENTE.h / 2) * frameH,
+                    width: BANDA_PATENTE.w * frameW,
+                    height: BANDA_PATENTE.h * frameH,
+                  }}
                 >
-                  <Text style={styles.bandaTexto}>Patente aquí</Text>
+                  <Text className="text-white text-[11px] font-bold">Patente aquí</Text>
                 </View>
               ) : null}
             </View>
-            <View style={styles.maskBlock} />
+            <View className="flex-1 bg-[rgba(6,30,31,0.68)]" />
           </View>
-          <View style={styles.maskBlock} />
+          <View className="flex-1 bg-[rgba(6,30,31,0.68)]" />
         </View>
 
         {/* Top bar */}
-        <View style={[styles.topBar, { top: insets.top + 12 }]}>
-          <TouchableOpacity onPress={cerrar} style={styles.iconBtn} hitSlop={12}>
-            <View style={styles.closeCircle}>
+        <View className="absolute left-0 right-0 flex-row items-center justify-between px-4" style={{ top: insets.top + 12 }}>
+          <TouchableOpacity onPress={cerrar} className="w-10 h-10 items-center justify-center" hitSlop={12}>
+            <View className="w-8 h-8 rounded-full bg-white/15 items-center justify-center">
               <Icon name="close" size={18} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.topTitle}>{cfg.titulo}</Text>
-          <View style={styles.iconBtn} />
+          <Text className="text-white text-[15px] font-bold flex-1 text-center">{cfg.titulo}</Text>
+          <View className="w-10 h-10 items-center justify-center" />
         </View>
 
         {/* Selector de Zoom (0.5x gran angular, 1x normal, 2x acercado) */}
         {cfg.facing !== "front" && (
-          <View style={[styles.zoomRow, { bottom: insets.bottom + 125 }]}>
+          <View className="absolute self-center flex-row gap-2 bg-black/60 py-1 px-2 rounded-full z-10" style={{ bottom: insets.bottom + 125 }}>
             {lenteUltraWide ? (
               <TouchableOpacity
-                style={[styles.zoomChip, nivelZoom === "0.5x" && styles.zoomChipActivo]}
+                className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "0.5x" ? "bg-accent-500" : ""}`}
                 onPress={() => setNivelZoom("0.5x")}
                 accessibilityRole="button"
                 accessibilityLabel="Zoom gran angular 0.5x"
               >
-                <Text style={[styles.zoomChipText, nivelZoom === "0.5x" && styles.zoomChipTextActivo]}>0.5x</Text>
+                <Text className={`text-[12.5px] font-bold ${nivelZoom === "0.5x" ? "text-primary-900" : "text-white"}`}>0.5x</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
-              style={[styles.zoomChip, nivelZoom === "1x" && styles.zoomChipActivo]}
+              className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "1x" ? "bg-accent-500" : ""}`}
               onPress={() => setNivelZoom("1x")}
               accessibilityRole="button"
               accessibilityLabel="Zoom normal 1x"
             >
-              <Text style={[styles.zoomChipText, nivelZoom === "1x" && styles.zoomChipTextActivo]}>1x</Text>
+              <Text className={`text-[12.5px] font-bold ${nivelZoom === "1x" ? "text-primary-900" : "text-white"}`}>1x</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.zoomChip, nivelZoom === "2x" && styles.zoomChipActivo]}
+              className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "2x" ? "bg-accent-500" : ""}`}
               onPress={() => setNivelZoom("2x")}
               accessibilityRole="button"
               accessibilityLabel="Zoom acercado 2x"
             >
-              <Text style={[styles.zoomChipText, nivelZoom === "2x" && styles.zoomChipTextActivo]}>2x</Text>
+              <Text className={`text-[12.5px] font-bold ${nivelZoom === "2x" ? "text-primary-900" : "text-white"}`}>2x</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* Hint + shutter */}
-        <View style={[styles.bottomArea, { bottom: insets.bottom + 40 }]}>
-          <Text style={styles.hint}>{cfg.hint}</Text>
+        <View className="absolute left-0 right-0 items-center gap-4.5 px-7" style={{ bottom: insets.bottom + 40 }}>
+          <Text className="text-white/90 text-[13px] text-center leading-[18px] bg-[rgba(6,30,31,0.62)] border border-white/10 px-3.5 py-2 rounded-xl">{cfg.hint}</Text>
           <TouchableOpacity
-            style={styles.shutter}
+            className="w-[72px] h-[72px] rounded-full bg-white items-center justify-center border-[3px] border-accent-500"
             onPress={tomarFoto}
             disabled={busy}
             activeOpacity={0.8}
           >
-            {busy ? <ActivityIndicator color={colors.primary} /> : <View style={styles.shutterCore} />}
+            {busy ? <ActivityIndicator color={colors.primary} /> : <View className="w-14 h-14 rounded-full bg-white" />}
           </TouchableOpacity>
         </View>
       </View>
@@ -506,207 +499,9 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={cerrar} statusBarTranslucent>
       {/* height explícito: ver nota en useWindowDimensions arriba */}
-      <View style={[styles.root, { width: SCREEN_W, height: SCREEN_H }]}>
+      <View className="flex-1 bg-black" style={{ width: SCREEN_W, height: SCREEN_H }}>
         {renderContenido()}
       </View>
     </Modal>
   );
 }
-
-// Penumbra teñida de pino en vez de negro plano.
-const DIM = "rgba(6,30,31,0.68)";
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#000000" },
-  flex: { flex: 1 },
-  centerBox: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 12,
-    backgroundColor: colors.primary900,
-  },
-  permIconTile: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: colors.primary800,
-    borderWidth: 1,
-    borderColor: colors.darkBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  permTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "800", marginTop: 8 },
-  permText: { color: colors.darkTextMuted, fontSize: 14, textAlign: "center", lineHeight: 20 },
-  permBtn: {
-    marginTop: 18,
-    backgroundColor: colors.accent500,
-    paddingHorizontal: 24,
-    paddingVertical: 13,
-    borderRadius: 12,
-  },
-  permBtnText: { color: colors.primary900, fontWeight: "800", fontSize: 15 },
-  permCancel: { color: colors.darkTextMuted, fontSize: 14 },
-
-  // Máscara / ventana
-  maskFill: { ...StyleSheet.absoluteFillObject, flexDirection: "column" },
-  maskMiddle: { flexDirection: "row" },
-  maskBlock: { flex: 1, backgroundColor: DIM },
-  window: {
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.55)",
-    // El centro queda transparente (sin backgroundColor) mostrando la cámara.
-  },
-  corner: {
-    position: "absolute",
-    width: 26,
-    height: 26,
-    borderColor: colors.accent500,
-  },
-  cornerTL: { top: -2, left: -2, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 10 },
-  cornerTR: { top: -2, right: -2, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 10 },
-  cornerBL: { bottom: -2, left: -2, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 10 },
-  cornerBR: { bottom: -2, right: -2, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 10 },
-
-  // Barras superpuestas
-  topBar: {
-    // `top` real lo pone el inline style con el inset seguro del dispositivo.
-    position: "absolute",
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-  },
-  iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  closeCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  topTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "700", flex: 1, textAlign: "center" },
-  bottomArea: {
-    // `bottom` real lo pone el inline style con el inset seguro del dispositivo.
-    position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    gap: 18,
-    paddingHorizontal: 28,
-  },
-  hint: {
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-    backgroundColor: "rgba(6,30,31,0.62)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 12,
-  },
-  shutter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: colors.accent500,
-  },
-  shutterCore: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#FFFFFF" },
-
-  // Guía de patente (solo tomas frontal/trasera del auto)
-  bandaPatente: {
-    position: "absolute",
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: colors.accent500,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(47,191,155,0.18)",
-  },
-  bandaTexto: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
-
-  // Preview
-  previewCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
-  censorBar: { position: "absolute", backgroundColor: "#000000", borderRadius: 4 },
-  previewLoadingBox: { flex: 1, alignItems: "center", justifyContent: "center" },
-  previewImg: { flex: 1, width: "100%", backgroundColor: "#000000" },
-  previewAsk: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-    textAlign: "center",
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  previewChecklist: {
-    gap: 7,
-    paddingHorizontal: 24,
-    paddingBottom: 10,
-  },
-  previewCheckRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  previewCheckText: { color: "rgba(255,255,255,0.85)", fontSize: 12.5 },
-  previewActions: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 36,
-  },
-  retakeBtn: {
-    flex: 1,
-    height: 52,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.3)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  retakeText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
-  useBtn: {
-    flex: 1.6,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: colors.accent500,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  useText: { color: colors.primary900, fontSize: 15, fontWeight: "800" },
-  zoomRow: {
-    position: "absolute",
-    alignSelf: "center",
-    flexDirection: "row",
-    gap: 8,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-    zIndex: 10,
-  },
-  zoomChip: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  zoomChipActivo: { backgroundColor: colors.accent500 },
-  zoomChipText: { color: "#FFFFFF", fontSize: 12.5, fontWeight: "700" },
-  zoomChipTextActivo: { color: colors.primary900 || "#000000" },
-});

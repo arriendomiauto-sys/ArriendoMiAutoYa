@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
   TouchableOpacity,
   ScrollView,
@@ -12,7 +11,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Button } from "../components/ui";
 import { AdjuntarFoto } from "../components/AdjuntarFoto";
@@ -95,45 +93,47 @@ export function ReportFineModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
-        style={styles.overlay}
+        className="flex-1 bg-slate-900/65 justify-end"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }]}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <View style={styles.iconCircle}>
+        <View className="bg-surface rounded-t-3xl max-h-[90%]" style={{ paddingBottom: Math.max(insets?.bottom || 0, 16) + 8 }}>
+          <View className="w-10 h-1 rounded-full bg-borderDark self-center mt-2.5 mb-0.5" />
+          <View className="flex-row items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
+            <View className="w-11 h-11 rounded-full bg-amber-50 items-center justify-center">
               <Icon name="alert" size={24} color={colors.warning} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Reportar falta o penalización</Text>
-              <Text style={styles.subtitle}>Se descontará del hold de garantía y liquidará a tu favor</Text>
+            <View className="flex-1">
+              <Text className="text-[17px] font-bold text-textDark">Reportar falta o penalización</Text>
+              <Text className="text-xs text-textMuted mt-0.5">Se descontará del hold de garantía y liquidará a tu favor</Text>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={theme.control.hitSlop} style={styles.closeBtn}>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} className="p-1">
               <Icon name="close" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={{ padding: 16, gap: 12 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.sectionTitle}>Tipo de falta</Text>
-            <View style={styles.typesGrid}>
+            <Text className="text-[13px] font-bold text-textMuted uppercase tracking-wider">Tipo de falta</Text>
+            <View className="flex-row flex-wrap gap-2">
               {TIPOS_FALTAS.map((item) => {
                 const selected = tipo === item.id;
                 return (
                   <TouchableOpacity
                     key={item.id}
-                    style={[styles.typeButton, selected && styles.typeButtonSelected]}
+                    className={`py-2 px-3 rounded-full border items-center ${
+                      selected ? "border-accent bg-accent-100" : "border-border bg-background"
+                    }`}
                     onPress={() => handleSelectTipo(item)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.typeButtonText, selected && styles.typeButtonTextSelected]}>
+                    <Text className={`text-[13px] font-semibold ${selected ? "text-accent-800" : "text-textDark"}`}>
                       {item.label}
                     </Text>
                     {item.sugerido > 0 && (
-                      <Text style={[styles.typeButtonPrice, selected && styles.typeButtonPriceSelected]}>
+                      <Text className={`text-[11px] mt-0.5 ${selected ? "text-accent-800 font-bold" : "text-textMuted"}`}>
                         ${item.sugerido.toLocaleString("es-CL")}
                       </Text>
                     )}
@@ -142,10 +142,10 @@ export function ReportFineModal({
               })}
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Monto de la multa (CLP)</Text>
+            <View className="gap-1.5">
+              <Text className="text-[13px] font-semibold text-textDark">Monto de la multa (CLP)</Text>
               <TextInput
-                style={styles.input}
+                className="bg-background rounded-xl border border-border px-3.5 py-2.5 text-sm text-textDark"
                 value={monto}
                 onChangeText={setMonto}
                 keyboardType="numeric"
@@ -154,10 +154,10 @@ export function ReportFineModal({
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Explicación / Justificación</Text>
+            <View className="gap-1.5">
+              <Text className="text-[13px] font-semibold text-textDark">Explicación / Justificación</Text>
               <TextInput
-                style={[styles.input, { minHeight: 64 }]}
+                className="bg-background rounded-xl border border-border px-3.5 py-2.5 text-sm text-textDark min-h-[64px]"
                 value={motivo}
                 onChangeText={setMotivo}
                 multiline
@@ -181,7 +181,7 @@ export function ReportFineModal({
               loading={loading}
               disabled={!formValido || loading}
               variant="primary"
-              style={{ marginTop: 8, opacity: (!formValido || loading) ? 0.6 : 1 }}
+              className={`mt-2 ${!formValido || loading ? "opacity-60" : "opacity-100"}`}
             />
           </ScrollView>
         </View>
@@ -189,105 +189,3 @@ export function ReportFineModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(10, 15, 29, 0.65)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: theme.radius.xl,
-    borderTopRightRadius: theme.radius.xl,
-    maxHeight: "90%",
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderDark,
-    alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 2,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.warningSubtle,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: { fontSize: 17, fontWeight: "700", color: colors.text },
-  subtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  closeBtn: { padding: 4 },
-  scrollContent: {
-    padding: theme.spacing.screen,
-    gap: theme.spacing.md,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  typesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  typeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-    alignItems: "center",
-  },
-  typeButtonSelected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent100,
-  },
-  typeButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  typeButtonTextSelected: {
-    color: colors.accentDark,
-  },
-  typeButtonPrice: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  typeButtonPriceSelected: {
-    color: colors.accent800,
-    fontWeight: "700",
-  },
-  inputGroup: { gap: 6 },
-  inputLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
-  input: {
-    backgroundColor: colors.background,
-    borderRadius: theme.radius.field,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.text,
-  },
-});

@@ -2,11 +2,9 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
 } from "react-native";
 import { colors } from "../../theme/colors";
-import { theme } from "../../theme/tokens";
 import { Icon } from "../../components/Icon";
 import { Button, BottomBar } from "../../components/ui";
 
@@ -57,40 +55,39 @@ export function OnboardingScreen({ onFinish }) {
   const slide = ONBOARDING_SLIDES[currentSlide];
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-surface justify-between">
       {/* Top Skip Button */}
-      <View style={styles.topBar}>
+      <View className="px-8 pt-2 flex-row justify-end h-10">
         {currentSlide < ONBOARDING_SLIDES.length - 1 ? (
-          <TouchableOpacity onPress={onFinish} style={styles.skipButton}>
-            <Text style={styles.skipText}>Saltar</Text>
+          <TouchableOpacity onPress={onFinish} className="py-1.5 px-2">
+            <Text className="text-sm font-semibold text-accent-700">Saltar</Text>
           </TouchableOpacity>
         ) : (
-          <View style={{ height: 36 }} />
+          <View className="h-9" />
         )}
       </View>
 
       {/* Center Content */}
-      <View style={styles.centerBox}>
-        <View style={[styles.visualBox, { backgroundColor: slide.iconBg }]}>
+      <View className="flex-1 px-8 py-4 justify-between gap-8">
+        <View className="flex-1 rounded-2xl items-center justify-center" style={{ backgroundColor: slide.iconBg }}>
           <Icon name={slide.iconName} size={110} color={slide.iconColor} />
         </View>
 
-        <View style={styles.textBox}>
-          <Text style={styles.title}>{slide.title}</Text>
-          <Text style={styles.description}>{slide.description}</Text>
+        <View className="gap-4">
+          <Text className="text-[28px] leading-[34px] font-bold text-gray-900">{slide.title}</Text>
+          <Text className="text-base leading-[25px] text-gray-500">{slide.description}</Text>
         </View>
       </View>
 
       {/* Bottom Controls */}
-      <BottomBar bordered={false} style={styles.bottomControls}>
-        <View style={styles.dotsRow}>
+      <BottomBar bordered={false} className="px-8 bg-transparent gap-5">
+        <View className="flex-row justify-center items-center gap-1.5">
           {ONBOARDING_SLIDES.map((_, idx) => (
             <View
               key={idx}
-              style={[
-                styles.dot,
-                idx === currentSlide ? styles.dotActive : styles.dotInactive,
-              ]}
+              className={`h-1.5 rounded-full ${
+                idx === currentSlide ? "w-6 bg-primary-700" : "w-1.5 bg-primary-200"
+              }`}
             />
           ))}
         </View>
@@ -100,74 +97,3 @@ export function OnboardingScreen({ onFinish }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "space-between",
-  },
-  topBar: {
-    paddingHorizontal: theme.spacing.xxl,
-    paddingTop: theme.spacing.sm,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    height: theme.control.heightSm,
-  },
-  skipButton: {
-    paddingVertical: 6,
-    paddingHorizontal: theme.spacing.sm,
-  },
-  skipText: {
-    ...theme.typography.bodyStrong,
-    color: colors.accent700,
-  },
-  centerBox: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.xxl,
-    paddingVertical: theme.spacing.md,
-    justifyContent: "space-between",
-    gap: theme.spacing.xxl,
-  },
-  visualBox: {
-    flex: 1,
-    borderRadius: theme.radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  textBox: {
-    gap: theme.spacing.md,
-  },
-  title: {
-    ...theme.typography.display,
-    color: colors.text,
-  },
-  description: {
-    fontSize: 16,
-    lineHeight: 25,
-    color: colors.textMuted,
-  },
-  bottomControls: {
-    paddingHorizontal: theme.spacing.xxl,
-    backgroundColor: "transparent",
-    gap: theme.spacing.xl,
-  },
-  dotsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 7,
-  },
-  dot: {
-    height: 7,
-    borderRadius: theme.radius.pill,
-  },
-  dotActive: {
-    width: 24,
-    backgroundColor: colors.primary,
-  },
-  dotInactive: {
-    width: 7,
-    backgroundColor: colors.primary200,
-  },
-});

@@ -1,8 +1,7 @@
 import React from "react";
-import { View, Text, StyleSheet, StatusBar, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, StatusBar, ScrollView, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { Button, Card, ScreenHeader, Badge, EmptyState } from "../components/ui";
 import { AgregarTarjetaModal } from "../components/AgregarTarjetaModal";
@@ -21,27 +20,27 @@ function TarjetaFila({ tarjeta, onEliminar }) {
   const marca = MARCA_LABEL[tarjeta.marca] || "Tarjeta";
   const estado = ESTADO_BADGE[tarjeta.estado] || ESTADO_BADGE.requiere_revision_manual;
   return (
-    <Card padded style={styles.fila}>
-      <View style={styles.filaIcono}>
+    <Card padded className="flex-row items-center gap-3">
+      <View className="w-[38px] h-[38px] rounded-xl bg-primary-100 items-center justify-center">
         <Icon name="card" size={18} color={colors.primary} />
       </View>
-      <View style={{ flex: 1 }}>
-        <View style={styles.filaTituloRow}>
-          <Text style={styles.filaTitulo}>
-            {marca} ·<Text style={styles.filaDigitos}> •••• {tarjeta.ultimos4}</Text>
+      <View className="flex-1">
+        <View className="flex-row items-center justify-between gap-2">
+          <Text className="text-sm font-bold text-textDark">
+            {marca} ·<Text className="font-bold text-textDark"> •••• {tarjeta.ultimos4}</Text>
           </Text>
-          <View style={styles.tipoPill}>
-            <Text style={styles.tipoPillTexto}>{tarjeta.tipo === "debito" ? "Débito" : "Crédito"}</Text>
+          <View className="bg-accent-100 rounded-full py-0.5 px-2">
+            <Text className="text-[11px] font-bold text-accent-800">{tarjeta.tipo === "debito" ? "Débito" : "Crédito"}</Text>
           </View>
         </View>
-        <View style={styles.filaMetaRow}>
-          {tarjeta.vencimiento ? <Text style={styles.filaMeta}>Vence {tarjeta.vencimiento}</Text> : null}
+        <View className="flex-row items-center gap-2 mt-1">
+          {tarjeta.vencimiento ? <Text className="text-xs text-textMuted">Vence {tarjeta.vencimiento}</Text> : null}
           <Badge variant={estado.variant} label={estado.label} />
         </View>
       </View>
       <TouchableOpacity
         onPress={() => onEliminar(tarjeta)}
-        hitSlop={theme.control.hitSlop}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         accessibilityRole="button"
         accessibilityLabel={`Eliminar la tarjeta terminada en ${tarjeta.ultimos4}`}
       >
@@ -94,31 +93,31 @@ export function MisTarjetasScreen({ onBack, onDone }) {
   if (!cargando && !tieneCredito) faltantes.push("una de crédito para la garantía");
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Mis tarjetas" onBack={onBack} />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}
+        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
         showsVerticalScrollIndicator={false}
       >
         {faltantes.length > 0 ? (
-          <View style={styles.avisoFalta}>
+          <View className="flex-row items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
             <Icon name="alert" size={16} color={colors.warningText} />
-            <Text style={styles.avisoFaltaTexto}>
+            <Text className="flex-1 text-[12.5px] text-amber-800 leading-[17px]">
               Te falta {faltantes.join(" y ")}.
             </Text>
           </View>
         ) : null}
 
         {error ? (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorTitulo}>No pudimos cargar tus tarjetas</Text>
-            <Text style={styles.errorTexto}>{error}</Text>
-            <Button label="Reintentar" variant="secondary" onPress={recargar} fullWidth={false} style={{ alignSelf: "flex-start" }} />
+          <View className="bg-red-50 border border-red-200 rounded-xl p-4 gap-2">
+            <Text className="text-sm font-bold text-red-800">No pudimos cargar tus tarjetas</Text>
+            <Text className="text-[13px] text-red-700 leading-[18px]">{error}</Text>
+            <Button label="Reintentar" variant="secondary" onPress={recargar} fullWidth={false} className="self-start" />
           </View>
         ) : cargando ? (
-          <Text style={styles.cargando}>Cargando…</Text>
+          <Text className="text-sm text-textMuted text-center py-6">Cargando…</Text>
         ) : tarjetas.length === 0 ? (
           <EmptyState
             icon="card"
@@ -126,7 +125,7 @@ export function MisTarjetasScreen({ onBack, onDone }) {
             message="El arriendo se cobra a una tarjeta de débito y la garantía se retiene en una de crédito. Ambas deben estar a tu nombre."
           />
         ) : (
-          <View style={{ gap: theme.spacing.md }}>
+          <View className="gap-3">
             {tarjetas.map((t) => (
               <TarjetaFila key={t.id} tarjeta={t} onEliminar={confirmarEliminar} />
             ))}
@@ -134,7 +133,7 @@ export function MisTarjetasScreen({ onBack, onDone }) {
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+      <View className="px-4 pt-3 bg-surface border-t border-border gap-2" style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}>
         <Button label="Agregar tarjeta" onPress={() => setModalAbierto(true)} />
         {tarjetas.length > 0 && (onDone || onBack) ? (
           <Button variant="ghost" label="Listo" onPress={() => (onDone || onBack)()} />
@@ -153,63 +152,3 @@ export function MisTarjetasScreen({ onBack, onDone }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: theme.spacing.screen, gap: theme.spacing.lg },
-  cargando: { fontSize: 14, color: colors.textMuted, textAlign: "center", paddingVertical: theme.spacing.xl },
-
-  avisoFalta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.sm,
-    backgroundColor: colors.warningBg,
-    borderColor: colors.warningBorder,
-    borderWidth: 1,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.md,
-  },
-  avisoFaltaTexto: { flex: 1, fontSize: 12.5, color: colors.warningText, lineHeight: 17 },
-
-  fila: { flexDirection: "row", alignItems: "center", gap: theme.spacing.md },
-  filaIcono: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: colors.primary100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filaTituloRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.sm },
-  filaTitulo: { fontSize: 14, fontWeight: "700", color: colors.text },
-  filaDigitos: { fontWeight: "700", color: colors.text, fontVariant: ["tabular-nums"] },
-  tipoPill: {
-    backgroundColor: colors.accent100,
-    borderRadius: theme.radius.pill,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-  },
-  tipoPillTexto: { fontSize: 11, fontWeight: "700", color: colors.accent800 },
-  filaMetaRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm, marginTop: 4 },
-  filaMeta: { fontSize: 12, color: colors.textMuted },
-
-  errorCard: {
-    backgroundColor: colors.dangerBg,
-    borderColor: colors.dangerBorder,
-    borderWidth: 1,
-    borderRadius: theme.radius.field,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  errorTitulo: { fontSize: 14, fontWeight: "700", color: colors.dangerText },
-  errorTexto: { fontSize: 13, color: colors.dangerText, lineHeight: 18 },
-
-  footer: {
-    paddingHorizontal: theme.spacing.screen,
-    paddingTop: theme.spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: theme.spacing.sm,
-  },
-});

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,7 +12,6 @@ import {
   Platform,
 } from "react-native";
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "../components/Icon";
 import { ScreenHeader, Chip, Button, Card, Badge, EmptyState } from "../components/ui";
 import { ApiClient } from "../api/client";
@@ -220,20 +218,20 @@ export function SupportScreen({ onBack, variant = "renter" }) {
     filasContacto.length === 0
       ? null
       : (
-    <Card tone={tone} padded style={{ gap: theme.spacing.md }}>
-      <Text style={[styles.cardTitle, { color: c.text }]}>Hablar con una persona</Text>
-      <Text style={[styles.cardHint, { color: c.muted }]}>
+    <Card tone={tone} padded className="gap-3">
+      <Text className="text-[15px] font-bold" style={{ color: c.text }}>Hablar con una persona</Text>
+      <Text className="text-[13px] leading-[19px]" style={{ color: c.muted }}>
         No hay asistente automático: te responde el equipo de soporte.
       </Text>
       {filasContacto.map((fila) => (
         <TouchableOpacity
           key={fila.key}
-          style={styles.contactRow}
+          className="flex-row items-center gap-2"
           accessibilityRole="button"
           onPress={fila.onPress}
         >
           <Icon name={fila.icon} size={16} color={fila.color} />
-          <Text style={[styles.contactText, { color: fila.color }]}>{fila.texto}</Text>
+          <Text className="text-sm font-semibold" style={{ color: fila.color }}>{fila.texto}</Text>
         </TouchableOpacity>
       ))}
     </Card>
@@ -241,40 +239,46 @@ export function SupportScreen({ onBack, variant = "renter" }) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: c.bg }]}
+      className="flex-1"
+      style={{ backgroundColor: c.bg }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScreenHeader tone={tone} title="Centro de ayuda" subtitle="Atención 24/7" onBack={onBack} />
 
-      <View style={styles.tabs}>
+      <View className="flex-row gap-2 px-4 pb-3">
         {TABS.map((t) => (
           <Chip key={t.id} tone={tone} label={t.label} selected={tab === t.id} onPress={() => setTab(t.id)} />
         ))}
       </View>
 
       {tab === "faq" && (
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {faqs.map((item) => {
             const open = openFaq === item.id;
             return (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.faq, { backgroundColor: c.surface, borderColor: c.border }]}
+                className="rounded-2xl border p-4"
+                style={{ backgroundColor: c.surface, borderColor: c.border }}
                 onPress={() => setOpenFaq(open ? null : item.id)}
                 activeOpacity={0.8}
               >
-                <View style={styles.faqHead}>
-                  <Text style={[styles.faqQ, { color: c.text }]}>{item.q}</Text>
+                <View className="flex-row items-center justify-between gap-3">
+                  <Text className="flex-1 text-sm font-semibold" style={{ color: c.text }}>{item.q}</Text>
                   <Icon name={open ? "chevron-up" : "chevron-down"} size={16} color={c.muted} />
                 </View>
-                {open ? <Text style={[styles.faqA, { color: c.muted, borderTopColor: c.border }]}>{item.a}</Text> : null}
+                {open ? (
+                  <Text className="text-[13px] leading-[19px] mt-3 pt-3 border-t" style={{ color: c.muted, borderTopColor: c.border }}>
+                    {item.a}
+                  </Text>
+                ) : null}
               </TouchableOpacity>
             );
           })}
 
-          <Card tone={tone} padded style={{ gap: theme.spacing.md, marginTop: theme.spacing.sm }}>
-            <Text style={[styles.cardTitle, { color: c.text }]}>¿No está tu pregunta?</Text>
-            <Text style={[styles.cardHint, { color: c.muted }]}>
+          <Card tone={tone} padded className="gap-3 mt-2">
+            <Text className="text-[15px] font-bold" style={{ color: c.text }}>¿No está tu pregunta?</Text>
+            <Text className="text-[13px] leading-[19px]" style={{ color: c.muted }}>
               Abre un ticket y el equipo de soporte te responde por email y notificación.
             </Text>
             <Button tone={tone} variant="secondary" label="Abrir un ticket" onPress={() => setTab("nuevo")} />
@@ -286,26 +290,28 @@ export function SupportScreen({ onBack, variant = "renter" }) {
 
       {tab === "nuevo" && (
         <ScrollView
-          contentContainerStyle={styles.body}
+          contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Card tone={tone} padded style={{ gap: theme.spacing.md }}>
-            <Text style={[styles.cardTitle, { color: c.text }]}>Ingresar un ticket</Text>
-            <View style={{ gap: 6 }}>
-              <Text style={[styles.label, { color: c.muted }]}>Asunto</Text>
+          <Card tone={tone} padded className="gap-3">
+            <Text className="text-[15px] font-bold" style={{ color: c.text }}>Ingresar un ticket</Text>
+            <View className="gap-1.5">
+              <Text className="text-xs font-semibold uppercase tracking-wider" style={{ color: c.muted }}>Asunto</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: c.input, borderColor: c.border, color: c.text }]}
+                className="h-12 rounded-xl border-[1.5px] px-4 text-[15px]"
+                style={{ backgroundColor: c.input, borderColor: c.border, color: c.text }}
                 placeholder="ej. Consulta sobre liquidación o garantía"
                 placeholderTextColor={c.muted}
                 value={asunto}
                 onChangeText={setAsunto}
               />
             </View>
-            <View style={{ gap: 6 }}>
-              <Text style={[styles.label, { color: c.muted }]}>Descripción</Text>
+            <View className="gap-1.5">
+              <Text className="text-xs font-semibold uppercase tracking-wider" style={{ color: c.muted }}>Descripción</Text>
               <TextInput
-                style={[styles.textarea, { backgroundColor: c.input, borderColor: c.border, color: c.text }]}
+                className="min-h-[110px] rounded-xl border-[1.5px] p-4 text-[15px]"
+                style={{ backgroundColor: c.input, borderColor: c.border, color: c.text, textAlignVertical: "top" }}
                 placeholder="Explica tu situación con el mayor detalle posible…"
                 placeholderTextColor={c.muted}
                 value={descripcion}
@@ -322,25 +328,25 @@ export function SupportScreen({ onBack, variant = "renter" }) {
 
       {tab === "mis" && (
         <ScrollView
-          contentContainerStyle={styles.body}
+          contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={cargandoTickets && tickets.length > 0}
               onRefresh={cargarTickets}
-              tintColor={dark ? colors.accent : colors.primary}
+              tintColor={colors.primary}
             />
           }
         >
           {cargandoTickets && tickets.length === 0 ? (
             <ActivityIndicator
-              style={{ marginTop: theme.spacing.xxl }}
-              color={dark ? colors.accent : colors.primary}
+              className="mt-8"
+              color={colors.primary}
             />
           ) : errorTickets ? (
-            <Card tone={tone} padded style={{ gap: theme.spacing.md }}>
-              <Text style={[styles.cardTitle, { color: c.text }]}>No pudimos cargar tus tickets</Text>
-              <Text style={[styles.cardHint, { color: c.muted }]}>{errorTickets}</Text>
+            <Card tone={tone} padded className="gap-3">
+              <Text className="text-[15px] font-bold" style={{ color: c.text }}>No pudimos cargar tus tickets</Text>
+              <Text className="text-[13px] leading-[19px]" style={{ color: c.muted }}>{errorTickets}</Text>
               <Button tone={tone} variant="secondary" label="Reintentar" onPress={cargarTickets} />
             </Card>
           ) : tickets.length === 0 ? (
@@ -356,16 +362,16 @@ export function SupportScreen({ onBack, variant = "renter" }) {
             tickets.map((t) => {
               const estado = ESTADO_TICKET[t.estado] || { label: t.estado || "—", variant: "neutral" };
               return (
-                <Card key={t.id} tone={tone} padded style={{ gap: theme.spacing.sm }}>
-                  <View style={styles.ticketHead}>
-                    <Text style={[styles.ticketAsunto, { color: c.text }]}>{t.asunto}</Text>
+                <Card key={t.id} tone={tone} padded className="gap-2">
+                  <View className="flex-row items-start justify-between gap-2">
+                    <Text className="flex-1 text-[15px] font-bold" style={{ color: c.text }}>{t.asunto}</Text>
                     <Badge label={estado.label} variant={estado.variant} />
                   </View>
-                  <Text style={[styles.ticketDesc, { color: c.muted }]} numberOfLines={4}>
+                  <Text className="text-[13px] leading-[19px]" style={{ color: c.muted }} numberOfLines={4}>
                     {t.descripcion}
                   </Text>
-                  <View style={styles.ticketMeta}>
-                    <Text style={[styles.ticketFecha, { color: c.muted }]}>{formatearFecha(t.timestamp)}</Text>
+                  <View className="flex-row items-center justify-between gap-2">
+                    <Text className="text-xs" style={{ color: c.muted }}>{formatearFecha(t.timestamp)}</Text>
                     {t.escalado_a_disputa ? <Badge label="Escalado a disputa" variant="warning" /> : null}
                   </View>
                 </Card>
@@ -379,53 +385,3 @@ export function SupportScreen({ onBack, variant = "renter" }) {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  tabs: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.screen,
-    paddingBottom: theme.spacing.md,
-  },
-  body: { padding: theme.spacing.screen, gap: theme.spacing.sm, paddingBottom: theme.spacing.xxxl },
-  faq: { borderRadius: theme.radius.card, borderWidth: 1, padding: theme.spacing.lg },
-  faqHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: theme.spacing.md },
-  faqQ: { flex: 1, fontSize: 14, fontWeight: "600" },
-  faqA: { fontSize: 13, lineHeight: 19, marginTop: theme.spacing.md, paddingTop: theme.spacing.md, borderTopWidth: 1 },
-  cardTitle: { fontSize: 15, fontWeight: "700" },
-  cardHint: { fontSize: 13, lineHeight: 19 },
-  contactRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing.sm },
-  contactText: { fontSize: 14, fontWeight: "600" },
-  ticketHead: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: theme.spacing.sm,
-  },
-  ticketAsunto: { flex: 1, fontSize: 15, fontWeight: "700" },
-  ticketDesc: { fontSize: 13, lineHeight: 19 },
-  ticketMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing.sm,
-  },
-  ticketFecha: { fontSize: 12 },
-  label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },
-  input: {
-    height: theme.control.height,
-    borderRadius: theme.radius.field,
-    borderWidth: 1.5,
-    paddingHorizontal: 16,
-    fontSize: 15,
-  },
-  textarea: {
-    minHeight: 110,
-    borderRadius: theme.radius.field,
-    borderWidth: 1.5,
-    padding: 16,
-    fontSize: 15,
-    textAlignVertical: "top",
-  },
-});
