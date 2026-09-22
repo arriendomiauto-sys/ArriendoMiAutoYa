@@ -498,6 +498,27 @@ export function Icon({
         </>
       );
 
+    case "truck":
+    case "camioneta":
+      return renderSvg(
+        <>
+          <Rect x="1" y="3" width="15" height="13" />
+          <Polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+          <Circle cx="5.5" cy="18.5" r="2.5" fill={color} />
+          <Circle cx="18.5" cy="18.5" r="2.5" fill={color} />
+        </>
+      );
+
+    case "grid":
+      return renderSvg(
+        <>
+          <Rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <Rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <Rect x="14" y="14" width="7" height="7" rx="1.5" />
+          <Rect x="3" y="14" width="7" height="7" rx="1.5" />
+        </>
+      );
+
     default:
       return renderSvg(<Circle cx="12" cy="12" r="4" fill={color} />);
   }

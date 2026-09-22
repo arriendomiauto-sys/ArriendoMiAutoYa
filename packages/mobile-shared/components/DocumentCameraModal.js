@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import {
   Modal,
   View,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   useWindowDimensions,
+  PanResponder,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -93,10 +94,11 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
   // donde está la guía y el usuario puede moverla tocando la imagen.
   const [censor, setCensor] = useState({ cx: BANDA_PATENTE.cx, cy: BANDA_PATENTE.cy });
 
-  // Control de Zoom (0.5x gran angular, 1x normal, 2x aproximado)
-  const ZOOM_DIGITAL_2X = 0.1;
+  // Control de Zoom continuo y adaptable (0.5x gran angular, 1x normal, 2x, 3x o continuo por pellizco)
+  const [zoomContinuo, setZoomContinuo] = useState(0); // 0 a 0.5
   const [nivelZoom, setNivelZoom] = useState("1x");
   const [lenteUltraWide, setLenteUltraWide] = useState(null);
+  const distanciaPellizcoRef = useRef(null);
 
   React.useEffect(() => {
     if (!permission?.granted) return;
@@ -109,12 +111,51 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
       .catch(() => {});
   }, [permission?.granted]);
 
+  const aplicarZoomPreset = (preset) => {
+    setNivelZoom(preset);
+    if (preset === "0.5x") setZoomContinuo(0);
+    else if (preset === "1x") setZoomContinuo(0);
+    else if (preset === "2x") setZoomContinuo(0.12);
+  };
+
+  const panResponderCamara = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: (e) => e.nativeEvent.touches?.length === 2,
+        onMoveShouldSetPanResponder: (e) => e.nativeEvent.touches?.length === 2,
+        onPanResponderGrant: (e) => {
+          if (e.nativeEvent.touches?.length === 2) {
+            const [t1, t2] = e.nativeEvent.touches;
+            const dist = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
+            distanciaPellizcoRef.current = dist;
+          }
+        },
+        onPanResponderMove: (e) => {
+          if (e.nativeEvent.touches?.length === 2 && distanciaPellizcoRef.current) {
+            const [t1, t2] = e.nativeEvent.touches;
+            const distActual = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
+            const delta = distActual - distanciaPellizcoRef.current;
+            distanciaPellizcoRef.current = distActual;
+
+            setZoomContinuo((prev) => {
+              const nuevo = Math.min(0.5, Math.max(0, prev + delta * 0.0015));
+              const factorAprox = 1 + nuevo * 8;
+              setNivelZoom(`${factorAprox.toFixed(1)}x`);
+              return nuevo;
+            });
+          }
+        },
+        onPanResponderRelease: () => {
+          distanciaPellizcoRef.current = null;
+        },
+      }),
+    []
+  );
+
   const zoomProps =
     nivelZoom === "0.5x" && lenteUltraWide
       ? { zoom: 0, selectedLens: lenteUltraWide }
-      : nivelZoom === "2x"
-      ? { zoom: ZOOM_DIGITAL_2X }
-      : { zoom: 0 };
+      : { zoom: zoomContinuo };
 
   // useWindowDimensions (reactivo) en vez de Dimensions.get("window") (una
   // sola foto tomada al montar): en Android edge-to-edge la medida inicial
@@ -398,7 +439,7 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
 
     // 4. Cámara en vivo con marco guía
     return (
-      <View className="flex-1">
+      <View className="flex-1" {...panResponderCamara.panHandlers}>
         <CameraView ref={cameraRef} className="absolute inset-0" facing={cfg.facing} {...zoomProps} />
 
         {/* Máscara oscura (arriba / abajo / lados) con la ventana transparente
@@ -448,13 +489,13 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
           <View className="w-10 h-10 items-center justify-center" />
         </View>
 
-        {/* Selector de Zoom (0.5x gran angular, 1x normal, 2x acercado) */}
+        {/* Selector de Zoom (0.5x gran angular, 1x normal, 2x acercado, continuo por pellizco) */}
         {cfg.facing !== "front" && (
-          <View className="absolute self-center flex-row gap-2 bg-black/60 py-1 px-2 rounded-full z-10" style={{ bottom: insets.bottom + 125 }}>
+          <View className="absolute self-center flex-row gap-2 bg-black/60 py-1 px-2.5 rounded-full z-10 items-center" style={{ bottom: insets.bottom + 125 }}>
             {lenteUltraWide ? (
               <TouchableOpacity
                 className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "0.5x" ? "bg-accent-500" : ""}`}
-                onPress={() => setNivelZoom("0.5x")}
+                onPress={() => aplicarZoomPreset("0.5x")}
                 accessibilityRole="button"
                 accessibilityLabel="Zoom gran angular 0.5x"
               >
@@ -463,7 +504,7 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
             ) : null}
             <TouchableOpacity
               className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "1x" ? "bg-accent-500" : ""}`}
-              onPress={() => setNivelZoom("1x")}
+              onPress={() => aplicarZoomPreset("1x")}
               accessibilityRole="button"
               accessibilityLabel="Zoom normal 1x"
             >
@@ -471,12 +512,17 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
             </TouchableOpacity>
             <TouchableOpacity
               className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "2x" ? "bg-accent-500" : ""}`}
-              onPress={() => setNivelZoom("2x")}
+              onPress={() => aplicarZoomPreset("2x")}
               accessibilityRole="button"
               accessibilityLabel="Zoom acercado 2x"
             >
               <Text className={`text-[12.5px] font-bold ${nivelZoom === "2x" ? "text-primary-900" : "text-white"}`}>2x</Text>
             </TouchableOpacity>
+            {!["0.5x", "1x", "2x"].includes(nivelZoom) && (
+              <View className="bg-accent-500 px-2.5 py-1 rounded-full">
+                <Text className="text-[12px] font-extrabold text-primary-900">{nivelZoom}</Text>
+              </View>
+            )}
           </View>
         )}
 

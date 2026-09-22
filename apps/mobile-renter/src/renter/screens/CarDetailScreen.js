@@ -24,6 +24,8 @@ import {
   urlWeb,
   Skeleton,
   PhotoViewer,
+  validarLicenciaParaAuto,
+  useApp,
 } from "@rentacar/mobile-shared";
 import { DateSelectionScreen } from "./DateSelectionScreen";
 
@@ -69,6 +71,19 @@ const EQUIPAMIENTO_LABELS = {
 
 export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const insets = useSafeAreaInsets();
+  let currentUser = null;
+  try {
+    const app = useApp();
+    currentUser = app?.currentUser || null;
+  } catch (e) {
+    currentUser = null;
+  }
+
+  const estadoLicencia = useMemo(
+    () => validarLicenciaParaAuto(car?.categoria, currentUser),
+    [car?.categoria, currentUser]
+  );
+
   // Step: 'detail' (ficha: solo auto y anfitrión) | 'dates' (elegir fechas,
   // pantalla propia) | 'summary' (hoja de resumen antes de pagar)
   const [step, setStep] = useState("detail");
@@ -208,6 +223,10 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
 
   const irAResumen = () => {
     setDateError(null);
+    if (!estadoLicencia.valida) {
+      setDateError(estadoLicencia.motivo || "No cumples con los requisitos de licencia para este vehículo.");
+      return;
+    }
     if (disponibilidadError) {
       setDateError("No pudimos verificar qué días están disponibles. Reintenta antes de continuar.");
       return;
@@ -363,6 +382,72 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 ))}
               </View>
             )}
+
+            {/* Requisito de Licencia según Categoría */}
+            <View className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 gap-2">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center gap-2 flex-1">
+                  <Icon name="document" size={16} color="#0F766E" />
+                  <Text className="text-[13px] font-bold text-textDark">Requisito de Conductor</Text>
+                </View>
+                <View className={`px-2.5 py-0.5 rounded-full ${estadoLicencia.valida ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200"}`}>
+                  <Text className={`text-[11px] font-bold ${estadoLicencia.valida ? "text-emerald-700" : "text-amber-700"}`}>
+                    {estadoLicencia.valida ? "Habilitado" : "Verificar"}
+                  </Text>
+                </View>
+              </View>
+              <Text className="text-xs text-textMuted leading-4">
+                Esta categoría requiere <Text className="font-semibold text-textDark">{estadoLicencia.requisito || "Clase B"}</Text>.
+              </Text>
+              {!estadoLicencia.valida && estadoLicencia.motivo ? (
+                <View className="flex-row items-start gap-1.5 bg-amber-100/60 p-2 rounded-xl mt-0.5">
+                  <Icon name="alert-triangle" size={13} color="#D97706" className="mt-0.5" />
+                  <Text className="text-[11.5px] text-amber-900 flex-1 leading-4">{estadoLicencia.motivo}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Sellos de Confianza, Cobertura y Certificación */}
+            <View className="bg-teal-950/5 border border-teal-800/15 rounded-2xl p-3.5 gap-2.5">
+              <View className="flex-row items-center gap-2">
+                <Icon name="shield" size={16} color="#0F766E" />
+                <Text className="text-[13px] font-bold text-textDark">Garantías y Protección</Text>
+              </View>
+              <View className="gap-2">
+                <View className="flex-row items-center gap-2">
+                  <Icon name="check" size={13} color="#0F766E" />
+                  <Text className="text-xs text-textDark flex-1">
+                    Seguro P2P con deducible fijado en 15 UF durante el arriendo.
+                  </Text>
+                </View>
+                <View className="flex-row items-center gap-2">
+                  <Icon name="check" size={13} color="#0F766E" />
+                  <Text className="text-xs text-textDark flex-1">
+                    SOAP y Permiso de circulación vigentes.
+                  </Text>
+                </View>
+                <View className="flex-row items-center gap-2">
+                  <Icon name="check" size={13} color="#0F766E" />
+                  <Text className="text-xs text-textDark flex-1">
+                    Revisión técnica y emisión de gases al día.
+                  </Text>
+                </View>
+                {car?.doc_historial_vehicular_url || car?.verificado_seguro ? (
+                  <View className="flex-row items-center gap-2">
+                    <Icon name="check" size={13} color="#0F766E" />
+                    <Text className="text-xs text-textDark flex-1">
+                      Historial vehicular verificado (sin encargo por robo ni multas).
+                    </Text>
+                  </View>
+                ) : null}
+                <View className="flex-row items-center gap-2">
+                  <Icon name="check" size={13} color="#0F766E" />
+                  <Text className="text-xs text-textDark flex-1">
+                    Contrato digital con firma electrónica y check-in fotográfico de 9 puntos.
+                  </Text>
+                </View>
+              </View>
+            </View>
 
             {/* 1. Equipamiento del vehículo */}
             {equipamientoActivo.length > 0 && (

@@ -25,12 +25,12 @@ import {
 import { CarCard, CarCardSkeleton } from "../components/CarCard";
 
 const CATEGORIES = [
-  { id: "Todos", cat: null },
-  { id: "Económico", cat: "economico" },
-  { id: "Sedán", cat: "sedan" },
-  { id: "SUV", cat: "suv" },
-  { id: "Camioneta", cat: "camioneta" },
-  { id: "Premium", cat: "premium" },
+  { id: "Todos", cat: null, icon: "grid" },
+  { id: "Económico", cat: "economico", icon: "car" },
+  { id: "Sedán", cat: "sedan", icon: "car" },
+  { id: "SUV", cat: "suv", icon: "shield" },
+  { id: "Camioneta", cat: "camioneta", icon: "truck" },
+  { id: "Premium", cat: "premium", icon: "star" },
 ];
 
 // Palabras clave de respaldo para autos publicados antes de que existiera
@@ -505,7 +505,13 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
           contentContainerClassName="gap-2 pr-4"
         >
           {CATEGORIES.map((c) => (
-            <Chip key={c.id} label={c.id} selected={category === c.id} onPress={() => setCategory(c.id)} />
+            <Chip
+              key={c.id}
+              label={c.id}
+              iconLeft={c.icon}
+              selected={category === c.id}
+              onPress={() => setCategory(c.id)}
+            />
           ))}
         </ScrollView>
 

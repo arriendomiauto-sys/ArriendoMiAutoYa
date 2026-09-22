@@ -146,6 +146,8 @@ export function AppProvider({ children, initialMode }) {
    */
   const setMode = useCallback(
     (next, { silent = false } = {}) => {
+      // En apps separadas (initialMode fijo), el rol no se conmuta en caliente.
+      if (initialMode) return;
       if (!VALID_MODES.includes(next)) return;
       const cambia = modeRef.current !== next;
       modeRef.current = next;
@@ -158,7 +160,7 @@ export function AppProvider({ children, initialMode }) {
       setTransition({ mode: next, ...TITULOS_MODO[next] });
       endTransition(SWITCH_MS);
     },
-    [endTransition]
+    [initialMode, endTransition]
   );
 
   // La primera carga del catálogo parte vacía: el marketplace muestra el

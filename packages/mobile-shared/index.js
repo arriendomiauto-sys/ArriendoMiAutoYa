@@ -54,6 +54,7 @@ export {
   aplicarTarifasConfig,
   redondearATramo5000,
   obtenerConfiguracionTipo,
+  validarLicenciaParaAuto,
   calcularDesgloseIva,
   gananciaDelDueno,
   PORCENTAJE_DUENO,

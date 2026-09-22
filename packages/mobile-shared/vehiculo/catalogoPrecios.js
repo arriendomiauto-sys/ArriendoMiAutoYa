@@ -50,6 +50,10 @@ const CATEGORIAS_BASE = [
     descripcion: "Hatchback y autos compactos de bajo consumo.",
     icon: "car",
     ejemplos: "Suzuki Swift, Hyundai Grand i10, Kia Morning, Chevrolet Spark",
+    requisitoLicencia: "Clase B (mín. 1 año de antigüedad)",
+    licenciaClases: ["B", "A1", "A2", "A3", "A4", "A5"],
+    antiguedadMinimaAnios: 1,
+    edadMinima: 18,
   },
   {
     id: "sedan",
@@ -58,6 +62,10 @@ const CATEGORIAS_BASE = [
     descripcion: "Autos de 4 puertas con maletero independiente y confort familiar.",
     icon: "car",
     ejemplos: "Toyota Yaris, Hyundai Accent, Nissan Versa, Kia Rio",
+    requisitoLicencia: "Clase B (mín. 1 año de antigüedad)",
+    licenciaClases: ["B", "A1", "A2", "A3", "A4", "A5"],
+    antiguedadMinimaAnios: 1,
+    edadMinima: 18,
   },
   {
     id: "suv",
@@ -66,6 +74,10 @@ const CATEGORIAS_BASE = [
     descripcion: "Vehículos familiares altos, espaciosos y versátiles.",
     icon: "shield",
     ejemplos: "Toyota RAV4, Hyundai Tucson, Kia Sportage, Haval Jolion",
+    requisitoLicencia: "Clase B (mín. 1 año de antigüedad)",
+    licenciaClases: ["B", "A1", "A2", "A3", "A4", "A5"],
+    antiguedadMinimaAnios: 1,
+    edadMinima: 18,
   },
   {
     id: "camioneta",
@@ -74,6 +86,10 @@ const CATEGORIAS_BASE = [
     descripcion: "Pickups de trabajo, turismo aventura o tracción 4x4.",
     icon: "shield",
     ejemplos: "Toyota Hilux, Mitsubishi L200, Ford Ranger, Maxus T60",
+    requisitoLicencia: "Clase B (o Clase A, mín. 21 años)",
+    licenciaClases: ["B", "A2", "A4", "A5"],
+    antiguedadMinimaAnios: 1,
+    edadMinima: 21,
   },
   {
     id: "premium",
@@ -82,8 +98,45 @@ const CATEGORIAS_BASE = [
     descripcion: "Vehículos ejecutivos, deportivos o de marcas de lujo.",
     icon: "star",
     ejemplos: "BMW Serie 3, Mercedes-Benz Clase C, Audi Q5, Porsche Macan",
+    requisitoLicencia: "Clase B (mín. 2 años de antigüedad, 24 años)",
+    licenciaClases: ["B", "A1", "A2", "A3", "A4", "A5"],
+    antiguedadMinimaAnios: 2,
+    edadMinima: 24,
   },
 ];
+
+export function validarLicenciaParaAuto(categoriaId, conductor) {
+  const cat = CATEGORIAS_BASE.find((c) => c.id === categoriaId) || CATEGORIAS_BASE[0];
+  if (!conductor) {
+    return { valida: true, requisito: cat.requisitoLicencia };
+  }
+  if (conductor.licencia_estado && conductor.licencia_estado !== "verificada" && conductor.licencia_estado !== "aprobada") {
+    return { valida: false, motivo: "Tu licencia de conducir debe estar verificada para reservar.", requisito: cat.requisitoLicencia };
+  }
+  const clase = String(conductor.licencia_clase || "B").toUpperCase().trim();
+  if (cat.licenciaClases && !cat.licenciaClases.includes(clase)) {
+    return {
+      valida: false,
+      motivo: `Esta categoría (${cat.labelCorto}) exige ${cat.requisitoLicencia}. Tu licencia registrada es Clase ${clase}.`,
+      requisito: cat.requisitoLicencia,
+    };
+  }
+  if (cat.antiguedadMinimaAnios && conductor.antiguedad_licencia_anios != null && conductor.antiguedad_licencia_anios < cat.antiguedadMinimaAnios) {
+    return {
+      valida: false,
+      motivo: `Esta categoría (${cat.labelCorto}) exige al menos ${cat.antiguedadMinimaAnios} ${cat.antiguedadMinimaAnios === 1 ? "año" : "años"} de antigüedad de licencia.`,
+      requisito: cat.requisitoLicencia,
+    };
+  }
+  if (cat.edadMinima && conductor.edad != null && conductor.edad < cat.edadMinima) {
+    return {
+      valida: false,
+      motivo: `Esta categoría (${cat.labelCorto}) exige una edad mínima de ${cat.edadMinima} años.`,
+      requisito: cat.requisitoLicencia,
+    };
+  }
+  return { valida: true, requisito: cat.requisitoLicencia };
+}
 
 /**
  * Escalones de tarifa que puede elegir el dueño: del `base` hacia abajo, de
