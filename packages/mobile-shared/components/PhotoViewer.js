@@ -27,14 +27,6 @@ try {
   // react-native-reanimated / NativeWorklets no disponible en binario nativo
 }
 
-let ExpoImage = null;
-try {
-  const expImg = require("expo-image");
-  ExpoImage = expImg.Image || expImg.default;
-} catch {
-  ExpoImage = null;
-}
-
 import { colors } from "../theme/colors";
 import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
@@ -44,17 +36,6 @@ const ESCALA_MAXIMA = 4;
 const UMBRAL_DESCARTAR = 120;
 
 function RenderFoto({ uri, style, resizeMode = "contain" }) {
-  if (ExpoImage) {
-    return (
-      <ExpoImage
-        source={{ uri }}
-        style={style}
-        contentFit={resizeMode === "contain" ? "contain" : "cover"}
-        cachePolicy="memory-disk"
-        transition={150}
-      />
-    );
-  }
   return <Image source={{ uri }} style={style} resizeMode={resizeMode} />;
 }
 

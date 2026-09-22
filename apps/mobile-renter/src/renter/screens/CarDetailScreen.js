@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   StatusBar,
   Share,
+  Image,
 } from "react-native";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Icon,
@@ -283,9 +283,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                     source={{ uri }}
                     className="w-full h-full"
                     style={heroW ? { width: heroW } : null}
-                    contentFit="contain"
-                    cachePolicy="memory-disk"
-                    transition={250}
+                    resizeMode="contain"
                     onLoad={(e) => {
                       const { width, height } = e.nativeEvent?.source || e.nativeEvent || {};
                       if (!width || !height) return;

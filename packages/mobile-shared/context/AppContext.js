@@ -266,12 +266,16 @@ export function AppProvider({ children, initialMode }) {
 
 function precargarImagenes(urls) {
   try {
-    const { Image } = require("expo-image");
+    const { Image } = require("react-native");
     if (typeof Image?.prefetch === "function" && Array.isArray(urls)) {
-      Image.prefetch(urls).catch(() => {});
+      urls.forEach((u) => {
+        if (typeof u === "string" && u.startsWith("http")) {
+          Image.prefetch(u).catch(() => {});
+        }
+      });
     }
   } catch {
-    // Si expo-image no está disponible o falla, ignora silenciosamente
+    // Si prefetch no está disponible o falla, ignora silenciosamente
   }
 }
 
