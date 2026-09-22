@@ -99,7 +99,8 @@
       ],
       "@sentry/react-native",
       "expo-secure-store",
-      "expo-image"
+      "expo-image",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

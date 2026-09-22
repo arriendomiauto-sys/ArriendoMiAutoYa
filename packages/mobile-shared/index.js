@@ -28,6 +28,7 @@ export { TabBar } from "./components/TabBar";
 export { BrandLogo } from "./components/BrandLogo";
 export { VerifyIdentityBanner } from "./components/VerifyIdentityBanner";
 export { NetworkBanner } from "./components/NetworkBanner";
+export { DevScreenPicker } from "./components/DevScreenPicker";
 export {
   DateTimeField,
   DateTimePickerModal,
