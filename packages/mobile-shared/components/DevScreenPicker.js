@@ -7,6 +7,7 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
+  Platform,
 } from "react-native";
 import { Icon } from "./Icon";
 
@@ -37,22 +38,24 @@ export function DevScreenPicker({ screens = [], children }) {
           })}
 
           {/* Barra flotante superior para volver al selector o a la app */}
-          <SafeAreaView
+          <View
+            pointerEvents="box-none"
             style={{
               position: "absolute",
-              top: 4,
+              top: Platform.OS === "android" ? (StatusBar.currentHeight || 24) + 8 : 48,
               left: 12,
-              right: 12,
+              right: 60,
               zIndex: 99999,
-              pointerEvents: "box-none",
+              elevation: 999,
             }}
           >
             <View
+              pointerEvents="auto"
               style={{
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                backgroundColor: "rgba(15, 23, 42, 0.92)",
+                backgroundColor: "rgba(15, 23, 42, 0.95)",
                 paddingVertical: 8,
                 paddingHorizontal: 14,
                 borderRadius: 24,
@@ -60,7 +63,7 @@ export function DevScreenPicker({ screens = [], children }) {
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.3,
                 shadowRadius: 8,
-                elevation: 10,
+                elevation: 12,
               }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
@@ -85,6 +88,7 @@ export function DevScreenPicker({ screens = [], children }) {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <TouchableOpacity
                   onPress={() => setModalAbierto(true)}
+                  hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
                   style={{
                     backgroundColor: "rgba(255,255,255,0.15)",
                     paddingHorizontal: 10,
@@ -97,6 +101,7 @@ export function DevScreenPicker({ screens = [], children }) {
 
                 <TouchableOpacity
                   onPress={() => setPantallaActivaId(null)}
+                  hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
                   style={{
                     backgroundColor: "#EF4444",
                     paddingHorizontal: 10,
@@ -108,7 +113,7 @@ export function DevScreenPicker({ screens = [], children }) {
                 </TouchableOpacity>
               </View>
             </View>
-          </SafeAreaView>
+          </View>
         </View>
       ) : (
         <>
