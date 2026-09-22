@@ -319,9 +319,16 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
               </View>
             )}
             {fotos.length > 0 && (
-              <View className="absolute right-4 bottom-3.5 w-[34px] h-[34px] rounded-full bg-white/95 items-center justify-center shadow-sm" pointerEvents="none">
-                <Icon name="search" size={15} color="#0F766E" />
-              </View>
+              <TouchableOpacity
+                onPress={() => abrirZoom(fotoActiva)}
+                className="absolute right-4 bottom-3.5 flex-row items-center gap-1.5 bg-black/60 rounded-full px-2.5 py-1.5 border border-white/20"
+                accessibilityRole="button"
+                accessibilityLabel="Ampliar foto con zoom"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Icon name="search" size={13} color="#FFFFFF" />
+                <Text className="text-white text-[11px] font-bold">Ampliar</Text>
+              </TouchableOpacity>
             )}
           </View>
 

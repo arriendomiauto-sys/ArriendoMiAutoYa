@@ -1,13 +1,17 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator } from "react-native";
-import { colors, theme, Icon, FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, PhotoViewer, FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "@rentacar/mobile-shared";
 import { TituloPaso, BarraProgreso } from "./comun";
 import { EncuadreAuto } from "./encuadres";
 
 export function PasoFotos({ wizard }) {
   const { fotosPorSlot, slotEnSubida, setCamaraSlot, quitarFoto, uploadingPhoto, progresoGaleria } = wizard;
+  const [fotoVisor, setFotoVisor] = useState(null);
   const listas = FOTOS_AUTO.filter((s) => fotosPorSlot[s.key]).length;
   const completas = listas === TOTAL_FOTOS_AUTO;
+
+  const fotosCargadas = FOTOS_AUTO.map((s) => fotosPorSlot[s.key]).filter(Boolean);
+  const indiceVisor = fotoVisor ? Math.max(0, fotosCargadas.indexOf(fotoVisor)) : 0;
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 12 }} showsVerticalScrollIndicator={false}>
@@ -38,12 +42,21 @@ export function PasoFotos({ wizard }) {
         return (
           <View key={slot.key} className="flex-row items-center gap-3 bg-white border border-gray-200 rounded-2xl p-3">
             {url ? (
-              <View className="w-[78px] h-[58px]">
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => setFotoVisor(url)}
+                className="w-[78px] h-[58px]"
+                accessibilityRole="button"
+                accessibilityLabel={`Ver foto de ${slot.titulo} en grande con zoom`}
+              >
                 <Image source={{ uri: url }} className="w-[78px] h-[58px] rounded-xl bg-gray-100" />
                 <View className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-accent border-2 border-white items-center justify-center">
                   <Icon name="check" size={10} color="#FFFFFF" />
                 </View>
-              </View>
+                <View className="absolute bottom-1 right-1 bg-black/60 rounded px-1 py-0.5">
+                  <Icon name="search" size={9} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
             ) : (
               <View className="w-[78px] h-[58px] rounded-xl bg-surface-subtle border border-dashed border-primary-200 items-center justify-center">
                 {subiendo ? (
@@ -108,6 +121,13 @@ export function PasoFotos({ wizard }) {
           </>
         )}
       </TouchableOpacity>
+
+      <PhotoViewer
+        visible={!!fotoVisor}
+        photos={fotosCargadas}
+        initialIndex={indiceVisor}
+        onClose={() => setFotoVisor(null)}
+      />
     </ScrollView>
   );
 }
