@@ -87,6 +87,7 @@ beforeEach(() => {
 afterEach(() => {
   if (arbol) arbol.unmount();
   arbol = null;
+  jest.clearAllTimers();
   jest.useRealTimers();
   jest.restoreAllMocks();
 });

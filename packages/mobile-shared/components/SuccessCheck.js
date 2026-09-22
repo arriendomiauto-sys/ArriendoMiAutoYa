@@ -78,9 +78,14 @@ export function SuccessFlash({ label, duracion = 1100, onDone }) {
     vivo.current = true;
     Animated.timing(opacidad, { toValue: 1, duration: 160, useNativeDriver: true }).start();
     const t = setTimeout(() => {
-      Animated.timing(opacidad, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
-        if (vivo.current) alTerminar.current?.();
-      });
+      if (!vivo.current) return;
+      try {
+        Animated?.timing(opacidad, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
+          if (vivo.current) alTerminar.current?.();
+        });
+      } catch {
+        // Ignora fallos si el entorno se desmontó durante el timer
+      }
     }, duracion);
     return () => {
       vivo.current = false;

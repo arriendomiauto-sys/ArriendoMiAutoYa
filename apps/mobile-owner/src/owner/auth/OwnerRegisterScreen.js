@@ -67,6 +67,8 @@ export function OwnerRegisterScreen({ onNavigate }) {
   };
 
   const handleContinuarPaso1 = async () => {
+    const camposValidos = r.validar();
+    if (!camposValidos) return;
     if (!haRevisadoTerminos) {
       setErrorTerminos("Debes abrir y revisar los Términos y Condiciones antes de continuar.");
       abrirLegal("terminos");
@@ -77,7 +79,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
       return;
     }
     setErrorTerminos(null);
-    await r.continuar();
+    await r.aceptarYCrear();
   };
 
   if (paso === PASO_EXITO) {
@@ -135,8 +137,11 @@ export function OwnerRegisterScreen({ onNavigate }) {
         {paso === PASO_CUENTA ? (
           <>
             {/* Badge de auto de dueño */}
-            <View className="w-11 h-11 rounded-2xl bg-[#0F3D3E] items-center justify-center mt-1">
-              <Icon name="car" size={20} color="#10B981" />
+            <View className="flex-row items-center gap-2 mt-1">
+              <View className="w-11 h-11 rounded-2xl bg-[#0F3D3E] items-center justify-center">
+                <Icon name="car" size={20} color="#10B981" />
+              </View>
+              <Text className="text-xs font-bold text-[#0F3D3E] uppercase tracking-wider">Para dueños</Text>
             </View>
 
             <Titulo
@@ -286,6 +291,7 @@ export function OwnerRegisterScreen({ onNavigate }) {
             <View className="bg-slate-50 border border-slate-200 rounded-2xl p-4 gap-2">
               <View className="flex-row items-start gap-3">
                 <TouchableOpacity
+                  testID="checkbox-terminos"
                   onPress={handleToggleTerminos}
                   activeOpacity={0.7}
                   accessibilityRole="checkbox"

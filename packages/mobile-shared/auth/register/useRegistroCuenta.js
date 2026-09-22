@@ -119,11 +119,15 @@ export function useRegistroCuenta({ role }) {
     }
   };
 
-  const continuar = () => {
+  const validar = () => {
     setIntentado(true);
     const errores = erroresCuenta(form);
     if (errores.telefono && Object.keys(errores).length === 1) telefonoRef.current?.focus();
-    if (Object.keys(errores).length > 0) return false;
+    return Object.keys(errores).length === 0;
+  };
+
+  const continuar = () => {
+    if (!validar()) return false;
     setPaso(PASO_TERMINOS);
     return true;
   };
@@ -243,6 +247,7 @@ export function useRegistroCuenta({ role }) {
     refs: { apellidoRef, emailRef, passwordRef, telefonoRef },
     avisoCorreoExistente,
     errorEnvio,
+    validar,
     continuar,
     aceptarYCrear,
     codigo: {

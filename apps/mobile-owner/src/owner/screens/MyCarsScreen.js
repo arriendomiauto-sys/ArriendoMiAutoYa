@@ -6,12 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Image,
   Modal,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   colors,
@@ -50,7 +50,9 @@ function CarroThumb({ uri }) {
       <Image
         source={{ uri }}
         className="w-full h-full"
-        resizeMode="cover"
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={200}
         onLoadEnd={() => setCargando(false)}
         onError={() => setCargando(false)}
       />
@@ -305,6 +307,10 @@ export function MyCarsScreen({
             </TouchableOpacity>
           ) : null
         }
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === "android"}
         renderItem={renderCar}
         ListEmptyComponent={
           loading ? (

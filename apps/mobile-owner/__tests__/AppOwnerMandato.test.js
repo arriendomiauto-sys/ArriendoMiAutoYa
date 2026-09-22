@@ -27,6 +27,7 @@ jest.mock("@rentacar/mobile-shared", () => {
   const real = jest.requireActual("@rentacar/mobile-shared");
   return {
     ...real,
+    ArranqueGate: ({ children }) => children,
     useApp: () => mockUseApp,
     useVersionCheck: () => ({ bloqueado: false, urlStore: null }),
     useNetworkStatus: () => ({ isConnected: true }),

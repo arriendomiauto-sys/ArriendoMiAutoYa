@@ -25,28 +25,24 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
  * actualizar la app.
  */
 
+let esWeb = false;
+try {
+  esWeb = Platform?.OS === "web";
+} catch {
+  esWeb = false;
+}
+
 let secureStore = null;
-let origenSeguroResuelto = false;
+try {
+  const mod = require("expo-secure-store");
+  if (mod && typeof mod.setItemAsync === "function" && typeof mod.getItemAsync === "function") {
+    secureStore = mod;
+  }
+} catch {
+  secureStore = null;
+}
 
 const memoriaFallback = new Map();
-
-function esWeb() {
-  return Platform.OS === "web";
-}
-
-function obtenerSecureStore() {
-  if (origenSeguroResuelto) return secureStore;
-  origenSeguroResuelto = true;
-  try {
-    const mod = require("expo-secure-store");
-    if (mod && typeof mod.setItemAsync === "function" && typeof mod.getItemAsync === "function") {
-      secureStore = mod;
-    }
-  } catch {
-    secureStore = null;
-  }
-  return secureStore;
-}
 
 function obtenerLocalStorage() {
   try {
@@ -60,13 +56,12 @@ function obtenerLocalStorage() {
 }
 
 function resolverOrigen() {
-  if (!esWeb()) {
-    const ss = obtenerSecureStore();
-    if (ss) {
+  if (!esWeb) {
+    if (secureStore) {
       return {
-        getItem: (key) => ss.getItemAsync(key),
-        setItem: (key, value) => ss.setItemAsync(key, value),
-        removeItem: (key) => ss.deleteItemAsync(key),
+        getItem: (key) => secureStore.getItemAsync(key),
+        setItem: (key, value) => secureStore.setItemAsync(key, value),
+        removeItem: (key) => secureStore.deleteItemAsync(key),
         nativo: true,
       };
     }
@@ -109,33 +104,45 @@ function resolverOrigen() {
 }
 
 export async function getItem(key) {
-  const origen = resolverOrigen();
-  let valor = await origen.getItem(key);
+  try {
+    const origen = resolverOrigen();
+    let valor = await origen.getItem(key);
 
-  if (valor == null && origen.nativo) {
-    // Sesión de una versión anterior: pasaba por AsyncStorage sin cifrar.
-    valor = await AsyncStorage.getItem(key).catch(() => null);
-    if (valor != null) {
-      try {
-        await origen.setItem(key, valor);
-        await AsyncStorage.removeItem(key);
-      } catch {
-        // Si no se pudo migrar, al menos la sesión queda disponible esta vez.
+    if (valor == null && origen.nativo) {
+      // Sesión de una versión anterior: pasaba por AsyncStorage sin cifrar.
+      valor = await AsyncStorage.getItem(key).catch(() => null);
+      if (valor != null) {
+        try {
+          await origen.setItem(key, valor);
+          await AsyncStorage.removeItem(key);
+        } catch {
+          // Si no se pudo migrar, al menos la sesión queda disponible esta vez.
+        }
       }
     }
-  }
 
-  return valor;
+    return valor;
+  } catch {
+    return null;
+  }
 }
 
 export async function setItem(key, value) {
-  const origen = resolverOrigen();
-  await origen.setItem(key, value);
+  try {
+    const origen = resolverOrigen();
+    await origen.setItem(key, value);
+  } catch {
+    // Teardown resilience
+  }
 }
 
 export async function removeItem(key) {
-  const origen = resolverOrigen();
-  await origen.removeItem(key);
-  // También la copia plana que pudo haber quedado sin migrar.
-  await AsyncStorage.removeItem(key).catch(() => {});
+  try {
+    const origen = resolverOrigen();
+    await origen.removeItem(key);
+    // También la copia plana que pudo haber quedado sin migrar.
+    await AsyncStorage.removeItem(key).catch(() => {});
+  } catch {
+    // Teardown resilience
+  }
 }

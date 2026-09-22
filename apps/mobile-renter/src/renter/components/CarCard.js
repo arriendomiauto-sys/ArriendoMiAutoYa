@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
+import { Image } from "expo-image";
 import { colors, Icon, Rating, Skeleton } from "@rentacar/mobile-shared";
 
 // Esqueleto de carga con la misma silueta que <CarCard> (fila de 104 px).
@@ -46,7 +47,9 @@ export const CarCard = React.memo(function CarCard({ car, onPress, esFavorito, o
           <Image
             source={{ uri: foto }}
             className="w-full h-full"
-            resizeMode="contain"
+            contentFit="contain"
+            cachePolicy="memory-disk"
+            transition={200}
             onLoadEnd={() => setFotoCargando(false)}
             onError={() => {
               setFotoError(true);

@@ -11,7 +11,7 @@ jest.mock("react-native-safe-area-context", () => ({
 }));
 
 const auto = { id: "auto-1", marca: "Kia", modelo: "Rio", anio: 2022, tarifa_dia: 30000, estado: "activo",
-               documentos_verificados: true, fotos: [] };
+               documentos_verificados: false, fotos: [] };
 
 describe("Mi Flota · verificación del auto", () => {
   it("el botón 'Verificar' abre la pantalla del auto correspondiente", () => {

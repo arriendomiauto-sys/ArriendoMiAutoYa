@@ -262,12 +262,28 @@ export function AppProvider({ children, initialMode }) {
     }
   }, [syncProfile, endTransition]);
 
+function precargarImagenes(urls) {
+  try {
+    const { Image } = require("expo-image");
+    if (typeof Image?.prefetch === "function" && Array.isArray(urls)) {
+      Image.prefetch(urls).catch(() => {});
+    }
+  } catch {
+    // Si expo-image no está disponible o falla, ignora silenciosamente
+  }
+}
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const fetchedCars = await ApiClient.getAutos();
-      setCars(Array.isArray(fetchedCars) ? fetchedCars : []);
+      const lista = Array.isArray(fetchedCars) ? fetchedCars : [];
+      setCars(lista);
       setCarsError(null);
+      const fotosParaPrecargar = lista.slice(0, 6).map((c) => c.fotos?.[0]).filter(Boolean);
+      if (fotosParaPrecargar.length > 0) {
+        precargarImagenes(fotosParaPrecargar);
+      }
     } catch (err) {
       // getAutos propaga cualquier fallo (de red o del servidor): acá se
       // vacía la lista y se guarda el motivo para que el marketplace muestre

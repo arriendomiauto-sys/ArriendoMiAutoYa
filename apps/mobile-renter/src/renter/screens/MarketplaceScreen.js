@@ -10,6 +10,7 @@ import {
   StatusBar,
   RefreshControl,
   Modal,
+  Platform,
 } from "react-native";
 import {
   useApp,
@@ -677,10 +678,12 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
         refreshControl={
           <RefreshControl refreshing={!!loading} onRefresh={loadData} tintColor="#0F766E" />
         }
-        initialNumToRender={6}
-        windowSize={10}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
         extraData={favoritoIds}
-        removeClippedSubviews={false}
+        removeClippedSubviews={Platform.OS === "android"}
       />
 
       <ModalFiltros

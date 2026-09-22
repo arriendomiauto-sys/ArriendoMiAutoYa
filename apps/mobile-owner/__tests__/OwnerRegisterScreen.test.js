@@ -32,18 +32,20 @@ const porTestId = (tr, id) => tr.root.findAll((n) => n.props?.testID === id && t
 const escribir = (tr, id, texto) => act(() => porTestId(tr, id).props.onChangeText(texto));
 const tocar = async (tr, id) => act(async () => porTestId(tr, id).props.onPress());
 
-async function irALosTerminos(tr) {
+async function llenarFormulario(tr) {
   escribir(tr, "input-nombre", "Jorge");
   escribir(tr, "input-apellido", "Contreras");
   escribir(tr, "input-email", "j.contreras@correo.cl");
   escribir(tr, "input-password", "autos2026");
   escribir(tr, "input-telefono", "9 8765 4321");
-  await tocar(tr, "btn-continuar");
 }
 
 async function crearCuenta(tr) {
-  await irALosTerminos(tr);
-  await tocar(tr, "btn-aceptar-terminos");
+  llenarFormulario(tr);
+  // Abre y revisa términos, luego marca el checkbox
+  await tocar(tr, "checkbox-terminos");
+  await tocar(tr, "checkbox-terminos");
+  await tocar(tr, "btn-continuar");
 }
 
 describe("OwnerField · mensajes bajo el campo", () => {
@@ -98,15 +100,12 @@ describe("OwnerRegisterScreen", () => {
     expect(t).toContain("El celular tiene 9 dígitos y empieza con 9.");
   });
 
-  it("paso 2: pantalla solo para leer los términos, sin campos", async () => {
+  it("sin aceptar términos no avanza y muestra aviso", async () => {
     const tr = montar(<OwnerRegisterScreen onNavigate={() => {}} />);
-    await irALosTerminos(tr);
+    llenarFormulario(tr);
+    await tocar(tr, "btn-continuar");
     const t = textOf(tr);
-    expect(t).toContain("Paso 2 de 3");
-    expect(t).toContain("Términos y condiciones");
-    expect(t).toContain("Hold de garantía");
-    expect(t).toContain("Acepto y crear cuenta");
-    expect(tr.root.findAllByType(TextInput)).toHaveLength(0);
+    expect(t).toMatch(/Términos/i);
     expect(mockRegister).not.toHaveBeenCalled();
   });
 
@@ -114,7 +113,6 @@ describe("OwnerRegisterScreen", () => {
     const tr = montar(<OwnerRegisterScreen onNavigate={() => {}} />);
     await crearCuenta(tr);
     expect(mockRegister).toHaveBeenCalledWith("j.contreras@correo.cl", "autos2026", "owner");
-    expect(textOf(tr)).toContain("Paso 3 de 3");
     expect(textOf(tr)).toContain("Revisa tu correo");
   });
 
@@ -123,8 +121,7 @@ describe("OwnerRegisterScreen", () => {
     const onNavigate = jest.fn();
     const tr = montar(<OwnerRegisterScreen onNavigate={onNavigate} />);
     await crearCuenta(tr);
-    expect(textOf(tr)).toContain("Ese correo ya tiene una cuenta");
-    expect(textOf(tr)).toContain("Paso 1 de 3");
+    expect(textOf(tr)).toContain("Ese correo ya está registrado");
     await tocar(tr, "btn-ir-login");
     expect(onNavigate).toHaveBeenCalledWith("login");
   });

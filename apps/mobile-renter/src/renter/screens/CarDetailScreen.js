@@ -2,12 +2,12 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  Image,
   ScrollView,
   TouchableOpacity,
   StatusBar,
   Share,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Icon,
@@ -264,9 +264,11 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                     source={{ uri }}
                     className="w-full h-full"
                     style={heroW ? { width: heroW } : null}
-                    resizeMode="contain"
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                    transition={250}
                     onLoad={(e) => {
-                      const { width, height } = e.nativeEvent.source || {};
+                      const { width, height } = e.nativeEvent?.source || e.nativeEvent || {};
                       if (!width || !height) return;
                       const proporcion = width / height;
                       aspectRatiosFotos.current[i] = proporcion;

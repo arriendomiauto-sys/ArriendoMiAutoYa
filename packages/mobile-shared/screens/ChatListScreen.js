@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import { Icon } from "../components/Icon";
@@ -180,6 +180,10 @@ export function ChatListScreen({ rol = "renter", onSelectReserva, onBack }) {
             <RefreshControl refreshing={refrescando} onRefresh={onRefresh} tintColor={colors.primary} />
           }
           renderItem={renderItem}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS === "android"}
           ListEmptyComponent={
             <EmptyState
               icon="chat"

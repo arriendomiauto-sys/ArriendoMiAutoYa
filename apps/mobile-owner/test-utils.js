@@ -1,12 +1,28 @@
 /* Utilidades mínimas de test sobre react-test-renderer (sin RNTL). */
 import TestRenderer, { act } from "react-test-renderer";
 
+const arbolesActivos = new Set();
+
 export function renderTree(element) {
   let tr;
   act(() => {
     tr = TestRenderer.create(element);
   });
+  arbolesActivos.add(tr);
   return tr;
+}
+
+if (typeof afterEach === "function") {
+  afterEach(() => {
+    for (const tr of arbolesActivos) {
+      try {
+        act(() => {
+          tr.unmount();
+        });
+      } catch {}
+    }
+    arbolesActivos.clear();
+  });
 }
 
 // Concatena todo el texto (children string) del árbol renderizado.
