@@ -97,7 +97,7 @@ export function CuentaCobroModal({
             La cuenta de débito o vista donde recibes tus pagos. ¿Tienes CuentaRUT? Tu número de cuenta es tu RUT sin el dígito verificador.
           </Text>
           <ScrollView
-            style={{ maxHeight: 440 }}
+            className="max-h-[440px]"
             contentContainerStyle={{ paddingBottom: 16 }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}

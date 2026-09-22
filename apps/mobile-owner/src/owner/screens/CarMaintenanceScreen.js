@@ -210,8 +210,8 @@ export function CarMaintenanceScreen({ car, onBack }) {
                 />
               )}
               <TextInput
-                className="bg-white rounded-xl px-3.5 py-3 text-[15px] text-textDark border-[1.5px] border-gray-200"
-                style={{ minHeight: 72, textAlignVertical: "top" }}
+                className="bg-white rounded-xl px-3.5 py-3 text-[15px] text-textDark border-[1.5px] border-gray-200 min-h-[72px]"
+                style={{ textAlignVertical: "top" }}
                 placeholder="Notas (opcional)"
                 placeholderTextColor={colors.textPlaceholder}
                 value={f.notas}
@@ -220,8 +220,8 @@ export function CarMaintenanceScreen({ car, onBack }) {
               />
             </ScrollView>
             <View className="flex-row gap-3 mt-1">
-              <Button variant="secondary" label="Cancelar" onPress={() => setForm(null)} style={{ flex: 1 }} />
-              <Button label="Guardar" onPress={guardar} loading={saving} style={{ flex: 1 }} />
+              <Button variant="secondary" label="Cancelar" onPress={() => setForm(null)} className="flex-1" />
+              <Button label="Guardar" onPress={guardar} loading={saving} className="flex-1" />
             </View>
           </View>
         </KeyboardAvoidingView>

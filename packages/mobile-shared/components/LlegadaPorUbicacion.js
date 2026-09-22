@@ -114,20 +114,20 @@ export function LlegadaPorUbicacion({ reserva, rol, onActualizada }) {
   if (!llegada && !enVentana && !otroLlego) return null;
 
   return (
-    <View style={{ gap: 6 }}>
+    <View className="gap-1.5">
       {otroLlego ? (
-        <Text style={{ fontSize: 13, fontWeight: "600", color: "#0F766E" }}>
+        <Text className="text-[13px] font-semibold text-primary">
           {nombreOtro} ya llegó al punto de encuentro.
         </Text>
       ) : null}
       {llegada ? (
-        <Text style={{ fontSize: 13, fontWeight: "600", color: "#0F766E" }}>
+        <Text className="text-[13px] font-semibold text-primary">
           Avisaste que llegaste. Ahora se inicia la entrega con el código QR.
         </Text>
       ) : enVentana ? (
         <>
-          <Text style={{ fontSize: 12, lineHeight: 17, color: "#64748B" }}>
-            <Text style={{ fontWeight: "700", color: "#475569" }}>Verificación puntual (Ley N° 19.496 y 19.628): </Text>
+          <Text className="text-xs leading-[17px] text-textMuted">
+            <Text className="font-bold text-textSecondary">Verificación puntual (Ley N° 19.496 y 19.628): </Text>
             Comprobamos tu presencia física únicamente con tu ubicación actual al momento de confirmar tu llegada,
             solo desde 2 horas antes de la entrega y con la app abierta. No realizamos rastreo continuo ni almacenamos
             tus coordenadas. Quien confirma la reserva y no se presenta paga una multa contractual de un día de arriendo.
@@ -142,7 +142,7 @@ export function LlegadaPorUbicacion({ reserva, rol, onActualizada }) {
           />
         </>
       ) : null}
-      {error ? <Text style={{ fontSize: 13, color: "#DC2626" }}>{error}</Text> : null}
+      {error ? <Text className="text-[13px] text-danger">{error}</Text> : null}
     </View>
   );
 }

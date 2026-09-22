@@ -42,7 +42,6 @@ import {
   CATEGORIAS_IA,
   formatCLP,
 } from "./DeliveryScreen.constantes";
-import { styles } from "./DeliveryScreen.styles";
 
 export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisputes }) {
   const insets = useSafeAreaInsets();
@@ -485,37 +484,37 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   // ---------------------------------------------------------------- helpers UI
   const Footer = ({ children }) => (
-    <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>{children}</View>
+    <View className="px-4 pt-3 bg-surface border-t border-border gap-2" style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}>{children}</View>
   );
 
   const InfoRow = ({ label, value }) => (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
+    <View className="flex-row justify-between items-center gap-3">
+      <Text className="text-sm text-textMuted">{label}</Text>
+      <Text className="text-sm text-text font-medium flex-shrink text-right" numberOfLines={1}>{value}</Text>
     </View>
   );
 
   // Barra de avance de 3 pasos. Solo en la devolución — la entrega es un
   // trámite lineal más corto y con su propia firma al final.
   const StepBar = ({ activo }) => (
-    <View style={styles.stepWrap}>
-      <View style={styles.stepSegs}>
+    <View className="px-4 pt-2 pb-3 bg-surface border-b border-border gap-1.5">
+      <View className="flex-row gap-1.5">
         {PASOS.map((p, i) => (
           <View
             key={p}
-            style={[
-              styles.stepSeg,
-              i < activo && styles.stepSegDone,
-              i === activo && styles.stepSegNow,
-            ]}
+            className={`flex-1 h-1 rounded-full ${
+              i < activo ? "bg-primary" : i === activo ? "bg-accent" : "bg-border"
+            }`}
           />
         ))}
       </View>
-      <View style={styles.stepLabels}>
+      <View className="flex-row justify-between">
         {PASOS.map((p, i) => (
           <Text
             key={p}
-            style={[styles.stepLbl, i === activo && styles.stepLblNow, i < activo && styles.stepLblDone]}
+            className={`text-[11px] font-semibold flex-1 text-center ${
+              i === activo ? "text-primary" : i < activo ? "text-accent-700" : "text-gray-400"
+            }`}
           >
             {i + 1} {p}
           </Text>
@@ -530,28 +529,27 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   // y el fondo oscuro competía con la escena. Ahora el texto va oscuro sobre
   // vidrio blanco, la caja guía y el obturador en el teal de marca.
   const renderCamara = ({ titulo, nota, onCloseBtn, onCounterPress }) => (
-    <View style={styles.camContainer}>
+    <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
-      <View style={[styles.camTop, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.camHead}>
+      <View className="px-4 pb-3 gap-3 bg-surface border-b border-border" style={{ paddingTop: insets.top + 8 }}>
+        <View className="flex-row items-center justify-between">
           <TouchableOpacity onPress={onCloseBtn} hitSlop={theme.control.hitSlop}>
             <Icon name="close" size={22} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.camTitle}>{titulo}</Text>
-          <Text style={styles.camFraction}>{fotos.length}/{ANGLES.length}</Text>
+          <Text className="text-[15px] font-bold text-text flex-1 mx-3">{titulo}</Text>
+          <Text className="text-sm text-primary font-bold">{fotos.length}/{ANGLES.length}</Text>
         </View>
-        <View style={styles.camBars}>
+        <View className="flex-row gap-1.5">
           {ANGLES.map((_, idx) => (
             <View
               key={idx}
-              style={[
-                styles.camBar,
-                idx < fotos.length ? styles.barDone : idx === currentAngleIdx ? styles.barActive : styles.barPending,
-              ]}
+              className={`flex-1 h-1 rounded-full ${
+                idx < fotos.length ? "bg-accent" : idx === currentAngleIdx ? "bg-primary" : "bg-border"
+              }`}
             />
           ))}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.anglePills}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: "row", gap: 8, paddingVertical: 2 }}>
           {ANGLES.map((a, idx) => {
             const past = idx < fotos.length;
             const curr = idx === currentAngleIdx;
@@ -559,20 +557,14 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
               <TouchableOpacity
                 key={a.id}
                 onPress={() => setCurrentAngleIdx(idx)}
-                style={[
-                  styles.anglePill,
-                  past && styles.pillPast,
-                  curr && styles.pillCurr,
-                  !past && !curr && styles.pillFuture,
-                ]}
+                className={`py-1.5 px-3 rounded-full ${
+                  past ? "bg-accent-100" : curr ? "bg-primary" : "bg-surface-secondary"
+                }`}
               >
                 <Text
-                  style={[
-                    styles.pillText,
-                    past && { color: colors.accentDark, fontWeight: "600" },
-                    curr && { color: "#FFFFFF", fontWeight: "600" },
-                    !past && !curr && { color: colors.textMuted },
-                  ]}
+                  className={`text-[13px] ${
+                    past ? "text-accent-700 font-semibold" : curr ? "text-white font-semibold" : "text-textMuted"
+                  }`}
                 >
                   {past ? `✓ ${a.name}` : a.name}
                 </Text>
@@ -582,63 +574,63 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
         </ScrollView>
       </View>
 
-      <View style={styles.viewfinder}>
+      <View className="flex-1 bg-surface-secondary items-center justify-center overflow-hidden">
         {fotos[currentAngleIdx] ? (
           <Image source={{ uri: fotos[currentAngleIdx] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : cameraPermission?.granted ? (
           <>
             <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" {...zoomProps} />
-            <View style={styles.guideBox} pointerEvents="none" />
-            <View style={styles.zoomRow}>
+            <View className="absolute top-6 bottom-6 left-5 right-5 border-2 border-primary-300 border-dashed rounded-2xl" pointerEvents="none" />
+            <View className="absolute bottom-3.5 self-center flex-row gap-2 bg-[#061e1f]/60 rounded-full p-1">
               {lenteUltraWide && (
                 <TouchableOpacity
-                  style={[styles.zoomChip, nivelZoom === "0.5x" && styles.zoomChipActivo]}
+                  className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "0.5x" ? "bg-accent" : ""}`}
                   onPress={() => setNivelZoom("0.5x")}
                   accessibilityRole="button"
                   accessibilityLabel="Zoom gran angular 0.5x"
                 >
-                  <Text style={[styles.zoomChipText, nivelZoom === "0.5x" && styles.zoomChipTextActivo]}>0.5x</Text>
+                  <Text className={`text-[12.5px] font-bold ${nivelZoom === "0.5x" ? "text-text" : "text-white"}`}>0.5x</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.zoomChip, nivelZoom === "1x" && styles.zoomChipActivo]}
+                className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "1x" ? "bg-accent" : ""}`}
                 onPress={() => setNivelZoom("1x")}
                 accessibilityRole="button"
                 accessibilityLabel="Zoom normal 1x"
               >
-                <Text style={[styles.zoomChipText, nivelZoom === "1x" && styles.zoomChipTextActivo]}>1x</Text>
+                <Text className={`text-[12.5px] font-bold ${nivelZoom === "1x" ? "text-text" : "text-white"}`}>1x</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.zoomChip, nivelZoom === "2x" && styles.zoomChipActivo]}
+                className={`w-9 h-9 rounded-full items-center justify-center ${nivelZoom === "2x" ? "bg-accent" : ""}`}
                 onPress={() => setNivelZoom("2x")}
                 accessibilityRole="button"
                 accessibilityLabel="Zoom acercado 2x"
               >
-                <Text style={[styles.zoomChipText, nivelZoom === "2x" && styles.zoomChipTextActivo]}>2x</Text>
+                <Text className={`text-[12.5px] font-bold ${nivelZoom === "2x" ? "text-text" : "text-white"}`}>2x</Text>
               </TouchableOpacity>
             </View>
           </>
         ) : (
-          <View style={styles.camPermBox}>
+          <View className="p-6 items-center justify-center gap-2 bg-white/95 rounded-2xl mx-6 border border-border">
             <Icon name="camera" size={34} color={colors.primary} />
-            <Text style={styles.camPermTitle}>Cámara inactiva</Text>
-            <Text style={styles.camPermDesc}>
+            <Text className="text-base font-bold text-text">Cámara inactiva</Text>
+            <Text className="text-[13px] text-textMuted text-center leading-[18px]">
               Habilita la cámara para ver y encuadrar el vehículo en vivo.
             </Text>
-            <TouchableOpacity style={styles.camPermBtn} onPress={requestCameraPermission}>
-              <Text style={styles.camPermBtnText}>Habilitar cámara</Text>
+            <TouchableOpacity className="mt-1.5 bg-primary px-5 py-2.5 rounded-xl" onPress={requestCameraPermission}>
+              <Text className="text-white font-bold text-sm">Habilitar cámara</Text>
             </TouchableOpacity>
           </View>
         )}
-        <View style={styles.vfBadge}>
-          <Text style={styles.vfBadgeText}>{angle.desc}</Text>
+        <View className="absolute top-[22px] bg-white/90 py-2.5 px-4 rounded-xl border border-border">
+          <Text className="text-text text-[15px] font-semibold">{angle.desc}</Text>
         </View>
       </View>
 
-      <View style={[styles.camShutter, { paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
-        <View style={styles.shutterRow}>
+      <View className="px-6 pt-4 bg-surface border-t border-border gap-3" style={{ paddingBottom: Math.max(insets.bottom, 12) + 12 }}>
+        <View className="flex-row items-center justify-between">
           <TouchableOpacity
-            style={styles.galleryBtn}
+            className="w-[52px] h-[52px] rounded-xl bg-primary-100 border-[1.5px] border-primary-200 items-center justify-center"
             onPress={handleElegirGaleria}
             disabled={subiendoFoto}
             accessibilityRole="button"
@@ -648,31 +640,31 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           </TouchableOpacity>
           <TouchableOpacity
             testID="btn-tomar-foto"
-            style={styles.shutterBtn}
+            className="w-[72px] h-[72px] rounded-full bg-primary items-center justify-center"
             onPress={handleTomarFoto}
             disabled={subiendoFoto}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel="Tomar foto"
           >
-            {subiendoFoto ? <ActivityIndicator color="#FFFFFF" /> : <View style={styles.shutterInner} />}
+            {subiendoFoto ? <ActivityIndicator color="#FFFFFF" /> : <View className="w-[60px] h-[60px] rounded-full border-[3px] border-white" />}
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.thumbCounter}
+            className="w-[52px] h-[52px] rounded-xl bg-accent-100 items-center justify-center"
             onPress={onCounterPress}
             accessibilityRole="button"
             accessibilityLabel={`Ver las ${fotos.length} fotos tomadas`}
           >
-            <Text style={styles.thumbCounterText}>{fotos.length}</Text>
+            <Text className="text-sm font-extrabold text-accent-700">{fotos.length}</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ alignItems: "center", gap: 4 }}>
-          <Text style={styles.camNote}>{nota}</Text>
+        <View className="items-center gap-1">
+          <Text className="text-[13px] text-textMuted text-center">{nota}</Text>
           <TouchableOpacity
             onPress={() => setCurrentAngleIdx(Math.min(ANGLES.length - 1, currentAngleIdx + 1))}
             hitSlop={theme.control.hitSlop}
           >
-            <Text style={styles.skipText}>Saltar este ángulo →</Text>
+            <Text className="text-[13px] font-bold text-accent-700">Saltar este ángulo →</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -687,14 +679,14 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   if (stage === "05_code") {
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title={tipo === "antes" ? "Verificar entrega" : "Verificar devolución"} onBack={onBack} />
         {esDevolucion ? <StepBar activo={0} /> : null}
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={styles.noticeTeal}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View className="flex-row gap-2 bg-primary-100 rounded-xl p-4">
             <Icon name="shield" size={18} color={colors.primary} />
-            <Text style={styles.noticeTealText}>
+            <Text className="flex-1 text-sm leading-5 text-primary">
               Escanea el código QR que el cliente muestra en su celular para validar su identidad. Si
               hay poca luz, escríbelo a mano.
             </Text>
@@ -702,7 +694,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
           {auto?.marca ? (
             <Card padded style={{ gap: theme.spacing.sm }}>
-              <Text style={styles.cardTitle}>{auto.marca} {auto.modelo} {auto.anio}</Text>
+              <Text className="text-[15px] font-bold text-text">{auto.marca} {auto.modelo} {auto.anio}</Text>
               <InfoRow label="Patente" value={auto.patente} />
               <InfoRow label="Lugar acordado" value={reserva?.lugar_entrega_acordado} />
             </Card>
@@ -720,7 +712,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             <SectionLabel>¿Sin cámara? Escribe el código</SectionLabel>
             <TextInput
               testID="input-codigo-entrega"
-              style={styles.input}
+              className="min-h-[48px] border-[1.5px] border-border rounded-xl bg-surface px-4 py-3.5 text-[15px] text-text"
               value={codigoInput}
               onChangeText={setCodigoInput}
               placeholder="Código mostrado en el celular del cliente"
@@ -758,22 +750,22 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   if (stage === "06_confirm" && datosValidados) {
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Confirmar identidad" onBack={() => setStage("05_code")} />
         {esDevolucion ? <StepBar activo={0} /> : null}
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={styles.okRow}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View className="flex-row items-center gap-1.5 self-start bg-accent-100 py-1.5 px-3 rounded-full">
             <Icon name="check" size={15} color={colors.accentDark} />
-            <Text style={styles.okRowText}>Código verificado</Text>
+            <Text className="text-[13px] font-bold text-accent-700">Código verificado</Text>
           </View>
 
           {datosValidados.foto_perfil_verificada_url ? (
-            <Image source={{ uri: datosValidados.foto_perfil_verificada_url }} style={styles.perfilFoto} />
+            <Image source={{ uri: datosValidados.foto_perfil_verificada_url }} className="w-24 h-24 rounded-full self-center" />
           ) : null}
 
           <Card padded style={{ gap: theme.spacing.sm }}>
-            <Text style={styles.cardTitle}>{datosValidados.cliente_nombre}</Text>
+            <Text className="text-[15px] font-bold text-text">{datosValidados.cliente_nombre}</Text>
             <InfoRow
               label="Vehículo"
               value={`${datosValidados.auto_marca} ${datosValidados.auto_modelo} · ${datosValidados.auto_patente}`}
@@ -784,8 +776,8 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           {/* Segundo Conductor Verificado */}
           {datosValidados.segundo_conductor ? (
             <Card padded style={{ gap: theme.spacing.sm, borderColor: colors.primary, borderWidth: 1 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={[styles.cardTitle, { fontSize: 14 }]}>
+              <View className="flex-row justify-between items-center">
+                <Text className="text-sm font-bold text-text">
                   Segundo conductor autorizado
                 </Text>
                 <Badge label="KYC verificado" variant="success" />
@@ -793,7 +785,8 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
               {datosValidados.segundo_conductor.foto_perfil_url ? (
                 <Image
                   source={{ uri: datosValidados.segundo_conductor.foto_perfil_url }}
-                  style={[styles.perfilFoto, { height: 100, borderRadius: 12, marginVertical: 6 }]}
+                  className="w-24 self-center"
+                  style={{ height: 100, borderRadius: 12, marginVertical: 6 }}
                 />
               ) : null}
               <InfoRow label="Nombre" value={datosValidados.segundo_conductor.nombre} />
@@ -808,14 +801,15 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             </Card>
           ) : null}
 
-          <Text style={styles.help}>
+          <Text className="text-sm text-textMuted leading-5">
             Compara el rostro del conductor titular (y segundo conductor si aplica) con las fotos verificadas.
           </Text>
 
           <View style={{ gap: 6 }}>
             <SectionLabel>Motivo del rechazo (si no coincide)</SectionLabel>
             <TextInput
-              style={[styles.input, styles.textarea]}
+              className="min-h-[90px] border-[1.5px] border-border rounded-xl bg-surface px-4 py-3.5 text-[15px] text-text"
+              style={{ textAlignVertical: "top" }}
               value={motivoRechazo}
               onChangeText={setMotivoRechazo}
               placeholder="ej. La persona no coincide con la foto del carnet"
@@ -856,24 +850,24 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   if (stage === "21_review") {
     return (
-      <View style={styles.light}>
+      <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title={`Revisa las fotos (${fotos.length})`} onBack={() => setStage("20_camera")} />
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
           {fotos.length === 0 && (
-            <View style={styles.noticeWarn}>
+            <View className="flex-row gap-2 bg-warning-bg border border-warning-border rounded-xl p-4">
               <Icon name="warning" size={18} color={colors.warning} />
-              <Text style={styles.noticeWarnText}>
+              <Text className="flex-1 text-sm leading-5 text-warning-text">
                 Todavía no tomaste ninguna foto. Vuelve atrás y toma al menos una.
               </Text>
             </View>
           )}
-          <View style={styles.grid}>
+          <View className="flex-row flex-wrap gap-3">
             {colaFotos.map((item, idx) => (
-              <View key={item.uriLocal + idx} style={styles.gridCard}>
-                <Image source={{ uri: item.uriLocal }} style={styles.gridThumb} />
-                <View style={styles.gridFoot}>
-                  <Text style={styles.gridName} numberOfLines={1}>{ANGLES[idx]?.name || `Foto ${idx + 1}`}</Text>
+              <View key={item.uriLocal + idx} className="w-[47%] rounded-xl overflow-hidden border border-border bg-surface">
+                <Image source={{ uri: item.uriLocal }} className="h-[84px] w-full bg-surface-secondary" />
+                <View className="p-2 flex-row justify-between items-center gap-1.5">
+                  <Text className="text-[13px] text-text flex-1" numberOfLines={1}>{ANGLES[idx]?.name || `Foto ${idx + 1}`}</Text>
                   {item.estado === "subida" ? (
                     <Icon name="check" size={13} color={colors.accent} />
                   ) : item.estado === "subiendo" ? (
@@ -905,44 +899,46 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   if (stage === "22_metrics") {
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader
           title="Kilometraje y combustible"
           onBack={() => setStage(tipo === "antes" ? "21_review" : "25_return_cam")}
         />
         {esDevolucion ? <StepBar activo={1} /> : null}
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={{ gap: 6 }}>
             <SectionLabel>Kilometraje actual</SectionLabel>
-            <View style={styles.kmRow}>
+            <View className="h-[48px] border-[1.5px] border-primary-200 rounded-xl bg-surface flex-row items-center px-4 gap-2">
               <TextInput
                 testID="input-km"
-                style={styles.kmInput}
+                className="flex-1 text-lg font-bold text-text"
                 value={formatearMilesEnVivo(km)}
                 onChangeText={(t) => setKm(t.replace(/\D/g, ""))}
                 keyboardType="numeric"
                 placeholder="48320"
                 placeholderTextColor={colors.textPlaceholder}
               />
-              <Text style={styles.kmSuffix}>km</Text>
+              <Text className="text-base text-textMuted font-medium">km</Text>
             </View>
           </View>
 
           <View style={{ gap: 6 }}>
             <SectionLabel>Nivel de combustible</SectionLabel>
-            <View style={styles.fuelRow}>
+            <View className="flex-row gap-1.5">
               {FUEL_LEVELS.map((level) => {
                 const sel = fuelLevel === level;
                 return (
                   <TouchableOpacity
                     key={level}
-                    style={[styles.fuelBtn, sel && styles.fuelBtnActive]}
+                    className={`flex-1 h-[58px] border-[1.5px] rounded-xl items-center justify-center gap-0.5 ${
+                      sel ? "bg-primary border-primary" : "border-border bg-surface"
+                    }`}
                     onPress={() => setFuelLevel(level)}
                   >
-                    <Text style={[styles.fuelText, sel && { color: "#FFFFFF" }]}>{level}</Text>
-                    {level === "E" && <Text style={[styles.fuelSub, sel && { color: colors.accent300 }]}>vacío</Text>}
-                    {level === "F" && <Text style={[styles.fuelSub, sel && { color: colors.accent300 }]}>lleno</Text>}
+                    <Text className={`text-base font-semibold ${sel ? "text-white" : "text-textMuted"}`}>{level}</Text>
+                    {level === "E" && <Text className={`text-[10px] ${sel ? "text-accent-300" : "text-textMuted"}`}>vacío</Text>}
+                    {level === "F" && <Text className={`text-[10px] ${sel ? "text-accent-300" : "text-textMuted"}`}>lleno</Text>}
                   </TouchableOpacity>
                 );
               })}
@@ -969,19 +965,19 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   if (stage === "23_signature") {
     return (
-      <View style={styles.light}>
+      <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Firma del contrato" onBack={() => setStage("22_metrics")} />
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          <View style={styles.noticeTeal}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+          <View className="flex-row gap-2 bg-primary-100 rounded-xl p-4">
             <Icon name="shield" size={18} color={colors.primary} />
-            <Text style={styles.noticeTealText}>
+            <Text className="flex-1 text-sm leading-5 text-primary">
               Ahora firma <Text style={{ fontWeight: "700" }}>{datosValidados?.cliente_nombre || "el cliente"}</Text>. Pásale el teléfono.
             </Text>
           </View>
 
           <Card padded style={{ gap: theme.spacing.sm }}>
-            <Text style={styles.cardTitle}>Contrato de arriendo · {auto.patente}</Text>
+            <Text className="text-[15px] font-bold text-text">Contrato de arriendo · {auto.patente}</Text>
             <InfoRow label="Kilometraje de salida" value={`${formatearMilesEnVivo(km)} km`} />
             <InfoRow label="Garantía retenida" value={`$${formatCLP(reserva?.monto_hold)}`} />
           </Card>
@@ -992,26 +988,26 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           </View>
 
           <TouchableOpacity
-            style={styles.faceCam}
+            className="h-[230px] bg-primary-800 rounded-2xl items-center justify-center p-4 gap-3"
             onPress={() => setMostrarSelfieEntrega(true)}
             activeOpacity={0.85}
             disabled={subiendoSelfieEntrega}
           >
-            <View style={styles.faceCircle}>
+            <View className="w-[104px] h-[104px] rounded-full border-2 border-[rgba(146,227,203,0.7)] border-dashed items-center justify-center bg-primary-900 overflow-hidden">
               {selfieEntregaUrl ? (
-                <Image source={{ uri: selfieEntregaUrl }} style={styles.faceCircleFoto} />
+                <Image source={{ uri: selfieEntregaUrl }} className="w-full h-full" />
               ) : (
                 <Icon name="user" size={44} color="rgba(146,227,203,0.7)" />
               )}
             </View>
-            <Text style={styles.faceTitle}>
+            <Text className="text-base font-semibold text-white">
               {subiendoSelfieEntrega
                 ? "Subiendo selfie…"
                 : selfieEntregaUrl
                 ? "Selfie capturada ✓ (toca para repetir)"
                 : "Toca para tomar tu selfie"}
             </Text>
-            <Text style={styles.faceDesc}>Se compara con la foto de tu cédula verificada al registrarte.</Text>
+            <Text className="text-[13px] text-accent-300 text-center max-w-[240px] leading-[18px]">Se compara con la foto de tu cédula verificada al registrarte.</Text>
           </TouchableOpacity>
         </ScrollView>
         <Footer>
@@ -1022,7 +1018,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             loading={enviandoChecklist}
             disabled={!firmaSvg}
           />
-          <Text style={styles.footNote}>Al firmar aceptas el estado registrado en las fotos.</Text>
+          <Text className="text-xs text-textMuted text-center">Al firmar aceptas el estado registrado en las fotos.</Text>
         </Footer>
 
         <SelfieLivenessModal
@@ -1051,13 +1047,13 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   if (stage === "24_signed") {
     return (
-      <View style={styles.light}>
+      <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
-        <ScrollView contentContainerStyle={styles.centerBody} showsVerticalScrollIndicator={false}>
-          <SuccessCheck style={styles.successMark} />
-          <View style={styles.centerText}>
-            <Text style={styles.bigTitle}>Contrato firmado</Text>
-            <Text style={styles.bigSub}>
+        <ScrollView contentContainerStyle={{ padding: 32, alignItems: "center", gap: 16 }} showsVerticalScrollIndicator={false}>
+          <SuccessCheck className="mt-2" />
+          <View className="items-center gap-2">
+            <Text className="text-xl font-bold text-text text-center">Contrato firmado</Text>
+            <Text className="text-[15px] text-textMuted leading-[22px] text-center">
               El arriendo está en curso. Devolución acordada para el{" "}
               {reserva?.fecha_fin ? new Date(reserva.fecha_fin).toLocaleDateString("es-CL") : "—"}.
             </Text>
@@ -1065,7 +1061,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           <Card padded style={{ width: "100%", gap: theme.spacing.md }}>
             <InfoRow label="Reserva" value={(reservaIdActiva || "").slice(0, 8).toUpperCase()} />
             <InfoRow label="Registro fotográfico" value={`${fotos.length} fotos`} />
-            <View style={styles.divider} />
+            <View className="h-[1px] bg-border" />
             <InfoRow label="Garantía" value={`$${formatCLP(reserva?.monto_hold)} retenidos`} />
           </Card>
         </ScrollView>
@@ -1078,43 +1074,43 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
 
   if (stage === "26_review") {
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <ScreenHeader
           title="Revisión de devolución"
           onBack={() => (mostrarDano ? setMostrarDano(false) : setStage("22_metrics"))}
         />
         <StepBar activo={1} />
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <View style={styles.grid}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View className="flex-row flex-wrap gap-3">
             {colaFotos.map((item, idx) => (
-              <View key={item.uriLocal + idx} style={styles.gridCardSm}>
-                <Image source={{ uri: item.uriLocal }} style={styles.gridThumbSm} />
+              <View key={item.uriLocal + idx} className="w-[22%] aspect-square rounded-lg overflow-hidden bg-surface-secondary">
+                <Image source={{ uri: item.uriLocal }} className="w-full h-full" />
               </View>
             ))}
           </View>
 
           <Card padded style={{ gap: 0 }}>
-            <View style={styles.deltaLine}>
-              <Text style={styles.deltaLabel}>Kilometraje</Text>
-              <Text style={styles.deltaVal}>{formatearMilesEnVivo(km)} km</Text>
+            <View className="flex-row justify-between items-center py-2.5 border-b border-border">
+              <Text className="text-sm text-textMuted">Kilometraje</Text>
+              <Text className="text-sm font-semibold text-text">{formatearMilesEnVivo(km)} km</Text>
             </View>
-            <View style={styles.deltaLine}>
-              <Text style={styles.deltaLabel}>Combustible</Text>
-              <Text style={styles.deltaVal}>{fuelLevel}</Text>
+            <View className="flex-row justify-between items-center py-2.5 border-b border-border">
+              <Text className="text-sm text-textMuted">Combustible</Text>
+              <Text className="text-sm font-semibold text-text">{fuelLevel}</Text>
             </View>
-            <View style={[styles.deltaLine, { borderBottomWidth: 0 }]}>
-              <Text style={styles.deltaLabel}>Fotos de devolución</Text>
-              <Text style={styles.deltaVal}>{fotos.length} de {ANGLES.length}</Text>
+            <View className="flex-row justify-between items-center py-2.5">
+              <Text className="text-sm text-textMuted">Fotos de devolución</Text>
+              <Text className="text-sm font-semibold text-text">{fotos.length} de {ANGLES.length}</Text>
             </View>
           </Card>
 
           {/* Tarjeta de Peritaje Asistido por IA (Computer Vision) */}
-          <Card padded style={styles.aiCard}>
-            <View style={styles.aiHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Card padded className="gap-2 border-[1.5px] border-primary bg-surface">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-2">
                 <Icon name="sparkles" size={18} color={colors.primary} />
-                <Text style={styles.aiTitle}>Peritaje Asistido por IA</Text>
+                <Text className="text-sm font-bold text-text">Peritaje Asistido por IA</Text>
               </View>
               {cargandoIA ? (
                 <ActivityIndicator size="small" color={colors.primary} />
@@ -1127,36 +1123,34 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             </View>
 
             {cargandoIA && (
-              <Text style={styles.aiLoadingText}>Analizando fotografías con Computer Vision...</Text>
+              <Text className="text-[13px] text-textMuted italic py-1">Analizando fotografías con Computer Vision...</Text>
             )}
 
             {analisisIA && (
               <View style={{ gap: 8, marginTop: 4 }}>
-                <Text style={styles.aiSubtitle}>Probabilidades estimadas por visión:</Text>
+                <Text className="text-xs font-semibold text-textMuted">Probabilidades estimadas por visión:</Text>
 
-                <View style={styles.aiBars}>
+                <View className="gap-1.5 py-0.5">
                   {CATEGORIAS_IA.map((a) => ({ ...a, pct: analisisIA.probabilidades?.[a.clave] || 0 })).map((item) => (
-                    <View key={item.label} style={styles.aiBarRow}>
-                      <Text style={styles.aiBarLabel}>{item.label}</Text>
-                      <View style={styles.aiBarTrack}>
+                    <View key={item.label} className="flex-row items-center gap-2">
+                      <Text className="w-[68px] text-xs text-text font-medium">{item.label}</Text>
+                      <View className="flex-1 h-2 bg-slate-100 rounded overflow-hidden">
                         <View
-                          style={[
-                            styles.aiBarFill,
-                            {
-                              width: `${Math.max(item.pct, 3)}%`,
-                              backgroundColor: item.pct >= 70 ? colors.warning : item.pct >= 30 ? colors.primary : colors.accent300,
-                            },
-                          ]}
+                          className="h-full rounded"
+                          style={{
+                            width: `${Math.max(item.pct, 3)}%`,
+                            backgroundColor: item.pct >= 70 ? colors.warning : item.pct >= 30 ? colors.primary : colors.accent300,
+                          }}
                         />
                       </View>
-                      <Text style={[styles.aiBarPct, item.pct >= 70 && { fontWeight: "700", color: colors.warning }]}>
+                      <Text className={`w-9 text-xs font-semibold text-right ${item.pct >= 70 ? "text-warning font-bold" : "text-text"}`}>
                         {item.pct}%
                       </Text>
                     </View>
                   ))}
                 </View>
 
-                <Text style={styles.aiDiagnosis}>{analisisIA.sugerencia_dueno}</Text>
+                <Text className="text-[12.5px] text-textMuted leading-[18px] mt-0.5">{analisisIA.sugerencia_dueno}</Text>
 
                 {analisisIA.anomalia_detectada && !mostrarDano && (
                   <Button
@@ -1187,7 +1181,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             <>
               <View style={{ gap: theme.spacing.sm }}>
                 <SectionLabel>Tipo de diferencia</SectionLabel>
-                <View style={styles.chipsWrap}>
+                <View className="flex-row flex-wrap gap-2">
                   {TIPOS_DANO.map((t) => (
                     <Chip key={t} label={t} selected={damageType === t} onPress={() => setDamageType(t)} />
                   ))}
@@ -1197,7 +1191,8 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
               <View style={{ gap: 6 }}>
                 <SectionLabel>Qué pasó</SectionLabel>
                 <TextInput
-                  style={[styles.input, styles.textarea]}
+                  className="min-h-[90px] border-[1.5px] border-border rounded-xl bg-surface px-4 py-3.5 text-[15px] text-text"
+                  style={{ textAlignVertical: "top" }}
                   value={damageDesc}
                   onChangeText={setDamageDesc}
                   placeholder="Describe la diferencia encontrada"
@@ -1206,9 +1201,9 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
                 />
               </View>
 
-              <View style={styles.noticeWarnBox}>
-                <Text style={styles.noticeWarnTitle}>La garantía sigue retenida</Text>
-                <Text style={styles.noticeWarnText}>
+              <View className="w-full bg-warning-bg border border-warning-border rounded-xl p-4 gap-1">
+                <Text className="text-sm font-bold text-warning-text">La garantía sigue retenida</Text>
+                <Text className="flex-1 text-sm leading-5 text-warning-text">
                   Se abre una disputa con estas {fotos.length} fotos como evidencia. Soporte revisa y define
                   cuánto se transfiere para la reparación. No es un cobro directo.
                 </Text>
@@ -1242,20 +1237,20 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
     const r = resultadoChecklist || {};
     const enDisputa = r.estado_reserva === "disputada";
     return (
-      <KeyboardAvoidingView style={styles.light} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <StatusBar barStyle="dark-content" />
         <StepBar activo={2} />
-        <ScrollView contentContainerStyle={styles.centerBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: 32, alignItems: "center", gap: 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {enDisputa ? (
-            <View style={styles.markWarn}>
+            <View className="w-16 h-16 rounded-full bg-warning-bg items-center justify-center mt-2">
               <Icon name="alert" size={30} color={colors.warning} />
             </View>
           ) : (
-            <SuccessCheck style={styles.successMark} />
+            <SuccessCheck className="mt-2" />
           )}
-          <View style={styles.centerText}>
-            <Text style={styles.bigTitle}>{enDisputa ? "Devolución con diferencia" : "Devolución confirmada"}</Text>
-            <Text style={styles.bigSub}>
+          <View className="items-center gap-2">
+            <Text className="text-xl font-bold text-text text-center">{enDisputa ? "Devolución con diferencia" : "Devolución confirmada"}</Text>
+            <Text className="text-[15px] text-textMuted leading-[22px] text-center">
               {enDisputa
                 ? "El arriendo se cierra, pero la garantía queda en revisión de soporte."
                 : "El arriendo quedó cerrado y liquidado."}
@@ -1263,9 +1258,9 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           </View>
 
           {enDisputa ? (
-            <View style={styles.noticeWarnBox}>
-              <Text style={styles.noticeWarnTitle}>Garantía retenida · en revisión</Text>
-              <Text style={styles.noticeWarnText}>
+            <View className="w-full bg-warning-bg border border-warning-border rounded-xl p-4 gap-1">
+              <Text className="text-sm font-bold text-warning-text">Garantía retenida · en revisión</Text>
+              <Text className="flex-1 text-sm leading-5 text-warning-text">
                 Soporte compara las fotos de entrega y devolución y define cuánto se transfiere para la
                 reparación antes de liquidar.
               </Text>
@@ -1273,18 +1268,18 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           ) : null}
 
           <Card padded style={{ width: "100%", gap: theme.spacing.md }}>
-            <View style={styles.rowBetween}>
-              <Text style={styles.infoLabel}>Liquidación para ti</Text>
+            <View className="flex-row justify-between items-center">
+              <Text className="text-sm text-textMuted">Liquidación para ti</Text>
               <Badge variant={enDisputa ? "neutral" : "success"} label={enDisputa ? "En pausa por disputa" : "Depósito automático directo"} />
             </View>
-            <View style={styles.rowBetween}>
-              <Text style={styles.infoLabel}>Monto a transferir</Text>
-              <Text style={styles.liqMonto}>${formatCLP(r.liquidacion_dueno)}</Text>
+            <View className="flex-row justify-between items-center">
+              <Text className="text-sm text-textMuted">Monto a transferir</Text>
+              <Text className="text-base font-extrabold text-text">${formatCLP(r.liquidacion_dueno)}</Text>
             </View>
             {r.cargo_limpieza > 0 && <InfoRow label="Cargo limpieza" value={`$${formatCLP(r.cargo_limpieza)}`} />}
             {r.cargo_combustible > 0 && <InfoRow label="Cargo combustible" value={`$${formatCLP(r.cargo_combustible)}`} />}
             {r.cargo_km_extra > 0 && <InfoRow label="Cargo km extra" value={`$${formatCLP(r.cargo_km_extra)}`} />}
-            <Text style={styles.footNoteLeft}>
+            <Text className="text-xs text-textMuted leading-[17px] border-t border-border pt-2">
               {enDisputa
                 ? "La garantía y liquidación quedan en pausa hasta que soporte resuelva la disputa."
                 : "El dinero se transfiere de forma automática a tu cuenta bancaria registrada."}
@@ -1294,11 +1289,11 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           {reserva?.cliente_id && (
             <Card padded style={{ width: "100%", gap: theme.spacing.md, alignItems: "center" }}>
               {calificacionEnviada ? (
-                <Text style={styles.ratingSent}>¡Gracias por calificar al cliente!</Text>
+                <Text className="text-sm font-semibold text-success">¡Gracias por calificar al cliente!</Text>
               ) : (
                 <>
-                  <Text style={styles.ratingTitle}>¿Cómo fue tu experiencia con el cliente?</Text>
-                  <View style={styles.stars}>
+                  <Text className="text-[15px] font-semibold text-text text-center">¿Cómo fue tu experiencia con el cliente?</Text>
+                  <View className="flex-row gap-1.5">
                     {PUNTAJES_CALIFICACION.map((n) => (
                       <TouchableOpacity key={n} onPress={() => setPuntajeCliente(n)} hitSlop={theme.control.hitSlop}>
                         <Icon name="star" size={30} color={n <= puntajeCliente ? colors.warning : colors.border} />
@@ -1306,7 +1301,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
                     ))}
                   </View>
                   <TextInput
-                    style={styles.input}
+                    className="min-h-[48px] border-[1.5px] border-border rounded-xl bg-surface px-4 py-3.5 text-[15px] text-text self-stretch"
                     placeholder="Comentario opcional"
                     placeholderTextColor={colors.textPlaceholder}
                     value={comentarioCliente}

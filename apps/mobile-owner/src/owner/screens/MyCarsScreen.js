@@ -363,8 +363,8 @@ export function MyCarsScreen({
             </ScrollView>
 
             <View className="flex-row gap-3.5 mt-1">
-              <Button variant="secondary" label="Cancelar" onPress={() => setEditingCar(null)} style={{ flex: 1 }} />
-              <Button label="Guardar tarifa" onPress={handleSaveRate} loading={saving} style={{ flex: 1 }} />
+              <Button variant="secondary" label="Cancelar" onPress={() => setEditingCar(null)} className="flex-1" />
+              <Button label="Guardar tarifa" onPress={handleSaveRate} loading={saving} className="flex-1" />
             </View>
           </View>
         </KeyboardAvoidingView>

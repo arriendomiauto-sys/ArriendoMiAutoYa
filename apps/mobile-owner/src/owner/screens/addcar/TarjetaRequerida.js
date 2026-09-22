@@ -28,7 +28,7 @@ export function TarjetaRequerida({ estado, onBack }) {
         {!enRevision ? (
           <Text className="text-primary text-[13px] font-bold text-center">La registras en tu perfil, en Métodos de pago.</Text>
         ) : null}
-        <Button label="Entendido" onPress={onBack} style={{ marginTop: 16 }} />
+        <Button label="Entendido" onPress={onBack} className="mt-4" />
       </View>
     </View>
   );

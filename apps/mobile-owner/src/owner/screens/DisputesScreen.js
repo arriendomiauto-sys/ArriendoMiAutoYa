@@ -197,7 +197,7 @@ export function DisputesScreen({ onBack }) {
               />
             </View>
 
-            <Button label="Enviar a mediación" onPress={crear} loading={enviando} style={{ marginTop: 16 }} />
+            <Button label="Enviar a mediación" onPress={crear} loading={enviando} className="mt-4" />
           </View>
         )}
       </ScrollView>
