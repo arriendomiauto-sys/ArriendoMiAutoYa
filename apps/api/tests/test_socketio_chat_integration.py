@@ -231,6 +231,7 @@ async def test_socketio_enviar_mensaje_recorta_el_texto_largo_de_la_notificacion
 @pytest.mark.anyio
 async def test_socketio_escribiendo_y_dejo_de_escribir():
     with patch.object(sio, "get_session", new_callable=AsyncMock) as mock_get_session, \
+         patch.object(sio, "rooms", return_value=["sid_1", "reserva_res-999"]), \
          patch.object(sio, "emit", new_callable=AsyncMock) as mock_emit:
         
         mock_get_session.return_value = {"usuario_id": "usr-123"}

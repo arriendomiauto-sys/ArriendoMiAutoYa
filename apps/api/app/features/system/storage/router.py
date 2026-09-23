@@ -1,14 +1,113 @@
 from typing import Optional
 from fastapi import APIRouter, Request, UploadFile, File, Form, HTTPException, status, Depends, Query
 from fastapi.responses import FileResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.features.system.storage.service import StorageService
-from app.models.entities import CertificadoAntecedente, Usuario
+from app.models.entities import (
+    CertificadoAntecedente,
+    Usuario,
+    Auto,
+    Reserva,
+    ChecklistAuto,
+    ConductorAdicional,
+    Disputa,
+    VerificacionEntrega,
+)
 from app.features.auth.login.service import get_current_user, get_optional_current_user, autenticar_token
 from app.core.database import get_db
 from app.core.limiter import limiter
 
 router = APIRouter(prefix="/storage", tags=["Almacenamiento de Archivos (Supabase / Local)"])
+
+
+def _usuario_puede_ver_imagen_privada(
+    db: Session, current_user: Usuario, bucket: str, archivo_id: str
+) -> bool:
+    """
+    Autorización por dueño para las imágenes del respaldo local privado (los
+    PDF de antecedentes ya se validaban aparte, ver más abajo). Antes, tener
+    CUALQUIER sesión válida alcanzaba para ver el carnet/licencia/checklist de
+    OTRO usuario si se conocía el archivo_id (UUID, difícil de adivinar pero
+    no imposible de filtrar por otra vía — logs, capturas, etc.).
+    """
+    if {"admin", "manager"} & set(current_user.roles_activos or []):
+        return True
+
+    sufijo = f"/{bucket}/{archivo_id}"
+
+    if bucket == "documentos-kyc":
+        campos_usuario = [
+            Usuario.carnet_frontal_url, Usuario.carnet_trasero_url, Usuario.licencia_url,
+            Usuario.pic_url, Usuario.foto_perfil_url, Usuario.foto_perfil_verificada_url,
+        ]
+        propio = db.query(Usuario.id).filter(
+            Usuario.id == current_user.id,
+            or_(*[c.like(f"%{sufijo}") for c in campos_usuario]),
+        ).first()
+        if propio:
+            return True
+
+        # Documentos del segundo conductor de una reserva propia (arrendatario
+        # que lo agregó, o dueño del auto reservado revisando su KYC).
+        campos_conductor = [
+            ConductorAdicional.carnet_frontal_url, ConductorAdicional.carnet_trasero_url,
+            ConductorAdicional.licencia_url, ConductorAdicional.selfie_url, ConductorAdicional.pic_url,
+        ]
+        match = (
+            db.query(ConductorAdicional.id)
+            .join(Reserva, Reserva.id == ConductorAdicional.reserva_id)
+            .join(Auto, Auto.id == Reserva.auto_id)
+            .filter(
+                or_(Reserva.cliente_id == current_user.id, Auto.dueno_id == current_user.id),
+                or_(*[c.like(f"%{sufijo}") for c in campos_conductor]),
+            )
+            .first()
+        )
+        return bool(match)
+
+    if bucket == "documentos-autos":
+        campos_auto = [
+            Auto.doc_inscripcion_url, Auto.doc_permiso_circulacion_url, Auto.doc_soap_url,
+            Auto.doc_revision_tecnica_url, Auto.doc_certificado_gases_url,
+            Auto.doc_historial_vehicular_url, Auto.doc_seguro_url, Auto.doc_anotaciones_vigentes_url,
+        ]
+        match = db.query(Auto.id).filter(
+            Auto.dueno_id == current_user.id,
+            or_(*[c.like(f"%{sufijo}") for c in campos_auto]),
+        ).first()
+        return bool(match)
+
+    if bucket in ("checklists", "evidencias"):
+        reservas_propias = (
+            db.query(Reserva.id)
+            .join(Auto, Auto.id == Reserva.auto_id)
+            .filter(or_(Reserva.cliente_id == current_user.id, Auto.dueno_id == current_user.id))
+        )
+        if bucket == "checklists":
+            for c in db.query(ChecklistAuto).filter(ChecklistAuto.reserva_id.in_(reservas_propias)):
+                if c.selfie_entrega_url and sufijo in c.selfie_entrega_url:
+                    return True
+                if c.fotos and any(sufijo in (foto or "") for foto in c.fotos):
+                    return True
+            return False
+
+        for d in db.query(Disputa).filter(Disputa.reserva_id.in_(reservas_propias)):
+            if d.foto_evidencia_url and sufijo in d.foto_evidencia_url:
+                return True
+            if d.evidencia_fotos and any(sufijo in (f or "") for f in d.evidencia_fotos):
+                return True
+        verificacion = (
+            db.query(VerificacionEntrega.id)
+            .filter(
+                VerificacionEntrega.reserva_id.in_(reservas_propias),
+                VerificacionEntrega.foto_evidencia_url.like(f"%{sufijo}"),
+            )
+            .first()
+        )
+        return bool(verificacion)
+
+    return False
 
 @router.post("/upload", summary="Sube una foto o documento a Supabase Storage o servidor local")
 @limiter.limit("20/minute")
@@ -90,6 +189,9 @@ async def servir_archivo_local_privado(
         return FileResponse(
             ruta, media_type="application/pdf", filename=archivo_id, content_disposition_type="attachment"
         )
+
+    if not _usuario_puede_ver_imagen_privada(db, current_user, bucket, archivo_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a este archivo.")
     return FileResponse(ruta)
 
 

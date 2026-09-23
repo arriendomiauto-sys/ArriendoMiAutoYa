@@ -1,8 +1,7 @@
 import asyncio
 import os
 import logging
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from contextlib import asynccontextmanager
@@ -122,12 +121,19 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
 
+# Swagger/ReDoc/openapi.json expuestos solo fuera de producción: en prod
+# listan cada endpoint, schema y modelo (incluidos los de admin) a quien
+# pase por ahí sin autenticarse — es reconocimiento gratis para un atacante,
+# sin aportar nada a un cliente real (la app mobile no los usa).
+_docs_habilitados = settings.ENVIRONMENT != "production"
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Backend oficial de 'Arrienda Tu Auto' (Marketplace P2P en Los Ángeles, Chile)",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if _docs_habilitados else None,
+    redoc_url="/redoc" if _docs_habilitados else None,
+    openapi_url="/openapi.json" if _docs_habilitados else None,
     lifespan=lifespan
 )
 
@@ -210,7 +216,7 @@ def root():
         "status": "online",
         "app": settings.PROJECT_NAME,
         "environment": settings.ENVIRONMENT,
-        "docs": "/docs"
+        "docs": "/docs" if _docs_habilitados else None,
     }
 
 @app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"], include_in_schema=False)

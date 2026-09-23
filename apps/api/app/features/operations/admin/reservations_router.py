@@ -4,7 +4,7 @@ Panel admin — ventana Reservas.
 Lista de todas las reservas con auto / cliente / dueño anidados, montos, firmas
 y los dos checklists. El manager solo ve las reservas de autos de su sucursal.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
 from app.features.system.storage.service import StorageService
-from app.models.entities import Auto, ChecklistAuto, Reserva, Usuario
+from app.models.entities import Auto, Reserva, Usuario
 from app.features.operations.admin._guards import exigir_admin_o_manager
 
 router = APIRouter()

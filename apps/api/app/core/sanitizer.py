@@ -3,7 +3,6 @@ Módulo de Sanitización de Entradas (Anti-XSS / Input Hardening).
 Limpia texto de usuario para evitar inyección de código JavaScript o HTML malicioso.
 """
 import re
-import html
 from typing import Optional
 
 # Patrones de etiquetas o inyecciones peligrosas

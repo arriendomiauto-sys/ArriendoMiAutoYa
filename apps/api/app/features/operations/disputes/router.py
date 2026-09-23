@@ -3,8 +3,7 @@ from typing import List
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.limiter import limiter
-from app.core.security_audit import SecurityAudit
-from app.schemas.schemas import DisputeOut, DisputeResolveRequest, DisputeCreate
+from app.schemas.schemas import DisputeOut, DisputeResolveRequest
 from app.models.entities import Disputa, Reserva, Usuario, Pago
 from app.features.auth.login.service import get_current_user
 from app.features.system.storage.service import StorageService

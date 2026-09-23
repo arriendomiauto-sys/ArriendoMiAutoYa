@@ -4,12 +4,12 @@ import hashlib
 import logging
 import time
 import httpx
-from jose import jwt, JWTError
+import jwt
 from fastapi import HTTPException, status, Header, Depends
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.entities import Usuario, Sucursal
+from app.models.entities import Usuario
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def _decodificar_jwt_local(token: str) -> Optional[dict]:
         # la pena arriesgar un mismatch de config por un check redundante — la
         # firma y el `exp` ya se validan.
         return jwt.decode(token, secret, algorithms=["HS256"], options={"verify_aud": False})
-    except JWTError:
+    except jwt.PyJWTError:
         return None
 
 class AuthService:
@@ -214,12 +214,18 @@ def _sincronizar_usuario_local(db: Session, supa_id: str, supa_email: Optional[s
             )
 
     def _inferir_roles_staff(email: Optional[str]) -> List[str]:
-        e = (email or "").lower()
-        if "admin" in e:
+        # Match EXACTO contra la allowlist de settings, no substring: un
+        # email de staff se define a mano (STAFF_ADMIN_EMAILS y similares),
+        # nunca por lo que el usuario haya elegido escribir en su email al
+        # registrarse (self-signup vía Supabase Auth, sin invitación).
+        e = (email or "").strip().lower()
+        if not e:
+            return ["cliente"]
+        if e in settings.staff_admin_emails:
             return ["admin"]
-        if "manager" in e:
+        if e in settings.staff_manager_emails:
             return ["manager"]
-        if "soporte" in e:
+        if e in settings.staff_soporte_emails:
             return ["soporte"]
         if "dueno" in e:
             return ["dueno", "cliente"]
@@ -238,17 +244,18 @@ def _sincronizar_usuario_local(db: Session, supa_id: str, supa_email: Optional[s
         db.commit()
         db.refresh(user)
     else:
-        # Promover roles si es una cuenta staff reconocida
-        email_str = (supa_email or user.email or "").lower()
+        # Promover roles si es una cuenta staff reconocida (match exacto
+        # contra la allowlist — ver _inferir_roles_staff).
+        email_str = (supa_email or user.email or "").strip().lower()
         roles_actuales = list(user.roles_activos or [])
         cambio = False
-        if ("admin" in email_str) and "admin" not in roles_actuales:
+        if (email_str in settings.staff_admin_emails) and "admin" not in roles_actuales:
             roles_actuales.append("admin")
             cambio = True
-        if ("manager" in email_str) and "manager" not in roles_actuales:
+        if (email_str in settings.staff_manager_emails) and "manager" not in roles_actuales:
             roles_actuales.append("manager")
             cambio = True
-        if ("soporte" in email_str) and "soporte" not in roles_actuales:
+        if (email_str in settings.staff_soporte_emails) and "soporte" not in roles_actuales:
             roles_actuales.append("soporte")
             cambio = True
         if cambio:

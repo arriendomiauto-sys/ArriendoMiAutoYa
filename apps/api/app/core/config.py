@@ -39,6 +39,28 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_VISION_API_KEY: Optional[str] = None
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
 
+    # Staff (admin/manager/soporte): un email SOLO promueve a uno de estos
+    # roles si aparece, exacto y completo, en la lista correspondiente — antes
+    # se promovía con que el email CONTUVIERA "admin"/"manager"/"soporte" en
+    # cualquier parte (ej. "cualquiera+admin@gmail.com"), lo que permitía
+    # autopromoción a admin con solo registrarse. Coma-separado, sin espacios
+    # extra, no sensible a mayúsculas.
+    STAFF_ADMIN_EMAILS: str = ""
+    STAFF_MANAGER_EMAILS: str = ""
+    STAFF_SOPORTE_EMAILS: str = ""
+
+    @property
+    def staff_admin_emails(self) -> set:
+        return {e.strip().lower() for e in self.STAFF_ADMIN_EMAILS.split(",") if e.strip()}
+
+    @property
+    def staff_manager_emails(self) -> set:
+        return {e.strip().lower() for e in self.STAFF_MANAGER_EMAILS.split(",") if e.strip()}
+
+    @property
+    def staff_soporte_emails(self) -> set:
+        return {e.strip().lower() for e in self.STAFF_SOPORTE_EMAILS.split(",") if e.strip()}
+
     # Verificación de identidad con proveedor externo (Didit).
     #
     # Apagado por defecto: sin esto, el enrolamiento sigue funcionando con el

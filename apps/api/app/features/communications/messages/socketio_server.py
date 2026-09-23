@@ -255,9 +255,15 @@ async def escribiendo(sid, data):
     reserva_id = (data or {}).get("reserva_id") if isinstance(data, dict) else None
     if not reserva_id:
         return
+    room_name = f"reserva_{reserva_id}"
+    # Sin esto, cualquier sesión autenticada podía emitir "está escribiendo"
+    # a la sala de una reserva ajena sin haberse unido nunca (unir_reserva es
+    # lo único que valida pertenencia) — `sio.rooms(sid)` ya refleja esa
+    # membresía sin otra consulta a la BD.
+    if room_name not in sio.rooms(sid):
+        return
     session = await sio.get_session(sid)
     usuario_id = session.get("usuario_id") if session else None
-    room_name = f"reserva_{reserva_id}"
     await sio.emit("usuario_escribiendo", {"reserva_id": reserva_id, "usuario_id": usuario_id}, room=room_name, skip_sid=sid)
 
 
@@ -267,9 +273,11 @@ async def dejo_de_escribir(sid, data):
     reserva_id = (data or {}).get("reserva_id") if isinstance(data, dict) else None
     if not reserva_id:
         return
+    room_name = f"reserva_{reserva_id}"
+    if room_name not in sio.rooms(sid):
+        return
     session = await sio.get_session(sid)
     usuario_id = session.get("usuario_id") if session else None
-    room_name = f"reserva_{reserva_id}"
     await sio.emit("usuario_dejo_de_escribir", {"reserva_id": reserva_id, "usuario_id": usuario_id}, room=room_name, skip_sid=sid)
 
 

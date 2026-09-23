@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 

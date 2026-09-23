@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.entities import Pago, Reserva, Usuario, Disputa, Auto, Sucursal, ConfiguracionPlataforma
+from app.models.entities import Pago, Reserva, Usuario, Disputa, Auto, ConfiguracionPlataforma
 from app.schemas.schemas import (
     UserOut, DocumentReviewRequest, PlatformConfigOut, PlatformConfigUpdate,
     AutoPendienteKycOut, AutoDocumentosReviewRequest, UsuarioRevisionOut,

@@ -114,7 +114,7 @@ def test_respaldo_local_privado_exige_sesion(client):
 
 
 def test_respaldo_local_privado_entrega_archivo_con_sesion(
-    usuario_factory, auth_as, tmp_path, monkeypatch
+    usuario_factory, auth_as, tmp_path, monkeypatch, db_session
 ):
     from app.core.config import settings
 
@@ -124,6 +124,8 @@ def test_respaldo_local_privado_entrega_archivo_con_sesion(
     monkeypatch.setattr(settings, "STORAGE_LOCAL_PRIVATE_DIR", str(tmp_path))
 
     usuario = usuario_factory(roles_activos=["cliente"])
+    usuario.carnet_frontal_url = "/api/v1/storage/local/documentos-kyc/carnet.jpg"
+    db_session.commit()
     resp = auth_as(usuario).get("/api/v1/storage/local/documentos-kyc/carnet.jpg")
     assert resp.status_code == 200
     assert resp.content == b"\xff\xd8\xff carnet"

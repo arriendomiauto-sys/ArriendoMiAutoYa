@@ -5,7 +5,7 @@ Protege al backend contra Server-Side Request Forgery (SSRF) y redirecciones abi
 import ipaddress
 import socket
 import urllib.parse
-from typing import List, Optional, Set
+from typing import Optional, Set
 import logging
 
 logger = logging.getLogger(__name__)

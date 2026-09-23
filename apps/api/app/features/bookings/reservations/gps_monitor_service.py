@@ -17,13 +17,12 @@ Corre dentro del mismo bucle de `reminders_service` (no hay un segundo
 sola instancia del backend.
 """
 import logging
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.entities import Auto, Pago, Reserva
+from app.models.entities import Auto, Reserva
 from app.features.communications.notifications.service import crear_notificacion
 from app.features.auth.onboarding.fines_service import FinesService
 from app.features.payments import cargos_service

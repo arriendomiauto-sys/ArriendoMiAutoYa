@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional
 import httpx
 from sqlalchemy.orm import Session
 
-from app.models.entities import ChecklistAuto, Reserva
+from app.models.entities import ChecklistAuto
 
 logger = logging.getLogger(__name__)
 

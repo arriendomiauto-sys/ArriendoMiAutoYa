@@ -8,14 +8,13 @@ vida de la reserva (crear, listar, firmar, entregar) vive en
 import logging
 
 from datetime import datetime, timezone
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.limiter import limiter
-from app.models.entities import Auto, Pago, Reserva, Tarjeta, Usuario
+from app.models.entities import Auto, Reserva, Usuario
 from app.schemas.schemas import PagarReservaRequest, CobroPosteriorRequest, CobroPosteriorOut
 from app.features.auth.login.service import get_current_user
 from app.features.payments import checkout_service, cargos_service

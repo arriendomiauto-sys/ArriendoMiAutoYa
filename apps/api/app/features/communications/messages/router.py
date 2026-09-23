@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.core.database import get_db
 from app.schemas.schemas import ConversacionResumen, MessageCreate, MessageOut
-import asyncio
 from app.models.entities import Usuario, Reserva, Auto, Mensaje
 from app.features.auth.login.service import get_current_user
 from app.features.communications.messages.socketio_server import difundir_mensaje_socketio

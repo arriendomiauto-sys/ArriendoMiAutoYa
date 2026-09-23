@@ -1,30 +1,36 @@
-fastapi>=0.110.0
-uvicorn[standard]>=0.28.0
-pydantic>=2.6.0
-email-validator>=2.0.0
-pydantic-settings>=2.2.0
-sqlalchemy>=2.0.28
-alembic>=1.13.1
+# Versiones fijadas a lo actualmente instalado/probado (antes todo era ">=",
+# así que un build nuevo podía resolver una versión distinta sin revisión).
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.4
+email-validator==2.3.0
+pydantic-settings==2.15.0
+sqlalchemy==2.0.51
+alembic==1.20.0
 # Driver PostgreSQL (Supabase / Render en producción). El binario evita
 # tener que compilar libpq en el contenedor de deploy.
-psycopg2-binary>=2.9.9
-python-dotenv>=1.0.1
-python-jose[cryptography]>=3.3.0
-python-multipart>=0.0.9
-reportlab>=4.0.0
+psycopg2-binary==2.9.12
+python-dotenv==1.2.2
+# PyJWT en vez de python-jose: python-jose 3.5.0 (última versión publicada)
+# tiene una vulnerabilidad crítica sin parche (CVE-2026-85394, CVSS 9.1,
+# falsificación de tokens HS256) y solo se usaba en un lugar del código
+# (auth/login/service.py). PyJWT >=2.13.0 no tiene CVEs abiertos.
+PyJWT>=2.13.0
+python-multipart==0.0.32
+reportlab==5.0.1
 # Lectura del texto de los certificados oficiales en PDF (antecedentes, hoja de vida,
 # anotaciones vigentes). Los PDF del Registro Civil traen capa de texto: no hace falta OCR de pago.
-pypdf>=4.0.0
-pytest>=8.0.0
-httpx>=0.27.0
-slowapi>=0.1.9
+pypdf==6.19.0
+pytest==9.1.1
+httpx==0.28.1
+slowapi==0.1.10
 # OCR real (opcional): sólo se importa si hay GOOGLE_APPLICATION_CREDENTIALS.
 # El feature funciona sin esto usando la API REST con API key o el mock.
 google-cloud-vision>=3.7.0
 # Edición de imagen para app/services/image_privacy.py: tapar las patentes
 # detectadas por OCR en las fotos de autos antes de guardarlas. Sin esto, la
 # censura falla en silencio (except ImportError -> se guarda la foto original).
-Pillow>=10.2.0
+Pillow==12.3.0
 # Socket.IO para chat en tiempo real
-python-socketio>=5.11.0
+python-socketio==5.16.4
 

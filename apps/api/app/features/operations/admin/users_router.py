@@ -95,7 +95,7 @@ def listar_usuarios_admin(
 
     if rol and rol in ROLES_VALIDOS:
         # `roles_activos` es JSON: se filtra con LIKE sobre el texto serializado.
-        query = query.filter(func.cast(Usuario.roles_activos, __import__("sqlalchemy").String).ilike(f'%"{rol}"%'))
+        query = query.filter(cast(Usuario.roles_activos, String).ilike(f'%"{rol}"%'))
     if estado_documentos:
         query = query.filter(Usuario.estado_documentos == estado_documentos)
     if q and q.strip():
