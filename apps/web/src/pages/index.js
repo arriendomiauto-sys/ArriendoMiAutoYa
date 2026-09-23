@@ -251,15 +251,15 @@ export default function Home() {
               <div className="flex flex-col gap-6">
                 <span className="inline-flex w-fit items-center gap-2 rounded-full border border-brand-line bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-tealInk">
                   <MapPin className="h-3.5 w-3.5" />
-                  Arriendo de autos en Chile · Financia la cuota de tu auto
+                  ArriendoMiAutoYa · Arriendo de autos en Chile
                 </span>
                 <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-[3.6rem]">
-                  El auto que necesitas, con las llaves de{" "}
+                  ArriendoMiAutoYa: el auto que necesitas, con las llaves de{" "}
                   <span className="bg-[linear-gradient(180deg,transparent_62%,#e8f5f0_62%)]">alguien de tu barrio.</span>
                 </h1>
                 <p className="max-w-lg text-lg text-[#63645f]">
-                  Arrienda autos particulares desde $19.000/día o financia la cuota de tu auto ganando hasta $800.000/mes.
-                  Seguro con deducible de 15 UF, verificación de identidad en 60 segundos y entrega con código QR.
+                  <strong className="text-brand-ink">ArriendoMiAutoYa</strong> es la plataforma de movilidad y arriendo colaborativo de vehículos entre particulares en Chile.
+                  Arrienda autos particulares desde $19.000/día o financia la cuota de tu auto ganando hasta $800.000/mes con seguro con deducible de 15 UF, verificación de identidad en 60 segundos y entrega con código QR.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <Link href="#descargar-app">
@@ -362,6 +362,49 @@ export default function Home() {
                     <p className="mt-2 max-w-[290px] text-[15px] text-[#63645f]">{s.desc}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════ PROPÓSITO DE LA APLICACIÓN Y AUTENTICACIÓN GOOGLE ══════════ */}
+        <section id="proposito-app" className="border-b border-brand-line bg-gradient-to-b from-white to-brand-soft/50 py-20">
+          <div className="container mx-auto max-w-5xl px-4 sm:px-6">
+            <div className="rounded-3xl border border-brand-line bg-white p-8 shadow-sm sm:p-12">
+              <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-10">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-tealTint text-brand-tealInk shadow-inner">
+                  <ShieldCheck className="h-8 w-8" />
+                </div>
+                <div className="space-y-4">
+                  <span className="font-display text-xs font-semibold uppercase tracking-[0.16em] text-brand-tealInk">
+                    • Identidad y Propósito de la Aplicación
+                  </span>
+                  <h2 className="font-display text-2xl font-bold text-brand-ink sm:text-3xl">
+                    Propósito de ArriendoMiAutoYa y Protección de tu Cuenta
+                  </h2>
+                  <p className="text-base leading-relaxed text-[#63645f]">
+                    <strong className="text-brand-ink">ArriendoMiAutoYa</strong> es una aplicación tecnológica diseñada para conectar a propietarios de vehículos con usuarios que necesitan arrendar un auto de forma segura, económica y confiable en Chile. Nuestra plataforma gestiona integralmente la verificación de identidad (KYC), contratos digitales, cobertura de seguro contra daños o robos, y la entrega supervisada de vehículos con inspección fotográfica y código QR.
+                  </p>
+                  <div className="mt-4 rounded-2xl border border-brand-line bg-brand-soft p-5">
+                    <h3 className="font-display text-base font-semibold text-brand-ink">
+                      Uso del Inicio de Sesión con Cuenta de Google (OAuth 2.0)
+                    </h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-[#63645f]">
+                      Para facilitar el acceso y garantizar la autenticidad de nuestra comunidad, <strong className="text-brand-ink">ArriendoMiAutoYa</strong> permite a los usuarios registrarse e iniciar sesión utilizando su cuenta de Google. Únicamente solicitamos acceso a tu perfil básico (<span className="font-medium text-brand-ink">nombre, dirección de correo electrónico y foto de perfil</span>) para identificarte y comunicarte el estado de tus reservas.
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-[#8a8b86]">
+                      ArriendoMiAutoYa no almacena contraseñas de terceros, no accede a tus contactos, correos electrónicos personales ni archivos de Google Drive, y nunca comparte tus datos con fines comerciales sin tu consentimiento explícito.
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-4 text-xs font-medium text-brand-tealInk">
+                      <Link href="/privacidad" className="underline hover:text-brand-ink">
+                        Ver Política de Privacidad de ArriendoMiAutoYa
+                      </Link>
+                      <Link href="/terminos" className="underline hover:text-brand-ink">
+                        Ver Términos y Condiciones del Servicio
+                      </Link>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

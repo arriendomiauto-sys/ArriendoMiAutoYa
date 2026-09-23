@@ -39,7 +39,7 @@ export default function Navbar() {
             className="h-9 w-9 rounded-xl object-cover shadow-sm transition-transform group-hover:scale-105"
           />
           <span className="font-display text-lg font-bold tracking-tight text-brand-ink">
-            arriendomiautoya
+            ArriendoMiAutoYa
           </span>
         </Link>
 

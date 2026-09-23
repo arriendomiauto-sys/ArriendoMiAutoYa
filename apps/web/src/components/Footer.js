@@ -38,7 +38,7 @@ export default function Footer() {
         aria-hidden
         className="pointer-events-none absolute inset-x-0 -bottom-10 whitespace-nowrap text-center font-display text-[16vw] font-bold leading-none tracking-tighter text-[#141412] select-none"
       >
-        arriendomiautoya
+        ArriendoMiAutoYa
       </span>
 
       <div className="container relative z-10 mx-auto max-w-7xl px-4 py-16 sm:px-6">
@@ -46,7 +46,7 @@ export default function Footer() {
           <div className="col-span-2 md:col-span-1">
             <div className="mb-3.5 flex items-center gap-2.5">
               <Image src="/logo.png" alt="ArriendoMiAutoYa" width={64} height={64} className="h-8 w-8 rounded-lg object-cover" />
-              <span className="font-display text-base font-bold text-white">arriendomiautoya</span>
+              <span className="font-display text-base font-bold text-white">ArriendoMiAutoYa</span>
             </div>
             <p className="max-w-xs text-[13px] leading-relaxed">
               Arriendo de autos entre personas. Verificación de identidad, seguro y entrega con
