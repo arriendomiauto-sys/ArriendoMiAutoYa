@@ -50,7 +50,7 @@ const celdaDia = (tr, n) =>
 
 const reservaConfirmadaEl12 = () => {
   const hoy = new Date();
-  const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 12, 10, 0, 0);
+  const inicio = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 12, 10, 0, 0);
   return {
     id: "r-12",
     auto_id: "auto-1",
@@ -92,9 +92,18 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+// El calendario ya no deja tocar días pasados, así que estas pruebas se
+// corren sobre el MES SIGUIENTE: todos sus días son futuros y el resultado no
+// depende del día del mes en que se ejecute la suite.
+const irAlMesSiguiente = (tr) => {
+  const btn = tr.root.findAll((n) => n.props?.accessibilityLabel === "Mes siguiente")[0];
+  act(() => btn.props.onPress());
+};
+
 const montar = async () => {
   arbol = renderTree(<CarCalendarScreen car={{ id: "auto-1" }} onBack={() => {}} />);
   await asentar();
+  irAlMesSiguiente(arbol);
   return arbol;
 };
 

@@ -41,9 +41,18 @@ const asentar = async () => {
   });
 };
 
+// El calendario ya no deja tocar días pasados, así que estas pruebas se
+// corren sobre el MES SIGUIENTE: todos sus días son futuros y el resultado no
+// depende del día del mes en que se ejecute la suite.
+const irAlMesSiguiente = (tr) => {
+  const btn = tr.root.findAll((n) => n.props?.accessibilityLabel === "Mes siguiente")[0];
+  act(() => btn.props.onPress());
+};
+
 const montar = async () => {
   const tr = renderTree(<CarCalendarScreen car={{ id: "auto-1" }} onBack={() => {}} />);
   await asentar();
+  irAlMesSiguiente(tr);
   return tr;
 };
 
@@ -56,7 +65,7 @@ const celdaDia = (tr, n) =>
 // Un día del mes que el calendario muestra (parte en el mes actual).
 const diaDelMesVisible = (n) => {
   const hoy = new Date();
-  return new Date(hoy.getFullYear(), hoy.getMonth(), n, 10, 0, 0);
+  return new Date(hoy.getFullYear(), hoy.getMonth() + 1, n, 10, 0, 0);
 };
 
 const reservaPendiente = (dia, expiraEnMs) => ({

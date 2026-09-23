@@ -41,9 +41,18 @@ const asentar = async () => {
   });
 };
 
+// El calendario ya no deja tocar días pasados, así que estas pruebas se
+// corren sobre el MES SIGUIENTE: todos sus días son futuros y el resultado no
+// depende del día del mes en que se ejecute la suite.
+const irAlMesSiguiente = (tr) => {
+  const btn = tr.root.findAll((n) => n.props?.accessibilityLabel === "Mes siguiente")[0];
+  act(() => btn.props.onPress());
+};
+
 const montar = async () => {
   const tr = renderTree(<CarCalendarScreen car={{ id: "auto-1" }} onBack={() => {}} />);
   await asentar();
+  irAlMesSiguiente(tr);
   return tr;
 };
 
@@ -103,9 +112,9 @@ describe("Calendario del dueño · bloqueo optimista", () => {
   });
 
   it("desbloquear un día ya bloqueado también es optimista + rollback", async () => {
-    // Un bloqueo existente en el día 1 del mes visible.
+    // Un bloqueo existente en el día 1 del mes visible (el siguiente).
     const hoy = new Date();
-    const primero = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const primero = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
     mockGetBloqueos.mockResolvedValue([{ id: "b-1", fecha: primero.toISOString() }]);
     mockEliminarBloqueo.mockRejectedValue(new Error("timeout"));
 
