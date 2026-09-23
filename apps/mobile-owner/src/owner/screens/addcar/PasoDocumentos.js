@@ -5,8 +5,16 @@ import { RanuraDocumento } from "./RanuraDocumento";
 import { DOCS, DOCS_OBLIGATORIOS } from "./useCarWizard";
 
 export function PasoDocumentos({ wizard }) {
-  const { form, validacionDocs, validandoDoc, uploadingDoc, subirDocumento, quitarDocumento, docsCargados } =
-    wizard;
+  const {
+    form,
+    validacionDocs,
+    validandoDoc,
+    uploadingDoc,
+    subirDocumento,
+    quitarDocumento,
+    reintentarValidacion,
+    docsCargados,
+  } = wizard;
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 12 }} showsVerticalScrollIndicator={false}>
@@ -28,6 +36,7 @@ export function PasoDocumentos({ wizard }) {
           onCamera={() => subirDocumento(doc.key, "camera")}
           onFile={() => subirDocumento(doc.key, "library")}
           onClear={() => quitarDocumento(doc.key)}
+          onReintentar={() => reintentarValidacion(doc.key)}
         />
       ))}
     </ScrollView>

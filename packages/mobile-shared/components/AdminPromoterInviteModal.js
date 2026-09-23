@@ -22,6 +22,7 @@ export function AdminPromoterInviteModal({ visible, onClose }) {
   const [invitaciones, setInvitaciones] = useState([]);
   const [ultimaInvitacion, setUltimaInvitacion] = useState(null);
   const [copiado, setCopiado] = useState(false);
+  const [errorCarga, setErrorCarga] = useState(null);
 
   useEffect(() => {
     if (visible) {
@@ -33,11 +34,13 @@ export function AdminPromoterInviteModal({ visible, onClose }) {
 
   const cargarInvitaciones = async () => {
     setCargando(true);
+    setErrorCarga(null);
     try {
       const items = await ApiClient.getInvitacionesPromotores();
       setInvitaciones(items || []);
     } catch (err) {
-      // Ignora silenciosamente o muestra error si aplica
+      console.warn("No se pudo cargar el historial de invitaciones:", err);
+      setErrorCarga(msjError(err, "No se pudo cargar el historial de invitaciones."));
     } finally {
       setCargando(false);
     }
@@ -149,6 +152,16 @@ export function AdminPromoterInviteModal({ visible, onClose }) {
 
               {cargando ? (
                 <ActivityIndicator size="small" color="#0F3D3E" className="my-4" />
+              ) : errorCarga ? (
+                <View className="flex-row items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
+                  <Icon name="alert" size={16} color={colors.dangerText} />
+                  <View className="flex-1 gap-2">
+                    <Text className="text-[12.5px] text-red-700 leading-[17px]">{errorCarga}</Text>
+                    <TouchableOpacity onPress={cargarInvitaciones} className="self-start">
+                      <Text className="text-[12.5px] font-bold text-primary-900">Reintentar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               ) : invitaciones.length === 0 ? (
                 <Text className="text-[13px] text-slate-400 italic text-center my-3">
                   Aún no has generado códigos de promotor.

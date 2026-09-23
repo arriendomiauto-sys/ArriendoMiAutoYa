@@ -9,9 +9,12 @@ const TONO = {
   vencido: "error",
   patente_no_coincide: "error",
   tipo_incorrecto: "error",
+  // Falla de red/infra al validar, no un rechazo del documento: se avisa
+  // igual que un "por vencer" (ámbar), no como un error duro (rojo).
+  error_validacion: "aviso",
 };
 
-export function RanuraDocumento({ doc, uri, uploading, validando, validacion, onCamera, onFile, onClear }) {
+export function RanuraDocumento({ doc, uri, uploading, validando, validacion, onCamera, onFile, onClear, onReintentar }) {
   const tono = validacion ? TONO[validacion.estado] || "aviso" : null;
   const estaValidado = Boolean(
     uri && (tono === "ok" || validacion?.estado === "vigente" || validacion?.estado === "sin_vencimiento")
@@ -22,8 +25,16 @@ export function RanuraDocumento({ doc, uri, uploading, validando, validacion, on
     if (!validacion) return null;
     if (validacion.motivo) return validacion.motivo;
     if (validacion.vencimiento) {
-      const [a, m, d] = validacion.vencimiento.split("-");
-      return `Vigente hasta el ${d}-${m}-${a}`;
+      // El backend a veces manda solo "YYYY-MM-DD" y a veces un ISO completo
+      // con hora ("YYYY-MM-DDTHH:mm:ssZ"); antes el split("-") se rompía con
+      // lo segundo (el "día" salía con la hora pegada, ej. "10T00:00:00Z").
+      // Un vencimiento es una fecha de calendario, no un instante: se toman
+      // los primeros 10 caracteres a mano, sin pasar por Date/zona horaria
+      // (new Date("YYYY-MM-DD") lo interpreta como medianoche UTC, que en
+      // Chile puede mostrar el día anterior).
+      const [a, m, d] = validacion.vencimiento.slice(0, 10).split("-");
+      if (a && m && d) return `Vigente hasta el ${d}-${m}-${a}`;
+      return "Documento verificado";
     }
     return "Documento verificado";
   })();
@@ -102,6 +113,18 @@ export function RanuraDocumento({ doc, uri, uploading, validando, validacion, on
             {texto}
           </Text>
         </View>
+      ) : null}
+
+      {validacion?.estado === "error_validacion" && onReintentar ? (
+        <TouchableOpacity
+          className="self-start py-1"
+          onPress={onReintentar}
+          hitSlop={theme.control.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel={`Reintentar verificación de ${doc.titulo}`}
+        >
+          <Text className="text-[12.5px] font-bold text-primary">Reintentar verificación</Text>
+        </TouchableOpacity>
       ) : null}
 
       {!uri && !uploading ? (

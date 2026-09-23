@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
 import {
   colors,
@@ -7,6 +7,7 @@ import {
   Chip,
   Checkbox,
   CampoConSugerencias,
+  TOTAL_FOTOS_AUTO,
 } from "@rentacar/mobile-shared";
 import {
   buscarMarcas,
@@ -22,10 +23,44 @@ import { SelectorCategoria } from "./SelectorCategoria";
 
 const { MapView, Marker } = MAPA;
 
+// Orden de validación (ver `errores` en useCarWizard.js) mapeado a la
+// sección del paso donde vive cada campo, para poder hacer scroll a la
+// primera que tenga un error.
+const SECCION_DE_CAMPO = {
+  marca: "datosBasicos",
+  modelo: "datosBasicos",
+  categoria: "categoria",
+  anio: "datosBasicos",
+  patente: "datosBasicos",
+  ubicacion_base: "ubicacion",
+  punto: "ubicacion",
+};
+const ORDEN_CAMPOS = ["marca", "modelo", "categoria", "anio", "patente", "ubicacion_base", "punto"];
+
 export function PasoVehiculo({ wizard }) {
-  const { form, setForm, setField, errorDe, tienePunto, tipos, elegirCategoria } = wizard;
+  const { form, setForm, setField, errorDe, errores, tienePunto, tipos, elegirCategoria, intentoFallidoTick } = wizard;
   const [modalAnioAbierto, setModalAnioAbierto] = useState(false);
   const anioActual = new Date().getFullYear();
+
+  const scrollRef = useRef(null);
+  const seccionesY = useRef({});
+  const marcarSeccion = (nombre) => (e) => {
+    seccionesY.current[nombre] = e.nativeEvent.layout.y;
+  };
+
+  // Al fallar "Siguiente" (ver intentoFallidoTick en useCarWizard.js), salta
+  // a la sección del primer campo con error -- antes, si ese campo quedaba
+  // más abajo del scroll, tocar "Siguiente" parecía no hacer nada.
+  useEffect(() => {
+    if (!intentoFallidoTick) return;
+    const primerCampo = ORDEN_CAMPOS.find((c) => errores[c]);
+    const seccion = primerCampo && SECCION_DE_CAMPO[primerCampo];
+    const y = seccion ? seccionesY.current[seccion] : null;
+    if (typeof y === "number") {
+      scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intentoFallidoTick]);
 
   const setEquip = (key) =>
     setForm((prev) => ({
@@ -35,6 +70,7 @@ export function PasoVehiculo({ wizard }) {
 
   return (
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 16 }}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
@@ -46,8 +82,8 @@ export function PasoVehiculo({ wizard }) {
       <View className="gap-2 p-3.5 rounded-xl bg-primary-100 border border-primary-200">
         <Text className="text-sm font-bold text-primary">Ten a mano antes de empezar</Text>
         {[
-          { icon: "camera", t: "9 fotos del auto, guiadas paso a paso" },
-          { icon: "document", t: "Padrón, permiso de circulación, SOAP y revisión técnica" },
+          { icon: "camera", t: `${TOTAL_FOTOS_AUTO} fotos del auto, guiadas paso a paso` },
+          { icon: "document", t: "Padrón, permiso de circulación, SOAP, revisión técnica y certificado de gases" },
           { icon: "clock", t: "Unos 5 minutos. Puedes salir y retomar después" },
         ].map((it) => (
           <View key={it.icon} className="flex-row items-center gap-2">
@@ -57,6 +93,7 @@ export function PasoVehiculo({ wizard }) {
         ))}
       </View>
 
+      <View onLayout={marcarSeccion("datosBasicos")}>
       <Tarjeta>
         <CampoConSugerencias
           etiqueta="Marca"
@@ -87,36 +124,23 @@ export function PasoVehiculo({ wizard }) {
 
         <View className="flex-row gap-3">
           <View className="flex-1 gap-1.5">
-            <View className="flex-row justify-between items-center mb-0.5">
-              <Text className="text-xs font-semibold tracking-wider uppercase text-textMuted">Año</Text>
-              <TouchableOpacity
-                onPress={() => setModalAnioAbierto(true)}
-                hitSlop={theme.control.hitSlop}
-                accessibilityLabel="Elegir año de la lista"
-              >
-                <Text className="text-[11px] font-bold text-primary">
-                  Elegir de lista
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <Text className="text-xs font-semibold tracking-wider uppercase text-textMuted mb-0.5">Año</Text>
+            {/* Solo desplegable, sin escritura libre: antes competían un
+                TextInput y el modal por el mismo toque. Un año se elige de
+                una lista corta, no se escribe -- así no hace falta abrir el
+                teclado ni pelear con dos formas de hacer lo mismo. */}
             <TouchableOpacity
               className={`bg-white rounded-xl px-3.5 h-12 border-[1.5px] border-gray-200 flex-row items-center justify-between ${
                 errorDe("anio") ? "border-red-500" : ""
               }`}
               onPress={() => setModalAnioAbierto(true)}
               activeOpacity={0.8}
-              accessibilityRole="combobox"
-              accessibilityLabel="Año de fabricación"
+              accessibilityRole="button"
+              accessibilityLabel={`Año de fabricación, ${form.anio || "sin elegir"}`}
             >
-              <TextInput
-                className="flex-1 h-12 text-[15px] font-bold text-textDark"
-                placeholder={String(anioActual)}
-                placeholderTextColor={colors.textPlaceholder}
-                value={form.anio}
-                onChangeText={(t) => setField("anio", t)}
-                keyboardType="number-pad"
-                maxLength={4}
-              />
+              <Text className={`text-[15px] font-bold ${form.anio ? "text-textDark" : "text-textPlaceholder"}`}>
+                {form.anio || String(anioActual)}
+              </Text>
               <Icon name="chevronDown" size={16} color={colors.textMuted} />
             </TouchableOpacity>
             <MensajeError texto={errorDe("anio")} />
@@ -143,16 +167,24 @@ export function PasoVehiculo({ wizard }) {
               autoCorrect={false}
               maxLength={9}
             />
+            {!errorDe("patente") ? (
+              <Text className="text-[10.5px] text-textMuted leading-[14px]">
+                Con o sin guion, como aparezca en tu padrón.
+              </Text>
+            ) : null}
             <MensajeError texto={errorDe("patente")} />
           </View>
         </View>
       </Tarjeta>
+      </View>
 
+      <View onLayout={marcarSeccion("categoria")}>
       <Tarjeta>
         <Text className="text-[15px] font-bold text-textDark">Categoría</Text>
         <SelectorCategoria tipos={tipos} seleccionado={form.categoria} onSelect={elegirCategoria} />
         <MensajeError texto={errorDe("categoria")} />
       </Tarjeta>
+      </View>
 
       <Tarjeta>
         <Text className="text-[15px] font-bold text-textDark">Ficha técnica</Text>
@@ -233,6 +265,7 @@ export function PasoVehiculo({ wizard }) {
         ))}
       </Tarjeta>
 
+      <View onLayout={marcarSeccion("ubicacion")}>
       <Tarjeta>
         <Text className="text-[15px] font-bold text-textDark">¿Dónde lo entregas?</Text>
         <View className="flex-row gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
@@ -242,41 +275,14 @@ export function PasoVehiculo({ wizard }) {
           </Text>
         </View>
 
-        <View className="flex-row items-center justify-between">
-          <Text className="text-xs font-semibold tracking-wider uppercase text-textMuted">Referencia del punto</Text>
-          <TouchableOpacity
-            className="flex-row items-center gap-1 py-1 px-2.5 rounded-lg bg-accent/15"
-            onPress={wizard.usarUbicacionActual}
-            disabled={wizard.locatingGps}
-            activeOpacity={0.8}
-          >
-            {wizard.locatingGps ? (
-              <ActivityIndicator size="small" color={colors.accentDark} />
-            ) : (
-              <>
-                <Icon name="pin" size={13} color={colors.accentDark} />
-                <Text className="text-accent-700 text-xs font-bold">Usar mi ubicación</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-        <TextInput
-          className={`bg-white rounded-xl px-3.5 h-12 border-[1.5px] border-gray-200 text-[15px] text-textDark ${
-            errorDe("ubicacion_base") ? "border-red-500" : ""
-          }`}
-          placeholder="Av. Alemania 6370, Temuco, Araucanía"
-          placeholderTextColor={colors.textPlaceholder}
-          value={form.ubicacion_base}
-          onChangeText={wizard.setReferencia}
-        />
-        <Text className="text-[11px] text-textMuted leading-[15px] mt-1">
-          Formato: calle y número, ciudad, comuna (si aplica), región. Se completa
-          solo al fijar el punto o usar tu ubicación.
-        </Text>
-        <MensajeError texto={errorDe("ubicacion_base")} />
-
+        {/* El mapa va primero: es la forma principal de fijar el punto, no
+            un anexo después del campo de texto -- antes quedaba al final de
+            la tarjeta, abajo del todo. También es más grande (220 en vez de
+            170) para tocar con más precisión, y el botón de GPS ahora flota
+            sobre el mapa (patrón común de apps de mapas) en vez de ocupar
+            una fila aparte arriba del campo de texto. */}
         {MapView ? (
-          <View className="h-[170px] rounded-xl overflow-hidden border border-gray-200">
+          <View className="h-[220px] rounded-xl overflow-hidden border border-gray-200">
             <MapView
               ref={wizard.mapaRef}
               className="w-full h-full"
@@ -299,6 +305,19 @@ export function PasoVehiculo({ wizard }) {
                 />
               ) : null}
             </MapView>
+            <TouchableOpacity
+              className="absolute top-2.5 right-2.5 w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm"
+              onPress={wizard.usarUbicacionActual}
+              disabled={wizard.locatingGps}
+              accessibilityRole="button"
+              accessibilityLabel="Centrar el mapa en mi ubicación actual"
+            >
+              {wizard.locatingGps ? (
+                <ActivityIndicator size="small" color={colors.accentDark} />
+              ) : (
+                <Icon name="pin" size={18} color={colors.accentDark} />
+              )}
+            </TouchableOpacity>
             <View className={`absolute bottom-2 self-center flex-row items-center gap-1.5 py-1 px-2.5 rounded-full ${
               tienePunto ? "bg-accent-700" : "bg-[#061E1F]/80"
             }`}>
@@ -316,12 +335,65 @@ export function PasoVehiculo({ wizard }) {
             <Text className="flex-1 text-textMuted text-[13px]">
               {tienePunto
                 ? `Coordenadas fijadas: ${form.latitud.toFixed(5)}, ${form.longitud.toFixed(5)}`
-                : 'Usa "Usar mi ubicación" para fijar el punto de entrega.'}
+                : "Usa tu ubicación o busca la dirección abajo para fijar el punto."}
             </Text>
+            <TouchableOpacity
+              className="flex-row items-center gap-1 py-1.5 px-2.5 rounded-lg bg-accent/15"
+              onPress={wizard.usarUbicacionActual}
+              disabled={wizard.locatingGps}
+              activeOpacity={0.8}
+            >
+              {wizard.locatingGps ? (
+                <ActivityIndicator size="small" color={colors.accentDark} />
+              ) : (
+                <Text className="text-accent-700 text-xs font-bold">Usar mi ubicación</Text>
+              )}
+            </TouchableOpacity>
           </View>
         )}
         <MensajeError texto={errorDe("punto")} />
+
+        <Text className="text-xs font-semibold tracking-wider uppercase text-textMuted mt-1">
+          Referencia del punto
+        </Text>
+        <View className="flex-row gap-2">
+          {/* Antes esto era de un solo sentido: tocar el mapa completaba el
+              texto, pero escribir una dirección acá no movía el mapa para
+              nada -- quien prefería escribir en vez de tocar el mapa no
+              tenía forma de ubicar el punto. La lupa busca la dirección
+              escrita y mueve el pin ahí. */}
+          <TextInput
+            className={`flex-1 bg-white rounded-xl px-3.5 h-12 border-[1.5px] border-gray-200 text-[15px] text-textDark ${
+              errorDe("ubicacion_base") ? "border-red-500" : ""
+            }`}
+            placeholder="Av. Alemania 6370, Temuco, Araucanía"
+            placeholderTextColor={colors.textPlaceholder}
+            value={form.ubicacion_base}
+            onChangeText={wizard.setReferencia}
+            onSubmitEditing={wizard.buscarDireccionEnMapa}
+            returnKeyType="search"
+          />
+          <TouchableOpacity
+            className="w-12 h-12 rounded-xl bg-primary-100 items-center justify-center"
+            onPress={wizard.buscarDireccionEnMapa}
+            disabled={wizard.buscandoDireccion || !form.ubicacion_base?.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Buscar esta dirección en el mapa"
+          >
+            {wizard.buscandoDireccion ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Icon name="search" size={18} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+        </View>
+        <Text className="text-[11px] text-textMuted leading-[15px] mt-1">
+          Escribe la dirección y toca la lupa para ubicarla, o marca el punto directo en el mapa --
+          lo que sea más rápido. Formato: calle y número, ciudad, comuna (si aplica), región.
+        </Text>
+        <MensajeError texto={errorDe("ubicacion_base")} />
       </Tarjeta>
+      </View>
     </ScrollView>
   );
 }

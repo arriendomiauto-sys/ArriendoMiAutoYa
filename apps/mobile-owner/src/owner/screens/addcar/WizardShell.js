@@ -8,7 +8,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { theme, Icon, BackButton } from "@rentacar/mobile-shared";
+import { theme, Icon, BackButton, ScreenTransition } from "@rentacar/mobile-shared";
 
 const PASOS = ["Auto", "Tarifa", "Fotos", "Docs"];
 
@@ -83,14 +83,24 @@ export function WizardShell({
         </View>
       </View>
 
-      <View className="flex-1">{children}</View>
+      <View className="flex-1">
+        <ScreenTransition key={paso}>{children}</ScreenTransition>
+      </View>
 
       <View
         className="flex-row items-center gap-3 px-4 pt-3 border-t border-gray-200 bg-white"
         style={{ paddingBottom: Math.max(insets.bottom, 14) + 12 }}
       >
-        <TouchableOpacity onPress={onBack} hitSlop={theme.control.hitSlop} accessibilityRole="button">
-          <Text className="text-sm font-semibold text-primary py-2 pr-1">Atrás</Text>
+        <TouchableOpacity
+          onPress={onBack}
+          disabled={cargando}
+          hitSlop={theme.control.hitSlop}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: cargando }}
+        >
+          <Text className={`text-sm font-semibold py-2 pr-1 ${cargando ? "text-gray-300" : "text-primary"}`}>
+            Atrás
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           className={`flex-1 h-12 rounded-xl flex-row items-center justify-center gap-2 ${

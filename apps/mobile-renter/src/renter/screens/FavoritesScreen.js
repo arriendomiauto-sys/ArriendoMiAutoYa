@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, ScrollView, StatusBar, ActivityIndicator, RefreshControl } from "react-native";
+import { View, FlatList, StatusBar, ActivityIndicator, RefreshControl } from "react-native";
 import {
   ScreenHeader,
   EmptyState,
   ApiClient,
   useFavoritos,
+  showAlert,
+  msjError,
 } from "@rentacar/mobile-shared";
 import { CarCard } from "../components/CarCard";
 
@@ -17,10 +19,15 @@ export function FavoritesScreen({ onBack, onSelectCar }) {
   const cargar = useCallback(async (conRefresh) => {
     if (conRefresh) setRefrescando(true);
     else setCargando(true);
-    const datos = await ApiClient.getFavoritos();
-    setAutos(datos || []);
-    setCargando(false);
-    setRefrescando(false);
+    try {
+      const datos = await ApiClient.getFavoritos();
+      setAutos(datos || []);
+    } catch (err) {
+      showAlert("No se pudieron cargar tus favoritos", msjError(err, "Intenta de nuevo en unos segundos."));
+    } finally {
+      setCargando(false);
+      setRefrescando(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -29,11 +36,35 @@ export function FavoritesScreen({ onBack, onSelectCar }) {
 
   // Quitar un auto de favoritos acá debe sacarlo de la lista de inmediato,
   // no solo apagar el corazón — es la razón de ser de esta pantalla.
-  const handleToggle = (car) => {
-    const id = car.id || car._id;
-    toggle(id);
-    setAutos((prev) => prev.filter((a) => (a.id || a._id) !== id));
-  };
+  const handleToggle = useCallback(
+    (car) => {
+      const id = car.id || car._id;
+      toggle(id);
+      setAutos((prev) => prev.filter((a) => (a.id || a._id) !== id));
+    },
+    [toggle]
+  );
+
+  // Lista virtualizada (mismo motivo que en MarketplaceScreen: ScrollView +
+  // .map() renderizaba todos los CarCard de una vez). CarCard tiene alto
+  // fijo (104 px) y las filas no llevan separación entre sí, igual que
+  // antes, así que getItemLayout no necesita medir nada.
+  const ROW_ALTURA = 104;
+  const getItemLayout = useCallback(
+    (_data, index) => ({ length: ROW_ALTURA, offset: 16 + ROW_ALTURA * index, index }),
+    []
+  );
+  const renderItem = useCallback(
+    ({ item }) => (
+      <CarCard
+        car={item}
+        onPress={() => onSelectCar(item)}
+        esFavorito={esFavorito(item.id || item._id)}
+        onToggleFavorito={() => handleToggle(item)}
+      />
+    ),
+    [onSelectCar, esFavorito, handleToggle]
+  );
 
   return (
     <View className="flex-1 bg-white">
@@ -51,20 +82,14 @@ export function FavoritesScreen({ onBack, onSelectCar }) {
           message="Toca el corazón en cualquier auto del marketplace para guardarlo acá."
         />
       ) : (
-        <ScrollView
+        <FlatList
+          data={autos}
+          keyExtractor={(car) => String(car.id || car._id)}
+          renderItem={renderItem}
+          getItemLayout={getItemLayout}
           contentContainerClassName="p-4"
           refreshControl={<RefreshControl refreshing={refrescando} onRefresh={() => cargar(true)} />}
-        >
-          {autos.map((car) => (
-            <CarCard
-              key={car.id || car._id}
-              car={car}
-              onPress={() => onSelectCar(car)}
-              esFavorito={esFavorito(car.id || car._id)}
-              onToggleFavorito={() => handleToggle(car)}
-            />
-          ))}
-        </ScrollView>
+        />
       )}
     </View>
   );

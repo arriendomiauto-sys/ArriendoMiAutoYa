@@ -87,8 +87,7 @@
         }
       ],
       "@sentry/react-native",
-      "expo-secure-store",
-      "expo-image"
+      "expo-secure-store"
     ],
     "owner": "arriendomiautoya"
   }

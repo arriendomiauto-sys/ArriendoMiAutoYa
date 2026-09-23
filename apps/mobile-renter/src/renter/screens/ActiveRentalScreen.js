@@ -25,16 +25,26 @@ import {
   SegundoConductorModal,
   useTelemetriaArriendo,
   LlegadaPorUbicacion,
+  CarPhotoThumb,
 } from "@rentacar/mobile-shared";
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
 
+// El backend manda fechas sin zona horaria (UTC): sin la "Z" JS las leería
+// como hora local. En Chile (UTC-3/-4) eso desplaza cuentas regresivas y
+// ventanas de tiempo varias horas.
+function instante(iso) {
+  if (!iso) return null;
+  const ms = new Date(/Z$|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
 // Cuenta regresiva compacta hasta la hora acordada de devolución. Reemplaza
 // el texto suelto "horas restantes" por algo que se lee de un vistazo.
 function restanteHasta(iso) {
-  if (!iso) return null;
-  const ms = new Date(iso).getTime() - Date.now();
-  if (Number.isNaN(ms)) return null;
+  const fin = instante(iso);
+  if (fin === null) return null;
+  const ms = fin - Date.now();
   const vencido = ms <= 0;
   const abs = Math.abs(ms);
   const dias = Math.floor(abs / 86400000);
@@ -47,17 +57,14 @@ function restanteHasta(iso) {
 const clp = (n) => `$${(n || 0).toLocaleString("es-CL")}`;
 
 function fechaHora(iso, largo = false) {
-  if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    const f = d.toLocaleDateString("es-CL", largo
-      ? { weekday: "long", day: "2-digit", month: "long" }
-      : { day: "2-digit", month: "short" });
-    const h = d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
-    return `${f} · ${h}`;
-  } catch {
-    return iso;
-  }
+  const ms = instante(iso);
+  if (ms === null) return "—";
+  const d = new Date(ms);
+  const f = d.toLocaleDateString("es-CL", largo
+    ? { weekday: "long", day: "2-digit", month: "long" }
+    : { day: "2-digit", month: "short" });
+  const h = d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+  return `${f} · ${h}`;
 }
 
 export function ActiveRentalScreen({
@@ -83,11 +90,9 @@ export function ActiveRentalScreen({
   }, [reservation]);
 
   const handlePrecheckConfirmed = (updated) => {
-    setRes((prev) => {
-      const nuevo = { ...prev, ...updated };
-      onUpdateReservation?.(nuevo);
-      return nuevo;
-    });
+    const nuevo = { ...res, ...updated };
+    setRes(nuevo);
+    onUpdateReservation?.(nuevo);
   };
   const [modalPrecheck, setModalPrecheck] = useState(false);
   const [modalSegundoConductor, setModalSegundoConductor] = useState(false);
@@ -280,12 +285,14 @@ export function ActiveRentalScreen({
             </Card>
           ) : null}
 
-          {/* Llegada al punto de encuentro, comprobada por ubicación (desde 2 h antes de la entrega) */}
-          <LlegadaPorUbicacion reserva={res} rol="cliente" onActualizada={handlePrecheckConfirmed} />
+          {/* Verificación previa al viaje: primero la de 24h (confirmar
+              asistencia e intención), y solo cuando falten menos de 2h,
+              la llegada real al punto de encuentro comprobada por GPS.
+              Ese orden cronológico es el que sigue el arrendatario. */}
+          <SectionLabel>Antes del retiro</SectionLabel>
 
-          {/* Tarjeta de Verificación / Pre-Checkin 24h */}
           {(() => {
-            const msHastaRetiro = res.fecha_inicio ? new Date(res.fecha_inicio).getTime() - Date.now() : null;
+            const msHastaRetiro = instante(res.fecha_inicio) !== null ? instante(res.fecha_inicio) - Date.now() : null;
             const dentroDe24h = msHastaRetiro !== null && msHastaRetiro <= 24 * 3600000;
 
             return (
@@ -321,6 +328,9 @@ export function ActiveRentalScreen({
               </Card>
             );
           })()}
+
+          {/* Llegada al punto de encuentro, comprobada por ubicación (desde 2 h antes de la entrega) */}
+          <LlegadaPorUbicacion reserva={res} rol="cliente" onActualizada={handlePrecheckConfirmed} />
 
           <Card padded className="gap-3">
             <SectionLabel>Punto de encuentro</SectionLabel>
@@ -409,6 +419,8 @@ export function ActiveRentalScreen({
                       ? "Verificado"
                       : res.segundo_conductor.estado_kyc === "requiere_revision_manual"
                       ? "En revisión"
+                      : res.segundo_conductor.estado_kyc === "rechazado"
+                      ? "Rechazado"
                       : "Pendiente"
                   }
                   variant={
@@ -416,6 +428,8 @@ export function ActiveRentalScreen({
                       ? "success"
                       : res.segundo_conductor.estado_kyc === "requiere_revision_manual"
                       ? "warning"
+                      : res.segundo_conductor.estado_kyc === "rechazado"
+                      ? "danger"
                       : "neutral"
                   }
                 />
@@ -423,7 +437,11 @@ export function ActiveRentalScreen({
             </View>
             {res.segundo_conductor ? (
               <Text className="text-[13px] text-textMuted">
-                {res.segundo_conductor.nombre} (Doc: {res.segundo_conductor.rut || res.segundo_conductor.numero_documento || "—"})
+                {/* El nombre ya no se ingresa a mano: lo completa Didit al
+                    verificar la identidad, así que puede no existir aún. */}
+                {res.segundo_conductor.nombre
+                  ? `${res.segundo_conductor.nombre} (Doc: ${res.segundo_conductor.rut || res.segundo_conductor.numero_documento || "—"})`
+                  : "Verificación de identidad en curso…"}
               </Text>
             ) : (
               <Text className="text-xs text-textMuted">
@@ -440,9 +458,10 @@ export function ActiveRentalScreen({
           </Card>
 
           <View className="w-full bg-teal-50 rounded-xl p-4 gap-1">
-            <Text className="text-sm font-bold text-primary">Lleva tu licencia</Text>
+            <Text className="text-sm font-bold text-primary">Qué esperar en la entrega</Text>
             <Text className="text-[13px] text-primary leading-[19px]">
               El dueño registrará el checklist fotográfico de 8 ángulos y firmarás el contrato en tu celular.
+              Lleva tu licencia de conducir física: el dueño puede pedirte verla al momento de la entrega.
             </Text>
           </View>
         </ScrollView>
@@ -467,7 +486,9 @@ export function ActiveRentalScreen({
           initialData={res.segundo_conductor}
           onClose={() => setModalSegundoConductor(false)}
           onSaved={(sc) => {
-            setRes((prev) => ({ ...prev, segundo_conductor: sc }));
+            const nuevo = { ...res, segundo_conductor: sc };
+            setRes(nuevo);
+            onUpdateReservation?.(nuevo);
           }}
         />
       </View>
@@ -487,13 +508,7 @@ export function ActiveRentalScreen({
       />
       <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
         <Card padded className="flex-row items-center gap-3">
-          {car.fotos?.[0] ? (
-            <Image source={{ uri: car.fotos[0] }} className="w-[76px] h-[58px] rounded-xl bg-teal-50" />
-          ) : (
-            <View className="w-[76px] h-[58px] rounded-xl bg-amber-50 items-center justify-center">
-              <Icon name="car" size={22} color="#5EEAD4" />
-            </View>
-          )}
+          <CarPhotoThumb uri={car.fotos?.[0]} className="w-[76px] h-[58px] rounded-xl" />
           <View className="flex-1">
             <Text className="text-[15px] font-bold text-textDark">{nombre}</Text>
             {/* La patente recién se muestra una vez retirado el auto: antes
@@ -623,7 +638,9 @@ export function ActiveRentalScreen({
         initialData={res.segundo_conductor}
         onClose={() => setModalSegundoConductor(false)}
         onSaved={(sc) => {
-          setRes((prev) => ({ ...prev, segundo_conductor: sc }));
+          const nuevo = { ...res, segundo_conductor: sc };
+          setRes(nuevo);
+          onUpdateReservation?.(nuevo);
         }}
       />
     </View>

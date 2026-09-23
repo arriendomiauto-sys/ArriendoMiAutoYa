@@ -5,7 +5,7 @@ import { TituloPaso, BarraProgreso } from "./comun";
 import { EncuadreAuto } from "./encuadres";
 
 export function PasoFotos({ wizard }) {
-  const { fotosPorSlot, slotEnSubida, setCamaraSlot, quitarFoto, uploadingPhoto, progresoGaleria } = wizard;
+  const { fotosPorSlot, slotsEnSubida, setCamaraSlot, uploadingPhoto, progresoGaleria } = wizard;
   const [fotoVisor, setFotoVisor] = useState(null);
   const listas = FOTOS_AUTO.filter((s) => fotosPorSlot[s.key]).length;
   const completas = listas === TOTAL_FOTOS_AUTO;
@@ -16,7 +16,7 @@ export function PasoFotos({ wizard }) {
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 12 }} showsVerticalScrollIndicator={false}>
       <TituloPaso
-        titulo="9 fotos, guiadas una por una"
+        titulo={`${TOTAL_FOTOS_AUTO} fotos, guiadas una por una`}
         bajada="Copia el encuadre de cada ejemplo para que tu ficha se vea pareja."
       />
 
@@ -38,7 +38,7 @@ export function PasoFotos({ wizard }) {
 
       {FOTOS_AUTO.map((slot, i) => {
         const url = fotosPorSlot[slot.key];
-        const subiendo = slotEnSubida === slot.key;
+        const subiendo = slotsEnSubida.has(slot.key);
         return (
           <View key={slot.key} className="flex-row items-center gap-3 bg-white border border-gray-200 rounded-2xl p-3">
             {url ? (
@@ -75,13 +75,19 @@ export function PasoFotos({ wizard }) {
             </View>
 
             {url ? (
+              // A diferencia de antes, esto ya NO borra la foto: abre la
+              // cámara directo para retomarla, y solo se reemplaza si la
+              // nueva captura sube bien (fotoCapturada sobreescribe la URL
+              // de esta casilla). Antes el ícono de check parecía "listo"
+              // pero en realidad borraba la foto sin avisar.
               <TouchableOpacity
                 className="w-[34px] h-[34px] rounded-full bg-accent/20 items-center justify-center"
-                onPress={() => quitarFoto(slot.key)}
+                onPress={() => setCamaraSlot(slot)}
+                disabled={subiendo || uploadingPhoto}
                 hitSlop={theme.control.hitSlop}
                 accessibilityLabel={`Rehacer foto ${slot.titulo}`}
               >
-                <Icon name="check" size={16} color={colors.accentDark} />
+                <Icon name="camera" size={16} color={colors.accentDark} />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity

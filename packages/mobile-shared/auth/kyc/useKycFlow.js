@@ -6,6 +6,7 @@ import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../../utils/imagenes";
 import { loadWebBrowser, loadDocumentScanner } from "./utils/kycScanners";
 import { showAlert } from "../../utils/alert";
 import { msjError } from "../../utils/msjError";
+import { hapticoExito, hapticoError } from "../../utils/haptics";
 
 // ============================================================================
 // Hook useKycFlow
@@ -109,6 +110,7 @@ export function useKycFlow({ role = "renter", prefill = null, onComplete, onBack
       // Al volver, sincroniza el perfil para leer el veredicto del webhook.
       const updatedProfile = await syncProfile();
       if (updatedProfile?.verificacion_externa_estado === "aprobada") {
+        hapticoExito();
         setVerifiedData((prev) => ({
           ...prev,
           fullName: updatedProfile.nombre || prev.fullName,
@@ -126,6 +128,7 @@ export function useKycFlow({ role = "renter", prefill = null, onComplete, onBack
         );
       }
     } catch (error) {
+      hapticoError();
       console.warn("[useKycFlow] Error al iniciar Didit:", error);
       showAlert(
         "Proveedor no disponible",
@@ -351,11 +354,13 @@ export function useKycFlow({ role = "renter", prefill = null, onComplete, onBack
       });
 
       if (profile?.estado_documentos === "verificado") {
+        hapticoExito();
         if (onComplete) onComplete();
       } else {
         setCurrentStep("revision");
       }
     } catch (error) {
+      hapticoError();
       console.warn("[useKycFlow] verificación manual falló:", error?.message);
 
       // Fotos ilegibles: a re-tomarlas, sin ofrecer revisión.

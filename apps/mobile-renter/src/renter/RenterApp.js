@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View } from "react-native";
+let GestureDetector = null;
+try {
+  GestureDetector = require("react-native-gesture-handler").GestureDetector;
+} catch {
+  // react-native-gesture-handler no disponible en binario nativo
+}
 import {
   colors,
   useApp,
@@ -8,6 +14,7 @@ import {
   TarjetaScreen,
   EditProfileScreen,
   ApiClient,
+  ScreenTransition,
 } from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
@@ -37,6 +44,7 @@ import {
   TabBar,
   useConversaciones,
   PromoterPanelScreen,
+  AppTourScreen,
 } from "@rentacar/mobile-shared";
 
 export function RenterApp() {
@@ -46,6 +54,8 @@ export function RenterApp() {
     currentUser,
     pendingDeepLink,
     clearPendingDeepLink,
+    tourVisto,
+    marcarTourVisto,
   } = useApp();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
   // Licencia lista para arrendar: "verificada", o una cuenta antigua que ya
@@ -128,6 +138,15 @@ export function RenterApp() {
 
   // Renderizar la pantalla activa según la pestaña seleccionada
   const renderContent = () => {
+    // 0. Recorrido guiado, una sola vez, la primera vez que la cuenta llega
+    // a esta pantalla (tourVisto arranca en `null` mientras se lee del
+    // almacenamiento -- recién cuando es explícitamente `false` se sabe que
+    // nunca se vio). Va primero: en una cuenta recién creada no hay ninguna
+    // otra capa abierta todavía, así que no le pisa nada.
+    if (tourVisto === false) {
+      return <AppTourScreen role="renter" onFinish={marcarTourVisto} />;
+    }
+
     // 1. Verificación de Identidad KYC (captura y sube documentos reales,
     // llama al OCR y a completarEnrolamiento; mismo componente que usa el
     // registro inicial en AuthFlow)
@@ -510,12 +529,22 @@ export function RenterApp() {
     }
   }
   if (activeTab === "profile") capasAbiertas.push({ nivel: "perfil", onCerrar: () => setActiveTab("explore") });
-  useBackAndroid(capasAbiertas);
+  // Devuelve el gesto de "deslizar desde el borde para volver" (además de
+  // registrar el back físico/gesto de Android): esta app no usa
+  // react-navigation, así que ese swipe no viene gratis en iOS.
+  const gestoVolver = useBackAndroid(capasAbiertas);
 
-  return (
+  // Misma pila que ya identifica qué capa está abierta para el back: sirve
+  // igual de bien como "qué pantalla se ve ahora" para disparar la
+  // transición de entrada cada vez que cambia (ver ScreenTransition).
+  const pantallaActual = capasAbiertas[0]?.nivel || `tab-${activeTab}`;
+
+  const contenido = (
     <View className="flex-1 bg-background">
       {/* Pantalla Activa */}
-      <View className="flex-1">{renderContent()}</View>
+      <View className="flex-1">
+        <ScreenTransition key={pantallaActual}>{renderContent()}</ScreenTransition>
+      </View>
 
       {/* Barra de Navegación Inferior Exclusiva del Arrendatario */}
       {!isModalOpen && (
@@ -545,5 +574,11 @@ export function RenterApp() {
         />
       )}
     </View>
+  );
+
+  return GestureDetector && gestoVolver ? (
+    <GestureDetector gesture={gestoVolver}>{contenido}</GestureDetector>
+  ) : (
+    contenido
   );
 }

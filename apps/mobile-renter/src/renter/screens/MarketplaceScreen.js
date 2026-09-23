@@ -351,10 +351,14 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
 
   useEffect(() => {
     if (!filtrosRestaurados) return;
-    AsyncStorage.setItem(
-      filtrosStorageKey,
-      JSON.stringify({ category, query, filtros, orden })
-    ).catch(() => {});
+    // Debounce: sin esto, cada tecla en el buscador escribía a AsyncStorage.
+    const timer = setTimeout(() => {
+      AsyncStorage.setItem(
+        filtrosStorageKey,
+        JSON.stringify({ category, query, filtros, orden })
+      ).catch(() => {});
+    }, 400);
+    return () => clearTimeout(timer);
   }, [category, query, filtros, orden, filtrosRestaurados, filtrosStorageKey]);
 
   const q = query.trim().toLowerCase();

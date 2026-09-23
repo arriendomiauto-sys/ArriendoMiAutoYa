@@ -139,22 +139,6 @@ jest.mock("react-native-document-scanner-plugin", () => ({
   ScanDocumentResponseStatus: { Success: "success", Cancel: "cancel" },
 }));
 
-// expo-image es nativo: en Jest se delega a mock compatible.
-jest.mock("expo-image", () => {
-  const React = require("react");
-  const MockExpoImage = React.forwardRef((props, ref) =>
-    React["createElement"]("Image", { ...props, ref }, props.children)
-  );
-  MockExpoImage.prefetch = jest.fn(async () => true);
-  MockExpoImage.clearDiskCache = jest.fn(async () => true);
-  MockExpoImage.clearMemoryCache = jest.fn(async () => true);
-  return {
-    __esModule: true,
-    Image: MockExpoImage,
-    default: MockExpoImage,
-  };
-});
-
 // Silencia el warning de act() de las animaciones de RN y logs tardíos en tests.
 const originalWarn = console.warn.bind(console);
 const originalError = console.error.bind(console);

@@ -75,6 +75,14 @@ export function PromoterPanelScreen({ onBack }) {
       )}`
     : null;
 
+  // Guarda contra NaN%: si todavía no hay datos de progreso (ambos en 0 o
+  // undefined), se muestra el mínimo visual (10%) en vez de dividir por cero.
+  const denominadorNivel = (nivel?.referidos_activos || 0) + (nivel?.faltantes_proximo_nivel || 0);
+  const progresoNivelPct =
+    denominadorNivel > 0 && Number.isFinite(denominadorNivel)
+      ? Math.min(100, Math.max(10, (nivel.referidos_activos / denominadorNivel) * 100))
+      : 10;
+
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
@@ -182,15 +190,7 @@ export function PromoterPanelScreen({ onBack }) {
               <View
                 className="h-full bg-emerald-500 rounded-full"
                 style={{
-                  width: `${Math.min(
-                    100,
-                    Math.max(
-                      10,
-                      (nivel.referidos_activos /
-                        (nivel.referidos_activos + nivel.faltantes_proximo_nivel)) *
-                        100
-                    )
-                  )}%`,
+                  width: `${progresoNivelPct}%`,
                 }}
               />
             </View>
@@ -244,6 +244,13 @@ export function PromoterPanelScreen({ onBack }) {
                 </View>
               </View>
             ))}
+          </View>
+        ) : !cargando ? (
+          <View className="bg-surface rounded-2xl border border-border p-4 gap-1">
+            <Text className="text-sm font-bold text-textDark">Tus invitados recientes</Text>
+            <Text className="text-[13px] text-textMuted leading-5">
+              Aún no tienes invitados. Comparte tu enlace o tu código QR para empezar a sumar.
+            </Text>
           </View>
         ) : null}
 

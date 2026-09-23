@@ -3,10 +3,20 @@ import { Modal, View, Text, TouchableOpacity, ScrollView, useWindowDimensions, I
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 let GestureDetector = null;
 let Gesture = null;
+// El <Modal> de React Native monta su contenido en una jerarquía nativa
+// aparte (una ventana/actividad propia), fuera del árbol que cubre el
+// GestureHandlerRootView de la raíz de la app. Sin envolver el contenido de
+// ESTE modal con su propio GestureHandlerRootView, los gestos de pellizco/
+// arrastre no llegan de forma confiable (fallan en silencio o se sienten
+// "pegados", según plataforma) -- por eso se declara acá, no alcanza con el
+// de App.js. Si el módulo no está disponible, cae a un View normal: sin
+// aceleración nativa, pero sin romper el render.
+let GestureHandlerRootView = View;
 try {
   const gh = require("react-native-gesture-handler");
   GestureDetector = gh.GestureDetector;
   Gesture = gh.Gesture;
+  if (gh.GestureHandlerRootView) GestureHandlerRootView = gh.GestureHandlerRootView;
 } catch {
   // react-native-gesture-handler no disponible en binario nativo
 }
@@ -205,7 +215,7 @@ export function PhotoViewer({ visible, photos, initialIndex = 0, onClose }) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View className="flex-1 bg-primary-950">
+      <GestureHandlerRootView className="flex-1 bg-primary-950">
         {/* Botón cerrar */}
         <TouchableOpacity
           className="absolute right-4 z-20 w-[38px] h-[38px] rounded-full bg-white/15 items-center justify-center"
@@ -278,7 +288,7 @@ export function PhotoViewer({ visible, photos, initialIndex = 0, onClose }) {
             ))}
           </View>
         )}
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

@@ -1,9 +1,10 @@
 /**
- * El segundo conductor solo podía verificar su identidad con fotos
- * manuales (cédula + selfie) — a diferencia del titular, que ya usa Didit
- * como camino primario. Ahora tiene la misma sesión hosted; la licencia de
- * conducir sigue yendo siempre por captura manual + OCR casero (Didit no
- * la reconoce de forma confiable).
+ * El segundo conductor verifica identidad (cédula + selfie) Y licencia de
+ * conducir con Didit, cada una en su propia sesión hosted e independiente
+ * entre sí. El nombre ya no se pide a mano: se crea el registro vacío y
+ * Didit lo completa al aprobar la identidad. La captura manual + OCR casero
+ * sigue existiendo como respaldo para cada una, solo si Didit falla o no
+ * está disponible.
  */
 import React from "react";
 import { act } from "react-test-renderer";
@@ -14,6 +15,7 @@ const mockAsignar = jest.fn();
 const mockObtener = jest.fn();
 const mockActualizar = jest.fn();
 const mockCrearSesion = jest.fn();
+const mockCrearSesionLicencia = jest.fn();
 
 jest.mock("@rentacar/mobile-shared/api/client", () => {
   const real = jest.requireActual("@rentacar/mobile-shared/api/client");
@@ -24,6 +26,7 @@ jest.mock("@rentacar/mobile-shared/api/client", () => {
       obtenerSegundoConductor: (...a) => mockObtener(...a),
       actualizarSegundoConductor: (...a) => mockActualizar(...a),
       crearSesionVerificacionSegundoConductor: (...a) => mockCrearSesion(...a),
+      crearSesionVerificacionLicenciaSegundoConductor: (...a) => mockCrearSesionLicencia(...a),
     },
   };
 });
@@ -46,7 +49,7 @@ beforeEach(() => {
 });
 
 describe("SegundoConductorModal · identidad con Didit", () => {
-  it("crea al conductor (si hace falta) y abre la sesión de Didit al tocar 'Verificar identidad'", async () => {
+  it("no pide nombre: crea al conductor vacío y abre la sesión de Didit al tocar 'Verificar identidad'", async () => {
     mockAsignar.mockResolvedValue({ id: "cond-1", estado_kyc: "pendiente" });
     mockCrearSesion.mockResolvedValue({ url: "https://verify.didit.me/sess-1", session_id: "sess-1" });
     mockObtener.mockResolvedValue({
@@ -58,15 +61,14 @@ describe("SegundoConductorModal · identidad con Didit", () => {
     );
     arbolActual = tr;
 
-    const inputNombre = tr.root.findAll((n) => n.props?.placeholder?.includes("segundo conductor"))[0];
-    act(() => inputNombre.props.onChangeText("Carlos Segundo"));
+    expect(textOf(tr)).not.toContain("Nombre completo");
 
     await act(async () => {
       pressText(tr, "Verificar identidad con Didit");
       await asentar();
     });
 
-    expect(mockAsignar).toHaveBeenCalledWith("res-1", { nombre: "Carlos Segundo" });
+    expect(mockAsignar).toHaveBeenCalledWith("res-1", { nombre: "" });
     expect(mockCrearSesion).toHaveBeenCalledWith("res-1", "renter");
 
     const WebBrowser = require("expo-web-browser");
@@ -108,7 +110,7 @@ describe("SegundoConductorModal · identidad con Didit", () => {
         reservaId="res-1"
         onClose={() => {}}
         initialData={{
-          id: "cond-1", nombre: "Carlos Segundo", estado_kyc: "verificado",
+          id: "cond-1", nombre: "Carlos Segundo", estado_kyc: "pendiente",
           verificacion_externa_estado: "aprobada",
         }}
       />
@@ -132,9 +134,6 @@ describe("SegundoConductorModal · identidad con Didit", () => {
     );
     arbolActual = tr;
 
-    const inputNombre = tr.root.findAll((n) => n.props?.placeholder?.includes("segundo conductor"))[0];
-    act(() => inputNombre.props.onChangeText("Carlos Segundo"));
-
     await act(async () => {
       pressText(tr, "Verificar identidad con Didit");
       await asentar();
@@ -157,8 +156,64 @@ describe("SegundoConductorModal · identidad con Didit", () => {
     expect(textOf(tr)).toContain("Escanear Frente");
     expect(textOf(tr)).toContain("Tomar Selfie Biométrica");
   });
+});
 
-  it("la licencia siempre se sube y guarda por captura manual, incluso con identidad verificada por Didit", async () => {
+describe("SegundoConductorModal · licencia con Didit", () => {
+  it("abre la sesión de Didit de licencia al tocar 'Verificar licencia con Didit'", async () => {
+    mockCrearSesionLicencia.mockResolvedValue({ url: "https://verify.didit.me/sess-lic-1", session_id: "sess-lic-1" });
+    mockObtener.mockResolvedValue({
+      id: "cond-1", estado_kyc: "pendiente", licencia_verificacion_externa_estado: "pendiente",
+    });
+
+    const tr = renderTree(
+      <SegundoConductorModal
+        visible
+        reservaId="res-1"
+        onClose={() => {}}
+        onSaved={() => {}}
+        initialData={{ id: "cond-1", nombre: "Carlos Segundo", estado_kyc: "pendiente" }}
+      />
+    );
+    arbolActual = tr;
+
+    await act(async () => {
+      pressText(tr, "Verificar licencia con Didit");
+      await asentar();
+    });
+
+    expect(mockCrearSesionLicencia).toHaveBeenCalledWith("res-1", "renter");
+
+    const WebBrowser = require("expo-web-browser");
+    expect(WebBrowser.openAuthSessionAsync).toHaveBeenCalledWith(
+      "https://verify.didit.me/sess-lic-1",
+      "arriendatuauto://kyc-retorno"
+    );
+    expect(mockObtener).toHaveBeenCalledWith("res-1");
+  });
+
+  it("si la licencia ya está verificada por Didit, no pide escanearla a mano", async () => {
+    const tr = renderTree(
+      <SegundoConductorModal
+        visible
+        reservaId="res-1"
+        onClose={() => {}}
+        initialData={{
+          id: "cond-1", nombre: "Carlos Segundo", estado_kyc: "pendiente",
+          licencia_verificacion_externa_estado: "aprobada",
+        }}
+      />
+    );
+    arbolActual = tr;
+    await act(async () => {
+      await asentar();
+    });
+
+    expect(textOf(tr)).not.toContain("Verificar licencia con Didit");
+    expect(textOf(tr)).not.toContain("Escanear licencia");
+    expect(textOf(tr)).toContain("Licencia confirmada por Didit.");
+  });
+
+  it("si la licencia se subió a mano (Didit no la verificó), se guarda por captura manual con actualizarSegundoConductor", async () => {
     mockActualizar.mockResolvedValue({ estado_kyc: "verificado" });
 
     const tr = renderTree(
@@ -178,11 +233,18 @@ describe("SegundoConductorModal · identidad con Didit", () => {
       await asentar();
     });
 
+    // Con licencia_url ya presente y sin aprobación de Didit, el modal
+    // reabre directo en modo manual (no pide tocar el botón de Didit de nuevo).
+    expect(textOf(tr)).toContain("✓ Licencia escaneada (cambiar)");
+
     await act(async () => {
       pressText(tr, "Guardar verificación");
       await asentar();
     });
 
-    expect(mockActualizar).toHaveBeenCalledWith("res-1", { licencia_url: "https://ejemplo.com/licencia.jpg" });
+    expect(mockActualizar).toHaveBeenCalledWith(
+      "res-1",
+      expect.objectContaining({ licencia_url: "https://ejemplo.com/licencia.jpg" })
+    );
   });
 });

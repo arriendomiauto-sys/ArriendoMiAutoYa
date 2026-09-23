@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BackButton } from "../../components/ui";
+import { ScreenTransition } from "../../components/ScreenTransition";
 import { DocumentCameraModal } from "../../components/DocumentCameraModal";
 import { SelfieLivenessModal } from "../../components/SelfieLivenessModal";
 import { useKycFlow } from "./useKycFlow";
@@ -54,36 +55,38 @@ export function KycScreen({ onBack, onComplete, role = "renter", prefill = null 
         <View className="w-10" />
       </View>
 
-      {/* Renderizado condicional por paso */}
-      {currentStep === "didit_activation" && (
-        <StepDiditActivation
-          onStartDidit={startDiditVerification}
-          onTriggerFallback={triggerFallback}
-          isLoading={isLoading}
-        />
-      )}
+      {/* Renderizado condicional por paso, con transición al cambiar de uno a otro */}
+      <ScreenTransition key={currentStep}>
+        {currentStep === "didit_activation" && (
+          <StepDiditActivation
+            onStartDidit={startDiditVerification}
+            onTriggerFallback={triggerFallback}
+            isLoading={isLoading}
+          />
+        )}
 
-      {currentStep === "didit_confirmation" && (
-        <StepDiditConfirmation
-          verifiedData={verifiedData}
-          onConfirmAndProceed={confirmAndProceed}
-          onRetry={startDiditVerification}
-          isSubmitting={isSubmitting}
-        />
-      )}
+        {currentStep === "didit_confirmation" && (
+          <StepDiditConfirmation
+            verifiedData={verifiedData}
+            onConfirmAndProceed={confirmAndProceed}
+            onRetry={startDiditVerification}
+            isSubmitting={isSubmitting}
+          />
+        )}
 
-      {currentStep === "manual_capture" && (
-        <StepManualCapture
-          docs={fallbackDocs}
-          uploadingSlot={uploadingSlot}
-          onCapture={beginCapture}
-          onSubmit={submitManualVerification}
-          onBackToDidit={() => setCurrentStep("didit_activation")}
-          isSubmitting={isSubmitting}
-        />
-      )}
+        {currentStep === "manual_capture" && (
+          <StepManualCapture
+            docs={fallbackDocs}
+            uploadingSlot={uploadingSlot}
+            onCapture={beginCapture}
+            onSubmit={submitManualVerification}
+            onBackToDidit={() => setCurrentStep("didit_activation")}
+            isSubmitting={isSubmitting}
+          />
+        )}
 
-      {currentStep === "revision" && <StepReviewPending onGoToHome={onBack} />}
+        {currentStep === "revision" && <StepReviewPending onGoToHome={onBack} />}
+      </ScreenTransition>
 
       {/* Cámara guiada para documentos (cédula frente/reverso, licencia) */}
       <DocumentCameraModal

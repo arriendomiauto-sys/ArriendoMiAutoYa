@@ -27,6 +27,7 @@ import {
   ForceUpdateScreen,
   useVersionCheck,
   DevScreenPicker,
+  ErrorBoundary,
 } from "@rentacar/mobile-shared";
 import { RenterApp } from "./src/renter/RenterApp";
 import { CarDetailScreen } from "./src/renter/screens/CarDetailScreen";
@@ -225,11 +226,13 @@ function ThemedFrame() {
 export default function App() {
   return (
     <GestureHandlerRootView className="flex-1">
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <AppProvider initialMode="renter">
-          <ThemedFrame />
-        </AppProvider>
-      </SafeAreaProvider>
+      <ErrorBoundary>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+          <AppProvider initialMode="renter">
+            <ThemedFrame />
+          </AppProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

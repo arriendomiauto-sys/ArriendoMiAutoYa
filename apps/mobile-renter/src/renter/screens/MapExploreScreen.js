@@ -2,13 +2,14 @@ import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
+  ScrollView,
   StatusBar,
-  Image,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApp, Icon, Button, BackButton, Rating } from "@rentacar/mobile-shared";
+import { useApp, Icon, Button, BackButton, Rating, showAlert, CarPhotoThumb } from "@rentacar/mobile-shared";
 
 // react-native-maps es un módulo nativo: no existe en web ni en Expo Go sin
 // dev build. Se carga de forma tolerante para que el bundle no se caiga y la
@@ -45,15 +46,32 @@ function colorDeCategoria(categoria) {
   return COLOR_CATEGORIA[categoria] || "#0F766E";
 }
 
+// Mismas categorías que usa MarketplaceScreen, para que el filtro del mapa
+// hable el mismo idioma que el de la lista.
+const CATEGORIAS_MAPA = [
+  { cat: "economico", label: "Económico" },
+  { cat: "sedan", label: "Sedán" },
+  { cat: "suv", label: "SUV" },
+  { cat: "camioneta", label: "Camioneta" },
+  { cat: "premium", label: "Premium" },
+];
+
 export function MapExploreScreen({ onBack, onSelectCar }) {
   const { cars, currentUser } = useApp();
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
   const [userCoords, setUserCoords] = useState(null);
+  const [permisoUbicacionDenegado, setPermisoUbicacionDenegado] = useState(false);
+  const [errorUbicacion, setErrorUbicacion] = useState(false);
+  // Antes la barra de arriba solo parecía un buscador (ícono de lupa +
+  // texto "X autos en el mapa") pero no era más que un View decorativo: no
+  // había ningún TextInput detrás, tocarla no hacía nada. Ahora sí filtra.
+  const [query, setQuery] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState(null);
 
   // Solo los autos con coordenadas reales van al mapa.
   // Se excluyen los autos propios del usuario si está autenticado (BUG-027 UX).
-  const { puntos, sinUbicacion } = useMemo(() => {
+  const { todosLosPuntos, sinUbicacion } = useMemo(() => {
     const conUbicacion = [];
     let sinCoords = 0;
     const uid = currentUser?.id;
@@ -67,8 +85,21 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
         sinCoords += 1;
       }
     }
-    return { puntos: conUbicacion, sinUbicacion: sinCoords };
+    return { todosLosPuntos: conUbicacion, sinUbicacion: sinCoords };
   }, [cars, currentUser?.id]);
+
+  // Búsqueda por marca/modelo + filtro de categoría (los chips de abajo),
+  // sobre el total de autos con ubicación -- no hace falta salir al listado
+  // para acotar qué se ve en el mapa.
+  const puntos = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return todosLosPuntos.filter(({ car }) => {
+      if (categoriaFiltro && car.categoria !== categoriaFiltro) return false;
+      if (!q) return true;
+      const nombre = `${car.marca || ""} ${car.modelo || ""}`.toLowerCase();
+      return nombre.includes(q);
+    });
+  }, [todosLosPuntos, query, categoriaFiltro]);
 
   const [selectedId, setSelectedId] = useState(puntos[0]?.car?.id || null);
   const selected =
@@ -96,16 +127,28 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
       try {
         const Location = require("expo-location");
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") return;
+        if (status !== "granted") {
+          if (alive) setPermisoUbicacionDenegado(true);
+          return;
+        }
         // High (4), no Balanced (3): con ~100 m de error el "estás aquí"
         // aparece a dos cuadras y la distancia a cada auto sale mal.
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy?.High ?? 4,
-        });
+        // Con timeout: en interiores o con GPS lento, getCurrentPositionAsync
+        // puede tardar mucho o no resolver nunca — sin esto, el botón "mi
+        // ubicación" quedaba oculto indefinidamente sin ningún aviso.
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("timeout_ubicacion")), 10000)
+        );
+        const pos = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy?.High ?? 4 }),
+          timeout,
+        ]);
         if (!alive) return;
         setUserCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
       } catch (e) {
-        // sin ubicación: el mapa igual funciona centrado en la flota
+        // sin ubicación: el mapa igual funciona centrado en la flota, pero
+        // se deja rastro para poder avisar en el botón "mi ubicación".
+        if (alive) setErrorUbicacion(true);
       }
     })();
     return () => {
@@ -196,18 +239,72 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
         })}
       </MapView>
 
-      {/* Barra superior flotante */}
-      <View className="absolute top-0 left-0 right-0 flex-row items-center gap-2 px-4" style={{ paddingTop: insets.top + 8 }}>
-        <BackButton variant="overlay" onPress={onBack} className="shadow-md" />
-        <View className="flex-1 h-11 rounded-full bg-white flex-row items-center gap-2 px-4 shadow-md">
-          <Icon name="search" size={16} color="#64748B" />
-          <Text className="text-sm text-textDark font-medium flex-1" numberOfLines={1}>
-            {puntos.length === 1 ? "1 auto en el mapa" : `${puntos.length} autos en el mapa`}
-            {sinUbicacion > 0
-              ? ` · ${sinUbicacion} sin ubicación exacta`
-              : ""}
-          </Text>
+      {/* Barra superior flotante. Antes esto era decorativo: tenía ícono de
+          lupa y texto pero ningún TextInput detrás -- parecía un buscador y
+          no hacía nada al tocarlo. Ahora filtra de verdad, y debajo se
+          agregó una fila de categorías (mismo criterio que el listado) que
+          además sirve de leyenda para los colores de los pines. */}
+      <View className="absolute top-0 left-0 right-0" style={{ paddingTop: insets.top + 8 }}>
+        <View className="flex-row items-center gap-2 px-4">
+          <BackButton variant="overlay" onPress={onBack} className="shadow-md" />
+          <View className="flex-1 h-11 rounded-full bg-white flex-row items-center gap-2 px-4 shadow-md">
+            <Icon name="search" size={16} color="#64748B" />
+            <TextInput
+              className="flex-1 text-sm text-textDark font-medium"
+              placeholder={
+                (puntos.length === 1 ? "1 auto en el mapa" : `${puntos.length} autos en el mapa`) +
+                (sinUbicacion > 0 ? ` · ${sinUbicacion} sin ubicación` : "")
+              }
+              placeholderTextColor="#94A3B8"
+              value={query}
+              onChangeText={setQuery}
+              returnKeyType="search"
+              accessibilityLabel="Buscar auto por marca o modelo"
+            />
+            {query ? (
+              <TouchableOpacity
+                onPress={() => setQuery("")}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Borrar búsqueda"
+              >
+                <Icon name="close" size={14} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, gap: 8 }}
+        >
+          {CATEGORIAS_MAPA.map(({ cat, label }) => {
+            const activo = categoriaFiltro === cat;
+            return (
+              <TouchableOpacity
+                key={cat}
+                className="flex-row items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full shadow-sm"
+                style={{ backgroundColor: activo ? colorDeCategoria(cat) : "#FFFFFF" }}
+                onPress={() => setCategoriaFiltro(activo ? null : cat)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityState={{ selected: activo }}
+                accessibilityLabel={`Filtrar por ${label}`}
+              >
+                <View
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: activo ? "#FFFFFF" : colorDeCategoria(cat) }}
+                />
+                <Text
+                  className="text-xs font-semibold"
+                  style={{ color: activo ? "#FFFFFF" : "#334155" }}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* Botón mi ubicación */}
@@ -219,6 +316,24 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
           activeOpacity={0.85}
         >
           <Icon name="location" size={20} color="#0F766E" />
+        </TouchableOpacity>
+      ) : permisoUbicacionDenegado || errorUbicacion ? (
+        // Sin esto, cuando el permiso se deniega (o falla el GPS) el botón
+        // simplemente desaparecía sin ninguna explicación.
+        <TouchableOpacity
+          className="absolute right-4 w-11 h-11 rounded-full bg-white items-center justify-center shadow-md"
+          style={{ bottom: (selected ? 208 : 40) + insets.bottom }}
+          onPress={() =>
+            showAlert(
+              "Ubicación no disponible",
+              permisoUbicacionDenegado
+                ? "Activa el permiso de ubicación en los ajustes del teléfono para centrar el mapa en ti."
+                : "No pudimos obtener tu ubicación. Revisa el GPS e inténtalo de nuevo."
+            )
+          }
+          activeOpacity={0.85}
+        >
+          <Icon name="location" size={20} color="#94A3B8" />
         </TouchableOpacity>
       ) : null}
 
@@ -234,13 +349,7 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
             activeOpacity={0.9}
             onPress={() => onSelectCar(selected.car)}
           >
-            {selected.car.fotos?.[0] ? (
-              <Image source={{ uri: selected.car.fotos[0] }} className="w-[92px] h-[70px] rounded-xl bg-teal-50" />
-            ) : (
-              <View className="w-[92px] h-[70px] rounded-xl bg-amber-50 items-center justify-center">
-                <Icon name="car" size={24} color="#5EEAD4" />
-              </View>
-            )}
+            <CarPhotoThumb uri={selected.car.fotos?.[0]} className="w-[92px] h-[70px] rounded-xl" iconSize={24} />
             <View className="flex-1 gap-0.5">
               <Text className="text-base font-bold text-textDark" numberOfLines={1}>
                 {selected.car.marca} {selected.car.modelo} {selected.car.anio || ""}

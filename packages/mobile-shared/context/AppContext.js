@@ -26,6 +26,13 @@ const VALID_MODES = ["renter", "owner"];
 // bienvenida.
 const ONBOARDING_STORAGE_KEY = "@rentacar/onboarding_visto";
 
+// Recorrido guiado de la app YA logueada (pestañas y acciones principales),
+// distinto del onboarding de arriba (ese es antes de iniciar sesión, explica
+// qué es la app; este explica dónde está cada cosa una vez adentro). Se
+// muestra una sola vez, la primera vez que la persona llega a su pantalla
+// de inicio.
+const TOUR_STORAGE_KEY = "@rentacar/tour_app_visto";
+
 // Cuánto se mantiene la pantalla de transición tapando el árbol nuevo. No es
 // una espera artificial: RenterApp y OwnerApp son árboles completos distintos
 // (tab bar, listas, mapas) y montarlos toma varios frames — sin la tapa se ve
@@ -63,6 +70,8 @@ export function AppProvider({ children, initialMode }) {
   // de autenticación espera a que deje de ser null para decidir si muestra
   // el onboarding, así no parpadea.
   const [onboardingVisto, setOnboardingVisto] = useState(null);
+  // Mismo criterio null/true/false para el recorrido guiado post-login.
+  const [tourVisto, setTourVisto] = useState(null);
 
   // Transición activa: { mode, title, subtitle } o null. La consume la app
   // para tapar el cambio de rol o de cuenta con <SwitchingScreen>.
@@ -110,7 +119,9 @@ export function AppProvider({ children, initialMode }) {
   // instalación vieja del binario único deje un valor guardado que no aplica.
   useEffect(() => {
     let alive = true;
-    const claves = initialMode ? [ONBOARDING_STORAGE_KEY] : [MODE_STORAGE_KEY, ONBOARDING_STORAGE_KEY];
+    const claves = initialMode
+      ? [ONBOARDING_STORAGE_KEY, TOUR_STORAGE_KEY]
+      : [MODE_STORAGE_KEY, ONBOARDING_STORAGE_KEY, TOUR_STORAGE_KEY];
     AsyncStorage.multiGet(claves)
       .then((pares) => {
         if (!alive) return;
@@ -123,11 +134,15 @@ export function AppProvider({ children, initialMode }) {
           }
         }
         setOnboardingVisto(guardado[ONBOARDING_STORAGE_KEY] === "1");
+        setTourVisto(guardado[TOUR_STORAGE_KEY] === "1");
       })
       .catch(() => {
         // Si el almacenamiento falla se muestra el onboarding: es preferible
         // repetirlo a dejar la app trancada esperando una lectura que no llega.
-        if (alive) setOnboardingVisto(false);
+        if (alive) {
+          setOnboardingVisto(false);
+          setTourVisto(false);
+        }
       });
     return () => {
       alive = false;
@@ -138,6 +153,12 @@ export function AppProvider({ children, initialMode }) {
   const marcarOnboardingVisto = useCallback(() => {
     setOnboardingVisto(true);
     AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, "1").catch(() => {});
+  }, []);
+
+  /** Marca el recorrido guiado post-login como visto (no vuelve a aparecer). */
+  const marcarTourVisto = useCallback(() => {
+    setTourVisto(true);
+    AsyncStorage.setItem(TOUR_STORAGE_KEY, "1").catch(() => {});
   }, []);
 
   /**
@@ -495,7 +516,13 @@ function precargarImagenes(urls) {
     import("../utils/push")
       .then((m) => m.registrarPushToken(ApiClient))
       .catch(() => {});
-    const t = setInterval(cargarNotificaciones, 30000);
+    // Igual que el polling de perfil: no llamar mientras la app está en
+    // background/inactive (ahorra requests y evita pisar estado al volver).
+    const t = setInterval(() => {
+      if (AppState.currentState === "active") {
+        cargarNotificaciones();
+      }
+    }, 30000);
     return () => clearInterval(t);
   }, [isLoggedIn, cargarNotificaciones, cargarReservas]);
 
@@ -642,6 +669,8 @@ function precargarImagenes(urls) {
         reintentarSesion: revisarSesion,
         onboardingVisto,
         marcarOnboardingVisto,
+        tourVisto,
+        marcarTourVisto,
         mode,
         setMode,
         transition,

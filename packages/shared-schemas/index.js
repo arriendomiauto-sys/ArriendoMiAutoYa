@@ -44,14 +44,21 @@ function validarRutChileno(rutCompleto) {
 
 /**
  * Validador de formato de patente chilena (nueva de 4 letras o antigua de 2 letras).
+ * Ignora guiones y espacios sin importar dónde estén -- "BBCL10", "BBCL-10"
+ * y "BB-CL-10" son la misma patente para efectos de formato (el backend
+ * valida igual de tolerante con los guiones, ver validar_patente_chilena en
+ * apps/api/app/core/validators.py, aunque ahí no restringe el alfabeto).
  * @param {string} patente
  * @returns {boolean}
  */
 function validarPatenteChilena(patente) {
   if (!patente || typeof patente !== "string") return false;
   const limpia = patente.replace(/[\-\s]/g, "").toUpperCase();
-  
-  // Nueva patente: 4 letras + 2 dígitos (ej. BBCL10)
+
+  // Nueva patente: 4 letras + 2 dígitos (ej. BBCL10). Alfabeto restringido a
+  // propósito (sin vocales, M, N ni Q): son las letras que en Chile se usan
+  // realmente para patentes nuevas, evitando combinaciones confusas u
+  // ofensivas.
   const regexNueva = /^[BCDFGHJKLPRSTVWXYZ]{4}\d{2}$/;
   // Antigua patente: 2 letras + 4 dígitos (ej. AB1234)
   const regexAntigua = /^[A-Z]{2}\d{4}$/;

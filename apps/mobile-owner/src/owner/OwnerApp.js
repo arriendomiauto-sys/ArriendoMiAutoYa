@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View } from "react-native";
+let GestureDetector = null;
+try {
+  GestureDetector = require("react-native-gesture-handler").GestureDetector;
+} catch {
+  // react-native-gesture-handler no disponible en binario nativo
+}
 import {
   colors,
   useApp,
@@ -22,6 +28,8 @@ import {
   ChatListScreen,
   PromoterPanelScreen,
   CertificadoAutoScreen,
+  ScreenTransition,
+  AppTourScreen,
 } from "@rentacar/mobile-shared";
 
 // Screens del Dueño
@@ -35,7 +43,7 @@ import { DisputesScreen } from "./screens/DisputesScreen";
 import { OwnerProfileScreen } from "./screens/OwnerProfileScreen";
 
 export function OwnerApp() {
-  const { currentUser, pendingDeepLink, clearPendingDeepLink } = useApp();
+  const { currentUser, pendingDeepLink, clearPendingDeepLink, tourVisto, marcarTourVisto } = useApp();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
 
   // Pestañas de Navegación del Dueño. "Mensajes" ya no es pestaña: se abre
@@ -93,9 +101,13 @@ export function OwnerApp() {
   const [showMandato, setShowMandato] = useState(false);
 
   useEffect(() => {
+    let vivo = true;
     verificarMandatoAceptado(currentUser?.id).then((aceptado) => {
-      if (!aceptado) setShowMandato(true);
+      if (vivo && !aceptado) setShowMandato(true);
     });
+    return () => {
+      vivo = false;
+    };
   }, [currentUser?.id]);
 
   // Deep link desde una notificación push tocada (ver AppContext). Solo
@@ -166,6 +178,13 @@ export function OwnerApp() {
   };
 
   const renderContent = () => {
+    // Recorrido guiado, una sola vez, la primera vez que la cuenta llega a
+    // esta pantalla. Va primero: en una cuenta recién creada no hay ninguna
+    // otra capa abierta todavía, así que no le pisa nada.
+    if (tourVisto === false) {
+      return <AppTourScreen role="owner" onFinish={marcarTourVisto} />;
+    }
+
     if (showEnrolment) {
       return (
         <KycScreen
@@ -405,11 +424,21 @@ export function OwnerApp() {
   if (activeTab === "bookings") capasAbiertas.push({ nivel: "solicitudes", onCerrar: () => setActiveTab("cars") });
   if (activeTab === "earnings") capasAbiertas.push({ nivel: "ganancias", onCerrar: () => setActiveTab("cars") });
   if (activeTab === "profile") capasAbiertas.push({ nivel: "perfil", onCerrar: () => setActiveTab("cars") });
-  useBackAndroid(capasAbiertas);
+  // Devuelve el gesto de "deslizar desde el borde para volver" (además de
+  // registrar el back físico/gesto de Android): esta app no usa
+  // react-navigation, así que ese swipe no viene gratis en iOS.
+  const gestoVolver = useBackAndroid(capasAbiertas);
 
-  return (
+  // Misma pila que ya identifica qué capa está abierta para el back: sirve
+  // igual de bien como "qué pantalla se ve ahora" para disparar la
+  // transición de entrada cada vez que cambia (ver ScreenTransition).
+  const pantallaActual = capasAbiertas[0]?.nivel || `tab-${activeTab}`;
+
+  const contenido = (
     <View className="flex-1 bg-background">
-      <View className="flex-1">{renderContent()}</View>
+      <View className="flex-1">
+        <ScreenTransition key={pantallaActual}>{renderContent()}</ScreenTransition>
+      </View>
 
       {!barraOculta && (
         <TabBar
@@ -445,6 +474,12 @@ export function OwnerApp() {
         />
       )}
     </View>
+  );
+
+  return GestureDetector && gestoVolver ? (
+    <GestureDetector gesture={gestoVolver}>{contenido}</GestureDetector>
+  ) : (
+    contenido
   );
 }
 

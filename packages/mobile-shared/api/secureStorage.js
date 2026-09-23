@@ -131,8 +131,11 @@ export async function setItem(key, value) {
   try {
     const origen = resolverOrigen();
     await origen.setItem(key, value);
-  } catch {
-    // Teardown resilience
+  } catch (e) {
+    // No se propaga (igual que getItem/removeItem: un fallo acá no debe
+    // tumbar el flujo de auth), pero si falla escribir la sesión el usuario
+    // termina deslogueado sin rastro, así que al menos queda en logs/Sentry.
+    console.warn("[secureStorage] setItem falló:", e?.message);
   }
 }
 

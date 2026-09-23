@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { CameraView } from "expo-camera";
 
@@ -7,6 +7,18 @@ import { CameraView } from "expo-camera";
 // Extrae de forma rápida el número de serie / documento (usando NativeWind)
 // ============================================================================
 export function IdCardQrScanner({ permission, onRequestPermission, onDetected, onSkip }) {
+  // `onBarcodeScanned` de expo-camera dispara en cada frame donde detecta un
+  // código, no una sola vez. Sin este guard, `onDetected` se llamaría varias
+  // veces seguidas por el mismo QR mientras la cámara sigue enfocándolo.
+  // Se resetea solo al re-montar el componente (no hay prop de
+  // visible/active para reabrir el escaneo).
+  const yaEscaneadoRef = useRef(false);
+  const manejarDeteccion = (evento) => {
+    if (yaEscaneadoRef.current) return;
+    yaEscaneadoRef.current = true;
+    onDetected?.(evento);
+  };
+
   // Manejo de permisos de cámara no otorgados
   if (!permission?.granted) {
     return (
@@ -33,7 +45,7 @@ export function IdCardQrScanner({ permission, onRequestPermission, onDetected, o
       <CameraView
         className="absolute inset-0"
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={onDetected}
+        onBarcodeScanned={manejarDeteccion}
       />
       <View className="absolute inset-0 justify-center items-center px-8 bg-primary-900/60">
         <View className="w-[220px] h-[220px] border-2 border-accent-500 rounded-2xl bg-transparent" />

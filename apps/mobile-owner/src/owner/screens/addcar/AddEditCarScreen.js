@@ -1,8 +1,10 @@
 import React from "react";
-import { useApp, DocumentCameraModal } from "@rentacar/mobile-shared";
+import { View, ActivityIndicator } from "react-native";
+import { colors, useApp, DocumentCameraModal } from "@rentacar/mobile-shared";
 import { WizardShell } from "./WizardShell";
 import { useCarWizard } from "./useCarWizard";
 import { TarjetaRequerida } from "./TarjetaRequerida";
+import { BorradorAuto } from "./BorradorAuto";
 import { PasoVehiculo } from "./PasoVehiculo";
 import { PasoTarifa } from "./PasoTarifa";
 import { PasoFotos } from "./PasoFotos";
@@ -29,6 +31,28 @@ export function AddEditCarScreen({ onBack, onComplete }) {
   // antes de entrar al asistente.
   if (currentUser && currentUser.tarjeta_estado !== "validada") {
     return <TarjetaRequerida estado={currentUser.tarjeta_estado} onBack={onBack} />;
+  }
+
+  // Mientras se revisa si hay un auto sin terminar de publicar guardado en
+  // el teléfono (ver useCarWizard.js), no se pinta el wizard vacío todavía
+  // -- es casi instantáneo, pero evita el parpadeo de "vacío -> con datos".
+  if (wizard.verificandoBorrador) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (wizard.borradorPendiente) {
+    return (
+      <BorradorAuto
+        borrador={wizard.borradorPendiente}
+        onRetomar={wizard.retomarBorrador}
+        onDescartar={wizard.descartarBorrador}
+        onBack={onBack}
+      />
+    );
   }
 
   const Paso = { 1: PasoVehiculo, 2: PasoTarifa, 3: PasoFotos, 4: PasoDocumentos }[step];

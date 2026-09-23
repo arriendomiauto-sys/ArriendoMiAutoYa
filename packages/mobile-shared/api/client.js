@@ -461,11 +461,22 @@ export class ApiClient {
   }
 
   // Sesión hosted de Didit para verificar la identidad del segundo
-  // conductor (cédula + selfie) -- la licencia nunca pasa por acá, sigue
-  // yendo por PUT .../segundo-conductor con licencia_url.
+  // conductor (cédula + selfie). La licencia tiene su propia sesión, en un
+  // workflow de Didit separado (ver abajo) -- solo si Didit no está
+  // disponible para eso se cae a PUT .../segundo-conductor con licencia_url.
   static async crearSesionVerificacionSegundoConductor(reservaId, app) {
     const query = app ? `?app=${encodeURIComponent(app)}` : "";
     return this.request(`/reservas/${reservaId}/segundo-conductor/verificacion-externa/sesion${query}`, {
+      method: "POST",
+    });
+  }
+
+  // Sesión hosted de Didit para verificar la LICENCIA de conducir del
+  // segundo conductor (solo OCR, sin liveness/face match -- workflow
+  // separado del de identidad). El resultado llega por webhook.
+  static async crearSesionVerificacionLicenciaSegundoConductor(reservaId, app) {
+    const query = app ? `?app=${encodeURIComponent(app)}` : "";
+    return this.request(`/reservas/${reservaId}/segundo-conductor/verificacion-licencia/sesion${query}`, {
       method: "POST",
     });
   }
@@ -501,17 +512,6 @@ export class ApiClient {
   // Mensajería de coordinación por reserva
   static async getConversaciones() {
     return this.request("/reservas/conversaciones");
-  }
-
-  static async getMensajes(reservaId) {
-    return this.request(`/reservas/${reservaId}/mensajes`);
-  }
-
-  static async enviarMensaje(reservaId, texto, clientId = null) {
-    return this.request(`/reservas/${reservaId}/mensajes`, {
-      method: "POST",
-      body: JSON.stringify({ texto, client_id: clientId }),
-    });
   }
 
   // GPS: última posición conocida (solo dueño del auto o admin; el backend

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StatusBar, ScrollView, Image } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { View, Text, StatusBar, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Icon,
@@ -15,6 +15,9 @@ import {
   useTarjetas,
   useCuentaRegresiva,
   useApp,
+  CarPhotoThumb,
+  hapticoExito,
+  hapticoError,
 } from "@rentacar/mobile-shared";
 import { SelectorTarjeta } from "../components/SelectorTarjeta";
 
@@ -59,6 +62,10 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
   const [showContractPreview, setShowContractPreview] = useState(false);
   const [pagando, setPagando] = useState(false);
   const [pendiente, setPendiente] = useState(null); // { expira_en, motivo }
+  // Guarda síncrona anti doble-tap: `pagando` (estado de React) puede no
+  // haberse re-renderizado todavía cuando llega un segundo tap muy rápido;
+  // esta ref sí bloquea de inmediato, sin esperar el próximo render.
+  const pagandoRef = useRef(false);
 
   // BLOQUE TEMPORAL — PAGOS SIMULADOS (bandera del backend)
   const [pagoSimulado, setPagoSimulado] = useState(false);
@@ -74,7 +81,13 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
 
   // El cobro del arriendo acepta débito o crédito; la garantía es siempre un
   // hold en crédito y no puede repetir la misma tarjeta que el cobro.
-  const tarjetasCobro = validadas.filter((t) => t.id !== tarjetaGarantiaId);
+  // Memoizado: sin esto, el array se recreaba en cada render y el useEffect
+  // de preselección de abajo (que depende de esta lista) se re-ejecutaba de
+  // más aunque el contenido no hubiera cambiado.
+  const tarjetasCobro = useMemo(
+    () => validadas.filter((t) => t.id !== tarjetaGarantiaId),
+    [validadas, tarjetaGarantiaId]
+  );
 
   // Preselección: la tarjeta marcada como predeterminada, o la primera —
   // prefiere débito si hay (evita "gastar" cupo de crédito sin necesidad).
@@ -109,7 +122,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
 
   // ── Crear la reserva (si no existe) y abrir la firma ─────────────────────
   const handleContinuar = async () => {
-    if (pagando) return;
+    if (pagandoRef.current) return;
     if (!esReservaReal) {
       onPaymentSuccess(null);
       return;
@@ -120,6 +133,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
     }
     setErrorCobro(null);
     setErrorGarantia(null);
+    pagandoRef.current = true;
     setPagando(true);
     try {
       let r = reserva;
@@ -133,6 +147,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         setReserva(r);
       }
       const yaFirmo = Boolean(r.fecha_firma_biometrica) || (r.firmas || []).some((f) => f.rol === "arrendatario");
+      pagandoRef.current = false;
       setPagando(false);
       if (yaFirmo) {
         await ejecutarPago(r);
@@ -140,6 +155,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         setFirmando(true);
       }
     } catch (error) {
+      pagandoRef.current = false;
       setPagando(false);
       const motivo = msjError(error, "Intenta nuevamente en unos segundos.");
       const esRequisito = /licencia|permiso internacional|edad mínima|residencia/i.test(
@@ -156,9 +172,10 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
 
   // ── Cobro + hold ────────────────────────────────────────────────────────
   const ejecutarPago = async (r) => {
-    if (pagando) return;
+    if (pagandoRef.current) return;
     setErrorCobro(null);
     setErrorGarantia(null);
+    pagandoRef.current = true;
     setPagando(true);
     try {
       const res = await ApiClient.pagarReserva(r.id, {
@@ -166,11 +183,13 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         tarjeta_garantia_id: tarjetaGarantiaId,
       });
       if (res?.estado === "confirmada") {
+        hapticoExito();
         onPaymentSuccess({ ...r, car, estado: "confirmada", pagoSimulado });
         return;
       }
       // Pagada, pero el dueño todavía tiene que confirmar (plazo de 24 h): la reserva queda "pendiente".
       if (res?.estado === "esperando_dueno") {
+        hapticoExito();
         onPaymentSuccess({
           ...r, car, estado: "pendiente", confirmar_dueno_antes_de: res.confirmar_antes_de, pagoSimulado,
         });
@@ -179,6 +198,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
       // "pendiente": el cobro quedó en proceso; se guarda la reserva.
       setPendiente({ expira_en: res?.expira_en || r.expira_en, motivo: res?.motivo });
     } catch (e) {
+      hapticoError();
       const mensajeLimpio = (() => {
         const raw = e?.mensaje || e?.message || "";
         if (typeof raw === "string" && raw.startsWith("{")) {
@@ -224,6 +244,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         setPendiente({ expira_en: r.expira_en, motivo: mensajeLimpio });
       }
     } finally {
+      pagandoRef.current = false;
       setPagando(false);
     }
   };
@@ -293,13 +314,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
       <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
         {esReservaReal && (
           <Card padded className="flex-row items-center gap-3">
-            {car.fotos?.[0] ? (
-              <Image source={{ uri: car.fotos[0] }} className="w-[76px] h-[58px] rounded-xl bg-teal-50" />
-            ) : (
-              <View className="w-[76px] h-[58px] rounded-xl bg-amber-50 items-center justify-center">
-                <Icon name="car" size={22} color="#5EEAD4" />
-              </View>
-            )}
+            <CarPhotoThumb uri={car.fotos?.[0]} className="w-[76px] h-[58px] rounded-xl" />
             <View className="flex-1">
               <Text className="text-[15px] font-bold text-textDark">{nombreAuto || "Vehículo"}</Text>
               <Text className="text-[13px] text-textMuted mt-0.5">

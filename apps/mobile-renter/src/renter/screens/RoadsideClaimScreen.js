@@ -35,6 +35,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   const [fotos, setFotos] = useState([]);
   const [subiendo, setSubiendo] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [solicitandoGrua, setSolicitandoGrua] = useState(false);
 
   const addFoto = async () => {
     const uri = await elegirImagen({
@@ -60,6 +61,8 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   };
 
   const solicitarGrua = async () => {
+    if (solicitandoGrua) return;
+    setSolicitandoGrua(true);
     try {
       await ApiClient.crearTicketSoporte(
         "Solicitud de grúa urgente",
@@ -68,6 +71,8 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
       showAlert("Solicitud enviada", "Se notificó a soporte para coordinar la grúa. Te contactarán a la brevedad.");
     } catch (err) {
       showAlert("No se pudo enviar", msjError(err, "Intenta de nuevo en unos segundos."));
+    } finally {
+      setSolicitandoGrua(false);
     }
   };
 
@@ -108,7 +113,7 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
 
       <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View className="flex-row gap-2">
-          <Button variant="danger" label="Solicitar grúa" iconLeft="shield" onPress={solicitarGrua} className="flex-1" />
+          <Button variant="danger" label="Solicitar grúa" iconLeft="shield" onPress={solicitarGrua} loading={solicitandoGrua} disabled={solicitandoGrua} className="flex-1" />
           <Button label="Carabineros 133" onPress={() => Linking.openURL("tel:133")} className="flex-1" />
         </View>
 

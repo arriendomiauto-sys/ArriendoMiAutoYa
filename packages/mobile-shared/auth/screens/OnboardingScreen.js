@@ -41,24 +41,31 @@ const ONBOARDING_SLIDES = [
   },
 ];
 
-export function OnboardingScreen({ onFinish }) {
+/**
+ * `slides` es sustituible: este mismo componente sirve tanto para la
+ * presentación de la app antes de iniciar sesión (`ONBOARDING_SLIDES`, el
+ * default) como para el recorrido guiado ya adentro de la app, con otro
+ * contenido (ver `AppTourScreen`) -- mismo lenguaje visual, mismo botón de
+ * "Saltar" siempre presente salvo en la última pantalla.
+ */
+export function OnboardingScreen({ onFinish, slides = ONBOARDING_SLIDES }) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const handleNext = () => {
-    if (currentSlide < ONBOARDING_SLIDES.length - 1) {
+    if (currentSlide < slides.length - 1) {
       setCurrentSlide(currentSlide + 1);
     } else {
       onFinish();
     }
   };
 
-  const slide = ONBOARDING_SLIDES[currentSlide];
+  const slide = slides[currentSlide];
 
   return (
     <View className="flex-1 bg-surface justify-between">
       {/* Top Skip Button */}
       <View className="px-8 pt-2 flex-row justify-end h-10">
-        {currentSlide < ONBOARDING_SLIDES.length - 1 ? (
+        {currentSlide < slides.length - 1 ? (
           <TouchableOpacity onPress={onFinish} className="py-1.5 px-2">
             <Text className="text-sm font-semibold text-accent-700">Saltar</Text>
           </TouchableOpacity>
@@ -82,7 +89,7 @@ export function OnboardingScreen({ onFinish }) {
       {/* Bottom Controls */}
       <BottomBar bordered={false} className="px-8 bg-transparent gap-5">
         <View className="flex-row justify-center items-center gap-1.5">
-          {ONBOARDING_SLIDES.map((_, idx) => (
+          {slides.map((_, idx) => (
             <View
               key={idx}
               className={`h-1.5 rounded-full ${

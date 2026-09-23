@@ -26,8 +26,14 @@ export function SelectorCategoria({ tipos, seleccionado, onSelect }) {
   const pan = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
+        // Esta franja vive dentro del ScrollView del paso "Vehículo". Antes
+        // reclamaba CUALQUIER gesto que arrancara acá (incluido un intento
+        // de hacer scroll vertical con el dedo apoyado justo sobre el
+        // track), dejando la pantalla trabada sin poder desplazarse. Ahora
+        // solo se queda con el gesto si el arrastre es predominantemente
+        // horizontal; uno vertical se le cede al ScrollView.
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > 2,
         onPanResponderGrant: (e) => seleccionarPorX(e.nativeEvent.locationX),
         onPanResponderMove: (e) => seleccionarPorX(e.nativeEvent.locationX),
       }),
@@ -66,7 +72,7 @@ export function SelectorCategoria({ tipos, seleccionado, onSelect }) {
               <View
                 key={t.id}
                 className={`absolute w-1 h-1 rounded-full -ml-0.5 ${i <= indice ? "bg-white" : "bg-gray-300"}`}
-                style={{ left: `${(i / (total - 1)) * 100}%` }}
+                style={{ left: `${total > 1 ? (i / (total - 1)) * 100 : 0}%` }}
               />
             ))}
           <View

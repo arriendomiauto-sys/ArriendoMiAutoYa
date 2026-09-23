@@ -9,7 +9,6 @@ import {
   Platform,
   Linking,
   Image,
-  TextInput,
   KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +22,7 @@ import { ApiClient } from "../api/client";
 import { subirImagenOptimizada, AJUSTES_DOCUMENTO } from "../utils/imagenes";
 import { showAlert } from "../utils/alert";
 import { msjError } from "../utils/msjError";
+import { hapticoExito, hapticoError } from "../utils/haptics";
 
 function cargarEscanerDocumento() {
   try {
@@ -79,23 +79,39 @@ export function SegundoConductorModal({
   const [verificandoDidit, setVerificandoDidit] = useState(false);
 
   // El conductor puede no existir todavía en el backend (primera vez que se
-  // abre este modal): hasta guardarlo con nombre no hay a quién pedirle a
-  // Didit una sesión ni a quién subirle la licencia.
+  // abre este modal): para pedirle a Didit una sesión de identidad o de
+  // licencia, primero hay que crear la fila -- aunque sea sin nombre. El
+  // nombre ya no se pide a mano: llega solo, extraído por Didit al
+  // verificar la identidad (el backend lo completa apenas el webhook trae
+  // el veredicto).
   const [conductorId, setConductorId] = useState(initialData?.id || null);
   const [conductorNombre, setConductorNombre] = useState(initialData?.nombre || "");
 
-  // Identidad (cédula + selfie): primero Didit, con captura manual como
-  // respaldo si Didit no está disponible — mismo criterio que el KYC del
-  // titular. La licencia NUNCA pasa por Didit (no la reconoce de forma
-  // confiable): siempre se sube y valida aparte, con OCR casero.
+  // Identidad (cédula + selfie) y licencia de conducir: cada una tiene su
+  // propia sesión hosted de Didit, independientes entre sí -- pueden
+  // aprobarse en momentos distintos. Si Didit no está disponible para
+  // alguna de las dos, esa cae a captura manual + OCR casero (mismo
+  // criterio que el KYC del titular).
   const [verificacionExternaEstado, setVerificacionExternaEstado] = useState(
     initialData?.verificacion_externa_estado || null
   );
-  const [usarCapturaManual, setUsarCapturaManual] = useState(false);
+  // Si ya hay una foto de cédula subida (de una sesión anterior) y Didit no
+  // la aprobó, el modal debe reabrir mostrando el modo manual, no el botón
+  // de Didit de nuevo.
+  const [usarCapturaManual, setUsarCapturaManual] = useState(
+    () => !!initialData?.carnet_frontal_url && initialData?.verificacion_externa_estado !== "aprobada"
+  );
   const [carnetFrontalUrl, setCarnetFrontalUrl] = useState(initialData?.carnet_frontal_url || null);
   const [carnetTraseroUrl, setCarnetTraseroUrl] = useState(initialData?.carnet_trasero_url || null);
   const [selfieUrl, setSelfieUrl] = useState(initialData?.selfie_url || null);
 
+  const [licenciaVerificacionExternaEstado, setLicenciaVerificacionExternaEstado] = useState(
+    initialData?.licencia_verificacion_externa_estado || null
+  );
+  const [usarCapturaManualLicencia, setUsarCapturaManualLicencia] = useState(
+    () => !!initialData?.licencia_url && initialData?.licencia_verificacion_externa_estado !== "aprobada"
+  );
+  const [verificandoLicenciaDidit, setVerificandoLicenciaDidit] = useState(false);
   const [licenciaUrl, setLicenciaUrl] = useState(initialData?.licencia_url || null);
 
   // Estado KYC devuelto por el backend / OCR
@@ -116,6 +132,13 @@ export function SegundoConductorModal({
       setLicenciaUrl(initialData.licencia_url || null);
       setSelfieUrl(initialData.selfie_url || null);
       setVerificacionExternaEstado(initialData.verificacion_externa_estado || null);
+      setLicenciaVerificacionExternaEstado(initialData.licencia_verificacion_externa_estado || null);
+      setUsarCapturaManual(
+        !!initialData.carnet_frontal_url && initialData.verificacion_externa_estado !== "aprobada"
+      );
+      setUsarCapturaManualLicencia(
+        !!initialData.licencia_url && initialData.licencia_verificacion_externa_estado !== "aprobada"
+      );
       setEstadoKyc(initialData.estado_kyc || "pendiente");
       setNotasAuditoria(initialData.notas_auditoria || "");
       setConductorRut(initialData.rut || initialData.numero_documento || "");
@@ -123,21 +146,21 @@ export function SegundoConductorModal({
   }, [initialData, visible]);
 
   const identidadVerificadaPorDidit = verificacionExternaEstado === "aprobada";
+  const licenciaVerificadaPorDidit = licenciaVerificacionExternaEstado === "aprobada";
+  // "Completo" = verificado por Didit, o (si Didit falló) capturado a mano.
+  const identidadCompleta = identidadVerificadaPorDidit || (usarCapturaManual && !!carnetFrontalUrl);
+  const licenciaCompleta = licenciaVerificadaPorDidit || (usarCapturaManualLicencia && !!licenciaUrl);
 
-  // Crea el registro del conductor (solo con el nombre) la primera vez que
-  // hace falta -- para pedir una sesión de Didit o subir la licencia tiene
-  // que existir la fila en el backend.
+  // Crea el registro del conductor la primera vez que hace falta -- para
+  // pedir una sesión de Didit (identidad o licencia) tiene que existir la
+  // fila en el backend. Se crea sin nombre: Didit lo extrae y el backend lo
+  // completa solo al llegar el veredicto por webhook.
   const asegurarConductorCreado = async () => {
     if (conductorId) return conductorId;
-    if (!conductorNombre.trim()) {
-      showAlert("Falta el nombre", "Ingresa el nombre completo del segundo conductor.");
-      return null;
-    }
-    const respuesta = await ApiClient.asignarSegundoConductor(reservaId, {
-      nombre: conductorNombre.trim(),
-    });
+    const respuesta = await ApiClient.asignarSegundoConductor(reservaId, { nombre: "" });
     setConductorId(respuesta.id);
     setEstadoKyc(respuesta.estado_kyc);
+    if (respuesta.nombre) setConductorNombre(respuesta.nombre);
     if (onSaved) onSaved(respuesta);
     return respuesta.id;
   };
@@ -148,10 +171,12 @@ export function SegundoConductorModal({
       setEstadoKyc(actual.estado_kyc);
       setNotasAuditoria(actual.notas_auditoria || "");
       setVerificacionExternaEstado(actual.verificacion_externa_estado || null);
+      setLicenciaVerificacionExternaEstado(actual.licencia_verificacion_externa_estado || null);
       if (actual.nombre) setConductorNombre(actual.nombre);
       if (actual.rut || actual.numero_documento) setConductorRut(actual.rut || actual.numero_documento);
       if (actual.carnet_frontal_url) setCarnetFrontalUrl(actual.carnet_frontal_url);
       if (actual.carnet_trasero_url) setCarnetTraseroUrl(actual.carnet_trasero_url);
+      if (actual.licencia_url) setLicenciaUrl(actual.licencia_url);
       if (onSaved) onSaved(actual);
       return actual;
     } catch (err) {
@@ -175,6 +200,7 @@ export function SegundoConductorModal({
       // veredicto (o estar por hacerlo) -- se refresca para mostrarlo.
       const actual = await refrescarConductor();
       if (actual?.verificacion_externa_estado === "aprobada") {
+        hapticoExito();
         showAlert("Identidad verificada", "Didit confirmó la identidad del segundo conductor.");
       } else if (actual?.verificacion_externa_estado === "pendiente" || !actual?.verificacion_externa_estado) {
         showAlert(
@@ -183,6 +209,7 @@ export function SegundoConductorModal({
         );
       }
     } catch (err) {
+      hapticoError();
       showAlert(
         "No se pudo verificar con Didit",
         msjError(err, "Hubo un problema al conectar con el proveedor."),
@@ -193,6 +220,46 @@ export function SegundoConductorModal({
       );
     } finally {
       setVerificandoDidit(false);
+    }
+  };
+
+  const handleVerificarLicenciaDidit = async () => {
+    if (verificandoLicenciaDidit) return;
+    setVerificandoLicenciaDidit(true);
+    try {
+      const id = await asegurarConductorCreado();
+      if (!id) return;
+
+      const sesion = await ApiClient.crearSesionVerificacionLicenciaSegundoConductor(reservaId, "renter");
+      if (!sesion?.url) throw new Error("El proveedor no devolvió una URL válida.");
+
+      await abrirEnNavegador(sesion.url);
+
+      const actual = await refrescarConductor();
+      if (actual?.licencia_verificacion_externa_estado === "aprobada") {
+        hapticoExito();
+        showAlert("Licencia verificada", "Didit confirmó la licencia de conducir del segundo conductor.");
+      } else if (
+        actual?.licencia_verificacion_externa_estado === "pendiente" ||
+        !actual?.licencia_verificacion_externa_estado
+      ) {
+        showAlert(
+          "Verificación pendiente",
+          "Aún no recibimos la confirmación de Didit. Puedes volver a intentarlo en unos segundos."
+        );
+      }
+    } catch (err) {
+      hapticoError();
+      showAlert(
+        "No se pudo verificar la licencia con Didit",
+        msjError(err, "Hubo un problema al conectar con el proveedor."),
+        [
+          { text: "Usar foto manual", onPress: () => setUsarCapturaManualLicencia(true) },
+          { text: "Reintentar", style: "cancel" },
+        ]
+      );
+    } finally {
+      setVerificandoLicenciaDidit(false);
     }
   };
 
@@ -279,12 +346,18 @@ export function SegundoConductorModal({
 
   const handleProcesarKyc = async () => {
     if (saving) return;
-    if (!licenciaUrl) {
-      showAlert("Falta Licencia", "Debes escanear la licencia de conducir.");
+    if (!identidadCompleta) {
+      showAlert(
+        "Falta verificar identidad",
+        "Completa la verificación de identidad (con Didit o con fotos manuales) antes de guardar."
+      );
       return;
     }
-    if (usarCapturaManual && !carnetFrontalUrl) {
-      showAlert("Falta Cédula", "Debes escanear el frente de la cédula de identidad.");
+    if (!licenciaCompleta) {
+      showAlert(
+        "Falta verificar la licencia",
+        "Completa la verificación de la licencia de conducir (con Didit o con una foto manual) antes de guardar."
+      );
       return;
     }
 
@@ -293,11 +366,16 @@ export function SegundoConductorModal({
       const id = await asegurarConductorCreado();
       if (!id) return;
 
-      const payload = { licencia_url: licenciaUrl };
-      if (usarCapturaManual) {
+      // Solo se manda lo que se capturó a mano -- lo aprobado por Didit ya
+      // está en el backend desde que llegó el webhook.
+      const payload = {};
+      if (!identidadVerificadaPorDidit && usarCapturaManual) {
         payload.carnet_frontal_url = carnetFrontalUrl;
         payload.carnet_trasero_url = carnetTraseroUrl;
         payload.selfie_url = selfieUrl;
+      }
+      if (!licenciaVerificadaPorDidit && usarCapturaManualLicencia) {
+        payload.licencia_url = licenciaUrl;
       }
 
       const respuesta = await ApiClient.actualizarSegundoConductor(reservaId, payload);
@@ -309,6 +387,7 @@ export function SegundoConductorModal({
       }
 
       if (respuesta.estado_kyc === "verificado") {
+        hapticoExito();
         showAlert(
           "Segundo Conductor Verificado",
           "¡Los documentos y la biometría han sido validados exitosamente por el sistema KYC automático!"
@@ -327,6 +406,7 @@ export function SegundoConductorModal({
 
       if (onSaved) onSaved(respuesta);
     } catch (err) {
+      hapticoError();
       showAlert("Error en KYC", msjError(err, "No se pudo procesar la verificación automática."));
     } finally {
       setSaving(false);
@@ -352,8 +432,6 @@ export function SegundoConductorModal({
     }
   };
 
-  const docsCompletos = !!licenciaUrl && (identidadVerificadaPorDidit || !usarCapturaManual || !!carnetFrontalUrl);
-
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -367,27 +445,21 @@ export function SegundoConductorModal({
           <View className="w-10 h-1 rounded-full bg-borderDark self-center mb-2" />
           <ScreenHeader
             title="Segundo Conductor"
-            subtitle="Identidad con Didit · Licencia con validación casera"
+            subtitle="Identidad y licencia verificadas con Didit"
             onBack={onClose}
             tone={tone}
           />
 
           <ScrollView className="flex-1 mt-3" contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-            {/* Nombre del conductor */}
-            <Card padded className="mb-3 gap-2.5">
-              <Text className="text-sm font-bold text-text">Nombre completo</Text>
-              <TextInput
-                className="h-11 border border-border rounded-xl px-3 text-sm text-text bg-surface"
-                value={conductorNombre}
-                onChangeText={setConductorNombre}
-                placeholder="Nombre y apellido del segundo conductor"
-                placeholderTextColor={colors.textPlaceholder}
-                editable={!conductorId}
-              />
-              {conductorId ? (
-                <Text className="text-xs text-textMuted leading-4">Para cambiar el nombre, contacta a soporte.</Text>
-              ) : null}
-            </Card>
+            {!conductorNombre ? (
+              <View className="mb-3 flex-row items-start gap-2 bg-teal-50 rounded-xl p-3">
+                <Icon name="shield" size={16} color={colors.primary} />
+                <Text className="flex-1 text-xs text-primary leading-[17px]">
+                  El nombre del segundo conductor se completa solo, con los datos que confirme Didit al
+                  verificar su identidad. No hace falta escribirlo a mano.
+                </Text>
+              </View>
+            ) : null}
 
             {/* Estado Actual */}
             {estadoKyc !== "pendiente" && (
@@ -500,25 +572,45 @@ export function SegundoConductorModal({
               )}
             </Card>
 
-            {/* Licencia de Conducir — siempre casera, nunca por Didit */}
+            {/* Licencia de conducir: Didit primero, captura manual como respaldo */}
             <Card padded className="mb-3 gap-2.5">
               <View className="flex-row justify-between items-center">
                 <View className="flex-row items-center gap-2">
                   <Icon name="check" size={20} color={colors.primary} />
-                  <Text className="text-sm font-bold text-text">2. Licencia de Conducir</Text>
+                  <Text className="text-sm font-bold text-text">2. Licencia de conducir</Text>
                 </View>
-                {licenciaUrl && <Badge variant="success" label="Listo" />}
+                {licenciaVerificadaPorDidit && <Badge variant="success" label="Verificada" />}
               </View>
-              <Text className="text-xs text-textMuted leading-4">Comprueba clase B vigente durante las fechas completas del arriendo.</Text>
+              <Text className="text-xs text-textMuted leading-4">
+                {licenciaVerificadaPorDidit
+                  ? "Licencia confirmada por Didit."
+                  : "Comprueba clase B vigente durante las fechas completas del arriendo."}
+              </Text>
 
-              <Button
-                variant={licenciaUrl ? "secondary" : "primary"}
-                size="sm"
-                label={licenciaUrl ? "✓ Licencia escaneada (cambiar)" : "Escanear Licencia"}
-                iconLeft="camera"
-                loading={subiendoSlot === "licencia"}
-                onPress={() => iniciarCaptura("licencia")}
-              />
+              {!licenciaVerificadaPorDidit && !usarCapturaManualLicencia && (
+                <Button
+                  label="Verificar licencia con Didit"
+                  iconRight="arrow-right"
+                  loading={verificandoLicenciaDidit}
+                  onPress={handleVerificarLicenciaDidit}
+                />
+              )}
+
+              {!licenciaVerificadaPorDidit && usarCapturaManualLicencia && (
+                <>
+                  <Button
+                    variant={licenciaUrl ? "secondary" : "primary"}
+                    size="sm"
+                    label={licenciaUrl ? "✓ Licencia escaneada (cambiar)" : "Escanear licencia"}
+                    iconLeft="camera"
+                    loading={subiendoSlot === "licencia"}
+                    onPress={() => iniciarCaptura("licencia")}
+                  />
+                  <TouchableOpacity onPress={() => setUsarCapturaManualLicencia(false)} hitSlop={theme.control.hitSlop}>
+                    <Text className="text-xs font-semibold text-primary text-center mt-0.5">Volver a intentar con Didit</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </Card>
 
             {/* Acciones Finales */}
@@ -527,7 +619,7 @@ export function SegundoConductorModal({
                 label="Guardar verificación"
                 iconRight="arrow-right"
                 loading={saving}
-                disabled={!docsCompletos || saving}
+                disabled={!identidadCompleta || !licenciaCompleta || saving}
                 onPress={handleProcesarKyc}
               />
 
@@ -545,9 +637,9 @@ export function SegundoConductorModal({
           {cameraFor && (
             <DocumentCameraModal
               visible={!!cameraFor}
-              modo={cameraFor}
-              onCerrar={() => setCameraFor(null)}
-              onFotoCapturada={(uri) => handleFotoCamara(cameraFor, uri)}
+              variant={cameraFor}
+              onClose={() => setCameraFor(null)}
+              onCaptured={(uri) => handleFotoCamara(cameraFor, uri)}
             />
           )}
 

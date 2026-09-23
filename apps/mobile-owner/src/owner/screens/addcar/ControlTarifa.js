@@ -35,7 +35,7 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
             onPress={() => onAjustar(-PASO_PRECIO_CLP)}
             disabled={enPiso}
             accessibilityRole="button"
-            accessibilityLabel="Bajar la tarifa cinco mil pesos"
+            accessibilityLabel={`Bajar la tarifa ${fmt(PASO_PRECIO_CLP)}`}
             accessibilityState={{ disabled: enPiso }}
           >
             <Icon name="minus" size={20} color={enPiso ? colors.textPlaceholder : colors.primary} />
@@ -52,7 +52,7 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
             onPress={() => onAjustar(PASO_PRECIO_CLP)}
             disabled={enTope}
             accessibilityRole="button"
-            accessibilityLabel="Subir la tarifa cinco mil pesos"
+            accessibilityLabel={`Subir la tarifa ${fmt(PASO_PRECIO_CLP)}`}
             accessibilityState={{ disabled: enTope }}
           >
             <Icon name="plus" size={20} color={enTope ? colors.textPlaceholder : colors.primary} />

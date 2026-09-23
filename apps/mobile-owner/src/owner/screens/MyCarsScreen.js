@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -18,7 +19,7 @@ import {
   Icon,
   Button,
   EmptyState,
-  Skeleton,
+  CarPhotoThumb,
   ApiClient,
   showAlert,
   msjError,
@@ -27,37 +28,14 @@ import {
   obtenerConfiguracionTipo,
   clampTarifa,
   calcularDesgloseIva,
+  hapticoToque,
+  hapticoError,
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, FranjaResumen, oc } from "../comun";
 import { ControlTarifa } from "./addcar/ControlTarifa";
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
 
-// Miniatura del auto usando NativeWind
-function CarroThumb({ uri }) {
-  const [cargando, setCargando] = useState(!!uri);
-  if (!uri) {
-    return (
-      <View className="w-full h-full items-center justify-center bg-primary-100">
-        <Icon name="car" size={44} color={colors.primary200} />
-      </View>
-    );
-  }
-  return (
-    <>
-      {cargando && <Skeleton style={{ width: "100%", height: "100%" }} />}
-      <Image
-        source={{ uri }}
-        className="w-full h-full"
-        contentFit="cover"
-        cachePolicy="memory-disk"
-        transition={200}
-        onLoadEnd={() => setCargando(false)}
-        onError={() => setCargando(false)}
-      />
-    </>
-  );
-}
 
 export function MyCarsScreen({
   cars,
@@ -80,6 +58,9 @@ export function MyCarsScreen({
   const [editingCar, setEditingCar] = useState(null);
   const [tarifaSeleccionada, setTarifaSeleccionada] = useState(0);
   const [saving, setSaving] = useState(false);
+  // Autos con un toggle de disponibilidad en curso: evita que dos taps rápidos
+  // sobre el mismo Switch pisen el rollback/resultado uno del otro.
+  const togglesEnCurso = useRef(new Set());
 
   const tipoConfig = obtenerConfiguracionTipo(editingCar?.categoria, tipos);
   const desgloseTarifa = calcularDesgloseIva(tarifaSeleccionada);
@@ -97,13 +78,19 @@ export function MyCarsScreen({
       );
       return;
     }
+    if (togglesEnCurso.current.has(car.id)) return;
+    togglesEnCurso.current.add(car.id);
+    hapticoToque();
     const nuevoEstado = car.estado === "pausado" ? "activo" : "pausado";
     setCars((prev) => prev.map((c) => (c.id === car.id ? { ...c, estado: nuevoEstado } : c)));
     try {
       await ApiClient.actualizarAuto(car.id, { estado: nuevoEstado });
     } catch (err) {
+      hapticoError();
       setCars((prev) => prev.map((c) => (c.id === car.id ? { ...c, estado: car.estado } : c)));
       showAlert("No se pudo actualizar", msjError(err, "Intenta de nuevo en unos segundos."));
+    } finally {
+      togglesEnCurso.current.delete(car.id);
     }
   };
 
@@ -148,7 +135,7 @@ export function MyCarsScreen({
     return (
       <View className="bg-surface rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-0">
         <View className="h-[150px] bg-surface-secondary relative">
-          <CarroThumb uri={item.fotos?.[0]} />
+          <CarPhotoThumb uri={item.fotos?.[0]} className="w-full h-full" iconSize={44} />
           <View className="absolute top-3 left-3 bg-white/95 rounded-full py-1 px-2.5 flex-row items-center gap-1.5 shadow-sm">
             <View
               className={`w-1.5 h-1.5 rounded-full ${
@@ -293,6 +280,9 @@ export function MyCarsScreen({
         contentContainerClassName="px-4 gap-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 24 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={!!loading} onRefresh={onRetry} colors={[colors.primary]} tintColor={colors.primary} />
+        }
         ListHeaderComponent={
           cars?.length ? (
             <TouchableOpacity onPress={onOpenEarnings} activeOpacity={0.9} accessibilityRole="button">

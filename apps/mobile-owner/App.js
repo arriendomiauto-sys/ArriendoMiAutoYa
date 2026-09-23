@@ -28,6 +28,7 @@ import {
   MandatoDuenoModal,
   verificarMandatoAceptado,
   DevScreenPicker,
+  ErrorBoundary,
 } from "@rentacar/mobile-shared";
 import { OwnerApp } from "./src/owner/OwnerApp";
 import { OwnerAuthFlow } from "./src/owner/auth/OwnerAuthFlow";
@@ -209,11 +210,13 @@ function ThemedFrame() {
 export default function App() {
   return (
     <GestureHandlerRootView className="flex-1">
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <AppProvider initialMode="owner">
-          <ThemedFrame />
-        </AppProvider>
-      </SafeAreaProvider>
+      <ErrorBoundary>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+          <AppProvider initialMode="owner">
+            <ThemedFrame />
+          </AppProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

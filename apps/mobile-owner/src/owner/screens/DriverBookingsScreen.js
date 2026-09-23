@@ -36,12 +36,9 @@ function fechaYHora(iso) {
 }
 
 function formatearFecha(iso) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
-  } catch {
-    return iso;
-  }
+  const ms = instante(iso);
+  if (ms === null) return "—";
+  return new Date(ms).toLocaleDateString("es-CL", { day: "2-digit", month: "short" });
 }
 
 const ESTADO_BADGE = {
@@ -72,6 +69,8 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
   const [reservaParaPrecheck, setReservaParaPrecheck] = useState(null);
   const [reservaParaMulta, setReservaParaMulta] = useState(null);
   const [reservaParaCobroPosterior, setReservaParaCobroPosterior] = useState(null);
+  // id de la reserva cuya solicitud (aceptar/rechazar) está en curso: evita doble-tap.
+  const [procesandoSolicitud, setProcesandoSolicitud] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -127,7 +126,8 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
     const puedeDevolver = item.estado === "en_curso";
     const yaFirmoDueno = Boolean(item.fecha_firma_biometrica) || (item.firmas || []).some((f) => f.rol === "arrendador");
     const debeFirmar = !yaFirmoDueno && ["pendiente", "confirmada"].includes(item.estado);
-    const msHastaRetiro = item.fecha_inicio ? new Date(item.fecha_inicio).getTime() - Date.now() : null;
+    const instanteInicio = item.fecha_inicio ? instante(item.fecha_inicio) : null;
+    const msHastaRetiro = instanteInicio !== null ? instanteInicio - Date.now() : null;
     const dentroDe24h = item.estado === "confirmada" && msHastaRetiro !== null && msHastaRetiro > 0 && msHastaRetiro < 86400000;
     const debePrecheck = dentroDe24h && !item.precheck_dueno_confirmado;
     return (
@@ -173,12 +173,18 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
               label="Aceptar solicitud de arriendo"
               iconLeft="check"
               variant="primary"
+              loading={procesandoSolicitud === item.id}
+              disabled={procesandoSolicitud !== null && procesandoSolicitud !== item.id}
               onPress={async () => {
+                if (procesandoSolicitud) return;
+                setProcesandoSolicitud(item.id);
                 try {
                   await ApiClient.actualizarEstadoReserva(item.id, "confirmada");
                   cargar();
                 } catch (err) {
                   setError(msjError(err, "No se pudo aceptar la reserva."));
+                } finally {
+                  setProcesandoSolicitud(null);
                 }
               }}
             />
@@ -186,12 +192,18 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
               testID={`btn-rechazar-${item.id}`}
               label="Rechazar solicitud"
               variant="secondary"
+              loading={procesandoSolicitud === item.id}
+              disabled={procesandoSolicitud !== null && procesandoSolicitud !== item.id}
               onPress={async () => {
+                if (procesandoSolicitud) return;
+                setProcesandoSolicitud(item.id);
                 try {
                   await ApiClient.actualizarEstadoReserva(item.id, "cancelada");
                   cargar();
                 } catch (err) {
                   setError(msjError(err, "No se pudo rechazar la reserva."));
+                } finally {
+                  setProcesandoSolicitud(null);
                 }
               }}
             />

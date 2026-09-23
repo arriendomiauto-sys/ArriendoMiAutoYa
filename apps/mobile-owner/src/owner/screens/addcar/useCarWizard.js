@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ApiClient,
   showAlert,
@@ -35,6 +36,13 @@ try {
   Location = null;
 }
 
+// Borrador del wizard: se guarda en el dispositivo (no por cuenta, mismo
+// criterio que el resto de las banderas locales de la app) para que salir a
+// mitad de camino -- o que la app se cierre sola mientras se suben las 9
+// fotos -- no obligue a empezar de cero.
+const DRAFT_STORAGE_KEY = "@rentacar/addcar_draft_v1";
+const DRAFT_DEBOUNCE_MS = 800;
+
 export const MAPA = { MapView, Marker };
 // Centro inicial de la cámara del mapa (zona de operación), no un punto por
 // defecto del auto: sin que el dueño toque el mapa no hay pin.
@@ -59,7 +67,6 @@ export const DOCS = [
     titulo: "Certificado de inscripción (Padrón)",
     ayuda: "Padrón del Registro Civil con folio y patente visible.",
     icon: "document",
-    opcional: true,
   },
   {
     key: "doc_permiso_circulacion_url",
@@ -103,9 +110,11 @@ export const DOCS = [
 
 export const DOCS_OBLIGATORIOS = DOCS.filter((d) => !d.opcional);
 
+// El paso 2 (Tarifa) no tiene campos acá: siempre parte de un valor válido
+// (clamp automático entre el mínimo y el máximo de la categoría), así que no
+// hay nada que pueda quedar inválido para bloquear "Siguiente".
 const CAMPOS_POR_PASO = {
   1: ["marca", "modelo", "categoria", "anio", "patente", "ubicacion_base", "punto"],
-  2: ["tarifa_dia"],
 };
 
 export function useCarWizard({ onComplete }) {
@@ -114,6 +123,12 @@ export function useCarWizard({ onComplete }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [pasosIntentados, setPasosIntentados] = useState({});
+  // Se incrementa cada vez que "Siguiente" queda bloqueado por errores del
+  // paso 1: PasoVehiculo lo escucha para hacer scroll hasta el primer campo
+  // con error (antes los errores solo se pintaban en rojo donde ya estaban
+  // en pantalla; si el campo quedaba más abajo, tocar "Siguiente" parecía no
+  // hacer nada).
+  const [intentoFallidoTick, setIntentoFallidoTick] = useState(0);
 
   const [form, setForm] = useState(() => ({
     marca: "",
@@ -142,25 +157,32 @@ export function useCarWizard({ onComplete }) {
     if (key === "anio") {
       valorLimpio = String(valor ?? "").replace(/[^0-9]/g, "").slice(0, 4);
     } else if (key === "patente") {
+      // Antes se forzaba UN guion en una sola posición fija apenas se
+      // completaban 6 caracteres sin guion -- "BRHB12" pasaba a "BRHB-12"
+      // (nueva, letras juntas) sí o sí, sin dejar escribir, por ejemplo,
+      // "BR-HB-12" (letras en pares) ni "AB-12-34" (antigua, dígitos en
+      // pares): ambas son formatos que el backend documenta y acepta
+      // explícitamente (ver validar_patente_chilena en
+      // apps/api/app/core/validators.py), igual que `validarPatenteChilena`
+      // acá: ninguna de las dos validaciones le importa dónde caen los
+      // guiones, los ignora por completo. Ahora el campo solo pasa a
+      // mayúsculas y filtra caracteres inválidos -- el guion, donde sea que
+      // el dueño quiera ponerlo, queda a su criterio.
       valorLimpio = String(valor ?? "")
         .toUpperCase()
         .replace(/[^A-Z0-9-]/g, "")
         .slice(0, 9);
-      const sinGuion = valorLimpio.replace(/-/g, "");
-      if (sinGuion.length === 6 && !valorLimpio.includes("-")) {
-        if (/^[A-Z]{4}\d{2}$/.test(sinGuion)) {
-          valorLimpio = `${sinGuion.slice(0, 4)}-${sinGuion.slice(4)}`;
-        } else if (/^[A-Z]{2}\d{4}$/.test(sinGuion)) {
-          valorLimpio = `${sinGuion.slice(0, 2)}-${sinGuion.slice(2)}`;
-        }
-      }
     }
     setForm((prev) => ({ ...prev, [key]: valorLimpio }));
   };
 
-  // Fotos: una por casilla, se suben apenas se toman.
+  // Fotos: una por casilla, se suben apenas se toman. Un Set (no un solo
+  // valor) porque se puede abrir la cámara para otra casilla mientras la
+  // anterior sigue subiendo -- con un único valor, el `finally` de la
+  // primera subida en terminar borraba el spinner de la segunda aunque esa
+  // siguiera en curso.
   const [fotosPorSlot, setFotosPorSlot] = useState({});
-  const [slotEnSubida, setSlotEnSubida] = useState(null);
+  const [slotsEnSubida, setSlotsEnSubida] = useState(() => new Set());
   const [camaraSlot, setCamaraSlot] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [progresoGaleria, setProgresoGaleria] = useState(null);
@@ -170,10 +192,29 @@ export function useCarWizard({ onComplete }) {
   const [validacionDocs, setValidacionDocs] = useState({});
   const [validandoDoc, setValidandoDoc] = useState(null);
 
+  // Cada veredicto de `validacionDocs` se calculó con la patente que había
+  // en ese momento (ver `validarDocumento`). Si el dueño vuelve al paso 1 y
+  // la corrige, esos veredictos quedan obsoletos -- un documento "Validado"
+  // seguiría bloqueado para reemplazo aunque ya no corresponda, y uno
+  // rechazado por "patente no coincide" seguiría bloqueando la publicación
+  // aunque la patente ya esté bien. Se limpian para que cada documento
+  // vuelva a mostrarse como pendiente de verificar con la patente nueva.
+  const patenteValidadaRef = useRef(form.patente);
+  useEffect(() => {
+    if (form.patente === patenteValidadaRef.current) return;
+    patenteValidadaRef.current = form.patente;
+    setValidacionDocs((prev) => (Object.keys(prev).length ? {} : prev));
+  }, [form.patente]);
+
   const [locatingGps, setLocatingGps] = useState(false);
+  const [buscandoDireccion, setBuscandoDireccion] = useState(false);
   const mapaRef = useRef(null);
   const referenciaEditadaAMano = useRef(false);
   const isMounted = useRef(true);
+  // Token de la última petición de reverse-geocode disparada por un tap en el
+  // mapa: si llega la respuesta de un tap viejo después de uno más nuevo, se
+  // descarta (solo gana la última).
+  const geocodeTokenRef = useRef(0);
 
   useEffect(() => {
     isMounted.current = true;
@@ -181,6 +222,77 @@ export function useCarWizard({ onComplete }) {
       isMounted.current = false;
     };
   }, []);
+
+  // --- Borrador persistido -------------------------------------------
+  // `null` mientras se revisa el almacenamiento (evita ofrecer -o pisar- un
+  // borrador antes de saber si existe uno). Si aparece uno con contenido
+  // real, se guarda acá para que la pantalla pregunte "¿retomar?" antes de
+  // mostrar el wizard vacío.
+  const [verificandoBorrador, setVerificandoBorrador] = useState(true);
+  const [borradorPendiente, setBorradorPendiente] = useState(null);
+  const draftTimerRef = useRef(null);
+
+  useEffect(() => {
+    let vivo = true;
+    AsyncStorage.getItem(DRAFT_STORAGE_KEY)
+      .then((raw) => {
+        if (!vivo || !raw) return;
+        try {
+          const draft = JSON.parse(raw);
+          const hayAlgo =
+            draft?.form?.marca || draft?.form?.modelo || Object.keys(draft?.fotosPorSlot || {}).length;
+          if (hayAlgo) setBorradorPendiente(draft);
+        } catch {
+          // Borrador corrupto (versión vieja, JSON roto): se ignora.
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (vivo) setVerificandoBorrador(false);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  // Guarda con debounce mientras el dueño escribe/sube cosas. No corre
+  // mientras se está revisando o mientras hay un borrador ofrecido sin
+  // decisión todavía, para no pisarlo con el formulario vacío inicial.
+  useEffect(() => {
+    if (verificandoBorrador || borradorPendiente) return undefined;
+    clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      const hayAlgo =
+        form.marca || form.modelo || Object.keys(fotosPorSlot).length || Object.keys(form.docs || {}).length;
+      if (!hayAlgo) {
+        AsyncStorage.removeItem(DRAFT_STORAGE_KEY).catch(() => {});
+        return;
+      }
+      AsyncStorage.setItem(
+        DRAFT_STORAGE_KEY,
+        JSON.stringify({ form, fotosPorSlot, validacionDocs, step, guardadoEn: Date.now() })
+      ).catch(() => {});
+    }, DRAFT_DEBOUNCE_MS);
+    return () => clearTimeout(draftTimerRef.current);
+  }, [form, fotosPorSlot, validacionDocs, step, verificandoBorrador, borradorPendiente]);
+
+  const retomarBorrador = () => {
+    if (!borradorPendiente) return;
+    // Merge sobre los valores por defecto (no reemplazo directo): si el
+    // borrador viene de una versión más vieja de la app a la que le falte
+    // algún campo nuevo, ese campo conserva su default en vez de quedar
+    // `undefined`.
+    if (borradorPendiente.form) setForm((prev) => ({ ...prev, ...borradorPendiente.form }));
+    setFotosPorSlot(borradorPendiente.fotosPorSlot || {});
+    setValidacionDocs(borradorPendiente.validacionDocs || {});
+    setStep(borradorPendiente.step && borradorPendiente.step >= 1 && borradorPendiente.step <= 4 ? borradorPendiente.step : 1);
+    setBorradorPendiente(null);
+  };
+
+  const descartarBorrador = () => {
+    AsyncStorage.removeItem(DRAFT_STORAGE_KEY).catch(() => {});
+    setBorradorPendiente(null);
+  };
 
   const anioActual = new Date().getFullYear();
 
@@ -237,7 +349,15 @@ export function useCarWizard({ onComplete }) {
   // --- Categoría / tarifa ------------------------------------------------
   const elegirCategoria = (id) => {
     const tipo = obtenerConfiguracionTipo(id, tipos);
-    setForm((prev) => ({ ...prev, categoria: id, tarifa_dia: tipo.base }));
+    setForm((prev) => ({
+      // Si el dueño ya había personalizado la tarifa en el paso 2 y vuelve a
+      // cambiar la categoría (ej. para corregir algo en el paso 1), no se le
+      // borra la elección en silencio: se ajusta (clamp) al rango de la
+      // nueva categoría, y solo cae al precio base si su tarifa ya no cabe.
+      ...prev,
+      categoria: id,
+      tarifa_dia: clampTarifa(prev.tarifa_dia || tipo.base, tipo),
+    }));
   };
   const ajustarTarifa = (delta) => {
     setForm((prev) => ({
@@ -298,12 +418,53 @@ export function useCarWizard({ onComplete }) {
     }
   };
 
+  // Antes la única forma de fijar el punto era tocar el mapa o usar el GPS:
+  // si el dueño prefería escribir la dirección directamente, no había forma
+  // de que eso moviera el pin -- la geocodificación solo corría en el
+  // sentido mapa → texto (describirPunto), nunca texto → mapa.
+  const buscarDireccionEnMapa = async () => {
+    const direccion = (form.ubicacion_base || "").trim();
+    if (!direccion) return;
+    if (!Location) {
+      showAlert("Búsqueda no disponible", "El módulo de mapas no está disponible en este dispositivo. Marca el punto a mano.");
+      return;
+    }
+    setBuscandoDireccion(true);
+    try {
+      const resultados = await Location.geocodeAsync(direccion);
+      const primero = resultados?.[0];
+      if (!isMounted.current) return;
+      if (!primero) {
+        showAlert(
+          "No encontramos esa dirección",
+          "Prueba con calle, número y comuna (ej. \"Av. Alemania 6370, Temuco\"), o marca el punto directo en el mapa."
+        );
+        return;
+      }
+      referenciaEditadaAMano.current = true;
+      setForm((prev) => ({ ...prev, latitud: primero.latitude, longitud: primero.longitude }));
+      centrarMapa(primero.latitude, primero.longitude);
+    } catch (err) {
+      if (isMounted.current) {
+        showAlert("No se pudo buscar la dirección", msjError(err, "Marca el punto directo en el mapa."));
+      }
+    } finally {
+      if (isMounted.current) setBuscandoDireccion(false);
+    }
+  };
+
   const fijarPunto = async (lat, lon) => {
     if (!isMounted.current) return;
+    // Las coordenadas del tap actual se guardan de inmediato, sin esperar el
+    // reverse geocode.
     setForm((prev) => ({ ...prev, latitud: lat, longitud: lon }));
     if (referenciaEditadaAMano.current) return;
+    const token = ++geocodeTokenRef.current;
     const descripcion = await describirPunto(lat, lon);
-    if (!isMounted.current || referenciaEditadaAMano.current) return;
+    // Si llegó un tap más nuevo mientras esperábamos, esta respuesta quedó
+    // obsoleta: se descarta para no pisar la ubicación con un texto que no
+    // corresponde a las coordenadas actuales.
+    if (!isMounted.current || referenciaEditadaAMano.current || geocodeTokenRef.current !== token) return;
     setForm((prev) => ({ ...prev, ubicacion_base: descripcion }));
   };
 
@@ -349,7 +510,7 @@ export function useCarWizard({ onComplete }) {
     const slot = camaraSlot;
     setCamaraSlot(null);
     if (!uri || !slot) return;
-    setSlotEnSubida(slot.key);
+    setSlotsEnSubida((prev) => new Set(prev).add(slot.key));
     try {
       const url = await subirImagenOptimizada(uri, {
         filename: `auto_${slot.key}_${Date.now()}.jpg`,
@@ -359,13 +520,35 @@ export function useCarWizard({ onComplete }) {
     } catch (error) {
       showAlert("No se pudo subir la foto", msjError(error, "Revisa tu conexión e inténtalo de nuevo."));
     } finally {
-      setSlotEnSubida(null);
+      setSlotsEnSubida((prev) => {
+        const next = new Set(prev);
+        next.delete(slot.key);
+        return next;
+      });
     }
   };
 
+  // La foto i-ésima elegida en la galería va a la casilla vacía i-ésima, en
+  // el orden en que se seleccionan -- no hay forma de que la app sepa qué
+  // muestra cada foto. Antes esto no se avisaba: una foto del interior
+  // podía terminar asignada a "Frontal" sin que el dueño lo notara hasta
+  // revisar la ficha ya publicada. Ahora se muestra el orden esperado antes
+  // de abrir la galería, para que las toque en ese orden.
   const fotosDesdeGaleria = async () => {
     const vacias = FOTOS_AUTO.filter((s) => !fotosPorSlot[s.key]);
     if (!vacias.length) return;
+    const orden = vacias.map((s, i) => `${i + 1}. ${s.titulo}`).join("\n");
+    showAlert(
+      "Selecciónalas en este orden",
+      `En tu galería, toca las fotos en este orden -- la primera que elijas se asigna a la primera casilla, y así:\n\n${orden}`,
+      [
+        { text: "Elegir de la galería", onPress: () => ejecutarSeleccionGaleria(vacias) },
+        { text: "Cancelar", style: "cancel" },
+      ]
+    );
+  };
+
+  const ejecutarSeleccionGaleria = async (vacias) => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
@@ -376,7 +559,7 @@ export function useCarWizard({ onComplete }) {
         mediaTypes: ["images"],
         allowsMultipleSelection: true,
         selectionLimit: vacias.length,
-        quality: 1,
+        quality: 0.7,
       });
       if (result.canceled || !result.assets?.length) return;
       const seleccion = result.assets.slice(0, vacias.length);
@@ -429,9 +612,27 @@ export function useCarWizard({ onComplete }) {
       if (veredicto) setValidacionDocs((prev) => ({ ...prev, [docKey]: veredicto }));
     } catch (error) {
       console.warn("[addcar] no se pudo validar el documento:", error.message);
+      // Antes esto quedaba en silencio: la ranura seguía mostrando
+      // "Documento listo" como si todo estuviera bien, sin que nada avisara
+      // que la verificación automática no corrió. No bloquea la publicación
+      // (es una falla de red/infra, no un rechazo del documento) pero sí
+      // avisa y ofrece reintentar.
+      setValidacionDocs((prev) => ({
+        ...prev,
+        [docKey]: {
+          estado: "error_validacion",
+          motivo: "No pudimos verificar este documento automáticamente. Reintenta, o continúa igual: quedará pendiente de revisión manual.",
+          bloquea: false,
+        },
+      }));
     } finally {
       setValidandoDoc((actual) => (actual === docKey ? null : actual));
     }
+  };
+
+  const reintentarValidacion = (docKey) => {
+    const url = form.docs[docKey];
+    if (url) validarDocumento(docKey, url);
   };
 
   const subirDocumento = (docKey, origen) => {
@@ -482,7 +683,10 @@ export function useCarWizard({ onComplete }) {
   };
 
   // --- Navegación / envío -------------------------------------------
-  const subiendo = uploadingPhoto || !!uploadingDoc || !!slotEnSubida;
+  // Incluye `validandoDoc`: antes se podía tocar "Publicar" mientras un
+  // documento todavía se estaba leyendo, publicando con un veredicto que
+  // ni siquiera había llegado.
+  const subiendo = uploadingPhoto || !!uploadingDoc || slotsEnSubida.size > 0 || !!validandoDoc;
 
   const irAtras = ({ onSalir }) => {
     if (step > 1) setStep(step - 1);
@@ -490,10 +694,17 @@ export function useCarWizard({ onComplete }) {
   };
 
   const avanzar = () => {
-    if (step === 1 || step === 2) {
+    if (step === 1) {
       setPasosIntentados((prev) => ({ ...prev, [step]: true }));
-      if (CAMPOS_POR_PASO[step].some((campo) => errores[campo])) return;
-      setStep(step + 1);
+      if (CAMPOS_POR_PASO[step].some((campo) => errores[campo])) {
+        setIntentoFallidoTick((t) => t + 1);
+        return;
+      }
+      setStep(2);
+      return;
+    }
+    if (step === 2) {
+      setStep(3);
       return;
     }
     if (step === 3) {
@@ -536,22 +747,50 @@ export function useCarWizard({ onComplete }) {
         ...form.docs,
       });
 
+      // El auto ya está creado: el borrador dejó de tener sentido.
+      AsyncStorage.removeItem(DRAFT_STORAGE_KEY).catch(() => {});
+
       const nombre = `${form.marca} ${form.modelo} (${form.patente.toUpperCase()})`;
+      // `cancelable: false`: el auto ya quedó creado en el servidor en este
+      // punto. Sin esto, en Android el botón/gesto de volver podía cerrar
+      // la alerta sin tocar "Ver mi flota", dejando al dueño de vuelta en el
+      // wizard con todo lleno y el botón "Publicar auto" listo para
+      // tocarlo de nuevo -- un segundo toque chocaría con la patente ya
+      // registrada.
       if (res?.documentos_verificados && res?.estado === "activo") {
         showAlert(
           "¡Auto publicado y verificado!",
           `Tu ${nombre} fue verificado automáticamente y ya está activo en el mapa del marketplace.`,
-          [{ text: "Ver mi flota", onPress: onComplete }]
+          [{ text: "Ver mi flota", onPress: onComplete }],
+          { cancelable: false }
         );
       } else {
         showAlert(
           "Auto registrado — Pendiente de validación",
-          `Tu ${nombre} quedó registrado como PENDIENTE y NO estará disponible para arriendo en el sistema hasta que subas todos los documentos requeridos y sean aprobados.`,
-          [{ text: "Ver mi flota", onPress: onComplete }]
+          `Tu ${nombre} quedó registrado como PENDIENTE. Ya recibimos tus documentos; no estará disponible para arriendo hasta que nuestro equipo los revise y apruebe.`,
+          [{ text: "Ver mi flota", onPress: onComplete }],
+          { cancelable: false }
         );
       }
     } catch (error) {
-      showAlert("No se pudo publicar", msjError(error, "Intenta de nuevo en unos segundos."));
+      // Si la conexión se corta justo después de que el servidor ya creó el
+      // auto, el reintento choca con "patente duplicada" -- antes esto se
+      // mostraba como un error genérico de "inténtalo de nuevo", que
+      // llevaba a reintentar algo que en realidad ya se había publicado.
+      const yaExiste = /ya existe.*patente|patente.*ya (está|esta) registrad/i.test(error?.message || "");
+      if (yaExiste) {
+        // Este caso también significa que el auto quedó publicado (de un
+        // intento anterior): el borrador ya no aplica.
+        AsyncStorage.removeItem(DRAFT_STORAGE_KEY).catch(() => {});
+        showAlert(
+          "Es posible que ya se haya publicado",
+          `Perdimos la confirmación del servidor, pero un auto con la patente ${form.patente.toUpperCase()} ya está registrado -- probablemente de un intento anterior. Revisa tu flota antes de intentarlo de nuevo.`,
+          [{ text: "Ver mi flota", onPress: onComplete }],
+          { cancelable: false }
+        );
+      } else {
+        showAlert("No se pudo publicar", msjError(error, "Intenta de nuevo en unos segundos."));
+      }
     } finally {
       setLoading(false);
     }
@@ -592,10 +831,16 @@ export function useCarWizard({ onComplete }) {
     tienePunto,
     errores,
     errorDe,
+    intentoFallidoTick,
+    // borrador
+    verificandoBorrador,
+    borradorPendiente,
+    retomarBorrador,
+    descartarBorrador,
     // fotos
     fotosPorSlot,
     fotosListas,
-    slotEnSubida,
+    slotsEnSubida,
     camaraSlot,
     setCamaraSlot,
     uploadingPhoto,
@@ -609,6 +854,7 @@ export function useCarWizard({ onComplete }) {
     validandoDoc,
     subirDocumento,
     quitarDocumento,
+    reintentarValidacion,
     docsCargados,
     // categoría/tarifa
     elegirCategoria,
@@ -618,6 +864,8 @@ export function useCarWizard({ onComplete }) {
     mapaRef,
     locatingGps,
     usarUbicacionActual,
+    buscandoDireccion,
+    buscarDireccionEnMapa,
     onMapPress,
     setReferencia,
     // navegación

@@ -97,6 +97,12 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   const [lenteUltraWide, setLenteUltraWide] = useState(null);
   useEffect(() => {
     if (!cameraPermission?.granted) return;
+    // El <CameraView> (y por lo tanto cameraRef) solo existe montado durante
+    // los stages de cámara — si el permiso ya estaba concedido al entrar a la
+    // pantalla, este efecto correría antes de que el ref apunte a nada. Por
+    // eso depende también de `stage` y se re-ejecuta al entrar a cada stage
+    // de cámara, cuando el ref ya es real.
+    if (stage !== "20_camera" && stage !== "25_return_cam") return;
     cameraRef.current
       ?.getAvailableLensesAsync?.()
       .then((lentes) => {
@@ -104,7 +110,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
         setLenteUltraWide(ultraWide || null);
       })
       .catch(() => {});
-  }, [cameraPermission?.granted]);
+  }, [cameraPermission?.granted, stage]);
   const zoomProps =
     nivelZoom === "0.5x" && lenteUltraWide
       ? { zoom: 0, selectedLens: lenteUltraWide }
@@ -274,22 +280,37 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
    * depender de releer el estado de React (que en ese punto puede estar
    * desactualizado frente a varias subidas corriendo a la vez).
    */
-  const subirUnaFoto = async (idx, uriLocal) => {
-    marcarEnCola(idx, { estado: "subiendo" });
-    try {
-      // Las fotos del checklist se toman en la calle, muchas veces con señal
-      // mala. Sin optimizar son 3-8 MB cada una: optimizadas bajan a
-      // 200-400 KB y el paso deja de sentirse trancado.
-      const url = await subirImagenOptimizada(uriLocal, {
-        filename: `checklist-${Date.now()}-${idx}.jpg`,
-        bucket: "checklists",
-      });
-      marcarEnCola(idx, { estado: "subida", url });
-      return url;
-    } catch (error) {
-      marcarEnCola(idx, { estado: "error" });
-      return null;
+  // Subidas en curso por índice: si ya hay una subida corriendo para ese idx
+  // (ej. la que lanzó handleTomarFoto en segundo plano), una segunda llamada
+  // (ej. desde enviarChecklist) reutiliza esa misma promesa en vez de subir
+  // el archivo dos veces en paralelo.
+  const subidasEnCursoRef = useRef({});
+
+  const subirUnaFoto = (idx, uriLocal) => {
+    if (subidasEnCursoRef.current[idx]) {
+      return subidasEnCursoRef.current[idx];
     }
+    const promesa = (async () => {
+      marcarEnCola(idx, { estado: "subiendo" });
+      try {
+        // Las fotos del checklist se toman en la calle, muchas veces con señal
+        // mala. Sin optimizar son 3-8 MB cada una: optimizadas bajan a
+        // 200-400 KB y el paso deja de sentirse trancado.
+        const url = await subirImagenOptimizada(uriLocal, {
+          filename: `checklist-${Date.now()}-${idx}.jpg`,
+          bucket: "checklists",
+        });
+        marcarEnCola(idx, { estado: "subida", url });
+        return url;
+      } catch (error) {
+        marcarEnCola(idx, { estado: "error" });
+        return null;
+      } finally {
+        delete subidasEnCursoRef.current[idx];
+      }
+    })();
+    subidasEnCursoRef.current[idx] = promesa;
+    return promesa;
   };
 
   const handleTomarFoto = async () => {
@@ -374,6 +395,15 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservaIdActiva, tipo]);
 
+  // `colaFotos` en un ref: los listeners de abajo se montan una sola vez (no
+  // se recrean en cada foto ni en cada cambio de estado "subiendo"/"subida")
+  // y leen el valor más reciente a través del ref en vez de quedar atados a
+  // la cola que existía cuando se suscribieron.
+  const colaFotosRef = useRef(colaFotos);
+  useEffect(() => {
+    colaFotosRef.current = colaFotos;
+  }, [colaFotos]);
+
   // Reintenta lo que quedó en "error" al volver del segundo plano — el
   // momento típico en que alguien recupera señal es justo al destrabar el
   // teléfono de nuevo, no mientras sigue con la pantalla apagada. También se
@@ -381,7 +411,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   // WiFi que se recupera mientras se sigue mirando la pantalla).
   useEffect(() => {
     const reintentarPendientes = () => {
-      colaFotos.forEach((item, idx) => {
+      colaFotosRef.current.forEach((item, idx) => {
         if (item.estado === "error") subirUnaFoto(idx, item.uriLocal);
       });
     };
@@ -396,7 +426,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
       unsubNetInfo();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colaFotos]);
+  }, []);
 
   const irAMetricas = () => setStage("22_metrics");
 

@@ -63,11 +63,16 @@ export function DisputesScreen({ onBack }) {
       showAlert("Campos requeridos", "Ingresa el monto del cobro y la descripción.");
       return;
     }
+    const monto = parseInt(form.monto, 10);
+    if (!Number.isFinite(monto)) {
+      showAlert("Monto inválido", "Ingresa un monto numérico válido para el cobro.");
+      return;
+    }
     setEnviando(true);
     try {
       const detalle = [
         `Tipo de cobro: ${LABEL[motivo]}`,
-        `Monto: $${parseInt(form.monto, 10).toLocaleString("es-CL")}`,
+        `Monto: $${monto.toLocaleString("es-CL")}`,
         form.reservaId ? `Reserva: ${form.reservaId}` : null,
         form.folio ? `Folio/comprobante: ${form.folio}` : null,
         `Detalle: ${form.descripcion.trim()}`,

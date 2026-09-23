@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ApiClient } from "../api/client";
+import { hapticoToque } from "../utils/haptics";
 
 /**
  * Wishlist de autos. Trae los ids una vez al montar y ofrece un toggle
@@ -27,6 +28,7 @@ export function useFavoritos() {
 
   const toggle = useCallback(async (autoId) => {
     const yaEra = favoritoIds.has(autoId);
+    hapticoToque();
     setFavoritoIds((prev) => {
       const siguiente = new Set(prev);
       if (yaEra) siguiente.delete(autoId);

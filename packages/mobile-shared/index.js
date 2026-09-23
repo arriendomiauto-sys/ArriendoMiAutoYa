@@ -24,6 +24,10 @@ export { ArranqueGate } from "./components/ArranqueGate";
 export { AlertaInline } from "./components/AlertaInline";
 export { PhotoViewer } from "./components/PhotoViewer";
 export { AvatarFoto } from "./components/AvatarFoto";
+export { CarPhotoThumb } from "./components/CarPhotoThumb";
+export { ScreenTransition } from "./components/ScreenTransition";
+export { ErrorBoundary } from "./components/ErrorBoundary";
+export { AppTourScreen } from "./components/AppTourScreen";
 export { TabBar } from "./components/TabBar";
 export { BrandLogo } from "./components/BrandLogo";
 export { VerifyIdentityBanner } from "./components/VerifyIdentityBanner";
@@ -163,6 +167,7 @@ export { traducirErrorAuth, esErrorCredenciales } from "./utils/authErrors";
 export { msjError } from "./utils/msjError";
 export { registrarPushToken, registrarListenerNotificaciones } from "./utils/push";
 export { inicializarSentry } from "./utils/sentry";
+export { hapticoExito, hapticoError, hapticoToque } from "./utils/haptics";
 export {
   registrarTareaTelemetria,
   iniciarTelemetriaBackground,

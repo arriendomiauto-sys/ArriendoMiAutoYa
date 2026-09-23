@@ -3,6 +3,7 @@ import {
   View,
   Text,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
@@ -485,9 +486,12 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         onBack={onBack}
       />
 
-      <ScrollView
+      <FlatList
         ref={scrollRef}
         className="flex-1"
+        data={loading ? [] : messages}
+        keyExtractor={(item) => item._clientId || item.id}
+        renderItem={({ item }) => renderBurbuja(item)}
         contentContainerStyle={{
           flexGrow: 1,
           justifyContent: "flex-end",
@@ -506,33 +510,34 @@ export function RentalChatScreen({ onBack, reservation, variant = "renter" }) {
         onContentSizeChange={() => {
           if (alFondoRef.current) scrollRef.current?.scrollToEnd({ animated: true });
         }}
-      >
-        <View className="flex-row items-center justify-center gap-1.5 self-center py-1.5 px-3 rounded-full mb-3 bg-gray-100">
-          <Icon name="shield" size={12} color={c.muted} />
-          <Text className="text-[11px] font-semibold" style={{ color: c.muted }}>
-            Reserva #{reservation.id.slice(0, 8).toUpperCase()}
-          </Text>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator color={colors.accent} className="mt-5" />
-        ) : messages.length === 0 ? (
-          <Text className="text-[13px] text-center mt-5" style={{ color: c.muted }}>Aún no hay mensajes. Escribe el primero.</Text>
-        ) : (
-          messages.map(renderBurbuja)
-        )}
-
-        {otroEscribiendo ? (
-          <View className="mb-2 max-w-[82%] self-start">
-            <View
-              className="py-2.5 px-3.5 rounded-2xl rounded-bl border"
-              style={{ backgroundColor: c.surface, borderColor: c.border }}
-            >
-              <Text className="text-[14px] leading-[19px] italic" style={{ color: c.muted }}>escribiendo…</Text>
-            </View>
+        ListHeaderComponent={
+          <View className="flex-row items-center justify-center gap-1.5 self-center py-1.5 px-3 rounded-full mb-3 bg-gray-100">
+            <Icon name="shield" size={12} color={c.muted} />
+            <Text className="text-[11px] font-semibold" style={{ color: c.muted }}>
+              Reserva #{reservation.id.slice(0, 8).toUpperCase()}
+            </Text>
           </View>
-        ) : null}
-      </ScrollView>
+        }
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator color={colors.accent} className="mt-5" />
+          ) : (
+            <Text className="text-[13px] text-center mt-5" style={{ color: c.muted }}>Aún no hay mensajes. Escribe el primero.</Text>
+          )
+        }
+        ListFooterComponent={
+          otroEscribiendo ? (
+            <View className="mb-2 max-w-[82%] self-start">
+              <View
+                className="py-2.5 px-3.5 rounded-2xl rounded-bl border"
+                style={{ backgroundColor: c.surface, borderColor: c.border }}
+              >
+                <Text className="text-[14px] leading-[19px] italic" style={{ color: c.muted }}>escribiendo…</Text>
+              </View>
+            </View>
+          ) : null
+        }
+      />
 
       <ScrollView
         horizontal

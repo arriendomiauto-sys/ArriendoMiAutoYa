@@ -5,11 +5,10 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
-  Image,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { Icon, Badge, EmptyState, ScreenHeader, ApiClient, RatingModal, msjError, useCuentaRegresiva } from "@rentacar/mobile-shared";
+import { Icon, Badge, EmptyState, ScreenHeader, ApiClient, RatingModal, msjError, useCuentaRegresiva, CarPhotoThumb } from "@rentacar/mobile-shared";
 
 function formatearRango(inicio, fin) {
   if (!inicio || !fin) return "—";
@@ -142,13 +141,7 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
                 onPress={() => onSelectReservation(r)}
                 activeOpacity={0.85}
               >
-                <View className="w-[76px] h-[60px] rounded-xl bg-teal-50 items-center justify-center overflow-hidden">
-                  {auto.fotos?.[0] ? (
-                    <Image source={{ uri: auto.fotos[0] }} className="w-full h-full" />
-                  ) : (
-                    <Icon name="car" size={22} color="#0F766E" />
-                  )}
-                </View>
+                <CarPhotoThumb uri={auto.fotos?.[0]} className="w-[76px] h-[60px] rounded-xl" />
                 <View className="flex-1 gap-1">
                   <View className="flex-row items-center justify-between gap-2">
                     <Text className="text-[15px] font-bold text-textDark flex-1" numberOfLines={1}>{nombre}</Text>

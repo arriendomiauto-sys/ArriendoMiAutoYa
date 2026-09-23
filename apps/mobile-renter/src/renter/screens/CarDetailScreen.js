@@ -24,6 +24,7 @@ import {
   urlWeb,
   Skeleton,
   PhotoViewer,
+  CarPhotoThumb,
   validarLicenciaParaAuto,
   useApp,
 } from "@rentacar/mobile-shared";
@@ -185,6 +186,9 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
     ApiClient.getCalificaciones(car.dueno_id)
       .then((datos) => {
         if (vivo) setCalificaciones(Array.isArray(datos) ? datos : []);
+      })
+      .catch((err) => {
+        if (vivo) console.warn("[CarDetailScreen] getCalificaciones:", err?.message);
       })
       .finally(() => {
         if (vivo) setCargandoResenas(false);
@@ -608,13 +612,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
       <ScreenHeader title="Resumen de la reserva" onBack={() => setStep("detail")} />
       <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
         <Card className="flex-row items-center gap-3" padded>
-          {fotos[0] ? (
-            <Image source={{ uri: fotos[0] }} className="w-[76px] h-[58px] rounded-xl bg-teal-50" />
-          ) : (
-            <View className="w-[76px] h-[58px] rounded-xl bg-teal-50 items-center justify-center">
-              <Icon name="car" size={22} color="#5EEAD4" />
-            </View>
-          )}
+          <CarPhotoThumb uri={fotos[0]} className="w-[76px] h-[58px] rounded-xl" />
           <View className="flex-1">
             <Text className="text-[15px] font-bold text-textDark">{nombreAuto || "Vehículo"}</Text>
             <Text className="text-[13px] text-textMuted mt-0.5">

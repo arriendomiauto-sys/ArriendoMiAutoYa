@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, Icon, Button, Badge, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
@@ -61,21 +62,24 @@ export function CarMaintenanceScreen({ car, onBack }) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refrescando, setRefrescando] = useState(false);
   const [error, setError] = useState(null);
   const [form, setForm] = useState(null);
   const [f, setF] = useState({ nombre: "", fecha: "", km: "", notas: "" });
   const [saving, setSaving] = useState(false);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (esRefresh = false) => {
     if (!car?.id) return;
-    setLoading(true);
+    if (esRefresh) setRefrescando(true);
+    else setLoading(true);
     setError(null);
     try {
       setItems((await ApiClient.getMantenciones(car.id)) || []);
     } catch (err) {
       setError(msjError(err, "No se pudieron cargar los mantenimientos."));
     } finally {
-      setLoading(false);
+      if (esRefresh) setRefrescando(false);
+      else setLoading(false);
     }
   }, [car?.id]);
 
@@ -147,7 +151,14 @@ export function CarMaintenanceScreen({ car, onBack }) {
         onBack={onBack}
       />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 32 }} className="px-4" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 32 }}
+        className="px-4"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refrescando} onRefresh={() => cargar(true)} colors={[colors.primary]} tintColor={colors.primary} />
+        }
+      >
         {loading ? (
           <ActivityIndicator color={colors.primary} className="mt-8" />
         ) : error ? (
