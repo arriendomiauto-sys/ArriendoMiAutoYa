@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 describe("MyCarsScreen · Edición de tarifa según reglas de categoría", () => {
-  it("abre el modal con la categoría y tarifa fijada por RentACar", async () => {
+  it("abre el modal con la categoría y tarifa fijada por ArriendoMiAutoYa", async () => {
     const tr = renderTree(
       <MyCarsScreen cars={[autoSedan]} setCars={() => {}} onAddNewCar={() => {}} identidadVerificada />
     );
