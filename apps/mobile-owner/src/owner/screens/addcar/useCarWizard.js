@@ -8,7 +8,6 @@ import {
   FOTOS_AUTO,
   TOTAL_FOTOS_AUTO,
   subirImagenOptimizada,
-  subirImagenesOptimizadas,
 } from "@rentacar/mobile-shared";
 import {
   obtenerConfiguracionTipo,
@@ -184,8 +183,6 @@ export function useCarWizard({ onComplete }) {
   const [fotosPorSlot, setFotosPorSlot] = useState({});
   const [slotsEnSubida, setSlotsEnSubida] = useState(() => new Set());
   const [camaraSlot, setCamaraSlot] = useState(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [progresoGaleria, setProgresoGaleria] = useState(null);
 
   // Documentos.
   const [uploadingDoc, setUploadingDoc] = useState(null);
@@ -506,9 +503,10 @@ export function useCarWizard({ onComplete }) {
     }
   };
 
-  const fotoCapturada = async (uri) => {
-    const slot = camaraSlot;
-    setCamaraSlot(null);
+  // Sube `uri` a la casilla `slot` y deja la casilla marcada como "en subida"
+  // mientras tanto. Lo comparten la captura con cámara y la carga desde la
+  // galería, que solo se diferencian en de dónde sale el archivo.
+  const subirFotoEnSlot = async (slot, uri) => {
     if (!uri || !slot) return;
     setSlotsEnSubida((prev) => new Set(prev).add(slot.key));
     try {
@@ -528,70 +526,18 @@ export function useCarWizard({ onComplete }) {
     }
   };
 
-  // La foto i-ésima elegida en la galería va a la casilla vacía i-ésima, en
-  // el orden en que se seleccionan -- no hay forma de que la app sepa qué
-  // muestra cada foto. Antes esto no se avisaba: una foto del interior
-  // podía terminar asignada a "Frontal" sin que el dueño lo notara hasta
-  // revisar la ficha ya publicada. Ahora se muestra el orden esperado antes
-  // de abrir la galería, para que las toque en ese orden.
-  const fotosDesdeGaleria = async () => {
-    const vacias = FOTOS_AUTO.filter((s) => !fotosPorSlot[s.key]);
-    if (!vacias.length) return;
-    const orden = vacias.map((s, i) => `${i + 1}. ${s.titulo}`).join("\n");
-    showAlert(
-      "Selecciónalas en este orden",
-      `En tu galería, toca las fotos en este orden -- la primera que elijas se asigna a la primera casilla, y así:\n\n${orden}`,
-      [
-        { text: "Elegir de la galería", onPress: () => ejecutarSeleccionGaleria(vacias) },
-        { text: "Cancelar", style: "cancel" },
-      ]
-    );
+  const fotoCapturada = async (uri) => {
+    const slot = camaraSlot;
+    setCamaraSlot(null);
+    await subirFotoEnSlot(slot, uri);
   };
 
-  const ejecutarSeleccionGaleria = async (vacias) => {
-    try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        showAlert("Permiso requerido", "Necesitamos acceso a tus fotos.");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsMultipleSelection: true,
-        selectionLimit: vacias.length,
-        quality: 0.7,
-      });
-      if (result.canceled || !result.assets?.length) return;
-      const seleccion = result.assets.slice(0, vacias.length);
-      setUploadingPhoto(true);
-      setProgresoGaleria({ listas: 0, total: seleccion.length });
-      const urls = await subirImagenesOptimizadas(
-        seleccion.map((asset, i) => ({
-          uri: asset.uri,
-          filename: `auto_${vacias[i].key}_${Date.now()}_${i}.jpg`,
-        })),
-        { bucket: "autos", onProgreso: (listas, total) => setProgresoGaleria({ listas, total }) }
-      );
-      setFotosPorSlot((prev) => {
-        const next = { ...prev };
-        urls.forEach((url, i) => {
-          if (url) next[vacias[i].key] = url;
-        });
-        return next;
-      });
-      const fallidas = urls.filter((u) => !u).length;
-      if (fallidas) {
-        showAlert(
-          "Algunas fotos no subieron",
-          `${fallidas} de ${urls.length} quedaron pendientes. Repítelas desde su casilla.`
-        );
-      }
-    } catch (error) {
-      showAlert("Error al subir las fotos", msjError(error, "Revisa tu conexión e inténtalo de nuevo."));
-    } finally {
-      setUploadingPhoto(false);
-      setProgresoGaleria(null);
-    }
+  // Elegir de la galería UNA foto para UNA casilla concreta. A diferencia de
+  // la carga masiva que había antes, acá no hay que adivinar el orden: el
+  // dueño dice explícitamente a qué toma corresponde la imagen.
+  const fotoDesdeGaleriaEnSlot = (slot) => {
+    if (!slot) return;
+    runPicker("library", (uri) => subirFotoEnSlot(slot, uri));
   };
 
   const quitarFoto = (key) =>
@@ -686,7 +632,7 @@ export function useCarWizard({ onComplete }) {
   // Incluye `validandoDoc`: antes se podía tocar "Publicar" mientras un
   // documento todavía se estaba leyendo, publicando con un veredicto que
   // ni siquiera había llegado.
-  const subiendo = uploadingPhoto || !!uploadingDoc || slotsEnSubida.size > 0 || !!validandoDoc;
+  const subiendo = !!uploadingDoc || slotsEnSubida.size > 0 || !!validandoDoc;
 
   const irAtras = ({ onSalir }) => {
     if (step > 1) setStep(step - 1);
@@ -843,10 +789,8 @@ export function useCarWizard({ onComplete }) {
     slotsEnSubida,
     camaraSlot,
     setCamaraSlot,
-    uploadingPhoto,
-    progresoGaleria,
     fotoCapturada,
-    fotosDesdeGaleria,
+    fotoDesdeGaleriaEnSlot,
     quitarFoto,
     // docs
     uploadingDoc,

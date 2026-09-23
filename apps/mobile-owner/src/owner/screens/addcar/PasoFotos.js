@@ -5,10 +5,9 @@ import { TituloPaso, BarraProgreso } from "./comun";
 import { EncuadreAuto } from "./encuadres";
 
 export function PasoFotos({ wizard }) {
-  const { fotosPorSlot, slotsEnSubida, setCamaraSlot, uploadingPhoto, progresoGaleria } = wizard;
+  const { fotosPorSlot, slotsEnSubida, setCamaraSlot, fotoDesdeGaleriaEnSlot } = wizard;
   const abrirVisor = usePhotoViewer();
   const listas = FOTOS_AUTO.filter((s) => fotosPorSlot[s.key]).length;
-  const completas = listas === TOTAL_FOTOS_AUTO;
 
   const fotosCargadas = FOTOS_AUTO.map((s) => fotosPorSlot[s.key]).filter(Boolean);
 
@@ -73,59 +72,46 @@ export function PasoFotos({ wizard }) {
               </Text>
             </View>
 
-            {url ? (
-              // A diferencia de antes, esto ya NO borra la foto: abre la
-              // cámara directo para retomarla, y solo se reemplaza si la
-              // nueva captura sube bien (fotoCapturada sobreescribe la URL
-              // de esta casilla). Antes el ícono de check parecía "listo"
-              // pero en realidad borraba la foto sin avisar.
+            {/* Dos acciones por casilla, con etiqueta y ancho fijo para que
+                queden alineadas a lo largo de la lista. "Cargar" reemplaza a
+                la carga masiva de antes: la foto se elige para ESTA toma, sin
+                que el dueño tenga que acertar el orden de la galería.
+                "Tomar/Rehacer" NO borra la foto: abre la cámara y solo se
+                reemplaza si la nueva captura sube bien. */}
+            <View className="gap-1.5">
               <TouchableOpacity
-                className="w-[34px] h-[34px] rounded-full bg-accent/20 items-center justify-center"
+                className={`w-[94px] h-9 rounded-xl flex-row items-center justify-center gap-1.5 ${
+                  url ? "bg-accent/15 border border-accent/30" : "bg-primary"
+                }`}
                 onPress={() => setCamaraSlot(slot)}
-                disabled={subiendo || uploadingPhoto}
+                disabled={subiendo}
                 hitSlop={theme.control.hitSlop}
-                accessibilityLabel={`Rehacer foto ${slot.titulo}`}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`${url ? "Rehacer" : "Tomar"} foto ${slot.titulo}`}
               >
-                <Icon name="camera" size={16} color={colors.accentDark} />
+                <Icon name="camera" size={15} color={url ? colors.accentDark : "#FFFFFF"} />
+                <Text className={`text-[12px] font-bold ${url ? "text-accent-700" : "text-white"}`}>
+                  {url ? "Rehacer" : "Tomar"}
+                </Text>
               </TouchableOpacity>
-            ) : (
+
               <TouchableOpacity
-                className="w-[34px] h-[34px] rounded-full bg-primary items-center justify-center"
-                onPress={() => setCamaraSlot(slot)}
-                disabled={subiendo || uploadingPhoto}
-                accessibilityLabel={`Tomar foto ${slot.titulo}`}
+                className="w-[94px] h-9 rounded-xl flex-row items-center justify-center gap-1.5 border border-primary-200 bg-surface-subtle"
+                onPress={() => fotoDesdeGaleriaEnSlot(slot)}
+                disabled={subiendo}
+                hitSlop={theme.control.hitSlop}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Cargar foto de ${slot.titulo} desde la galería`}
               >
-                <Icon name="camera" size={16} color="#FFFFFF" />
+                <Icon name="image" size={15} color={colors.primary} />
+                <Text className="text-[12px] font-bold text-primary">Cargar</Text>
               </TouchableOpacity>
-            )}
+            </View>
           </View>
         );
       })}
-
-      <TouchableOpacity
-        className="flex-row items-center justify-center gap-2 p-3.5 rounded-xl border border-dashed border-primary-200"
-        onPress={wizard.fotosDesdeGaleria}
-        disabled={uploadingPhoto || completas}
-        activeOpacity={0.85}
-      >
-        {uploadingPhoto ? (
-          <>
-            <ActivityIndicator color={colors.primary} />
-            <Text className="text-[13px] font-semibold text-primary">
-              {progresoGaleria
-                ? `Subiendo ${progresoGaleria.listas} de ${progresoGaleria.total}…`
-                : "Subiendo…"}
-            </Text>
-          </>
-        ) : (
-          <>
-            <Icon name="camera" size={16} color={colors.primary} />
-            <Text className="text-[13px] font-semibold text-primary">
-              {completas ? "Fotos completas" : "Ya las tengo: elegir de la galería"}
-            </Text>
-          </>
-        )}
-      </TouchableOpacity>
     </ScrollView>
   );
 }
