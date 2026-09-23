@@ -9,6 +9,7 @@ from fastapi import HTTPException, status, Header, Depends
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
+from app.features.communications.email import service as email_service
 from app.models.entities import Usuario
 
 logger = logging.getLogger(__name__)
@@ -243,6 +244,11 @@ def _sincronizar_usuario_local(db: Session, supa_id: str, supa_email: Optional[s
         db.add(user)
         db.commit()
         db.refresh(user)
+        # Bienvenida solo a clientes/dueños reales: las cuentas de staff se dan
+        # de alta por allowlist de email, no por auto-registro, y el copy del
+        # correo ("explora autos o publica el tuyo") no les aplica.
+        if roles == ["cliente"] and supa_email:
+            email_service.enviar_bienvenida(email=supa_email)
     else:
         # Promover roles si es una cuenta staff reconocida (match exacto
         # contra la allowlist — ver _inferir_roles_staff).

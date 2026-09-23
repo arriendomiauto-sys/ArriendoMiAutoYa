@@ -25,18 +25,27 @@ RESEND_URL = "https://api.resend.com/emails"
 _email_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="resend-email")
 
 
+def _remitente(direccion: str) -> str:
+    """Antepone el nombre de marca al remitente ("ArriendoMiAutoYa <x@dominio>"): un From
+    con nombre visible en vez de la dirección pelada reduce la puntuación de spam."""
+    if "<" in direccion:
+        return direccion
+    return f"ArriendoMiAutoYa <{direccion}>"
+
+
 def _post_contrato_firmado(
-    destinatarios: List[str], asunto: str, html: str, pdf_bytes: bytes, filename: str
+    destinatarios: List[str], asunto: str, html: str, texto: str, pdf_bytes: bytes, filename: str
 ) -> None:
     try:
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(
                 RESEND_URL,
                 json={
-                    "from": settings.RESEND_FROM_EMAIL,
+                    "from": _remitente(settings.RESEND_FROM_EMAIL),
                     "to": destinatarios,
                     "subject": asunto,
                     "html": html,
+                    "text": texto,
                     "attachments": [
                         {
                             "filename": filename,
@@ -77,9 +86,10 @@ def enviar_contrato_firmado(
     asunto = f"Tu contrato de arriendo — {patente}"
     filename = f"Contrato-Arriendo-{patente}-{reserva_id[:8].upper()}.pdf"
     html = templates.contrato_firmado(patente)
+    texto = templates.contrato_firmado_texto(patente)
     try:
         _email_executor.submit(
-            _post_contrato_firmado, destinatarios_validos, asunto, html, pdf_bytes, filename
+            _post_contrato_firmado, destinatarios_validos, asunto, html, texto, pdf_bytes, filename
         )
     except Exception as e:  # noqa: BLE001 — nunca romper el flujo llamador
         logger.info("No se pudo encolar el envío del contrato por correo: %s", e)
@@ -88,13 +98,19 @@ def enviar_contrato_firmado(
 _CLAVE_TRAS_COMMIT = "correos_tras_commit"
 
 
-def _post_aviso(destinatarios: List[str], asunto: str, html: str) -> None:
+def _post_aviso(destinatarios: List[str], asunto: str, html: str, texto: str) -> None:
     try:
         remitente = getattr(settings, "RESEND_NOTIFICACIONES_EMAIL", None) or settings.RESEND_FROM_EMAIL
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(
                 RESEND_URL,
-                json={"from": remitente, "to": destinatarios, "subject": asunto, "html": html},
+                json={
+                    "from": _remitente(remitente),
+                    "to": destinatarios,
+                    "subject": asunto,
+                    "html": html,
+                    "text": texto,
+                },
                 headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}", "Content-Type": "application/json"},
             )
         if resp.status_code >= 300:
@@ -111,7 +127,10 @@ def enviar_aviso_reserva(*, email: str, asunto: str, titulo: str, mensaje: str) 
     if not settings.RESEND_API_KEY or not email:
         return
     try:
-        _email_executor.submit(_post_aviso, [email], asunto, templates.aviso_reserva(titulo, mensaje))
+        _email_executor.submit(
+            _post_aviso, [email], asunto,
+            templates.aviso_reserva(titulo, mensaje), templates.aviso_reserva_texto(titulo, mensaje),
+        )
     except Exception as e:  # noqa: BLE001 — nunca romper el flujo llamador
         logger.info("No se pudo encolar el aviso de reserva por correo: %s", e)
 
@@ -137,16 +156,17 @@ def _descartar_correos_tras_rollback(session) -> None:
     session.info.pop(_CLAVE_TRAS_COMMIT, None)
 
 
-def _post_deposito_realizado(destinatarios: List[str], asunto: str, html: str) -> None:
+def _post_deposito_realizado(destinatarios: List[str], asunto: str, html: str, texto: str) -> None:
     try:
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(
                 RESEND_URL,
                 json={
-                    "from": settings.RESEND_FROM_EMAIL,
+                    "from": _remitente(settings.RESEND_FROM_EMAIL),
                     "to": destinatarios,
                     "subject": asunto,
                     "html": html,
+                    "text": texto,
                 },
                 headers={
                     "Authorization": f"Bearer {settings.RESEND_API_KEY}",
@@ -180,7 +200,25 @@ def enviar_deposito_realizado(
     monto_fmt = f"${int(monto or 0):,} CLP".replace(",", ".")
     asunto = f"Depositamos {monto_fmt} en tu cuenta"
     html = templates.deposito_realizado(monto_fmt=monto_fmt, banco=banco, numero_enmascarado=numero_enmascarado)
+    texto = templates.deposito_realizado_texto(monto_fmt=monto_fmt, banco=banco, numero_enmascarado=numero_enmascarado)
     try:
-        _email_executor.submit(_post_deposito_realizado, [email], asunto, html)
+        _email_executor.submit(_post_deposito_realizado, [email], asunto, html, texto)
     except Exception as e:  # noqa: BLE001 — nunca romper el flujo llamador
         logger.info("No se pudo encolar el envío del depósito por correo: %s", e)
+
+
+def enviar_bienvenida(*, email: str) -> None:
+    """
+    Encola el correo de bienvenida al crear la fila local de Usuario (primer
+    login tras registrarse en Supabase Auth), sin bloquear al llamador. No
+    hace nada si Resend no está configurado ni si falta el correo.
+    """
+    if not settings.RESEND_API_KEY or not email:
+        return
+    try:
+        _email_executor.submit(
+            _post_aviso, [email], "¡Bienvenido a ArriendoMiAutoYa!",
+            templates.bienvenida(), templates.bienvenida_texto(),
+        )
+    except Exception as e:  # noqa: BLE001 — nunca romper el flujo llamador
+        logger.info("No se pudo encolar el correo de bienvenida: %s", e)
