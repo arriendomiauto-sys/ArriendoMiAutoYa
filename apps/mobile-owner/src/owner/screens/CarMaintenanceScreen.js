@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   Modal,
@@ -14,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, Icon, Button, Badge, ApiClient, showAlert, msjError, CarPhotoThumb, usePhotoViewer } from "@rentacar/mobile-shared";
 import { CabeceraOwner } from "../comun";
+import { DOCS } from "./addcar/useCarWizard";
 
 // Los 5 documentos legales que se piden al publicar el auto (ver PasoDocumentos
 // / router de creación). Se leen directo de las URLs que ya trae `car` -- el
@@ -101,10 +103,54 @@ function fmtFecha(iso) {
   }
 }
 
-function SeccionMantencion({ titulo, lista, render, onAdd, ctaLabel }) {
+/**
+ * Documentos que el dueño subió al enrolar el auto (padrón, permiso de
+ * circulación, SOAP, revisión técnica…). Viven en el propio auto como
+ * `doc_*_url`, no en la tabla de mantenciones, así que se listan aparte de
+ * los registros que se agregan a mano — pero en la misma sección, que es
+ * donde el dueño los va a buscar.
+ */
+function DocumentosDelAuto({ car, onVer }) {
+  const subidos = DOCS.map((doc) => ({ doc, url: car?.[doc.key] })).filter((d) => d.url);
+
+  if (subidos.length === 0) {
+    return (
+      <Text className="text-[13px] text-textMuted py-1.5">
+        Este auto no tiene documentos cargados desde el enrolamiento.
+      </Text>
+    );
+  }
+
+  return (
+    <View className="gap-2">
+      {subidos.map(({ doc, url }, i) => (
+        <TouchableOpacity
+          key={doc.key}
+          className={`flex-row items-center gap-3 py-2.5 ${
+            i < subidos.length - 1 ? "border-b border-gray-100" : ""
+          }`}
+          onPress={() => onVer(url)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver ${doc.titulo} en grande`}
+        >
+          <Image source={{ uri: url }} className="w-11 h-11 rounded-xl bg-gray-100 border border-gray-200" />
+          <View className="flex-1">
+            <Text className="text-sm font-semibold text-textDark">{doc.titulo}</Text>
+            <Text className="text-xs text-textMuted mt-0.5">Subido al enrolar el auto</Text>
+          </View>
+          <Icon name="search" size={16} color={colors.textMuted} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+function SeccionMantencion({ titulo, lista, render, onAdd, ctaLabel, children }) {
   return (
     <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-2 shadow-sm mb-4">
       <Text className="text-base font-bold text-primary">{titulo}</Text>
+      {children}
       {lista.length === 0 ? (
         <Text className="text-[13px] text-textMuted py-1.5">Sin registros todavía.</Text>
       ) : (
@@ -144,6 +190,7 @@ export function CarMaintenanceScreen({ car, onBack }) {
   const [form, setForm] = useState(null);
   const [f, setF] = useState({ nombre: "", fecha: "", km: "", notas: "" });
   const [saving, setSaving] = useState(false);
+  const [docVisor, setDocVisor] = useState(null);
 
   const cargar = useCallback(async (esRefresh = false) => {
     if (!car?.id) return;
@@ -249,7 +296,12 @@ export function CarMaintenanceScreen({ car, onBack }) {
               render={(d) => (d.fecha_vencimiento ? `Vence: ${fmtFecha(d.fecha_vencimiento)}` : "Sin fecha de vencimiento")}
               onAdd={() => setForm({ tipo: "documento_legal" })}
               ctaLabel="Registrar documento"
-            />
+            >
+              <DocumentosDelAuto car={car} onVer={setDocVisor} />
+              <Text className="text-[11px] font-bold tracking-wider text-textMuted uppercase mt-2">
+                Registrados a mano
+              </Text>
+            </SeccionMantencion>
             <SeccionMantencion
               titulo="Bitácora de taller"
               lista={servicios}
@@ -260,6 +312,28 @@ export function CarMaintenanceScreen({ car, onBack }) {
           </>
         )}
       </ScrollView>
+
+      {/* Visor simple, a propósito sin zoom: un documento legal se revisa
+          entero (que esté el que corresponde y se vea vigente), no en
+          detalle, y el pellizco solo estorbaba. Para el zoom está PhotoViewer,
+          que se usa en las fotos del auto. */}
+      <Modal visible={!!docVisor} transparent animationType="fade" onRequestClose={() => setDocVisor(null)}>
+        <View className="flex-1 bg-black/90">
+          <View className="flex-row justify-end px-4" style={{ paddingTop: Math.max(insets.top, 12) }}>
+            <TouchableOpacity
+              className="w-10 h-10 rounded-full bg-white/15 items-center justify-center"
+              onPress={() => setDocVisor(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar el documento"
+            >
+              <Icon name="close" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          {docVisor ? (
+            <Image source={{ uri: docVisor }} className="flex-1 w-full" resizeMode="contain" />
+          ) : null}
+        </View>
+      </Modal>
 
       <Modal visible={!!form} transparent animationType="fade" onRequestClose={() => setForm(null)}>
         <KeyboardAvoidingView className="flex-1 bg-[#061E1F]/50 justify-center p-5" behavior={Platform.OS === "ios" ? "padding" : undefined}>
