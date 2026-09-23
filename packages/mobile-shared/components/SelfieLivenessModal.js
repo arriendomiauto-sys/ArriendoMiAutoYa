@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   useWindowDimensions,
+  StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -228,7 +229,7 @@ export function SelfieLivenessModal({ visible, onClose, onCaptured }) {
 
     return (
       <View className="flex-1">
-        <CameraView ref={cameraRef} className="absolute inset-0" facing="front" />
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
 
         {/* Solo el contorno del óvalo sobre la cámara: sin máscara oscura y sin
             esquinas. La cuenta regresiva / spinner van centrados dentro. */}

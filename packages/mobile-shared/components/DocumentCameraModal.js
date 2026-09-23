@@ -7,13 +7,28 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   useWindowDimensions,
-  PanResponder,
+  StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import { colors } from "../theme/colors";
 import { Icon } from "./Icon";
+
+// El pellizco de dos dedos con PanResponder no llegaba de forma confiable en
+// Android -- por eso el zoom "no hacía nada". Pasa a Gesture.Pinch(), que usa
+// el GestureHandlerRootView de la pantalla que abre este overlay (ver nota
+// junto al return). Si el módulo no está en el binario nativo, quedan los
+// presets 0.5x/1x/2x, sin romper el render.
+let GestureDetector = null;
+let Gesture = null;
+try {
+  const gh = require("react-native-gesture-handler");
+  GestureDetector = gh.GestureDetector;
+  Gesture = gh.Gesture;
+} catch {
+  // react-native-gesture-handler no disponible en binario nativo
+}
 
 // Aplanar la foto con la barra negra encima necesita rasterizar la vista.
 // Se carga así (y no con import) para que la pantalla siga funcionando en un
@@ -98,7 +113,18 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
   const [zoomContinuo, setZoomContinuo] = useState(0); // 0 a 0.5
   const [nivelZoom, setNivelZoom] = useState("1x");
   const [lenteUltraWide, setLenteUltraWide] = useState(null);
-  const distanciaPellizcoRef = useRef(null);
+  // Zoom al empezar el pellizco: Gesture.Pinch entrega una escala acumulada
+  // (1 = sin cambio), así que el nivel nuevo se calcula sobre este ancla y no
+  // sumando deltas, que es lo que hacía el PanResponder anterior.
+  const zoomAlIniciarPellizco = useRef(0);
+  // Espejo de `zoomContinuo` legible desde el callback del gesto, que se crea
+  // una sola vez y por lo tanto no ve los estados de renders posteriores.
+  const zoomRef = useRef(0);
+
+  const fijarZoom = (valor) => {
+    zoomRef.current = valor;
+    setZoomContinuo(valor);
+  };
 
   React.useEffect(() => {
     if (!permission?.granted) return;
@@ -113,42 +139,38 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
 
   const aplicarZoomPreset = (preset) => {
     setNivelZoom(preset);
-    if (preset === "0.5x") setZoomContinuo(0);
-    else if (preset === "1x") setZoomContinuo(0);
-    else if (preset === "2x") setZoomContinuo(0.12);
+    if (preset === "0.5x") fijarZoom(0);
+    else if (preset === "1x") fijarZoom(0);
+    else if (preset === "2x") fijarZoom(0.12);
   };
 
-  const panResponderCamara = useMemo(
+  // El objeto del gesto tiene que ser ESTABLE entre renders. Si se recrea
+  // (p. ej. con `zoomContinuo` en las dependencias del useMemo), cada
+  // `onUpdate` cambia el estado, el re-render entrega un Gesture nuevo al
+  // GestureDetector y el pellizco en curso se desmonta: el zoom se movía un
+  // paso y se moría. Por eso el nivel vive además en un ref y el gesto no
+  // depende de ningún estado.
+  const pellizcoCamara = useMemo(
     () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: (e) => e.nativeEvent.touches?.length === 2,
-        onMoveShouldSetPanResponder: (e) => e.nativeEvent.touches?.length === 2,
-        onPanResponderGrant: (e) => {
-          if (e.nativeEvent.touches?.length === 2) {
-            const [t1, t2] = e.nativeEvent.touches;
-            const dist = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-            distanciaPellizcoRef.current = dist;
-          }
-        },
-        onPanResponderMove: (e) => {
-          if (e.nativeEvent.touches?.length === 2 && distanciaPellizcoRef.current) {
-            const [t1, t2] = e.nativeEvent.touches;
-            const distActual = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-            const delta = distActual - distanciaPellizcoRef.current;
-            distanciaPellizcoRef.current = distActual;
-
-            setZoomContinuo((prev) => {
-              const nuevo = Math.min(0.5, Math.max(0, prev + delta * 0.0015));
-              const factorAprox = 1 + nuevo * 8;
-              setNivelZoom(`${factorAprox.toFixed(1)}x`);
-              return nuevo;
-            });
-          }
-        },
-        onPanResponderRelease: () => {
-          distanciaPellizcoRef.current = null;
-        },
-      }),
+      Gesture
+        ? Gesture.Pinch()
+            // Sin esto los callbacks corren como worklet en el hilo de UI (con
+            // Reanimated instalado) y no pueden tocar el estado de React.
+            .runOnJS(true)
+            .onStart(() => {
+              zoomAlIniciarPellizco.current = zoomRef.current;
+            })
+            .onUpdate((e) => {
+              // `e.scale` < 1 al juntar los dedos, > 1 al separarlos. Se mapea
+              // al rango 0–0.5 que acepta `CameraView.zoom` (≈ 1x a 5x).
+              const nuevo = Math.min(
+                0.5,
+                Math.max(0, zoomAlIniciarPellizco.current + (e.scale - 1) * 0.25)
+              );
+              fijarZoom(nuevo);
+              setNivelZoom(`${(1 + nuevo * 8).toFixed(1)}x`);
+            })
+        : null,
     []
   );
 
@@ -452,13 +474,20 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     }
 
     // 4. Cámara en vivo con marco guía
-    return (
-      <View className="flex-1" {...panResponderCamara.panHandlers}>
-        <CameraView ref={cameraRef} className="absolute inset-0" facing={cfg.facing} {...zoomProps} />
+    const camara = (
+      <View className="flex-1">
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={cfg.facing} {...zoomProps} />
 
         {/* Máscara oscura (arriba / abajo / lados) con la ventana transparente
-            centrada. */}
-        <View className="absolute inset-0 flex-col" style={{ height: SCREEN_H, paddingTop: insets.top, paddingBottom: insets.bottom }}>
+            centrada. `pointerEvents="none"`: cubre toda la pantalla por encima
+            de la cámara y no tiene nada tocable dentro, así que sin esto se
+            queda con el pellizco de dos dedos antes de que llegue al gesto
+            del contenedor. */}
+        <View
+          pointerEvents="none"
+          className="absolute inset-0 flex-col"
+          style={{ height: SCREEN_H, paddingTop: insets.top, paddingBottom: insets.bottom }}
+        >
           <View className="flex-1 bg-[rgba(6,30,31,0.68)]" />
           <View className="flex-row" style={{ height: frameH }}>
             <View className="flex-1 bg-[rgba(6,30,31,0.68)]" />
@@ -554,6 +583,11 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
         </View>
       </View>
     );
+
+    // Sin react-native-gesture-handler en el binario se devuelve la cámara
+    // tal cual: quedan los presets 0.5x/1x/2x, solo se pierde el pellizco.
+    if (!GestureDetector || !pellizcoCamara) return camara;
+    return <GestureDetector gesture={pellizcoCamara}>{camara}</GestureDetector>;
   };
 
   // Antes esto era <Modal>: en Android, CameraView dentro de la ventana

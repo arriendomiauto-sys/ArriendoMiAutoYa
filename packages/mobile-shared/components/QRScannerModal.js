@@ -9,6 +9,7 @@ import {
   Animated,
   Easing,
   StatusBar,
+  StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -141,7 +142,7 @@ export function QRScannerModal({
       <View className="flex-1">
         <CameraView
           key={visible ? "qr-camera-live" : "qr-camera-closed"}
-          className="absolute inset-0"
+          style={StyleSheet.absoluteFill}
           facing="back"
           enableTorch={torch}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}

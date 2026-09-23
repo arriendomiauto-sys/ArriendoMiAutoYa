@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { CameraView } from "expo-camera";
 
 // ============================================================================
@@ -43,7 +43,7 @@ export function IdCardQrScanner({ permission, onRequestPermission, onDetected, o
   return (
     <View className="flex-1 bg-black">
       <CameraView
-        className="absolute inset-0"
+        style={StyleSheet.absoluteFill}
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
         onBarcodeScanned={manejarDeteccion}
       />
