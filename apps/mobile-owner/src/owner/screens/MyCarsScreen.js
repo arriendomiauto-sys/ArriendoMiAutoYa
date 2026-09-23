@@ -33,6 +33,7 @@ import {
 } from "@rentacar/mobile-shared";
 import { CabeceraOwner, FranjaResumen, oc } from "../comun";
 import { ControlTarifa } from "./addcar/ControlTarifa";
+import { PreviewPublicacionModal } from "./PreviewPublicacionModal";
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
 
@@ -58,6 +59,7 @@ export function MyCarsScreen({
   const [editingCar, setEditingCar] = useState(null);
   const [tarifaSeleccionada, setTarifaSeleccionada] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [carEnPreview, setCarEnPreview] = useState(null);
   // Autos con un toggle de disponibilidad en curso: evita que dos taps rápidos
   // sobre el mismo Switch pisen el rollback/resultado uno del otro.
   const togglesEnCurso = useRef(new Set());
@@ -134,8 +136,21 @@ export function MyCarsScreen({
 
     return (
       <View className="bg-surface rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-0">
-        <View className="h-[150px] bg-surface-secondary relative">
+        {/* Tocar la foto abre la publicación tal como la ve un arrendatario:
+            es la forma de revisar que las fotos y los datos se vean bien
+            antes de dejarla publicada. */}
+        <TouchableOpacity
+          className="h-[150px] bg-surface-secondary relative"
+          onPress={() => setCarEnPreview(item)}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver la publicación de ${item.marca} ${item.modelo} como la ve quien arrienda`}
+        >
           <CarPhotoThumb uri={item.fotos?.[0]} className="w-full h-full" iconSize={44} />
+          <View className="absolute bottom-3 right-3 flex-row items-center gap-1.5 bg-black/60 rounded-full py-1.5 px-3">
+            <Icon name="search" size={12} color="#FFFFFF" />
+            <Text className="text-[11px] font-bold text-white">Ver publicación</Text>
+          </View>
           <View className="absolute top-3 left-3 bg-white/95 rounded-full py-1 px-2.5 flex-row items-center gap-1.5 shadow-sm">
             <View
               className={`w-1.5 h-1.5 rounded-full ${
@@ -150,7 +165,7 @@ export function MyCarsScreen({
               {esPendiente ? "Pendiente" : disponible ? "Disponible" : "Pausado"}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View className="p-4 gap-3.5">
           <View>
@@ -364,6 +379,12 @@ export function MyCarsScreen({
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <PreviewPublicacionModal
+        visible={!!carEnPreview}
+        car={carEnPreview}
+        onClose={() => setCarEnPreview(null)}
+      />
     </View>
   );
 }
