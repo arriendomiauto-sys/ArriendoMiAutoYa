@@ -26,7 +26,7 @@ import { OwnerField } from "./OwnerField";
  * manteniendo consistencia total con la app de Arrendatario
  * pero orientado a la gestión de vehículos y flota.
  */
-export function OwnerLoginScreen({ onNavigate, onBack }) {
+export function OwnerLoginScreen({ onNavigate }) {
   const { login } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,8 +46,6 @@ export function OwnerLoginScreen({ onNavigate, onBack }) {
     setter(texto);
   };
 
-  const retroceder = onBack || (() => onNavigate?.("register"));
-
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-background"
@@ -55,8 +53,8 @@ export function OwnerLoginScreen({ onNavigate, onBack }) {
     >
       <StatusBar barStyle="dark-content" />
 
-      {/* Cabecera minimalista con botón circular de retorno */}
-      <ScreenHeader title="" onBack={retroceder} />
+      {/* Cabecera minimalista: el login es la raíz del flujo, sin retorno. */}
+      <ScreenHeader title="" />
 
       <ScrollView
         className="flex-1"

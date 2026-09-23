@@ -67,7 +67,13 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
   const barraDePasos = (
     <>
       <View className="flex-row items-center justify-between">
-        <BackButton onPress={() => r.volver(irALogin)} />
+        {/* Desde el paso 1 no hay retorno: el registro es la raíz del flujo.
+            Desde el paso 2 sí, para corregir el correo antes del código. */}
+        {paso === PASO_CUENTA ? (
+          <View className="w-10 h-10" />
+        ) : (
+          <BackButton onPress={() => r.volver(irALogin)} />
+        )}
         <Text className="text-xs font-semibold text-textMuted">
           Paso {r.numeroDePaso} de {r.totalPasos}
         </Text>
