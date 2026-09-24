@@ -10,7 +10,7 @@ export default function TerminosPage() {
     <>
       <Seo
         title="Términos y Condiciones del Servicio"
-        description="Términos y condiciones legales de la plataforma de arriendo de vehículos ArriendoMiAutoYa en Los Ángeles, Región del Biobío."
+        description="Términos y condiciones legales de la plataforma de arriendo de vehículos ArriendoMiAutoYa en Concepción, Región del Biobío."
         path="/terminos"
         ogType="article"
       />
@@ -33,7 +33,7 @@ export default function TerminosPage() {
               Términos y Condiciones
             </h1>
             <p className="text-xs sm:text-sm text-[#63645f]">
-              Última actualización: Agosto de 2026 · Válido para operaciones en Los Ángeles, Biobío.
+              Última actualización: Agosto de 2026 · Válido para operaciones en Concepción, Biobío.
             </p>
           </div>
 
@@ -59,7 +59,7 @@ export default function TerminosPage() {
               <Clock className="h-5 w-5 text-brand-tealInk" />
               <h3 className="text-sm font-bold text-brand-ink">Radio de 30 km</h3>
               <p className="text-xs text-[#63645f]">
-                Operación y entregas centralizadas en la comuna de Los Ángeles, Región del Biobío.
+                Operación y entregas centralizadas en Concepción, Región del Biobío.
               </p>
             </div>
           </div>
@@ -75,7 +75,7 @@ export default function TerminosPage() {
                 <strong>ARRIENDO MI AUTO SpA</strong> (RUT <strong>78.493.457-8</strong>) opera la plataforma tecnológica
                 de economía colaborativa (Car-Sharing P2P) ArriendoMiAutoYa, conectando a propietarios de vehículos particulares
                 con conductores verificados para la celebración de contratos de arriendo a corto y mediano plazo en la comuna
-                de Los Ángeles, Región del Biobío.
+                de Concepción, Región del Biobío.
               </p>
             </section>
 
@@ -173,7 +173,7 @@ export default function TerminosPage() {
               </h2>
               <p>
                 Los presentes términos se rigen por las leyes de la República de Chile. Para todos los efectos legales,
-                las partes fijan su domicilio en la comuna de Los Ángeles, Región del Biobío, sin perjuicio de las normas
+                las partes fijan su domicilio en la comuna de Concepción, Región del Biobío, sin perjuicio de las normas
                 de competencia especial que la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores reconoce
                 al arrendatario para interponer sus acciones ante el tribunal correspondiente a su domicilio.
               </p>
@@ -184,9 +184,9 @@ export default function TerminosPage() {
               <div className="text-xs text-[#63645f]">
                 ¿Tienes dudas sobre los términos o coberturas? Contáctanos a través de nuestro{" "}
                 <Link href="/garantias" className="text-brand-tealInk font-bold hover:underline">
-                  Centro de Garantías
+                   Centro de Garantías
                 </Link>{" "}
-                o en la sucursal de Los Ángeles, Región del Biobío.
+                o mediante nuestros canales digitales de soporte 24/7.
               </div>
             </div>
 

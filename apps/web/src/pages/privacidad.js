@@ -32,7 +32,7 @@ export default function PrivacidadPage() {
               Política de Privacidad
             </h1>
             <p className="text-xs sm:text-sm text-[#63645f]">
-              Compromiso de confidencialidad y tratamiento seguro de información · Los Ángeles, Región del Biobío.
+              Compromiso de confidencialidad y tratamiento seguro de información · Concepción, Región del Biobío.
             </p>
           </div>
 
@@ -71,7 +71,7 @@ export default function PrivacidadPage() {
                 <span className="text-brand-tealInk">1.</span> Responsable del Tratamiento
               </h2>
               <p>
-                <strong>ARRIENDO MI AUTO SpA</strong> (RUT N° 78.493.457-8), domiciliada en la comuna de Los Ángeles, Región del Biobío,
+                <strong>ARRIENDO MI AUTO SpA</strong> (RUT N° 78.493.457-8), domiciliada en la comuna de Concepción, Región del Biobío,
                 es la entidad responsable de la custodia y administración de las bases de datos generadas a través de su
                 aplicación móvil y plataforma web, en estricto cumplimiento de la Ley N° 19.628 sobre Protección de la Vida Privada.
               </p>
@@ -109,8 +109,8 @@ export default function PrivacidadPage() {
               </h2>
               <p>
                 El usuario tiene derecho a solicitar el acceso, rectificación, cancelación u oposición al tratamiento
-                de sus datos personales en cualquier momento, enviando una comunicación al canal de soporte o en la
-                sucursal Los Ángeles, siempre que no existan obligaciones legales o contractuales pendientes de resolución.
+                de sus datos personales en cualquier momento, enviando una comunicación a nuestros canales digitales de soporte,
+                siempre que no existan obligaciones legales o contractuales pendientes de resolución.
               </p>
             </section>
 
