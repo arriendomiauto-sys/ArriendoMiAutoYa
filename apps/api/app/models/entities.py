@@ -275,6 +275,10 @@ class Auto(Base):
     # Cuándo un ejecutivo aprobó el certificado de anotaciones vigentes (None si no hay uno aprobado).
     anotaciones_aprobadas_en = Column(DateTime, nullable=True)
     documentos_verificados = Column(Boolean, default=False)     # Los revisó un ejecutivo
+    # Lo que el OCR leyó de cada documento al subirlo, por campo doc_*_url:
+    # {"doc_soap_url": {"folio", "vence", "valido", "vencido", "leido_en"}, ...}.
+    # Antes se calculaba y se descartaba; se guarda para mostrarlo en Mantenimientos.
+    documentos_ocr = Column(JSON, nullable=True)
 
     # Rastreo GPS. Instalar un equipo en el auto de un tercero exige
     # consentimiento escrito del dueño: sin él no se publica el vehículo.

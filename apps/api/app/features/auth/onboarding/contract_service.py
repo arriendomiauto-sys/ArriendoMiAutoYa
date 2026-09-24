@@ -285,7 +285,7 @@ class ContractService:
             )
 
         intro_text = (
-            f"En la ciudad de Los Ángeles, Región del Biobío, Chile, comparecen por una parte como <b>ARRENDADOR (DUEÑO)</b> "
+            f"En la ciudad de Concepción, Región del Biobío, Chile, comparecen por una parte como <b>ARRENDADOR (DUEÑO)</b> "
             f"don/doña <b>{dueno_nombre}</b>, Cédula de Identidad N° <b>{dueno_rut}</b>, fono {dueno_telefono}; y por la otra parte como "
             f"<b>ARRENDATARIO (CLIENTE)</b> don/doña <b>{cliente_nombre}</b>, Cédula de Identidad N° <b>{cliente_rut}</b>, "
             f"fono {cliente_telefono}{segundo_conductor_intro}; con la intermediación digital y mandato de administración de la plataforma "
@@ -345,7 +345,7 @@ class ContractService:
             )
         else:
             clausula1 = (
-                "<b>PRIMERA — OBJETO Y ENTREGA PRESENCIAL (P2P):</b> El Arrendador entrega en arriendo temporal el vehículo antes individualizado al Arrendatario. "
+                "<b>PRIMERA — OBJETO Y ENTREGA DIRECTA (P2P):</b> El Arrendador entrega en arriendo temporal el vehículo antes individualizado al Arrendatario. "
                 "La entrega se efectúa de forma directa entre las partes, mediando verificación de identidad humana con código QR y foto oficial cacheada. "
                 "El Arrendatario es el único conductor autorizado y declara poseer licencia chilena Clase B vigente."
             )
@@ -423,7 +423,7 @@ class ContractService:
             "considerará ilegítima, quedando facultados el Arrendador y ARRIENDO MI AUTO SpA para activar los protocolos de inmovilización y corte de ignición remota vía GPS, "
             "así como para interponer de inmediato la denuncia penal por el delito de apropiación indebida (artículo 470 N° 1 del Código Penal chileno) o hurto según corresponda, "
             "sin perjuicio de las acciones civiles por perjuicios y lucro cesante.<br/>"
-            "Para todos los efectos legales, las partes fijan su domicilio en la comuna de Los Ángeles, Región del Biobío, sin perjuicio de las normas "
+            "Para todos los efectos legales, las partes fijan su domicilio en la comuna de Concepción, Región del Biobío, sin perjuicio de las normas "
             "de competencia especial que la Ley N° 19.496 sobre Protección de los Derechos de los Consumidores reconoce al Arrendatario para acudir ante "
             "los tribunales correspondientes a su domicilio."
         )

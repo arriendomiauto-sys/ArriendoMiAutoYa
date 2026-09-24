@@ -282,15 +282,15 @@ class CarDocValidator:
             ("gases", doc_certificado_gases_url, _MARCADORES_GASES),
         ]
 
-        def _analizar_un_doc(tipo: str, url: Optional[str], marcadores: tuple) -> Tuple[str, Optional[str], Optional[str], bool, bool]:
+        def _analizar_un_doc(tipo: str, url: Optional[str], marcadores: tuple) -> Tuple[str, Optional[str], Optional[str], bool, bool, Optional[date]]:
             if not url:
-                return tipo, None, None, False, False
+                return tipo, None, None, False, False, None
             raw_bytes = OCRService.descargar_imagen_bytes(url)
             if not raw_bytes:
-                return tipo, None, None, False, False
+                return tipo, None, None, False, False, None
             texto, _ = OCRService.llamar_google_vision_api(raw_bytes)
             if not texto:
-                return tipo, None, None, False, False
+                return tipo, None, None, False, False, None
 
             norm = _normalizar_texto(texto)
             folio = _extraer_folio(texto)
@@ -302,7 +302,7 @@ class CarDocValidator:
             # Un documento vencido no vale. Si el texto no dice la vigencia, no se da por vencido.
             vence = fecha_de_vencimiento(texto)
             vencido = vence is not None and vence < date.today()
-            return tipo, texto, folio, valido and not vencido, vencido
+            return tipo, texto, folio, valido and not vencido, vencido, vence
 
         resultados = {}
         folios = {}
@@ -316,13 +316,14 @@ class CarDocValidator:
             ]
             for f in futuros:
                 try:
-                    tipo, texto, folio, es_valido, vencido = f.result()
+                    tipo, texto, folio, es_valido, vencido, vence = f.result()
                     folios[tipo] = folio
                     resultados[tipo] = {
                         "tiene_texto": bool(texto),
                         "folio": folio,
                         "valido": es_valido,
                         "vencido": vencido,
+                        "vence": vence.isoformat() if vence else None,
                     }
                     if es_valido:
                         conteo_validos += 1

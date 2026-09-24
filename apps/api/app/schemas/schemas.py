@@ -667,6 +667,9 @@ class AutoOut(AutoBase):
     dueno_id: str
     estado: str
     documentos_verificados: bool = False
+    # Folio / vencimiento que leyó el OCR de cada documento, por campo doc_*_url.
+    # Solo lo ve el dueño o un admin (lo limpia _sanear_auto_out).
+    documentos_ocr: Optional[Dict[str, Dict[str, Any]]] = None
     gps_instalado: Optional[bool] = False
     gps_consentimiento_fecha: Optional[datetime] = None
     fecha_publicacion: Optional[datetime] = None

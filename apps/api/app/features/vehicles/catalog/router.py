@@ -40,6 +40,7 @@ def _sanear_auto_out(auto: Auto, current_user: Optional[Usuario] = None) -> Auto
         out.doc_soap_url = None
         out.doc_revision_tecnica_url = None
         out.doc_seguro_url = None
+        out.documentos_ocr = None
     if auto.dueno:
         out.dueno_nombre = auto.dueno.nombre or "Anfitrión"
         out.dueno_foto_url = auto.dueno.foto_perfil_verificada_url or getattr(auto.dueno, "foto_perfil_url", None)
@@ -279,6 +280,7 @@ def crear_auto(
         doc_historial_vehicular_url=payload.doc_historial_vehicular_url,
         doc_seguro_url=doc_seguro_a_guardar,
         documentos_verificados=doc_verificados,
+        documentos_ocr=_resumen_ocr(resultado_validacion, payload),
         gps_consentimiento=True,
         gps_consentimiento_fecha=datetime.now(timezone.utc),
     )
@@ -335,6 +337,30 @@ _DOC_INTERNO_A_PUBLICO = {
     "revision": "revision_tecnica",
     "gases": "certificado_gases",
 }
+
+
+def _resumen_ocr(resultado: dict, fuente) -> dict:
+    """
+    Lo que el OCR leyó de cada documento presente en `fuente` (payload o Auto),
+    indexado por campo doc_*_url, para guardarlo en Auto.documentos_ocr. En modo
+    mock no hay desglose por documento: queda solo el folio simulado.
+    """
+    detalles = resultado.get("detalles") or {}
+    folios = resultado.get("folios_detectados") or {}
+    leido_en = datetime.now(timezone.utc).isoformat()
+    resumen = {}
+    for tipo_interno, campo in {**_DOC_INTERNO_A_CAMPO, "seguro": "doc_seguro_url"}.items():
+        if not getattr(fuente, campo, None):
+            continue
+        detalle = detalles.get(tipo_interno) or {}
+        resumen[campo] = {
+            "folio": detalle.get("folio") or folios.get(tipo_interno),
+            "vence": detalle.get("vence"),
+            "valido": bool(detalle.get("valido", folios.get(tipo_interno))),
+            "vencido": bool(detalle.get("vencido", False)),
+            "leido_en": leido_en,
+        }
+    return resumen
 
 
 @router.post(
@@ -512,7 +538,7 @@ def actualizar_auto(
 
     # Si el dueño reemplaza algún documento, vuelve a quedar pendiente de
     # revisión hasta que un ejecutivo lo valide de nuevo.
-    docs_cambiados = False
+    docs_cambiados = {}
     for campo in (
         "doc_inscripcion_url",
         "doc_permiso_circulacion_url",
@@ -525,10 +551,22 @@ def actualizar_auto(
         valor = getattr(payload, campo, None)
         if valor is not None:
             setattr(auto, campo, valor)
-            docs_cambiados = True
+            docs_cambiados[campo] = valor
     if docs_cambiados:
         auto.documentos_verificados = False
         auto.estado = "pendiente"
+        # Se vuelven a leer solo los documentos reemplazados, para que
+        # Mantenimientos muestre el folio / vencimiento del archivo nuevo.
+        # Reasignar el dict (no mutarlo) para que SQLAlchemy detecte el cambio.
+        try:
+            leibles = {c: v for c, v in docs_cambiados.items() if c != "doc_historial_vehicular_url"}
+            relectura = CarDocValidator.validar_documentos_vehiculo(patente=auto.patente, **leibles)
+            auto.documentos_ocr = {
+                **(auto.documentos_ocr or {}),
+                **_resumen_ocr(relectura, payload),
+            }
+        except Exception as e:  # noqa: BLE001 — el OCR es informativo, no debe impedir el reemplazo
+            logger.warning("Auto %s: no se pudo releer el OCR de los documentos: %s", auto.patente, e)
 
     db.commit()
     db.refresh(auto)
