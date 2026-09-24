@@ -1,22 +1,31 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Modal, View, Text, TouchableOpacity, ScrollView, useWindowDimensions, Image } from "react-native";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 let GestureDetector = null;
 let Gesture = null;
-// El <Modal> de React Native monta su contenido en una jerarquía nativa
-// aparte (una ventana/actividad propia), fuera del árbol que cubre el
-// GestureHandlerRootView de la raíz de la app. Sin envolver el contenido de
-// ESTE modal con su propio GestureHandlerRootView, los gestos de pellizco/
-// arrastre no llegan de forma confiable (fallan en silencio o se sienten
-// "pegados", según plataforma) -- por eso se declara acá, no alcanza con el
-// de App.js. Si el módulo no está disponible, cae a un View normal: sin
-// aceleración nativa, pero sin romper el render.
-let GestureHandlerRootView = View;
+// El <Modal> de React Native monta su contenido en una jerarquía nativa aparte
+// (una ventana/actividad propia), fuera del árbol que cubre el
+// GestureHandlerRootView de la raíz de la app -- por eso los gestos de
+// pellizco/arrastre fallaban ahí, incluso envolviendo el propio <Modal> con
+// OTRO GestureHandlerRootView (Android en particular nunca reenvía bien los
+// touches de un Dialog nativo al recognizer de gesture-handler del árbol
+// principal). La solución real no es otro parche sobre el <Modal>: es no
+// usar <Modal> -- el visor ahora es un overlay absoluto montado una sola vez
+// cerca de la raíz de cada app (ver PhotoViewerProvider en App.js), dentro
+// del MISMO GestureHandlerRootView que ya cubre el resto de la app.
+//
+// Justamente por eso el overlay NO debe traer su propio GestureHandlerRootView
+// anidado (había uno acá, leftover de cuando SÍ vivía dentro de un <Modal> y
+// se probó, sin éxito, taparlo con un segundo root). react-native-gesture-
+// handler documenta un solo root por app: Android intercepta el touch
+// dispatch a nivel de ese ViewGroup, y dos anidados compiten por el mismo
+// stream de eventos -- gestos de un solo puntero (tap, pan) suelen colarse
+// igual, pero el pellizco (2 punteros simultáneos) es justo el que se pierde
+// entre medio. El único GestureHandlerRootView válido es el de App.js.
 try {
   const gh = require("react-native-gesture-handler");
   GestureDetector = gh.GestureDetector;
   Gesture = gh.Gesture;
-  if (gh.GestureHandlerRootView) GestureHandlerRootView = gh.GestureHandlerRootView;
 } catch {
   // react-native-gesture-handler no disponible en binario nativo
 }
@@ -25,6 +34,8 @@ let useSharedValue = null;
 let useAnimatedStyle = null;
 let withTiming = null;
 let runOnJS = null;
+let FadeIn = null;
+let FadeOut = null;
 
 try {
   const reanimated = require("react-native-reanimated");
@@ -33,17 +44,26 @@ try {
   useAnimatedStyle = reanimated.useAnimatedStyle;
   withTiming = reanimated.withTiming;
   runOnJS = reanimated.runOnJS;
+  FadeIn = reanimated.FadeIn;
+  FadeOut = reanimated.FadeOut;
 } catch {
   // react-native-reanimated / NativeWorklets no disponible en binario nativo
 }
 
+// Sin Modal, el overlay entra/sale con un mount/unmount seco a menos que se
+// anime a propósito -- FadeIn/FadeOut de Reanimated reemplazan el
+// animationType="fade" que traía el <Modal> anterior. Si reanimated no está
+// disponible, cae a View normal (aparece/desaparece sin transición, pero
+// sigue siendo funcional).
+const OverlayWrapper = Animated ? Animated.View : View;
+
 import { colors } from "../theme/colors";
-import { theme } from "../theme/tokens";
 import { Icon } from "./Icon";
 
 const NIVEL_ZOOM_DOBLE_TAP = 2.5;
 const ESCALA_MAXIMA = 4;
 const UMBRAL_DESCARTAR = 120;
+const TAMANO_MINIATURA = 44;
 
 function RenderFoto({ uri, style, resizeMode = "contain" }) {
   return <Image source={{ uri }} style={style} resizeMode={resizeMode} />;
@@ -54,7 +74,7 @@ function RenderFoto({ uri, style, resizeMode = "contain" }) {
  * moverse mientras está ampliada, doble tap para saltar a un zoom fijo, y
  * deslizar hacia abajo (sin zoom) para cerrar el visor completo.
  */
-function FotoConGestosInterno({ uri, width, height, zoomNivel, onZoomChange, onDismiss }) {
+function FotoConGestosInterno({ uri, width, height, onZoomChange, onDismiss }) {
   const escala = useSharedValue(1);
   const escalaGuardada = useSharedValue(1);
   const trasladoX = useSharedValue(0);
@@ -74,21 +94,6 @@ function FotoConGestosInterno({ uri, width, height, zoomNivel, onZoomChange, onD
     trasladoXGuardado.value = 0;
     trasladoYGuardado.value = 0;
   }, [escala, escalaGuardada, trasladoX, trasladoY, trasladoXGuardado, trasladoYGuardado]);
-
-  // Si se cambia el nivel de zoom externamente (píldoras 1x, 2x, 3x)
-  useEffect(() => {
-    if (typeof zoomNivel === "number") {
-      if (zoomNivel <= 1) {
-        restaurar();
-        onZoomChange?.(false);
-      } else {
-        const destino = Math.min(zoomNivel, ESCALA_MAXIMA);
-        escala.value = withTiming(destino);
-        escalaGuardada.value = destino;
-        onZoomChange?.(true);
-      }
-    }
-  }, [zoomNivel, escala, escalaGuardada, restaurar, onZoomChange]);
 
   const pellizco = Gesture.Pinch()
     .onUpdate((e) => {
@@ -168,13 +173,10 @@ function FotoConGestosInterno({ uri, width, height, zoomNivel, onZoomChange, onD
   );
 }
 
-function FotoSimple({ uri, width, height, zoomNivel }) {
-  const escala = typeof zoomNivel === "number" && zoomNivel > 1 ? zoomNivel : 1;
+function FotoSimple({ uri, width, height }) {
   return (
     <View className="items-center justify-center overflow-hidden" style={{ width, height }}>
-      <View style={{ width: "100%", height: "100%", transform: [{ scale: escala }] }}>
-        <RenderFoto uri={uri} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
-      </View>
+      <RenderFoto uri={uri} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
     </View>
   );
 }
@@ -187,79 +189,94 @@ function FotoConGestos(props) {
 }
 
 /**
- * Visor de fotos a pantalla completa, reutilizable en toda la app: pellizcar
- * para hacer zoom, controles táctiles adaptables (1x, 2x, 3x), doble tap,
- * deslizar entre fotos (deshabilitado mientras está ampliada) y deslizar hacia abajo para cerrar.
+ * Visor de fotos a pantalla completa: pellizcar para hacer zoom (con doble
+ * tap como atajo a un nivel fijo), deslizar entre fotos (deshabilitado
+ * mientras una foto está ampliada), tira de miniaturas para saltar directo a
+ * una foto, y deslizar hacia abajo para cerrar. Se monta como overlay
+ * absoluto -- ver PhotoViewerProvider más abajo -- nunca como <Modal>.
  */
-export function PhotoViewer({ visible, photos, initialIndex = 0, onClose }) {
+function PhotoViewerOverlay({ photos, initialIndex = 0, onClose }) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [indiceActivo, setIndiceActivo] = useState(initialIndex);
   const [conZoom, setConZoom] = useState(false);
-  const [zoomNivel, setZoomNivel] = useState(1);
-
-  useEffect(() => {
-    if (visible) {
-      setIndiceActivo(initialIndex);
-      setConZoom(false);
-      setZoomNivel(1);
-    }
-  }, [visible, initialIndex]);
-
-  const cambiarZoom = (nivel) => {
-    setZoomNivel(nivel);
-    setConZoom(nivel > 1);
-  };
+  const [mostrarPista, setMostrarPista] = useState(true);
+  const scrollRef = useRef(null);
+  const filmstripRef = useRef(null);
 
   const fotos = photos || [];
 
+  useEffect(() => {
+    const id = setTimeout(() => setMostrarPista(false), 1800);
+    return () => clearTimeout(id);
+  }, []);
+
+  const irAFoto = (i) => {
+    setConZoom(false);
+    setIndiceActivo(i);
+    scrollRef.current?.scrollTo({ x: i * width, animated: true });
+    filmstripRef.current?.scrollTo({
+      x: Math.max(0, i * (TAMANO_MINIATURA + 8) - width / 2 + TAMANO_MINIATURA / 2),
+      animated: true,
+    });
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <GestureHandlerRootView className="flex-1 bg-primary-950">
+    <OverlayWrapper
+      className="absolute inset-0 bg-primary-950 z-[1000] [elevation:1000]"
+      {...(FadeIn ? { entering: FadeIn.duration(180), exiting: FadeOut.duration(150) } : null)}
+    >
+      <View className="flex-1 bg-primary-950">
         {/* Botón cerrar */}
         <TouchableOpacity
-          className="absolute right-4 z-20 w-[38px] h-[38px] rounded-full bg-white/15 items-center justify-center"
-          style={{ top: insets.top + 12 }}
+          className="absolute top-3 right-4 z-20 w-[38px] h-[38px] rounded-full bg-white/15 items-center justify-center"
           onPress={onClose}
-          hitSlop={theme.control.hitSlop}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           accessibilityRole="button"
           accessibilityLabel="Cerrar visor"
         >
           <Icon name="close" size={20} color={colors.textWhite} />
         </TouchableOpacity>
 
-        {/* Píldoras de zoom adaptable (1x, 2x, 3x) */}
-        <View
-          className="absolute z-20 self-center flex-row items-center gap-1.5 bg-[#061e1f]/80 rounded-full px-3 py-1.5 border border-white/20"
-          style={{ top: insets.top + 12 }}
-        >
-          {[1, 2, 3].map((z) => {
-            const activo = zoomNivel === z;
-            return (
-              <TouchableOpacity
-                key={z}
-                onPress={() => cambiarZoom(z)}
-                className={`px-2.5 py-1 rounded-full ${activo ? "bg-accent" : "bg-transparent"}`}
-                accessibilityRole="button"
-                accessibilityLabel={`Zoom ${z}x`}
-              >
-                <Text className={`text-xs font-bold ${activo ? "text-textDark" : "text-white"}`}>{z}x</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {/* Contador de foto activa (reemplaza a las píldoras de zoom: acá el
+            zoom es solo con los dedos, no hay botón para eso). */}
+        {fotos.length > 1 && (
+          <View className="absolute top-3 z-20 self-center bg-[#061e1f]/80 rounded-full px-3 py-1.5 border border-white/20">
+            <Text className="text-xs font-bold text-white">
+              {indiceActivo + 1} / {fotos.length}
+            </Text>
+          </View>
+        )}
+
+        {/* Pista de pellizco: aparece un instante al abrir y desaparece sola. */}
+        {mostrarPista && fotos.length > 0 && (
+          <View
+            className="absolute self-center z-20"
+            style={{ bottom: insets.bottom + (fotos.length > 1 ? 96 : 28) }}
+            pointerEvents="none"
+          >
+            <View className="bg-black/60 rounded-full px-3 py-1.5">
+              <Text className="text-white text-xs font-medium">Pellizca la foto para acercar</Text>
+            </View>
+          </View>
+        )}
 
         <ScrollView
-          key={`visor-${initialIndex}`}
+          ref={scrollRef}
+          className="flex-1"
           horizontal
           pagingEnabled
           scrollEnabled={!conZoom}
           showsHorizontalScrollIndicator={false}
           contentOffset={{ x: initialIndex * width, y: 0 }}
           onMomentumScrollEnd={(e) => {
-            setIndiceActivo(Math.round(e.nativeEvent.contentOffset.x / width));
-            setZoomNivel(1);
+            const idx = Math.round(e.nativeEvent.contentOffset.x / width);
+            setIndiceActivo(idx);
             setConZoom(false);
+            filmstripRef.current?.scrollTo({
+              x: Math.max(0, idx * (TAMANO_MINIATURA + 8) - width / 2 + TAMANO_MINIATURA / 2),
+              animated: true,
+            });
           }}
         >
           {fotos.map((uri, i) => (
@@ -268,27 +285,87 @@ export function PhotoViewer({ visible, photos, initialIndex = 0, onClose }) {
               uri={uri}
               width={width}
               height={height}
-              zoomNivel={i === indiceActivo ? zoomNivel : 1}
-              onZoomChange={(activo) => {
-                setConZoom(activo);
-                if (!activo) setZoomNivel(1);
-              }}
+              onZoomChange={setConZoom}
               onDismiss={onClose}
             />
           ))}
         </ScrollView>
 
+        {/* Tira de miniaturas: salta directo a cualquier foto sin tener que deslizar una por una. */}
         {fotos.length > 1 && (
-          <View className="absolute bottom-7 left-0 right-0 flex-row justify-center gap-1.5 z-10">
-            {fotos.map((_, i) => (
-              <View
-                key={i}
-                className={`h-1.5 rounded-full ${i === indiceActivo ? "w-5 bg-white" : "w-1.5 bg-white/60"}`}
-              />
-            ))}
+          <View className="absolute left-0 right-0 z-10" style={{ bottom: insets.bottom + 10 }}>
+            <ScrollView
+              ref={filmstripRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+            >
+              {fotos.map((uri, i) => {
+                const activa = i === indiceActivo;
+                return (
+                  <TouchableOpacity
+                    key={uri + i}
+                    onPress={() => irAFoto(i)}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ver foto ${i + 1} de ${fotos.length}`}
+                  >
+                    <Image
+                      source={{ uri }}
+                      className={`w-11 h-11 rounded-[10px] ${
+                        activa ? "opacity-100 border-2 border-accent" : "opacity-50 border-0"
+                      }`}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         )}
-      </GestureHandlerRootView>
-    </Modal>
+      </View>
+    </OverlayWrapper>
   );
+}
+
+const PhotoViewerContext = createContext(null);
+
+/**
+ * Se monta UNA vez cerca de la raíz de cada app (dentro del
+ * GestureHandlerRootView y del SafeAreaView de App.js), nunca por pantalla.
+ * Cualquier pantalla pide abrir el visor con `usePhotoViewer()` en vez de
+ * manejar su propio estado de visibilidad + <PhotoViewer visible .../>, así
+ * el overlay siempre cubre la pantalla completa de verdad -- ya no depende
+ * de si quien lo invoca está anidado dentro de un ScrollView o una card con
+ * `overflow` recortado.
+ */
+export function PhotoViewerProvider({ children }) {
+  const [visor, setVisor] = useState(null); // { photos, initialIndex } | null
+
+  const abrir = useCallback((photos, initialIndex = 0) => {
+    if (!photos?.length) return;
+    setVisor({ photos, initialIndex });
+  }, []);
+
+  const cerrar = useCallback(() => setVisor(null), []);
+
+  return (
+    <PhotoViewerContext.Provider value={abrir}>
+      <View className="flex-1">
+        {children}
+        {visor && (
+          <PhotoViewerOverlay photos={visor.photos} initialIndex={visor.initialIndex} onClose={cerrar} />
+        )}
+      </View>
+    </PhotoViewerContext.Provider>
+  );
+}
+
+/** Devuelve `abrirVisor(fotos, indiceInicial?)`. Requiere `<PhotoViewerProvider>` en la raíz. */
+export function usePhotoViewer() {
+  const abrir = useContext(PhotoViewerContext);
+  if (!abrir) {
+    throw new Error("usePhotoViewer() debe usarse dentro de <PhotoViewerProvider>");
+  }
+  return abrir;
 }

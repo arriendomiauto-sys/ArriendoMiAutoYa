@@ -1,6 +1,6 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
-  Modal,
+  BackHandler,
   View,
   Text,
   Image,
@@ -187,6 +187,20 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     setCensor({ cx: BANDA_PATENTE.cx, cy: BANDA_PATENTE.cy });
     onClose && onClose();
   };
+
+  // Ya no se monta dentro de <Modal> (ver nota junto al return: el preview
+  // de la cámara salía negro dentro de la ventana nativa aparte que crea
+  // <Modal> en Android). El botón atrás del sistema lo manejaba Modal solo;
+  // hay que replicarlo a mano.
+  useEffect(() => {
+    if (!visible) return undefined;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      cerrar();
+      return true;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   // Recorta la foto a una ventana CENTRADA de la imagen. `takePictureAsync`
   // captura todo el sensor, no solo el recuadro: sin recortar, el documento
@@ -542,12 +556,20 @@ export function DocumentCameraModal({ visible, variant = "carnet_frente", config
     );
   };
 
+  // Antes esto era <Modal>: en Android, CameraView dentro de la ventana
+  // nativa aparte que crea <Modal> no pintaba el preview (pantalla negra) --
+  // mismo problema de fondo que ya se resolvió en PhotoViewer.js con los
+  // gestos de pellizco. La solución es la misma: en vez de otro parche sobre
+  // <Modal>, no usarlo -- esto se monta como overlay absoluto dentro del
+  // mismo árbol (mismo GestureHandlerRootView) de la pantalla que lo abre.
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={cerrar} statusBarTranslucent>
-      {/* height explícito: ver nota en useWindowDimensions arriba */}
-      <View className="flex-1 bg-black" style={{ width: SCREEN_W, height: SCREEN_H }}>
-        {renderContenido()}
-      </View>
-    </Modal>
+    <View
+      className="absolute inset-0 bg-black z-[1000] [elevation:1000]"
+      style={{ width: SCREEN_W, height: SCREEN_H }}
+    >
+      {renderContenido()}
+    </View>
   );
 }

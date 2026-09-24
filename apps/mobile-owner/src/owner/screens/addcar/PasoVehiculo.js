@@ -277,12 +277,14 @@ export function PasoVehiculo({ wizard }) {
 
         {/* El mapa va primero: es la forma principal de fijar el punto, no
             un anexo después del campo de texto -- antes quedaba al final de
-            la tarjeta, abajo del todo. También es más grande (220 en vez de
-            170) para tocar con más precisión, y el botón de GPS ahora flota
+            la tarjeta, abajo del todo. Más grande (340 en vez de 220) para
+            tocar con más precisión y que se note como mapa (antes, sin
+            tiles cargados, un mapa chico se leía como un cuadrado blanco
+            vacío), con borde y sombra más marcados. El botón de GPS flota
             sobre el mapa (patrón común de apps de mapas) en vez de ocupar
             una fila aparte arriba del campo de texto. */}
         {MapView ? (
-          <View className="h-[220px] rounded-xl overflow-hidden border border-gray-200">
+          <View className="h-[340px] rounded-2xl overflow-hidden border-[1.5px] border-gray-200 shadow-md">
             <MapView
               ref={wizard.mapaRef}
               className="w-full h-full"
@@ -306,7 +308,7 @@ export function PasoVehiculo({ wizard }) {
               ) : null}
             </MapView>
             <TouchableOpacity
-              className="absolute top-2.5 right-2.5 w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm"
+              className="absolute top-3 right-3 w-11 h-11 rounded-full bg-white items-center justify-center shadow-md"
               onPress={wizard.usarUbicacionActual}
               disabled={wizard.locatingGps}
               accessibilityRole="button"
@@ -315,11 +317,11 @@ export function PasoVehiculo({ wizard }) {
               {wizard.locatingGps ? (
                 <ActivityIndicator size="small" color={colors.accentDark} />
               ) : (
-                <Icon name="pin" size={18} color={colors.accentDark} />
+                <Icon name="pin" size={19} color={colors.accentDark} />
               )}
             </TouchableOpacity>
-            <View className={`absolute bottom-2 self-center flex-row items-center gap-1.5 py-1 px-2.5 rounded-full ${
-              tienePunto ? "bg-accent-700" : "bg-[#061E1F]/80"
+            <View className={`absolute bottom-3 self-center flex-row items-center gap-1.5 py-1.5 px-3 rounded-full shadow-sm ${
+              tienePunto ? "bg-accent-700" : "bg-[#061E1F]/85"
             }`}>
               <Icon name={tienePunto ? "check" : "pin"} size={12} color="#FFFFFF" />
               <Text className="text-white text-[11px] font-semibold">

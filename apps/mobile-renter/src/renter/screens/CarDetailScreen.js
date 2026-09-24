@@ -23,7 +23,7 @@ import {
   useFavoritos,
   urlWeb,
   Skeleton,
-  PhotoViewer,
+  usePhotoViewer,
   CarPhotoThumb,
   validarLicenciaParaAuto,
   useApp,
@@ -96,16 +96,10 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
   const [hostFotoError, setHostFotoError] = useState(false);
   const { esFavorito, toggle: toggleFavorito } = useFavoritos();
 
-  // Visor de fotos a pantalla completa (PhotoViewer, compartido): tocar la
-  // foto lo abre; adentro se puede pellizcar para hacer zoom, doble tap,
-  // deslizar entre fotos y deslizar hacia abajo para cerrar.
-  const [zoomVisible, setZoomVisible] = useState(false);
-  const [zoomIndex, setZoomIndex] = useState(0);
-  const abrirZoom = (i) => {
-    setZoomIndex(i);
-    setZoomVisible(true);
-  };
-  const cerrarZoom = () => setZoomVisible(false);
+  // Visor de fotos a pantalla completa (PhotoViewerProvider, montado una vez
+  // en App.js): tocar la foto lo abre; adentro se puede pellizcar para hacer
+  // zoom, doble tap, deslizar entre fotos y deslizar hacia abajo para cerrar.
+  const abrirVisor = usePhotoViewer();
 
   const compartirAuto = () => {
     const precio = (car?.tarifa_dia || 0).toLocaleString("es-CL");
@@ -278,7 +272,7 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 <TouchableOpacity
                   key={uri + i}
                   activeOpacity={0.92}
-                  onPress={() => abrirZoom(i)}
+                  onPress={() => abrirVisor(fotos, i)}
                   style={heroW ? { width: heroW } : null}
                   accessibilityRole="button"
                   accessibilityLabel="Ver foto en pantalla completa"
@@ -332,23 +326,22 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
                 />
               </TouchableOpacity>
             </View>
-            {fotos.length > 1 && (
-              <View className="absolute bottom-3.5 left-0 right-0 flex-row justify-center gap-1.5">
-                {fotos.map((_, i) => (
-                  <View key={i} className={`h-1.5 rounded-full ${i === fotoActiva ? "w-5 bg-white" : "w-1.5 bg-white/60"}`} />
-                ))}
-              </View>
-            )}
+            {/* Insignia "i/N": posición dentro de la galería + atajo directo al
+                visor a pantalla completa. Reemplaza a los puntitos (no
+                escalan bien con 9 fotos) y al botón "Ampliar" que quedaba
+                duplicado con tocar la foto misma. */}
             {fotos.length > 0 && (
               <TouchableOpacity
-                onPress={() => abrirZoom(fotoActiva)}
+                onPress={() => abrirVisor(fotos, fotoActiva)}
                 className="absolute right-4 bottom-3.5 flex-row items-center gap-1.5 bg-black/60 rounded-full px-2.5 py-1.5 border border-white/20"
                 accessibilityRole="button"
-                accessibilityLabel="Ampliar foto con zoom"
+                accessibilityLabel="Ver todas las fotos en pantalla completa"
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Icon name="search" size={13} color="#FFFFFF" />
-                <Text className="text-white text-[11px] font-bold">Ampliar</Text>
+                <Icon name="gallery" size={13} color="#FFFFFF" />
+                <Text className="text-white text-[11px] font-bold">
+                  {fotos.length > 1 ? `${fotoActiva + 1}/${fotos.length}` : "Ampliar"}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -577,8 +570,6 @@ export function CarDetailScreen({ car, onBack, onProceedToPayment }) {
             className="flex-1"
           />
         </View>
-
-        <PhotoViewer visible={zoomVisible} photos={fotos} initialIndex={zoomIndex} onClose={cerrarZoom} />
       </View>
     );
   }

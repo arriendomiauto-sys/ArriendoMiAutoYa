@@ -10,21 +10,26 @@ export const OWNER_PREMIUM_LINE = "rgba(47, 191, 155, 0.22)";
 
 const MAX_GLOBO = 9;
 
-/** Botón de "Mensajes" para el header, con el globo real de no leídos. */
+/**
+ * Botón de "Mensajes" para el header, con el globo real de no leídos. Antes
+ * era un cuadrado gris chico (40x40, ícono apagado) que se perdía junto al
+ * título -- ahora es más grande y con fondo sólido para que se note como una
+ * acción real, no como un ícono decorativo más.
+ */
 export function BotonMensajes({ noLeidos = 0, onPress }) {
   const texto = noLeidos > MAX_GLOBO ? `${MAX_GLOBO}+` : String(noLeidos);
   return (
     <TouchableOpacity
-      className="w-10 h-10 rounded-xl border border-gray-200 bg-surface items-center justify-center relative active:opacity-80"
+      className="w-12 h-12 rounded-2xl bg-primary-700 items-center justify-center relative shadow-md active:opacity-85"
       onPress={onPress}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={noLeidos > 0 ? `Mensajes, ${noLeidos} sin leer` : "Mensajes"}
     >
-      <Icon name="chat" size={20} color={colors.primary} />
+      <Icon name="chat" size={23} color="#FFFFFF" />
       {noLeidos > 0 ? (
-        <View className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full px-1 bg-red-600 border-2 border-background items-center justify-center">
-          <Text className="text-[10px] font-bold text-white" allowFontScaling={false}>
+        <View className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] rounded-full px-1 bg-red-600 border-2 border-background items-center justify-center">
+          <Text className="text-[11px] font-bold text-white" allowFontScaling={false}>
             {texto}
           </Text>
         </View>

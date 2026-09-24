@@ -46,7 +46,9 @@ describe("RentalHistoryScreen · pestaña Pendientes", () => {
     arbolActual = tr;
     await asentar();
 
-    // Por defecto arranca en "Activas": no debería verse ahí.
+    // En la pestaña "Activas" no debería verse: esa reserva está pendiente de pago.
+    act(() => pressText(tr, "Activas"));
+    await asentar();
     expect(textOf(tr)).not.toContain("Swift");
 
     act(() => pressText(tr, "Pendientes"));

@@ -61,7 +61,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState("confirmada");
+  const [filter, setFilter] = useState("todas");
   const [calificadas, setCalificadas] = useState({});
   const [reservaACalificar, setReservaACalificar] = useState(null);
   const [reservaAFirmar, setReservaAFirmar] = useState(null);

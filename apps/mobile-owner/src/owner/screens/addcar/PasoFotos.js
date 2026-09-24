@@ -1,17 +1,16 @@
-import React, { useState } from "react";
+import React from "react";
 import { View, Text, ScrollView, Image, TouchableOpacity, ActivityIndicator } from "react-native";
-import { colors, theme, Icon, PhotoViewer, FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "@rentacar/mobile-shared";
+import { colors, theme, Icon, usePhotoViewer, FOTOS_AUTO, TOTAL_FOTOS_AUTO } from "@rentacar/mobile-shared";
 import { TituloPaso, BarraProgreso } from "./comun";
 import { EncuadreAuto } from "./encuadres";
 
 export function PasoFotos({ wizard }) {
   const { fotosPorSlot, slotsEnSubida, setCamaraSlot, uploadingPhoto, progresoGaleria } = wizard;
-  const [fotoVisor, setFotoVisor] = useState(null);
+  const abrirVisor = usePhotoViewer();
   const listas = FOTOS_AUTO.filter((s) => fotosPorSlot[s.key]).length;
   const completas = listas === TOTAL_FOTOS_AUTO;
 
   const fotosCargadas = FOTOS_AUTO.map((s) => fotosPorSlot[s.key]).filter(Boolean);
-  const indiceVisor = fotoVisor ? Math.max(0, fotosCargadas.indexOf(fotoVisor)) : 0;
 
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40, gap: 12 }} showsVerticalScrollIndicator={false}>
@@ -44,7 +43,7 @@ export function PasoFotos({ wizard }) {
             {url ? (
               <TouchableOpacity
                 activeOpacity={0.88}
-                onPress={() => setFotoVisor(url)}
+                onPress={() => abrirVisor(fotosCargadas, Math.max(0, fotosCargadas.indexOf(url)))}
                 className="w-[78px] h-[58px]"
                 accessibilityRole="button"
                 accessibilityLabel={`Ver foto de ${slot.titulo} en grande con zoom`}
@@ -127,13 +126,6 @@ export function PasoFotos({ wizard }) {
           </>
         )}
       </TouchableOpacity>
-
-      <PhotoViewer
-        visible={!!fotoVisor}
-        photos={fotosCargadas}
-        initialIndex={indiceVisor}
-        onClose={() => setFotoVisor(null)}
-      />
     </ScrollView>
   );
 }

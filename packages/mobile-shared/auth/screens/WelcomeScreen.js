@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StatusBar } from "react-native";
+import { View, Text, TouchableOpacity, StatusBar, ScrollView } from "react-native";
 import { colors } from "../../theme/colors";
 import { Icon } from "../../components/Icon";
 import { BrandLogo } from "../../components/BrandLogo";
@@ -28,7 +28,11 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter", fixed
     <View className="flex-1 bg-surface justify-between">
       <StatusBar barStyle="dark-content" />
 
-      <View className="flex-1 px-8 pt-10 gap-8">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 32, paddingTop: 40, gap: 32 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View className="h-12 justify-center">
           <BrandLogo size={52} />
         </View>
@@ -70,7 +74,7 @@ export function WelcomeScreen({ onNavigate, onSelectRole, role = "renter", fixed
             );
           })}
         </View>
-      </View>
+      </ScrollView>
 
       <BottomBar bordered={false} className="px-8 bg-transparent">
         <Button label="Crear mi cuenta" onPress={() => onNavigate("register")} />

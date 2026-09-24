@@ -182,7 +182,7 @@ export function ContractSignatureModal({
               <Icon name="document" size={18} color={colors.primary} />
               <Text className="flex-1 text-[12.5px] leading-[18px] text-textSecondary">
                 Contrato de arriendo temporal de vehículo · deducible 15 UF (50/50) · jurisdicción
-                Los Ángeles, Chile.
+                Concepción, Chile.
               </Text>
             </View>
 

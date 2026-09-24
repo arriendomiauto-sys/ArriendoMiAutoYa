@@ -205,7 +205,7 @@ describe("Publicar un auto · paso 2 (categoría y tarifa)", () => {
   it("parte del precio de categoría fijado por la plataforma", () => {
     const t = textOf(irAPaso2());
     expect(t).toContain("Paso 2 de 4");
-    expect(t).toContain("Fijado por RentACar");
+    expect(t).toContain("Fijado por ArriendoMiAutoYa");
     // Sedán por defecto: precio base $55.000.
     expect(t).toContain("$55.000");
   });

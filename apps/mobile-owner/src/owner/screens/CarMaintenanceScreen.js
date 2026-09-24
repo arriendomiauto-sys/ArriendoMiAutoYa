@@ -12,8 +12,85 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, Icon, Button, Badge, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
+import { colors, Icon, Button, Badge, ApiClient, showAlert, msjError, CarPhotoThumb, usePhotoViewer } from "@rentacar/mobile-shared";
 import { CabeceraOwner } from "../comun";
+
+// Los 5 documentos legales que se piden al publicar el auto (ver PasoDocumentos
+// / router de creación). Se leen directo de las URLs que ya trae `car` -- el
+// backend solo se las devuelve al dueño o a un admin (_sanear_auto_out), así
+// que acá siempre hay permiso de verlas.
+const DOCUMENTOS_LEGALES = [
+  { key: "doc_inscripcion_url", nombre: "Padrón / Certificado de inscripción" },
+  { key: "doc_permiso_circulacion_url", nombre: "Permiso de circulación" },
+  { key: "doc_soap_url", nombre: "SOAP" },
+  { key: "doc_revision_tecnica_url", nombre: "Revisión técnica" },
+  { key: "doc_certificado_gases_url", nombre: "Certificado de emisión de gases" },
+];
+
+// Estado del documento según lo que leyó el OCR al subirlo (car.documentos_ocr).
+// `vence` viene como "AAAA-MM-DD": se ancla a mediodía para que el huso
+// horario no lo corra un día al formatearlo.
+function estadoDocumento(ocr) {
+  if (!ocr?.vence) return { variant: "success", label: "Subido", vence: null };
+  const vence = new Date(`${ocr.vence}T12:00:00`);
+  const dias = Math.ceil((vence - new Date()) / 86400000);
+  if (ocr.vencido || dias < 0) return { variant: "danger", label: "Vencido", vence };
+  if (dias <= 30) return { variant: "warning", label: "Por vencer", vence };
+  return { variant: "success", label: "Vigente", vence };
+}
+
+function SeccionDocumentosVehiculo({ car }) {
+  const abrirVisor = usePhotoViewer();
+  return (
+    <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-3 shadow-sm mb-4">
+      <View>
+        <Text className="text-base font-bold text-primary">Documentos del vehículo</Text>
+        <Text className="text-[12px] text-textMuted mt-0.5">
+          Los que subiste al publicarlo. Tócalos para verlos en grande.
+        </Text>
+      </View>
+      {DOCUMENTOS_LEGALES.map((d, i) => {
+        const uri = car?.[d.key];
+        const ocr = car?.documentos_ocr?.[d.key];
+        const estado = estadoDocumento(ocr);
+        return (
+          <TouchableOpacity
+            key={d.key}
+            className={`flex-row items-center gap-3 py-2.5 ${
+              i < DOCUMENTOS_LEGALES.length - 1 ? "border-b border-gray-100" : ""
+            }`}
+            disabled={!uri}
+            onPress={() => uri && abrirVisor([uri])}
+            activeOpacity={0.75}
+            accessibilityRole={uri ? "button" : undefined}
+            accessibilityLabel={uri ? `Ver ${d.nombre}` : `${d.nombre}, no subido`}
+          >
+            <CarPhotoThumb uri={uri} className="w-12 h-12 rounded-lg" iconSize={18} resizeMode="cover" />
+            <View className="flex-1">
+              <Text className="text-sm font-semibold text-textDark">{d.nombre}</Text>
+              {uri && estado.vence ? (
+                <Text className="text-xs text-textMuted mt-0.5">Vence: {fmtFecha(estado.vence)}</Text>
+              ) : null}
+              {uri && ocr?.folio ? (
+                <Text className="text-xs text-textMuted mt-0.5">Folio: {ocr.folio}</Text>
+              ) : null}
+              {!uri || (!estado.vence && !ocr?.folio) ? (
+                <Text className="text-xs text-textMuted mt-0.5">
+                  {uri ? "Toca para ver el documento" : "Todavía no lo subiste"}
+                </Text>
+              ) : null}
+            </View>
+            {uri ? (
+              <Badge variant={estado.variant} label={estado.label} />
+            ) : (
+              <Badge variant="neutral" label="Falta" />
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
 
 function fmtFecha(iso) {
   if (!iso) return null;
@@ -165,8 +242,9 @@ export function CarMaintenanceScreen({ car, onBack }) {
           <Text className="text-red-500 text-[13px] mt-5 text-center">{error}</Text>
         ) : (
           <>
+            <SeccionDocumentosVehiculo car={car} />
             <SeccionMantencion
-              titulo="Documentación legal"
+              titulo="Otros vencimientos y documentos"
               lista={documentos}
               render={(d) => (d.fecha_vencimiento ? `Vence: ${fmtFecha(d.fecha_vencimiento)}` : "Sin fecha de vencimiento")}
               onAdd={() => setForm({ tipo: "documento_legal" })}

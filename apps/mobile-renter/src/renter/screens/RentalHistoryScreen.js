@@ -25,6 +25,7 @@ const BADGE = {
 };
 
 const TABS = [
+  { id: "todas", label: "Todas", estados: null },
   { id: "pendientes", label: "Pendientes", estados: ["pendiente_pago"] },
   { id: "activas", label: "Activas", estados: ["en_curso"] },
   { id: "proximas", label: "Próximas", estados: ["pendiente", "confirmada"] },
@@ -32,7 +33,7 @@ const TABS = [
 ];
 
 export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPago, onExplorar }) {
-  const [tab, setTab] = useState("activas");
+  const [tab, setTab] = useState("todas");
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
@@ -65,8 +66,8 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
     cargar();
   }, [cargar]);
 
-  const estados = TABS.find((t) => t.id === tab)?.estados || [];
-  const filtradas = reservas.filter((r) => estados.includes(r.estado));
+  const estados = TABS.find((t) => t.id === tab)?.estados || null;
+  const filtradas = estados ? reservas.filter((r) => estados.includes(r.estado)) : reservas;
 
   // Solo se necesita saber si ya se calificó para las finalizadas de la
   // pestaña "pasadas" — se consulta ahí en vez de para todo el historial.
@@ -179,7 +180,9 @@ export function RentalHistoryScreen({ onSelectReservation, onBack, onContinuarPa
               icon="calendar"
               title="Nada por aquí"
               message={
-                tab === "pendientes"
+                tab === "todas"
+                  ? "Todavía no tienes reservas."
+                  : tab === "pendientes"
                   ? "No tienes reservas esperando pago."
                   : tab === "activas"
                   ? "No tienes arriendos en curso ahora mismo."

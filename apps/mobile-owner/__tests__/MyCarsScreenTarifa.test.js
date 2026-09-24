@@ -50,7 +50,7 @@ describe("MyCarsScreen · Edición de tarifa según reglas de categoría", () =>
     expect(texto).toContain("Ajustar tarifa diaria");
     expect(texto).toContain("Nissan Versa · VERS-23");
     expect(texto).toContain("Sedán");
-    expect(texto).toContain("Fijado por RentACar");
+    expect(texto).toContain("Fijado por ArriendoMiAutoYa");
     expect(texto).toContain("$55.000");
   });
 

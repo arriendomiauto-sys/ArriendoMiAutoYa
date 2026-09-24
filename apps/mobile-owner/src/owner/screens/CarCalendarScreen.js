@@ -30,6 +30,7 @@ export function CarCalendarScreen({ car, onBack }) {
   const [loading, setLoading] = useState(true);
 
   const hoy = new Date();
+  const hoySinHora = useMemo(() => new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()), []);
   const [mesOffset, setMesOffset] = useState(0);
   const fechaMostrada = new Date(hoy.getFullYear(), hoy.getMonth() + mesOffset, 1);
   const anio = fechaMostrada.getFullYear();
@@ -39,6 +40,11 @@ export function CarCalendarScreen({ car, onBack }) {
   const enMesActual = mesOffset === 0;
   const irMesAnterior = () => setMesOffset((o) => Math.max(0, o - 1));
   const irMesSiguiente = () => setMesOffset((o) => o + 1);
+  // Un día ya pasado no se puede bloquear ni desbloquear: mirar hacia atrás
+  // en el calendario no tiene acción posible, solo sirve para consultar qué
+  // hubo. "Hoy" sigue siendo el límite inclusive -- todavía se puede.
+  const esPasado = (day) => new Date(anio, mes, day) < hoySinHora;
+  const esHoy = (day) => enMesActual && day === hoy.getDate();
 
   useEffect(() => {
     let vivo = true;
@@ -200,26 +206,41 @@ export function CarCalendarScreen({ car, onBack }) {
                   const estado = estadoDelDia(day);
                   const booked = estado === "booked";
                   const blocked = typeof estado === "object";
+                  const pasado = esPasado(day);
+                  const hoyMarcado = esHoy(day);
                   return (
                     <TouchableOpacity
                       key={day}
                       className={`w-[14.28%] h-11 items-center justify-center rounded-lg ${
-                        booked
-                          ? "bg-primary-100"
-                          : blocked
-                            ? "bg-red-50"
-                            : "bg-accent/15"
-                      }`}
-                      onPress={() => toggleDay(day)}
+                        pasado
+                          ? "bg-transparent"
+                          : booked
+                            ? "bg-primary-100"
+                            : blocked
+                              ? "bg-red-50"
+                              : "bg-accent/15"
+                      } ${hoyMarcado ? "border-[1.5px] border-primary-700" : ""}`}
+                      onPress={() => !pasado && toggleDay(day)}
+                      disabled={pasado}
                       activeOpacity={0.8}
+                      accessibilityState={{ disabled: pasado }}
+                      accessibilityLabel={
+                        pasado
+                          ? `${day}, día ya pasado`
+                          : `${day}${hoyMarcado ? ", hoy" : ""}${booked ? ", arrendado" : blocked ? ", bloqueado" : ", disponible"}`
+                      }
                     >
                       <Text
                         className={`text-[13px] font-semibold ${
-                          booked
-                            ? "text-primary font-extrabold"
-                            : blocked
-                              ? "text-red-500 line-through"
-                              : "text-textDark"
+                          pasado
+                            ? "text-textPlaceholder"
+                            : booked
+                              ? "text-primary font-extrabold"
+                              : blocked
+                                ? "text-red-500 line-through"
+                                : hoyMarcado
+                                  ? "text-primary-700 font-extrabold"
+                                  : "text-textDark"
                         }`}
                       >
                         {day}

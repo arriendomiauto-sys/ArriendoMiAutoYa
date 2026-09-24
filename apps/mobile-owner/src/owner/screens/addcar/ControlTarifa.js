@@ -16,7 +16,7 @@ export function ControlTarifa({ tipo, valor, desglose, onAjustar, onFijar }) {
           <Text className="text-[13px] text-textMuted">Precio de tu categoría</Text>
           <View className="flex-row items-center gap-1 bg-surface-secondary rounded-full py-1 px-2">
             <Icon name="lock" size={11} color={colors.textMuted} />
-            <Text className="text-[11px] font-bold text-textMuted">Fijado por RentACar</Text>
+            <Text className="text-[11px] font-bold text-textMuted">Fijado por ArriendoMiAutoYa</Text>
           </View>
         </View>
         <Text className={`text-base font-bold ${conDescuento ? "line-through text-gray-400" : "text-textDark"}`}>

@@ -22,7 +22,7 @@ export { LlegadaPorUbicacion } from "./components/LlegadaPorUbicacion";
 export { Skeleton } from "./components/Skeleton";
 export { ArranqueGate } from "./components/ArranqueGate";
 export { AlertaInline } from "./components/AlertaInline";
-export { PhotoViewer } from "./components/PhotoViewer";
+export { PhotoViewerProvider, usePhotoViewer } from "./components/PhotoViewer";
 export { AvatarFoto } from "./components/AvatarFoto";
 export { CarPhotoThumb } from "./components/CarPhotoThumb";
 export { ScreenTransition } from "./components/ScreenTransition";
@@ -32,7 +32,6 @@ export { TabBar } from "./components/TabBar";
 export { BrandLogo } from "./components/BrandLogo";
 export { VerifyIdentityBanner } from "./components/VerifyIdentityBanner";
 export { NetworkBanner } from "./components/NetworkBanner";
-export { DevScreenPicker } from "./components/DevScreenPicker";
 export {
   DateTimeField,
   DateTimePickerModal,

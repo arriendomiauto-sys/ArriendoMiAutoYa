@@ -145,7 +145,7 @@ export function ContractModal({ visible, onClose, reservation }) {
               <ScrollView className="my-1" showsVerticalScrollIndicator={false}>
                 <View className="bg-surfaceSubtle rounded-xl p-4 border border-border">
                   <Text className="text-xs font-extrabold text-primary">Folio digital {String(reservation.id).toUpperCase()}</Text>
-                  <Text className="text-xs text-textMuted mb-3">Los Ángeles, Región del Biobío, Chile</Text>
+                  <Text className="text-xs text-textMuted mb-3">Concepción, Región del Biobío, Chile</Text>
 
                   <Text className="text-[13px] font-bold text-text mt-3 mb-1">Comparecen</Text>
                   <Text className="text-[13px] text-textMuted leading-[19px]">

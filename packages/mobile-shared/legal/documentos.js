@@ -19,14 +19,14 @@ export const DOCUMENTOS_LEGALES = {
     id: "terminos",
     tab: "Términos",
     titulo: "Términos y Condiciones",
-    subtitulo: "Marco legal y operativo · Los Ángeles, Región del Biobío",
+    subtitulo: "Marco legal y operativo · Concepción, Región del Biobío",
     actualizado: "Última actualización: agosto de 2026",
     url: `${WEB_URL}/terminos`,
     secciones: [
       {
         h: "1. Naturaleza del servicio y objeto",
         p:
-          "ARRIENDO MI AUTO SpA (RUT 78.493.457-8), domiciliada en la comuna de Los Ángeles, Región del Biobío, " +
+          "ARRIENDO MI AUTO SpA (RUT 78.493.457-8), domiciliada en la comuna de Concepción, Región del Biobío, " +
           "opera la plataforma tecnológica de economía colaborativa (car-sharing P2P) ArriendoMiAutoYa, que conecta a " +
           "propietarios de vehículos particulares con conductores validados para celebrar contratos de arriendo a corto y mediano plazo.",
       },
@@ -95,7 +95,7 @@ export const DOCUMENTOS_LEGALES = {
       {
         h: "1. Responsable del tratamiento",
         p:
-          "ARRIENDO MI AUTO SpA (RUT 78.493.457-8), domiciliada en la comuna de Los Ángeles, Región del Biobío, " +
+          "ARRIENDO MI AUTO SpA (RUT 78.493.457-8), domiciliada en la comuna de Concepción, Región del Biobío, " +
           "es responsable de la custodia y administración de las bases de datos generadas por su " +
           "aplicación móvil y su plataforma web, conforme a la Ley N° 19.628.",
       },
@@ -125,8 +125,8 @@ export const DOCUMENTOS_LEGALES = {
         h: "4. Derechos del titular (ARCO)",
         p:
           "Puedes solicitar acceso, rectificación, cancelación u oposición al tratamiento de tus " +
-          "datos personales en cualquier momento, escribiendo al canal de soporte o en la sucursal " +
-          "de Los Ángeles, siempre que no existan obligaciones legales o contractuales pendientes.",
+          "datos personales en cualquier momento, escribiendo a nuestros canales digitales de soporte, " +
+          "siempre que no existan obligaciones legales o contractuales pendientes.",
       },
       {
         h: "5. Certificados de antecedentes (datos sensibles)",

@@ -1,117 +1,124 @@
-import React, { useMemo, useRef, useState } from "react";
-import { View, Text, PanResponder, TouchableOpacity } from "react-native";
-import { colors, Icon } from "@rentacar/mobile-shared";
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity, Modal, ScrollView, TouchableWithoutFeedback } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, theme, Icon } from "@rentacar/mobile-shared";
 
 const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CL")}`;
 
+/**
+ * Antes esto era un slider para arrastrar entre categorías -- poco intuitivo
+ * (nada indicaba que se podía arrastrar) y difícil de tocar con precisión.
+ * Ahora es un campo desplegable estándar: se toca, se abre una lista con las
+ * 5 categorías completas (ícono, ejemplos, rango de tarifa) y se elige una,
+ * mismo patrón que el selector de año.
+ */
 export function SelectorCategoria({ tipos, seleccionado, onSelect }) {
-  const [ancho, setAncho] = useState(0);
-  const anchoRef = useRef(0);
-  const indice = Math.max(
-    0,
-    tipos.findIndex((t) => t.id === seleccionado)
-  );
-  const total = tipos.length;
-  const tipo = tipos[indice] || tipos[0];
+  const [abierto, setAbierto] = useState(false);
+  let insets = { bottom: 0, top: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Fuera de SafeAreaProvider en tests
+  }
 
-  const seleccionarPorX = (x) => {
-    const w = anchoRef.current;
-    if (!w || total < 2) return;
-    const frac = Math.min(1, Math.max(0, x / w));
-    const idx = Math.round(frac * (total - 1));
-    const nuevo = tipos[idx];
-    if (nuevo && nuevo.id !== seleccionado) onSelect(nuevo.id);
-  };
-
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        // Esta franja vive dentro del ScrollView del paso "Vehículo". Antes
-        // reclamaba CUALQUIER gesto que arrancara acá (incluido un intento
-        // de hacer scroll vertical con el dedo apoyado justo sobre el
-        // track), dejando la pantalla trabada sin poder desplazarse. Ahora
-        // solo se queda con el gesto si el arrastre es predominantemente
-        // horizontal; uno vertical se le cede al ScrollView.
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > 2,
-        onPanResponderGrant: (e) => seleccionarPorX(e.nativeEvent.locationX),
-        onPanResponderMove: (e) => seleccionarPorX(e.nativeEvent.locationX),
-      }),
-    [seleccionado, tipos]
-  );
-
-  const pos = total > 1 ? (indice / (total - 1)) * 100 : 0;
+  const tipo = tipos.find((t) => t.id === seleccionado) || tipos[0];
 
   return (
-    <View className="bg-white rounded-2xl border border-gray-100 p-4 gap-3 shadow-sm">
-      <View className="flex-row items-center gap-3">
-        <View className="w-11 h-11 rounded-xl bg-primary-100 items-center justify-center">
-          <Icon name={tipo.icon} size={22} color={colors.primary} />
+    <>
+      <TouchableOpacity
+        className="bg-white rounded-xl px-3.5 h-14 border-[1.5px] border-gray-200 flex-row items-center gap-3"
+        onPress={() => setAbierto(true)}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`Categoría del auto, ${tipo?.labelCorto || "sin elegir"}`}
+      >
+        <View className="w-9 h-9 rounded-lg bg-primary-100 items-center justify-center">
+          <Icon name={tipo?.icon || "car"} size={18} color={colors.primary} />
         </View>
         <View className="flex-1">
-          <Text className="text-lg font-extrabold -tracking-tight text-textDark">{tipo.labelCorto}</Text>
-          <Text className="text-xs text-textMuted mt-0.5" numberOfLines={1}>
-            {tipo.ejemplos}
+          <Text className="text-[15px] font-bold text-textDark">{tipo?.labelCorto || "Elige una categoría"}</Text>
+          <Text className="text-[11.5px] text-textMuted" numberOfLines={1}>
+            {tipo ? `${fmt(tipo.min)} – ${fmt(tipo.base)}` : "Toca para elegir"}
           </Text>
         </View>
-      </View>
+        <Icon name="chevronDown" size={16} color={colors.textMuted} />
+      </TouchableOpacity>
 
-      <Text className="text-[13px] text-textMuted leading-[18px]">{tipo.descripcion}</Text>
-
-      <View className="py-3 px-1" {...pan.panHandlers}>
-        <View
-          className="h-2 rounded-full bg-gray-100 justify-center"
-          onLayout={(e) => {
-            anchoRef.current = e.nativeEvent.layout.width;
-            setAncho(e.nativeEvent.layout.width);
-          }}
-        >
-          <View className="absolute left-0 top-0 bottom-0 rounded-full bg-primary" style={{ width: `${pos}%` }} />
-          {ancho > 0 &&
-            tipos.map((t, i) => (
+      <Modal visible={abierto} animationType="fade" transparent onRequestClose={() => setAbierto(false)}>
+        <TouchableWithoutFeedback onPress={() => setAbierto(false)}>
+          <View className="flex-1 bg-[#0A1914]/55 justify-end">
+            <TouchableWithoutFeedback>
               <View
-                key={t.id}
-                className={`absolute w-1 h-1 rounded-full -ml-0.5 ${i <= indice ? "bg-white" : "bg-gray-300"}`}
-                style={{ left: `${total > 1 ? (i / (total - 1)) * 100 : 0}%` }}
-              />
-            ))}
-          <View
-            className="absolute w-[26px] h-[26px] rounded-full -ml-[13px] bg-white border-[3px] border-primary shadow-sm"
-            style={{ left: `${pos}%` }}
-          />
-        </View>
-      </View>
-
-      <View className="flex-row">
-        {tipos.map((t, i) => {
-          const isSelected = t.id === seleccionado;
-          return (
-            <TouchableOpacity
-              key={t.id}
-              className="flex-1"
-              onPress={() => onSelect(t.id)}
-              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isSelected }}
-            >
-              <Text
-                className={`text-[10px] ${
-                  isSelected ? "text-primary font-bold" : "text-gray-400"
-                } ${i === 0 ? "text-left" : i === total - 1 ? "text-right" : "text-center"}`}
+                className="bg-white rounded-t-3xl max-h-[80%] px-5 pt-3"
+                style={{ paddingBottom: Math.max(insets?.bottom || 0, 20) + 8 }}
               >
-                {t.labelCorto}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+                <View className="w-10 h-1 rounded bg-gray-200 self-center mb-3.5" />
 
-      <View className="flex-row items-center justify-center gap-1.5 bg-surface-subtle rounded-xl py-2">
-        <Text className="text-xs text-textMuted">Rango de la categoría</Text>
-        <Text className="text-xs font-bold text-primary">
-          {fmt(tipo.min)} – {fmt(tipo.base)}
-        </Text>
-      </View>
-    </View>
+                <View className="flex-row justify-between items-start mb-3">
+                  <View>
+                    <Text className="text-lg font-extrabold text-textDark -tracking-tight">Categoría del auto</Text>
+                    <Text className="text-[12.5px] text-textMuted mt-0.5">Define la tarifa de referencia y el requisito de licencia</Text>
+                  </View>
+                  <TouchableOpacity
+                    className="p-1.5 rounded-full bg-surface-subtle"
+                    onPress={() => setAbierto(false)}
+                    hitSlop={theme.control.hitSlop}
+                    accessibilityLabel="Cerrar selector de categoría"
+                  >
+                    <Icon name="close" size={20} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  className="max-h-[420px]"
+                  contentContainerStyle={{ paddingBottom: 16, gap: 8 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {tipos.map((t) => {
+                    const esActivo = t.id === seleccionado;
+                    return (
+                      <TouchableOpacity
+                        key={t.id}
+                        className={`flex-row items-center gap-3 p-3 rounded-xl border ${
+                          esActivo ? "bg-primary-100 border-primary-700" : "border-gray-100"
+                        }`}
+                        onPress={() => {
+                          onSelect(t.id);
+                          setAbierto(false);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: esActivo }}
+                        accessibilityLabel={t.labelCorto}
+                        activeOpacity={0.8}
+                      >
+                        <View className="w-11 h-11 rounded-xl bg-white items-center justify-center border border-gray-100">
+                          <Icon name={t.icon} size={22} color={colors.primary} />
+                        </View>
+                        <View className="flex-1">
+                          <Text className={`text-[15px] font-bold ${esActivo ? "text-primary-700" : "text-textDark"}`}>
+                            {t.labelCorto}
+                          </Text>
+                          <Text className="text-[11.5px] text-textMuted" numberOfLines={1}>
+                            {t.ejemplos}
+                          </Text>
+                          <Text className="text-[11.5px] font-semibold text-textMuted mt-0.5">
+                            {fmt(t.min)} – {fmt(t.base)}
+                          </Text>
+                        </View>
+                        {esActivo ? (
+                          <View className="w-[22px] h-[22px] rounded-full bg-primary-700 items-center justify-center">
+                            <Icon name="check" size={14} color="#FFFFFF" />
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </>
   );
 }
