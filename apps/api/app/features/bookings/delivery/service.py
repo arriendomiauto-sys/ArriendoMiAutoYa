@@ -8,7 +8,7 @@ from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
-from app.models.entities import Reserva, VerificacionEntrega, ChecklistAuto, Disputa, Pago, Auto, Usuario
+from app.models.entities import Reserva, VerificacionEntrega, ChecklistAuto, Disputa, Pago, Auto, Usuario, FirmaContrato
 from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.system.storage.service import StorageService
 from app.features.communications.notifications.service import crear_notificacion
@@ -274,6 +274,27 @@ class DeliveryService:
                     status_code=400,
                     detail=f"No se puede registrar la entrega de una reserva en estado '{reserva.estado}'.",
                 )
+            # El contrato se firma ACÁ, con las dos partes juntas y después de las fotos:
+            # el arrendatario firma en el teléfono del dueño (trazo + selfie) y el dueño
+            # firma con su huella justo antes de enviar (POST /firmar-contrato).
+            from app.features.bookings.reservations import firma_service
+
+            if not (firma_svg or "").strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Falta la firma del arrendatario: el contrato se firma al entregar el auto.",
+                )
+            firma_dueno = (
+                db.query(FirmaContrato)
+                .filter(FirmaContrato.reserva_id == reserva.id, FirmaContrato.rol == "arrendador")
+                .first()
+            )
+            if not firma_dueno:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Falta tu firma como dueño: confírmala con tu huella para entregar el auto.",
+                )
+
             # No se entrega el auto con una garantía a punto de vencer. Acá no se renueva
             # (haría commit y soltaría el bloqueo de la fila): ya lo intentó el barrido y,
             # si no pudo, el arrendatario la renueva desde la app con su CVV.
@@ -325,40 +346,6 @@ class DeliveryService:
                 detail="Debe adjuntar las fotografías del checklist obligatorio del vehículo."
             )
 
-        # El contrato tiene que estar firmado por el arrendatario antes de
-        # entregar el vehículo. Vale como firma cualquiera de las dos vías:
-        #  - una firma ya registrada vía POST /reservas/{id}/firmar-contrato
-        #    (huella / facial / escrita, hecha en el teléfono del cliente), o
-        #  - el trazo `firma_svg` que se captura en persona en esta entrega.
-        if tipo == "antes":
-            from app.models.entities import FirmaContrato
-
-            firma_cliente = (
-                db.query(FirmaContrato)
-                .filter(
-                    FirmaContrato.reserva_id == reserva_id,
-                    FirmaContrato.rol == "arrendatario",
-                )
-                .first()
-            )
-            if not firma_cliente and not (firma_svg or "").strip():
-                raise HTTPException(
-                    status_code=400,
-                    detail="El arrendatario aún no firmó el contrato. No se puede registrar la entrega.",
-                )
-            # Firma capturada en persona y sin registro previo: se deja
-            # constancia como firma manuscrita del arrendatario.
-            if not firma_cliente and (firma_svg or "").strip():
-                db.add(FirmaContrato(
-                    reserva_id=reserva_id,
-                    usuario_id=reserva.cliente_id,
-                    rol="arrendatario",
-                    metodo="escrita",
-                    firma_svg=firma_svg,
-                    hash_contrato_sha256=reserva.hash_contrato_sha256,
-                    firmado_en=datetime.now(timezone.utc),
-                ))
-
         cargo_limpieza = cargo_limpieza_clp if cargo_limpieza_clp is not None else PricingService.obtener_cargo_limpieza(estado_limpieza, db)
 
         checklist = ChecklistAuto(
@@ -376,11 +363,16 @@ class DeliveryService:
         db.add(checklist)
 
         cobro_info = None
+        contrato_pdf = None
         if tipo == "antes":
+            cliente_firma = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
+            _, pdf_bytes = firma_service.registrar_firma(
+                db, reserva, cliente_firma, "arrendatario", "escrita", firma_svg=firma_svg,
+            )
+            if firma_service.completar_si_corresponde(db, reserva):
+                contrato_pdf = pdf_bytes
             reserva.estado = "en_curso"
-            if not reserva.fecha_firma_biometrica:
-                reserva.fecha_firma_biometrica = datetime.now(timezone.utc)
-            mensaje = "Checklist inicial completado con éxito. Arriendo iniciado (en_curso)."
+            mensaje = "Contrato firmado y checklist inicial registrado. Arriendo iniciado (en_curso)."
         else: # "despues" (devolución)
             reserva.estado = "finalizada"
             auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
@@ -623,6 +615,12 @@ class DeliveryService:
 
         db.commit()
         db.refresh(reserva)
+
+        if tipo == "antes" and contrato_pdf:
+            try:
+                firma_service.enviar_contrato(reserva, contrato_pdf)
+            except Exception:  # noqa: BLE001 — el correo nunca bloquea la entrega
+                logger.exception("[ENTREGA] No se pudo enviar el contrato firmado de %s", reserva.id)
 
         # Enganche con el depósito automático al dueño: best-effort, nunca
         # bloquea el cierre de la devolución (no-op salvo BCI_PAYOUTS_HABILITADO).

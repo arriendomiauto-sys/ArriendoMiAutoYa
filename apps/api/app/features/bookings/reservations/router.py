@@ -552,37 +552,33 @@ def firmar_contrato(
             detail={"motivo": "Falta el trazo de la firma manuscrita.", "categoria": "firma_vacia"},
         )
 
-    # 3. Bloque: hash del contrato vigente — prueba de QUÉ se está firmando
-    pdf_bytes = _generar_pdf_contrato(reserva, db)
-    pdf_hash = ContractService.calcular_hash_contrato(pdf_bytes)
+    # 3. Bloque: el contrato se firma EN LA ENTREGA, con las dos partes juntas:
+    # después de que el dueño verificó en persona la identidad del arrendatario.
+    # Antes se aceptaba firmar en cualquier momento (el arrendatario antes de
+    # pagar, el dueño apenas llegaba la solicitud) sin haber visto el auto.
+    from app.features.bookings.reservations import firma_service
 
-    # 4. Bloque: upsert del registro de firma (una por rol)
-    firma = (
-        db.query(FirmaContrato)
-        .filter(FirmaContrato.reserva_id == reserva_id, FirmaContrato.rol == rol)
-        .first()
+    if reserva.estado != "confirmada" or not firma_service.verificacion_entrega_confirmada(db, reserva_id):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "motivo": "El contrato se firma en la entrega, cuando se juntan, después de revisar el auto.",
+                "categoria": "firma_fuera_de_la_entrega",
+            },
+        )
+
+    # 4. Bloque: firma con el hash del contrato vigente (prueba de QUÉ se firmó)
+    firma, pdf_bytes = firma_service.registrar_firma(
+        db, reserva, current_user, rol, payload.metodo,
+        firma_svg=payload.firma_svg,
+        nombre_firmante=payload.nombre_firmante,
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
     )
-    if not firma:
-        firma = FirmaContrato(reserva_id=reserva_id, rol=rol)
-        db.add(firma)
-    firma.usuario_id = current_user.id
-    firma.metodo = payload.metodo
-    firma.firma_svg = payload.firma_svg if payload.metodo == "escrita" else None
-    firma.nombre_firmante = (payload.nombre_firmante or current_user.nombre or "").strip() or None
-    firma.hash_contrato_sha256 = pdf_hash
-    firma.ip = request.client.host if request.client else None
-    firma.user_agent = (request.headers.get("user-agent") or "")[:500] or None
-    firma.firmado_en = datetime.now(timezone.utc)
-
-    reserva.hash_contrato_sha256 = pdf_hash
 
     # 5. Bloque: con ambas partes firmadas, se marca la fecha de firma del contrato
-    roles_firmados = {f.rol for f in reserva.firmas} | {rol}
-    ambas_partes = {"arrendatario", "arrendador"}.issubset(roles_firmados)
-    contrato_recien_completado = ambas_partes and not reserva.fecha_firma_biometrica
-    if contrato_recien_completado:
-        reserva.fecha_firma_biometrica = firma.firmado_en
-
+    contrato_recien_completado = firma_service.completar_si_corresponde(db, reserva)
+    ambas_partes = firma_service.ambas_partes_firmaron(db, reserva)
     db.commit()
     db.refresh(firma)
 
@@ -603,21 +599,9 @@ def firmar_contrato(
             entidad_id=reserva_id,
         )
 
-    # 7. Bloque: contrato recién completado (primera vez que firman ambas
-    # partes) — se lo mandamos por correo a las dos, con el PDF ya generado
-    # arriba (mismos bytes que se hashearon, para no regenerar el documento
-    # dos veces). No hace nada si Resend no está configurado.
+    # 7. Bloque: contrato recién completado: se manda por correo a las dos partes.
     if contrato_recien_completado:
-        dueno = auto.dueno if auto else None
-        enviar_contrato_firmado(
-            destinatarios=[
-                (reserva.cliente.email if reserva.cliente else None),
-                (dueno.email if dueno else None),
-            ],
-            patente=auto.patente if auto else "",
-            reserva_id=reserva_id,
-            pdf_bytes=pdf_bytes,
-        )
+        firma_service.enviar_contrato(reserva, pdf_bytes)
 
     return firma
 

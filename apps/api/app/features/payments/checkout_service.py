@@ -201,9 +201,8 @@ def procesar_pago(
         db.commit()
         raise CheckoutError(409, "RESERVA_EXPIRADA", "La reserva expiró. Vuelve a solicitarla.")
 
-    # El contrato se firma ANTES de pagar (al menos por el arrendatario).
-    if "arrendatario" not in {f.rol for f in reserva.firmas}:
-        raise CheckoutError(409, "CONTRATO_NO_FIRMADO", "Firma el contrato antes de pagar.")
+    # El contrato NO se firma al pagar: se firma en la entrega, con las dos partes
+    # juntas y después de las fotos del auto (ver firma_service).
 
     if tarjeta_cobro_id == tarjeta_garantia_id:
         raise CheckoutError(402, "TARJETA_TIPO_INVALIDO",
