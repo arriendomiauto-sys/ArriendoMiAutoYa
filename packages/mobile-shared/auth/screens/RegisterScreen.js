@@ -250,7 +250,7 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
             </View>
 
             <View className="flex-grow min-h-[8px]" />
-            <Button testID="btn-continuar" label="Continuar" onPress={r.continuar} />
+            <Button testID="btn-continuar" label="Continuar" onPress={r.continuar} loading={r.verificandoTelefono} />
 
             {r.avisoCorreoExistente ? (
               <Button testID="btn-ir-login" variant="outline" size="sm" label="Ir a iniciar sesión" onPress={irALogin} />

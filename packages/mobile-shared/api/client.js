@@ -268,6 +268,14 @@ export class ApiClient {
     return this.request(`/usuarios/codigo-referido/${encodeURIComponent(codigo)}/validar`);
   }
 
+  // Público: un celular = una cuenta. `{ disponible }`.
+  static async telefonoDisponible(telefono) {
+    return this.request("/usuarios/telefono-disponible", {
+      method: "POST",
+      body: JSON.stringify({ telefono }),
+    });
+  }
+
   static async aplicarCodigoReferido(codigo) {
     return this.request("/usuarios/me/codigo-referido", {
       method: "PUT",

@@ -135,6 +135,7 @@ describe("RegisterScreen (arrendatario)", () => {
     mockVerifyOtp.mockReset().mockResolvedValue({ error: null });
     mockResend.mockReset().mockResolvedValue({});
     jest.spyOn(ApiClient, "actualizarPerfilBasico").mockResolvedValue({});
+    jest.spyOn(ApiClient, "telefonoDisponible").mockResolvedValue({ disponible: true });
   });
   afterEach(() => jest.restoreAllMocks());
 
@@ -191,6 +192,31 @@ describe("RegisterScreen (arrendatario)", () => {
       expect(textOf(tr)).toContain("El celular tiene 9 dígitos y empieza con 9.");
       expect(porTestId(tr, "input-telefono").props.invalid).toBe(true);
       expect(textOf(tr)).toContain("Paso 1 de 3");
+    });
+
+    it("un celular que ya tiene cuenta no deja avanzar y lo dice en el campo", async () => {
+      ApiClient.telefonoDisponible.mockResolvedValue({ disponible: false });
+      const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
+      await irALosTerminos(tr);
+
+      expect(ApiClient.telefonoDisponible).toHaveBeenCalledWith("+56 9 1234 5678");
+      expect(textOf(tr)).toContain("Paso 1 de 3");
+      expect(textOf(tr)).toContain("Este celular ya tiene una cuenta. Inicia sesión con ella.");
+      expect(porTestId(tr, "input-telefono").props.invalid).toBe(true);
+
+      // Al cambiar el número el aviso se va y se vuelve a consultar.
+      ApiClient.telefonoDisponible.mockResolvedValue({ disponible: true });
+      escribir(tr, "input-telefono", "9 8765 4321");
+      expect(textOf(tr)).not.toContain("Este celular ya tiene una cuenta");
+      await tocar(tr, "btn-continuar");
+      expect(textOf(tr)).toContain("Paso 2 de 3");
+    });
+
+    it("si no se puede consultar el celular (sin red), deja seguir igual", async () => {
+      ApiClient.telefonoDisponible.mockRejectedValue(new Error("Network request failed"));
+      const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
+      await irALosTerminos(tr);
+      expect(textOf(tr)).toContain("Paso 2 de 3");
     });
 
     it("no crea la cuenta todavía: solo pasa a los términos", async () => {

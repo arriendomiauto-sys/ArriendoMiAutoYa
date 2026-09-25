@@ -5,7 +5,7 @@ import { supabase } from "../../api/supabase";
 import { showAlert } from "../../utils/alert";
 import { traducirErrorAuth } from "../../utils/authErrors";
 import { normalizarTelefonoCompleto } from "../../utils/formato";
-import { LARGO_CODIGO, MENSAJE_CODIGO, erroresCuenta } from "./validaciones";
+import { LARGO_CODIGO, MENSAJE_CODIGO, MENSAJE_CELULAR_OCUPADO, erroresCuenta } from "./validaciones";
 import { useReferralCodeDetector } from "./useReferralCodeDetector";
 
 export const PASO_CUENTA = "cuenta";
@@ -54,6 +54,9 @@ export function useRegistroCuenta({ role }) {
   const [intentado, setIntentado] = useState(false);
   const [avisoCorreoExistente, setAvisoCorreoExistente] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState(null);
+  // Celular (tal como se escribió) que el backend dijo que ya tiene cuenta.
+  const [telefonoOcupado, setTelefonoOcupado] = useState(null);
+  const [verificandoTelefono, setVerificandoTelefono] = useState(false);
 
   // Código de verificación
   const [codigo, setCodigo] = useState(nuevoCodigo);
@@ -83,8 +86,33 @@ export function useRegistroCuenta({ role }) {
 
   /** `{ error, invalid }` de un campo del formulario, listo para pasarle al input. */
   const campo = (nombre) => {
-    const error = intentado || tocados[nombre] ? erroresCuenta(form)[nombre] : undefined;
+    let error = intentado || tocados[nombre] ? erroresCuenta(form)[nombre] : undefined;
+    if (!error && nombre === "telefono" && telefonoOcupado && telefonoOcupado === form.telefono) {
+      error = MENSAJE_CELULAR_OCUPADO;
+    }
     return { error: typeof error === "string" ? error : undefined, invalid: !!error };
+  };
+
+  /**
+   * Un celular = una cuenta: pregunta al backend antes de seguir. Si la consulta
+   * falla (sin red), deja seguir: el backend igual descarta un número repetido
+   * al crear la cuenta, y bloquear el registro por esto sería peor.
+   */
+  const telefonoLibre = async () => {
+    setVerificandoTelefono(true);
+    try {
+      const { disponible } = await ApiClient.telefonoDisponible(normalizarTelefonoCompleto(form.telefono));
+      if (disponible === false) {
+        setTelefonoOcupado(form.telefono);
+        telefonoRef.current?.focus();
+        return false;
+      }
+    } catch (err) {
+      console.warn("[Registro] No se pudo verificar el celular:", err?.message);
+    } finally {
+      setVerificandoTelefono(false);
+    }
+    return true;
   };
 
   // ---- Paso 1 -> 2: Valida datos, crea la cuenta y pasa directamente al paso de código ---
@@ -93,6 +121,10 @@ export function useRegistroCuenta({ role }) {
     const errores = erroresCuenta(form);
     if (errores.telefono && Object.keys(errores).length === 1) telefonoRef.current?.focus();
     if (Object.keys(errores).length > 0) return false;
+    if (telefonoOcupado === form.telefono || !(await telefonoLibre())) {
+      setPaso(PASO_CUENTA);
+      return false;
+    }
 
     if (enCurso.current) return false;
     enCurso.current = true;
@@ -129,8 +161,9 @@ export function useRegistroCuenta({ role }) {
     return Object.keys(errores).length === 0;
   };
 
-  const continuar = () => {
-    if (!validar()) return false;
+  const continuar = async () => {
+    if (!validar() || verificandoTelefono) return false;
+    if (telefonoOcupado === form.telefono || !(await telefonoLibre())) return false;
     setPaso(PASO_TERMINOS);
     return true;
   };
@@ -223,6 +256,7 @@ export function useRegistroCuenta({ role }) {
     numeroDePaso: NUMERO_DE_PASO[paso] || TOTAL_PASOS,
     totalPasos: TOTAL_PASOS,
     loading,
+    verificandoTelefono,
     form,
     cambiar,
     alSalir,

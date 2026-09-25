@@ -76,6 +76,7 @@ describe("OwnerRegisterScreen", () => {
     mockRegister.mockReset().mockResolvedValue({});
     mockVerifyOtp.mockReset().mockResolvedValue({ error: null });
     jest.spyOn(ApiClient, "actualizarPerfilBasico").mockResolvedValue({});
+    jest.spyOn(ApiClient, "telefonoDisponible").mockResolvedValue({ disponible: true });
   });
   afterEach(() => jest.restoreAllMocks());
 

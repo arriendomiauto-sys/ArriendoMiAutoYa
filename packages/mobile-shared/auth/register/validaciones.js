@@ -13,6 +13,7 @@ export const MENSAJE_NOMBRE = "Escribe tu nombre como aparece en tu cédula.";
 export const MENSAJE_APELLIDO = "Escribe tu apellido como aparece en tu cédula.";
 export const MENSAJE_CORREO = "Escribe un correo válido, como nombre@correo.cl.";
 export const MENSAJE_CELULAR = "El celular tiene 9 dígitos y empieza con 9.";
+export const MENSAJE_CELULAR_OCUPADO = "Este celular ya tiene una cuenta. Inicia sesión con ella.";
 export const MENSAJE_CODIGO = "El código no coincide o venció. Pide uno nuevo.";
 export const LARGO_CODIGO = 6;
 
