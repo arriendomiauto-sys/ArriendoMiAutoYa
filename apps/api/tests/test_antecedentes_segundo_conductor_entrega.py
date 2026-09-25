@@ -27,6 +27,10 @@ def _con_conductor(db_session, reserva, estado):
 
 
 def _entregar(auth_as, dueno, reserva):
+    from sqlalchemy.orm import object_session
+    from conftest import dejar_listo_para_firmar
+
+    dejar_listo_para_firmar(object_session(reserva), reserva.id)
     return auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/checklist",
         json={"tipo": "antes", "fotos": ["https://ej.com/1.jpg"], "kilometraje": 25000,

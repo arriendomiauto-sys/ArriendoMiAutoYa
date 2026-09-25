@@ -196,6 +196,11 @@ def procesar_pago(
     if reserva.estado != "pendiente_pago":
         raise CheckoutError(409, "ESTADO_INVALIDO", "La reserva no está esperando pago.")
 
+    # Un intento anterior ya retuvo la garantía y dejó el cobro en revisión del banco:
+    # reintentar (doble toque, reintento tras un timeout) cobraría todo de nuevo.
+    if _checkout_en_curso(db, reserva):
+        return _respuesta_en_revision(reserva)
+
     if reserva.expira_en and _ahora() > reserva.expira_en:
         reserva.estado = "cancelada"
         db.commit()
@@ -286,11 +291,7 @@ def procesar_pago(
         reserva.tarjeta_cobro_id = tc.id
         reserva.tarjeta_garantia_id = tg.id
         db.commit()
-        return {
-            "estado": "pendiente",
-            "motivo": "El cobro quedó en revisión de tu banco. Te avisamos apenas se acredite.",
-            "expira_en": reserva.expira_en.isoformat() if reserva.expira_en else None,
-        }
+        return _respuesta_en_revision(reserva)
 
     if not res_cobro.get("autorizada"):
         _liberar(res_hold.get("payment_id"))
@@ -317,6 +318,24 @@ def _respuesta_pagada(reserva: Reserva) -> Dict[str, Any]:
         return {"estado": "confirmada"}
     plazo = reserva.confirmar_dueno_antes_de
     return {"estado": "esperando_dueno", "confirmar_antes_de": plazo.isoformat() if plazo else None}
+
+
+def _respuesta_en_revision(reserva: Reserva) -> Dict[str, Any]:
+    return {
+        "estado": "pendiente",
+        "motivo": "El cobro quedó en revisión de tu banco. Te avisamos apenas se acredite.",
+        "expira_en": reserva.expira_en.isoformat() if reserva.expira_en else None,
+    }
+
+
+def _checkout_en_curso(db: Session, reserva: Reserva) -> bool:
+    """Hay un cobro del arriendo esperando al banco para esta reserva."""
+    return (
+        db.query(Pago.id)
+        .filter(Pago.reserva_id == reserva.id, Pago.tipo == "cobro_arriendo", Pago.estado == "pendiente")
+        .first()
+        is not None
+    )
 
 
 def _registrar_pago(db, reserva, usuario, tipo, monto, estado, payment_id) -> None:

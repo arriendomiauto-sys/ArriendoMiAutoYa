@@ -71,10 +71,7 @@ def escenario(usuario_factory, auth_as, db_session):
     credito = _tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111")
 
     reserva = _reservar(auth_as, cliente, auto).json()
-    firma = auth_as(cliente).post(
-        f"/api/v1/reservas/{reserva['id']}/firmar-contrato", json={"metodo": "huella", "acepta_terminos": True}
-    )
-    assert firma.status_code == 200, firma.text
+    # El contrato ya no se firma antes de pagar: se firma en la entrega.
     pago = auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
         json={"tarjeta_cobro_id": debito["id"], "tarjeta_garantia_id": credito["id"]},

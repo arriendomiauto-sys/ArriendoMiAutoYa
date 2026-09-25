@@ -271,6 +271,18 @@ def _push_inline(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _cuenta_mp_no_es_de_prueba(monkeypatch):
+    """
+    `MercadoPagoService.modo_prueba()` le pregunta a Mercado Pago (/users/me) si
+    la cuenta es de prueba. En los tests nunca se sale a la red: se da por
+    respondido "no es de prueba" y manda solo MERCADOPAGO_TEST_MODE.
+    """
+    from app.features.payments import mercadopago_service
+
+    monkeypatch.setattr(mercadopago_service, "_cuenta_de_prueba", False)
+
+
+@pytest.fixture(autouse=True)
 def _reset_token_cache():
     """
     El cache de validación de sesión (app.services.auth) vive a nivel de
@@ -368,3 +380,36 @@ def auth_as(client):
         app.dependency_overrides[get_optional_current_user] = lambda: usuario
         return client
     return _auth_as
+
+
+def dejar_listo_para_firmar(db, reserva_id, con_firma_dueno=True):
+    """
+    Deja una reserva como queda en la vida real justo antes de firmar en la
+    entrega: identidad del arrendatario verificada EN PERSONA por el dueño y,
+    salvo `con_firma_dueno=False`, la firma del dueño con su huella. El
+    contrato solo se puede firmar ahí (ver reservations/firma_service.py).
+    Importable desde los helpers de los tests: `from conftest import dejar_listo_para_firmar`.
+    """
+    from app.models.entities import Auto, Reserva, Usuario, VerificacionEntrega
+    from app.features.bookings.reservations import firma_service
+
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    dueno = db.query(Usuario).filter(Usuario.id == auto.dueno_id).first()
+    if not firma_service.verificacion_entrega_confirmada(db, reserva_id):
+        db.add(VerificacionEntrega(
+            reserva_id=reserva_id, tipo="entrega", resultado="confirmada", dueno_id_que_verifica=dueno.id,
+        ))
+        db.flush()
+    if con_firma_dueno:
+        firma_service.registrar_firma(db, reserva, dueno, "arrendador", "huella")
+    db.commit()
+    return reserva
+
+
+@pytest.fixture
+def preparar_entrega(db_session):
+    """`preparar_entrega(reserva, con_firma_dueno=True)`: ver `dejar_listo_para_firmar`."""
+    def _preparar(reserva_o_id, con_firma_dueno=True):
+        return dejar_listo_para_firmar(db_session, getattr(reserva_o_id, "id", reserva_o_id), con_firma_dueno)
+    return _preparar

@@ -36,7 +36,10 @@ def pagar_reserva(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    # Fila bloqueada hasta el commit: dos pedidos simultáneos (doble toque, reintento
+    # de la app tras un timeout) se atienden de a uno, y el segundo ya ve la reserva
+    # pagada en vez de cobrar otra vez.
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).with_for_update().first()
     if not reserva:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
     if reserva.cliente_id != current_user.id:

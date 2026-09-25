@@ -53,7 +53,7 @@ def test_un_cobro_posterior_valido_funciona(escenario, auth_as, db_session):
 def test_dos_cobros_del_mismo_tipo_no_comparten_referencia_de_idempotencia(escenario, auth_as, monkeypatch):
     referencias = []
 
-    def espia(tarjeta, cliente, monto, capturar, ref):
+    def espia(tarjeta, cliente, monto, capturar, ref, **_):
         referencias.append(ref)
         return {"success": True, "autorizada": True, "capturado": True, "estado": "approved",
                 "payment_id": f"SIMULADO-{len(referencias)}"}

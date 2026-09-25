@@ -3,7 +3,8 @@ Pruebas de cobros y pagos en Mercado Pago en modo prueba.
 
 Verifica que cuando `MERCADOPAGO_TEST_MODE` está activo:
 - Todos los cobros (preferencias de Checkout Pro y pagos directos con tarjeta tokenizada)
-  se envían a Mercado Pago con el correo `test@test.com`.
+  se envían a Mercado Pago con un correo `test_payer_N@testuser.com` (el
+  formato que Mercado Pago exige con usuarios de prueba), nunca el real.
 - Cuando está desactivado (producción), se envía el correo real del usuario.
 """
 import pytest
@@ -60,7 +61,8 @@ def test_crear_preferencia_modo_prueba_usa_test_at_test(mp_config, monkeypatch):
     metodo, ruta, json_body = llamadas[0]
     assert metodo == "POST"
     assert ruta == "/checkout/preferences"
-    assert json_body["payer"] == {"email": "test@test.com"}
+    # Mercado Pago exige el formato test_payer_N@testuser.com con usuarios de prueba.
+    assert json_body["payer"] == {"email": MercadoPagoService.email_de_prueba("usuario.real@gmail.com")}
     assert "usuario.real@gmail.com" not in str(json_body)
 
 
@@ -102,7 +104,8 @@ def test_crear_pago_con_tarjeta_modo_prueba_usa_test_at_test(mp_config, monkeypa
     metodo, ruta, json_body = llamadas[0]
     assert metodo == "POST"
     assert ruta == "/v1/payments"
-    assert json_body["payer"] == {"email": "test@test.com"}
+    # Mercado Pago exige el formato test_payer_N@testuser.com con usuarios de prueba.
+    assert json_body["payer"] == {"email": MercadoPagoService.email_de_prueba("usuario.real@gmail.com")}
     assert "usuario.real@gmail.com" not in str(json_body)
 
 

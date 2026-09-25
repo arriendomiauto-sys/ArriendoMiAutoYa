@@ -3,7 +3,7 @@ Bóveda de tarjetas · modo prueba.
 
 Con `MERCADOPAGO_TEST_MODE` encendido, el alta de tarjeta contra Mercado Pago
 (camino real, token `TEST-`) debe crear el customer con el correo ficticio
-`test@test.com`, no con el correo real del usuario: MP en sandbox rechaza /
+`test_payer_N@testuser.com` (formato exigido por Mercado Pago), no con el correo real del usuario: MP en sandbox rechaza /
 ensucia el entorno con correos de producción.
 """
 import pytest
@@ -58,7 +58,9 @@ def test_modo_prueba_usa_correo_ficticio(mp_real, monkeypatch):
 
     creacion = next((c for c in llamadas if c[1] == "/v1/customers"), None)
     assert creacion is not None, "no se llamó a POST /v1/customers"
-    assert creacion[2]["email"] == "test@test.com"
+    from app.features.payments.mercadopago_service import MercadoPagoService
+
+    assert creacion[2]["email"] == MercadoPagoService.email_de_prueba("cliente.real@gmail.com")
     # y nunca se filtró el correo real
     assert all("cliente.real@gmail.com" not in str(c) for c in llamadas)
 

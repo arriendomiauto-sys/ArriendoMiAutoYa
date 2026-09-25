@@ -15,6 +15,7 @@ un arrendatario) podía:
 
 Ciclo válido: confirmada --(antes)--> en_curso --(despues)--> finalizada.
 """
+from sqlalchemy.orm import object_session
 import pytest
 
 from app.models.entities import Pago, Reserva, Usuario
@@ -31,7 +32,11 @@ def _escenario(db_session, estado):
 def _checklist(auth_as, dueno, reserva_id, tipo):
     cuerpo = {"tipo": tipo, "fotos": ["https://ej.com/1.jpg"], "kilometraje": 25000, "nivel_combustible": "lleno"}
     if tipo == "antes":
-        cuerpo["firma_svg"] = "M1 1L2 2"  # el dueño puede aportar la firma en persona
+        from conftest import dejar_listo_para_firmar
+
+        # Juntos en la entrega: identidad verificada y el dueño firmó; el arrendatario firma con el trazo.
+        dejar_listo_para_firmar(object_session(dueno), reserva_id)
+        cuerpo["firma_svg"] = "M1 1L2 2"
     return auth_as(dueno).post(f"/api/v1/entrega/{reserva_id}/checklist", json=cuerpo)
 
 

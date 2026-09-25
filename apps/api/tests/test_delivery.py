@@ -1,3 +1,4 @@
+from conftest import dejar_listo_para_firmar
 from app.models.entities import Reserva, Disputa, Usuario, ChecklistAuto, Pago
 
 def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
@@ -28,6 +29,12 @@ def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
     )
     assert resp_conf.status_code == 200
     assert resp_conf.json()["siguiente_paso"] == "checklist_fotos"
+
+    # 4b. Juntos: el dueño firma con su huella (el arrendatario firma con el trazo del checklist)
+    resp_firma = auth_as(dueno).post(
+        f"/api/v1/reservas/{reserva.id}/firmar-contrato", json={"metodo": "huella", "acepta_terminos": True}
+    )
+    assert resp_firma.status_code == 200, resp_firma.text
 
     # 5. Dueño completa checklist 'antes' (inicia el arriendo)
     resp_check_antes = auth_as(dueno).post(
@@ -66,6 +73,7 @@ def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
 def test_checklist_antes_guarda_la_firma_svg(client, db_session, auth_as):
     reserva = db_session.query(Reserva).first()
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    dejar_listo_para_firmar(db_session, reserva.id)
 
     trazo = "M10 10 L20 20 L30 10"
     resp = auth_as(dueno).post(
@@ -95,6 +103,7 @@ def test_checklist_antes_guarda_la_selfie_en_su_propio_campo(client, db_session,
     """
     reserva = db_session.query(Reserva).first()
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    dejar_listo_para_firmar(db_session, reserva.id)
 
     resp = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/checklist",
@@ -124,6 +133,7 @@ def test_checklist_antes_sin_firma_es_rechazado(client, db_session, auth_as):
     exigencia del lado servidor, para no depender solo del cliente."""
     reserva = db_session.query(Reserva).first()
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    dejar_listo_para_firmar(db_session, reserva.id)
 
     resp = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/checklist",
@@ -148,6 +158,7 @@ def test_checklist_despues_no_necesita_firma(client, db_session, auth_as):
     entregar, no al devolver."""
     reserva = db_session.query(Reserva).first()
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    dejar_listo_para_firmar(db_session, reserva.id)
     c = auth_as(dueno)
 
     c.post(
@@ -183,6 +194,7 @@ def test_rechazo_identidad_crea_disputa_y_bloquea(client, db_session, auth_as):
     reserva = db_session.query(Reserva).first()
     assert reserva is not None
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    dejar_listo_para_firmar(db_session, reserva.id)
 
     # Dueño rechaza la identidad con foto y motivo
     resp_rechazo = auth_as(dueno).post(
@@ -212,6 +224,7 @@ def test_checklist_despues_con_dano_retiene_garantia_y_abre_disputa(client, db_s
     reserva pasa a disputada y se abre formalmente la Disputa con la evidencia."""
     reserva = db_session.query(Reserva).first()
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    dejar_listo_para_firmar(db_session, reserva.id)
     c = auth_as(dueno)
 
     # Simular que existía garantía retenida
@@ -275,6 +288,7 @@ def test_codigo_qr_expira_a_los_dos_minutos(client, db_session, auth_as):
     reserva = db_session.query(Reserva).first()
     cliente = db_session.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
+    dejar_listo_para_firmar(db_session, reserva.id)
 
     # Cliente genera código QR
     resp_qr = auth_as(cliente).post(f"/api/v1/reservas/{reserva.id}/generar-codigo")

@@ -126,8 +126,9 @@ def test_iniciar_y_confirmar_siguen_funcionando_para_un_pago_legitimo(usuario_fa
     assert confirmado.json()["autorizada"] is True
     db_session.expire_all()
     assert db_session.get(Pago, datos["pago_id"]).estado in ("capturado", "retenido")
-    # Pagada: queda esperando al dueño, que es quien la confirma.
-    assert db_session.get(Reserva, reserva.id).estado == "pendiente"
+    # Con la garantía sola no está pagada: falta cobrar el arriendo ($60.000), que va
+    # por el checkout de la reserva (/reservas/{id}/pagar). Ver test_blindaje_checkout.py.
+    assert db_session.get(Reserva, reserva.id).estado == "pendiente_pago"
 
 
 # ===========================================================================

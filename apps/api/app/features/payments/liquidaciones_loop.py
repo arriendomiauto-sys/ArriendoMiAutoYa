@@ -8,15 +8,21 @@ from app.features.payments import liquidaciones_service
 logger = logging.getLogger(__name__)
 
 
+def _pasada(session_factory):
+    db = session_factory()
+    try:
+        return liquidaciones_service.ejecutar_liquidaciones_pendientes(db)
+    finally:
+        db.close()
+
+
 async def _bucle(session_factory) -> None:
     while True:
         try:
             await asyncio.sleep(max(1, settings.LIQUIDACIONES_INTERVALO_MINUTOS) * 60)
-            db = session_factory()
-            try:
-                liquidaciones_service.ejecutar_liquidaciones_pendientes(db)
-            finally:
-                db.close()
+            # En un hilo aparte: las transferencias al BCI son HTTP bloqueante y en el
+            # event loop dejaban a la API sin responder mientras duraban.
+            await asyncio.to_thread(_pasada, session_factory)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001

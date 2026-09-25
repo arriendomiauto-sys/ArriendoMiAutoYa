@@ -119,16 +119,17 @@ def test_post_deposito_realizado_arma_el_payload_correcto(monkeypatch):
         mock_client_cls.return_value.__enter__.return_value = mock_instance
 
         _post_deposito_realizado(
-            ["dueno@test.cl"], "Depositamos $85.000 CLP en tu cuenta", "<p>hola</p>",
+            ["dueno@test.cl"], "Depositamos $85.000 CLP en tu cuenta", "<p>hola</p>", "hola",
         )
 
         mock_instance.post.assert_called_once()
         _, kwargs = mock_instance.post.call_args
         body = kwargs["json"]
-        assert body["from"] == "contratos@arriendomiautoya.cl"
+        assert body["from"] == "ArriendoMiAutoYa <contratos@arriendomiautoya.cl>"
         assert body["to"] == ["dueno@test.cl"]
         assert body["subject"] == "Depositamos $85.000 CLP en tu cuenta"
         assert body["html"] == "<p>hola</p>"
+        assert body["text"] == "hola"
         assert "attachments" not in body
         assert kwargs["headers"]["Authorization"] == "Bearer re_test_key"
 
@@ -141,4 +142,4 @@ def test_post_deposito_realizado_tolerante_a_fallos_http(monkeypatch):
         mock_client_cls.return_value.__enter__.return_value = mock_instance
 
         # No debe lanzar excepción — best-effort.
-        _post_deposito_realizado(["dueno@test.cl"], "asunto", "<p>x</p>")
+        _post_deposito_realizado(["dueno@test.cl"], "asunto", "<p>x</p>", "x")

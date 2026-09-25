@@ -61,9 +61,9 @@ def _reserva(
     if con_pagos:
         db_session.add_all([
             Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="hold_reserva",
-                 monto=MONTO_HOLD, estado="retenido", referencia_pago="MP-HOLD-1"),
+                 monto=MONTO_HOLD, estado="retenido", referencia_pago="1000000001"),
             Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="cobro_arriendo",
-                 monto=MONTO_COBRO, estado=cobro_estado, referencia_pago="MP-COBRO-1"),
+                 monto=MONTO_COBRO, estado=cobro_estado, referencia_pago="1000000002"),
         ])
         db_session.commit()
     return reserva
@@ -126,8 +126,8 @@ def test_arrendatario_cancela_con_anticipacion_recibe_todo_de_vuelta(
     assert resp.json()["estado"] == "cancelada"
     assert _pago(db_session, reserva, "hold_reserva").estado == "liberado"
     assert _pago(db_session, reserva, "cobro_arriendo").estado == "reembolsado"
-    assert pasarela["liberar"] == ["MP-HOLD-1"]
-    assert pasarela["reembolsar"] == [("MP-COBRO-1", None)]
+    assert pasarela["liberar"] == ["1000000001"]
+    assert pasarela["reembolsar"] == [("1000000002", None)]
 
 
 def test_arrendatario_cancela_tarde_libera_garantia_pero_no_reembolsa_solo(
@@ -141,7 +141,7 @@ def test_arrendatario_cancela_tarde_libera_garantia_pero_no_reembolsa_solo(
     assert resp.status_code == 200, resp.text
     assert _pago(db_session, reserva, "hold_reserva").estado == "liberado"
     assert _pago(db_session, reserva, "cobro_arriendo").estado == "capturado"
-    assert pasarela["liberar"] == ["MP-HOLD-1"]
+    assert pasarela["liberar"] == ["1000000001"]
     assert pasarela["reembolsar"] == []
 
 
@@ -325,7 +325,7 @@ def test_barrido_libera_la_garantia_que_quedo_retenida(partes, db_session, pasar
     expirar_reservas_vencidas(db_session)
 
     assert _pago(db_session, reserva, "hold_reserva").estado == "liberado"
-    assert pasarela["liberar"][0] == "MP-HOLD-1"
+    assert pasarela["liberar"][0] == "1000000001"
     # Un cobro que nunca se acreditó no se "reembolsa": se cancela en la pasarela.
     assert pasarela["reembolsar"] == []
     assert _pago(db_session, reserva, "cobro_arriendo").estado == "liberado"
@@ -355,7 +355,7 @@ def test_barrido_libera_garantias_de_reservas_ya_canceladas(partes, db_session, 
     assert liberadas == 1
     assert _pago(db_session, colgada, "hold_reserva").estado == "liberado"
     assert _pago(db_session, viva, "hold_reserva").estado == "retenido"
-    assert pasarela["liberar"] == ["MP-HOLD-1"]
+    assert pasarela["liberar"] == ["1000000001"]
     # El cobro no se toca: si correspondía devolverlo se hizo al cancelar.
     assert _pago(db_session, colgada, "cobro_arriendo").estado == "capturado"
 
@@ -368,9 +368,10 @@ def test_una_pasada_del_barrido_hace_ambas_tareas(partes, db_session, pasarela):
              expira_en=_ahora() - timedelta(minutes=1), patente="PAS-001")
     _reserva(db_session, cliente, dueno, estado="cancelada", patente="PAS-002")
 
-    assert barrido_reservas(db_session) == {
-        "expiradas": 1, "confirmaciones_vencidas": 0,
-        "recordatorios": {"confirmacion": 0, "aviso_previo_multa": 0},
-        "no_presentaciones": {"arrendatario": 0, "dueno": 0, "ninguno": 0},
-        "garantias_liberadas": 1,
-    }
+    resumen = barrido_reservas(db_session)
+    assert resumen["expiradas"] == 1
+    assert resumen["garantias_liberadas"] == 1
+    assert resumen["confirmaciones_vencidas"] == 0
+    assert resumen["recordatorios"] == {"confirmacion": 0, "aviso_previo_multa": 0}
+    assert resumen["no_presentaciones"] == {"arrendatario": 0, "dueno": 0, "ninguno": 0}
+    assert "error" not in resumen.values()

@@ -269,11 +269,14 @@ def ejecutar_liquidaciones_pendientes(
     filtros = [
         Pago.tipo == "liquidacion_dueno",
         ~Pago.reserva_id.in_(reservas_disputadas),
-        # La plata del arrendatario todavía puede volver (contracargo, reembolso por
-        # disputa): no se le transfiere al dueño hasta que pase el período de retención.
-        Pago.timestamp <= _corte_retencion(),
         or_(
-            Pago.estado.in_(["pendiente", "fallido"]),
+            and_(
+                Pago.estado.in_(["pendiente", "fallido"]),
+                # La plata del arrendatario todavía puede volver (contracargo, reembolso por
+                # disputa): no se le transfiere al dueño hasta que pase el período de retención.
+                # No aplica a un 'procesando': esa transferencia ya salió y hay que reconciliarla.
+                Pago.timestamp <= _corte_retencion(),
+            ),
             and_(
                 Pago.estado == "procesando",
                 or_(
@@ -373,15 +376,18 @@ def _notificar_liquidacion_lista(db: Session, pago: Pago, cuenta: Optional[dict]
     if cuenta == "auto":
         cuenta = _cuenta_predeterminada(db, pago.usuario_id)
     monto = f"${int(pago.monto or 0):,} CLP".replace(",", ".")
+    dias = int(settings.LIQUIDACION_RETENCION_DIAS or 0)
+    # Con retención el depósito no sale hoy: se le dice cuándo, para que no lo espere antes.
+    cuando = f"en {dias} días" if dias > 0 else "en camino"
     if cuenta:
         mensaje = (
             f"Tu ganancia de {monto} quedó lista. "
-            "El depósito va en camino a tu cuenta de cobro."
+            f"El depósito a tu cuenta de cobro sale {cuando}."
         )
     else:
         mensaje = (
             f"Tu ganancia de {monto} quedó lista. "
-            "Agregá una cuenta de cobro en Ganancias para recibir el depósito."
+            "Agrega una cuenta de cobro en Ganancias para recibir el depósito."
         )
     crear_notificacion(
         db, usuario_id=pago.usuario_id, tipo="pago",

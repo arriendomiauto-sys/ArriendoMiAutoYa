@@ -52,16 +52,6 @@ def _crear_reserva(auth_as, cliente, auto):
     )
 
 
-def _firmar(auth_as, cliente, reserva_id):
-    return auth_as(cliente).post(
-        f"/api/v1/reservas/{reserva_id}/firmar-contrato",
-        json={"metodo": "huella", "acepta_terminos": True},
-    )
-
-
-# ===========================================================================
-# Bóveda de tarjetas
-# ===========================================================================
 def test_agregar_tarjetas_debito_y_credito(usuario_factory, auth_as, db_session):
     user = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado",
                            tarjeta_estado="pendiente")
@@ -151,7 +141,6 @@ def test_pago_dual_deja_la_reserva_esperando_al_dueno(usuario_factory, auth_as, 
     assert reserva["monto_cobro"] == 60000              # 3 días × 20.000
     assert reserva["garantia"]["monto"] == 500000       # garantía default "suv"
 
-    assert _firmar(auth_as, cliente, reserva["id"]).status_code == 200
 
     pago = auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
@@ -169,7 +158,8 @@ def test_pago_dual_deja_la_reserva_esperando_al_dueno(usuario_factory, auth_as, 
     assert tipos["hold_reserva"].estado == "retenido"
 
 
-def test_pagar_exige_firmar_el_contrato_antes(usuario_factory, auth_as, db_session):
+def test_pagar_no_exige_firmar_el_contrato(usuario_factory, auth_as, db_session):
+    """El contrato se firma en la entrega, con las dos partes: se paga sin firmar."""
     dueno = usuario_factory(roles_activos=["dueno"], estado_documentos="verificado")
     auto = _auto(db_session, dueno, patente="PGNF-13")
     cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
@@ -181,8 +171,8 @@ def test_pagar_exige_firmar_el_contrato_antes(usuario_factory, auth_as, db_sessi
         f"/api/v1/reservas/{reserva['id']}/pagar",
         json={"tarjeta_cobro_id": deb["id"], "tarjeta_garantia_id": cred["id"]},
     )
-    assert pago.status_code == 409
-    assert pago.json()["detail"]["codigo"] == "CONTRATO_NO_FIRMADO"
+    assert pago.status_code == 200, pago.text
+    assert pago.json()["estado"] == "esperando_dueno"
 
 
 def test_pagar_con_debito_en_la_garantia_se_rechaza(usuario_factory, auth_as, db_session):
@@ -192,7 +182,6 @@ def test_pagar_con_debito_en_la_garantia_se_rechaza(usuario_factory, auth_as, db
     deb = _agregar_tarjeta(auth_as, cliente, "SIMULADO-DEBITO-4242").json()["tarjeta"]
     cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111").json()["tarjeta"]
     reserva = _crear_reserva(auth_as, cliente, auto).json()
-    _firmar(auth_as, cliente, reserva["id"])
 
     # La garantía SIEMPRE es un hold en crédito — débito ahí sigue inválido,
     # aunque crédito para el cobro ya no lo sea (ver el test siguiente).
@@ -215,7 +204,6 @@ def test_pagar_el_arriendo_con_credito_es_valido(usuario_factory, auth_as, db_se
     cred_cobro = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111").json()["tarjeta"]
     cred_garantia = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-2222").json()["tarjeta"]
     reserva = _crear_reserva(auth_as, cliente, auto).json()
-    _firmar(auth_as, cliente, reserva["id"])
 
     pago = auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
@@ -231,7 +219,6 @@ def test_pagar_con_la_misma_tarjeta_en_cobro_y_garantia_se_rechaza(usuario_facto
     cliente = usuario_factory(roles_activos=["cliente"], estado_documentos="verificado")
     cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111").json()["tarjeta"]
     reserva = _crear_reserva(auth_as, cliente, auto).json()
-    _firmar(auth_as, cliente, reserva["id"])
 
     pago = auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
@@ -248,7 +235,6 @@ def test_cobro_rechazado_no_deja_garantia_retenida(usuario_factory, auth_as, db_
     deb = _agregar_tarjeta(auth_as, cliente, "SIMULADO-DEBITO-0000").json()["tarjeta"]   # rechaza
     cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111").json()["tarjeta"]
     reserva = _crear_reserva(auth_as, cliente, auto).json()
-    _firmar(auth_as, cliente, reserva["id"])
 
     pago = auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
@@ -269,7 +255,6 @@ def test_garantia_sin_cupo(usuario_factory, auth_as, db_session):
     deb = _agregar_tarjeta(auth_as, cliente, "SIMULADO-DEBITO-4242").json()["tarjeta"]
     cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-0000").json()["tarjeta"]  # rechaza
     reserva = _crear_reserva(auth_as, cliente, auto).json()
-    _firmar(auth_as, cliente, reserva["id"])
 
     pago = auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
@@ -289,7 +274,6 @@ def test_reserva_expirada(usuario_factory, auth_as, db_session):
     deb = _agregar_tarjeta(auth_as, cliente, "SIMULADO-DEBITO-4242").json()["tarjeta"]
     cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111").json()["tarjeta"]
     reserva = _crear_reserva(auth_as, cliente, auto).json()
-    _firmar(auth_as, cliente, reserva["id"])
 
     r = db_session.query(Reserva).filter(Reserva.id == reserva["id"]).first()
     r.expira_en = datetime.utcnow() - timedelta(minutes=1)
@@ -312,7 +296,6 @@ def test_no_se_puede_borrar_tarjeta_en_uso(usuario_factory, auth_as, db_session)
     deb = _agregar_tarjeta(auth_as, cliente, "SIMULADO-DEBITO-4242").json()["tarjeta"]
     cred = _agregar_tarjeta(auth_as, cliente, "SIMULADO-CREDITO-1111").json()["tarjeta"]
     reserva = _crear_reserva(auth_as, cliente, auto).json()
-    _firmar(auth_as, cliente, reserva["id"])
     auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
         json={"tarjeta_cobro_id": deb["id"], "tarjeta_garantia_id": cred["id"]},

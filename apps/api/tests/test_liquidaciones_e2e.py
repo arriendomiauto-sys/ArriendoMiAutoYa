@@ -41,6 +41,10 @@ def _cerrar_devolucion(client, db_session, auth_as, notas_despues="Devuelto limp
         f"/api/v1/entrega/{reserva.id}/confirmar-verificacion",
         json={"resultado": "confirmada", "tipo": "entrega"},
     )
+    # Juntos y con las fotos: el dueño firma con su huella; el arrendatario, con el trazo del checklist.
+    auth_as(dueno).post(
+        f"/api/v1/reservas/{reserva.id}/firmar-contrato", json={"metodo": "huella", "acepta_terminos": True}
+    )
     r_antes = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/checklist",
         json={

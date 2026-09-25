@@ -244,15 +244,26 @@ def barrido_reservas(db: Session) -> dict:
     from app.features.bookings.reservations import confirmacion_service
     from app.features.payments import cargos_service, estado_pagos, garantia_renovacion
 
-    return {
-        "expiradas": expirar_reservas_vencidas(db),
-        "confirmaciones_vencidas": confirmacion_service.expirar_confirmaciones_vencidas(db),
+    pasos = (
+        ("expiradas", expirar_reservas_vencidas),
+        ("confirmaciones_vencidas", confirmacion_service.expirar_confirmaciones_vencidas),
         # Los avisos van antes de decidir: quien no demostró su llegada se entera antes de que se le multe.
-        "recordatorios": confirmacion_service.enviar_recordatorios_de_politica(db),
-        "no_presentaciones": confirmacion_service.resolver_no_presentaciones(db),
-        "garantias_liberadas": liberar_garantias_colgadas(db),
-        "garantias_renovadas": garantia_renovacion.renovar_garantias_por_vencer(db),
-        "reembolsos": estado_pagos.reintentar_reembolsos_pendientes(db),
-        "garantias_por_saldar": cargos_service.reintentar_garantias(db),
-        "conciliacion": estado_pagos.conciliar(db),
-    }
+        ("recordatorios", confirmacion_service.enviar_recordatorios_de_politica),
+        ("no_presentaciones", confirmacion_service.resolver_no_presentaciones),
+        ("garantias_liberadas", liberar_garantias_colgadas),
+        ("garantias_renovadas", garantia_renovacion.renovar_garantias_por_vencer),
+        ("reembolsos", estado_pagos.reintentar_reembolsos_pendientes),
+        ("garantias_por_saldar", cargos_service.reintentar_garantias),
+        ("conciliacion", estado_pagos.conciliar),
+    )
+    resumen = {}
+    for nombre, paso in pasos:
+        # Cada paso mueve plata por su cuenta: si uno falla, los demás igual corren
+        # (antes un error al reintentar un reembolso dejaba garantías sin soltar).
+        try:
+            resumen[nombre] = paso(db)
+        except Exception:  # noqa: BLE001
+            logger.exception("[reservas] Falló el paso '%s' del barrido", nombre)
+            db.rollback()
+            resumen[nombre] = "error"
+    return resumen

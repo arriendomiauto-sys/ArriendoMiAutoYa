@@ -1,7 +1,6 @@
 """
-Envío del contrato firmado por correo (Resend). Se dispara desde
-firmar_contrato la PRIMERA vez que ambas partes quedan firmadas — no en cada
-firma individual. Apagado por defecto (sin RESEND_API_KEY) para no salir a
+Envío del contrato firmado por correo (Resend). Se dispara en la entrega, la
+PRIMERA vez que ambas partes quedan firmadas — no en cada firma individual. Apagado por defecto (sin RESEND_API_KEY) para no salir a
 la red en dev/tests.
 """
 import base64
@@ -24,25 +23,29 @@ def _partes(db_session):
 
 
 # --------------------------------------------------------------------------- #
-# Disparo desde firmar_contrato
+# Disparo al completarse el contrato en la entrega
 # --------------------------------------------------------------------------- #
-def test_ambas_partes_dispara_el_envio_del_contrato(db_session, auth_as):
+PARCHE = "app.features.communications.email.service.enviar_contrato_firmado"
+FOTO = "https://ejemplo.com/f1.jpg"
+
+
+def _entregar(auth_as, dueno, reserva, firma_svg="M1 1 L10 10"):
+    return auth_as(dueno).post(
+        f"/api/v1/entrega/{reserva.id}/checklist",
+        json={"tipo": "antes", "fotos": [FOTO], "kilometraje": 25000,
+              "nivel_combustible": "lleno", "firma_svg": firma_svg},
+    )
+
+
+def test_ambas_partes_en_la_entrega_dispara_el_envio_del_contrato(db_session, auth_as, preparar_entrega):
     reserva, cliente, dueno, auto = _partes(db_session)
 
-    with patch(
-        "app.features.bookings.reservations.router.enviar_contrato_firmado"
-    ) as mock_enviar:
-        auth_as(cliente).post(
-            f"/api/v1/reservas/{reserva.id}/firmar-contrato",
-            json={"metodo": "huella", "acepta_terminos": True},
-        )
-        mock_enviar.assert_not_called()  # falta el arrendador
+    with patch(PARCHE) as mock_enviar:
+        preparar_entrega(reserva)  # el dueño firmó con su huella
+        mock_enviar.assert_not_called()  # falta el arrendatario
 
-        r = auth_as(dueno).post(
-            f"/api/v1/reservas/{reserva.id}/firmar-contrato",
-            json={"metodo": "facial", "acepta_terminos": True},
-        )
-        assert r.status_code == 200
+        r = _entregar(auth_as, dueno, reserva)
+        assert r.status_code == 200, r.text
         mock_enviar.assert_called_once()
 
     _, kwargs = mock_enviar.call_args
@@ -52,26 +55,18 @@ def test_ambas_partes_dispara_el_envio_del_contrato(db_session, auth_as):
     assert isinstance(kwargs["pdf_bytes"], (bytes, bytearray)) and kwargs["pdf_bytes"]
 
 
-def test_re_firmar_no_reenvia_el_contrato(db_session, auth_as):
-    """Solo se manda la PRIMERA vez que se completan las dos firmas — no en
-    cada re-firma posterior (p. ej. si alguien vuelve a firmar el mismo rol)."""
-    reserva, cliente, dueno, _ = _partes(db_session)
+def test_re_firmar_no_reenvia_el_contrato(db_session, auth_as, preparar_entrega):
+    """Solo se manda la PRIMERA vez que se completan las dos firmas."""
+    reserva, _, dueno, _ = _partes(db_session)
 
-    with patch(
-        "app.features.bookings.reservations.router.enviar_contrato_firmado"
-    ) as mock_enviar:
-        auth_as(cliente).post(
-            f"/api/v1/reservas/{reserva.id}/firmar-contrato",
-            json={"metodo": "huella", "acepta_terminos": True},
-        )
-        auth_as(dueno).post(
-            f"/api/v1/reservas/{reserva.id}/firmar-contrato",
-            json={"metodo": "facial", "acepta_terminos": True},
-        )
+    with patch(PARCHE) as mock_enviar:
+        preparar_entrega(reserva)
+        assert _entregar(auth_as, dueno, reserva).status_code == 200
         assert mock_enviar.call_count == 1
 
-        # El dueño vuelve a firmar (p. ej. cambia el método): ambas_partes
-        # sigue True, pero fecha_firma_biometrica ya estaba puesta.
+        # El dueño vuelve a firmar (p. ej. cambia el método): el contrato ya estaba completo.
+        db_session.query(Reserva).filter(Reserva.id == reserva.id).update({"estado": "confirmada"})
+        db_session.commit()
         auth_as(dueno).post(
             f"/api/v1/reservas/{reserva.id}/firmar-contrato",
             json={"metodo": "huella", "acepta_terminos": True},
@@ -79,6 +74,7 @@ def test_re_firmar_no_reenvia_el_contrato(db_session, auth_as):
         assert mock_enviar.call_count == 1
 
 
+# --------------------------------------------------------------------------- #
 # --------------------------------------------------------------------------- #
 # enviar_contrato_firmado / _post_contrato_firmado (unidad)
 # --------------------------------------------------------------------------- #
@@ -112,7 +108,7 @@ def test_con_api_key_encola_el_envio(monkeypatch):
         assert args[0] is _post_contrato_firmado
         destinatarios_pasados = args[1]
         assert destinatarios_pasados == ["cliente@test.cl", "dueno@test.cl"]  # sin el None
-        assert "ABCD-12" in args[5]  # filename
+        assert "ABCD-12" in args[6]  # filename (args: fn, destinatarios, asunto, html, texto, pdf, filename)
 
 
 def test_post_contrato_firmado_arma_el_payload_correcto(monkeypatch):
@@ -128,6 +124,7 @@ def test_post_contrato_firmado_arma_el_payload_correcto(monkeypatch):
             ["cliente@test.cl", "dueno@test.cl"],
             "Tu contrato de arriendo — ABCD-12",
             "<p>hola</p>",
+            "hola",
             b"contenido-pdf",
             "Contrato-Arriendo-ABCD-12-RES12345.pdf",
         )
@@ -135,9 +132,11 @@ def test_post_contrato_firmado_arma_el_payload_correcto(monkeypatch):
         mock_instance.post.assert_called_once()
         _, kwargs = mock_instance.post.call_args
         body = kwargs["json"]
-        assert body["from"] == "contratos@arriendomiautoya.cl"
+        assert body["from"] == "ArriendoMiAutoYa <contratos@arriendomiautoya.cl>"
         assert body["to"] == ["cliente@test.cl", "dueno@test.cl"]
         assert body["subject"] == "Tu contrato de arriendo — ABCD-12"
+        assert body["html"] == "<p>hola</p>"
+        assert body["text"] == "hola"
         adjunto = body["attachments"][0]
         assert adjunto["filename"] == "Contrato-Arriendo-ABCD-12-RES12345.pdf"
         assert base64.b64decode(adjunto["content"]) == b"contenido-pdf"
@@ -152,4 +151,4 @@ def test_post_contrato_firmado_tolerante_a_fallos_http(monkeypatch):
         mock_client_cls.return_value.__enter__.return_value = mock_instance
 
         # No debe lanzar excepción — best-effort.
-        _post_contrato_firmado(["cliente@test.cl"], "asunto", "<p>x</p>", b"pdf", "c.pdf")
+        _post_contrato_firmado(["cliente@test.cl"], "asunto", "<p>x</p>", "x", b"pdf", "c.pdf")

@@ -15,6 +15,7 @@ import pytest
 
 from app.features.bookings.reservations import cancelacion_service, confirmacion_service
 from app.features.payments.mercadopago_service import MercadoPagoService
+from app.features.payments import estado_pagos
 from app.models.entities import Auto, ConfiguracionPlataforma, Pago, Reserva, Usuario
 
 MONTO_COBRO = 90000  # 3 días × 30.000 CLP
@@ -85,9 +86,9 @@ def _reserva(
 
     db_session.add_all([
         Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="hold_reserva",
-             monto=MONTO_HOLD, estado="retenido", referencia_pago="MP-HOLD-TEST"),
+             monto=MONTO_HOLD, estado="retenido", referencia_pago="1000000011"),
         Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="cobro_arriendo",
-             monto=MONTO_COBRO, estado="capturado", referencia_pago="MP-COBRO-TEST"),
+             monto=MONTO_COBRO, estado="capturado", referencia_pago="1000000012"),
     ])
     db_session.commit()
     return reserva
@@ -108,9 +109,9 @@ def test_escenario_1_dueno_no_confirma_a_tiempo_devuelve_todo(partes, db_session
     db_session.commit()
     db_session.add_all([
         Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="hold_reserva",
-             monto=MONTO_HOLD, estado="retenido", referencia_pago="MP-HOLD-1"),
+             monto=MONTO_HOLD, estado="retenido", referencia_pago="1000000001"),
         Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="cobro_arriendo",
-             monto=MONTO_COBRO, estado="capturado", referencia_pago="MP-COBRO-1"),
+             monto=MONTO_COBRO, estado="capturado", referencia_pago="1000000002"),
     ])
     db_session.commit()
 
@@ -244,7 +245,7 @@ def test_reintento_de_reembolsos_pendientes(partes, db_session, monkeypatch):
     reserva = _reserva(db_session, cliente, dueno, estado="cancelada", patente="REEMB-01")
     pago_fallido = Pago(
         reserva_id=reserva.id, usuario_id=cliente.id, tipo="reembolso_parcial",
-        monto=45000, estado="pendiente", referencia_pago="MP-RETRY-1",
+        monto=45000, estado="pendiente", referencia_pago="1000000021",
     )
     db_session.add(pago_fallido)
     db_session.commit()
@@ -252,8 +253,8 @@ def test_reintento_de_reembolsos_pendientes(partes, db_session, monkeypatch):
     # Simular que Mercado Pago aprueba el reembolso
     monkeypatch.setattr(MercadoPagoService, "reembolsar", lambda ref, monto: {"success": True, "id": "RF-OK"})
 
-    resultado = confirmacion_service.reintentar_reembolsos_pendientes(db_session)
-    assert resultado["exitosos"] >= 1
+    resultado = estado_pagos.reintentar_reembolsos_pendientes(db_session)
+    assert resultado["hechos"] == 1
     db_session.refresh(pago_fallido)
     assert pago_fallido.estado == "reembolsado"
 

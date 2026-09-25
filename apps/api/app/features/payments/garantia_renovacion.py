@@ -101,14 +101,23 @@ def resumen(db: Session, reserva: Reserva) -> Dict[str, Any]:
     }
 
 
-def renovar(db: Session, reserva: Reserva, token_app: Optional[str] = None) -> Pago:
+def renovar(db: Session, reserva: Reserva, token_app: Optional[str] = None,
+            ahora: Optional[datetime] = None) -> Pago:
     """
     Toma un hold nuevo por el mismo monto y suelta el viejo. Lanza
     `RenovacionError` si Mercado Pago no lo autoriza (el viejo sigue intacto).
+
+    Idempotente: si la garantía vigente no necesita renovarse (ya se renovó,
+    p. ej. un doble toque o el barrido y la app a la vez), la devuelve tal
+    cual sin tomar otro hold en la tarjeta.
     """
+    # Fila bloqueada hasta el commit: el barrido y la app no renuevan a la vez.
+    db.query(Reserva).filter(Reserva.id == reserva.id).populate_existing().with_for_update().first()
     viejo = hold_vigente(db, reserva)
     if not viejo:
         raise RenovacionError(409, "SIN_GARANTIA", "Esta reserva no tiene una garantía retenida.")
+    if not reserva.garantia_renovacion_pedida_en and not necesita_renovacion(reserva, viejo, ahora):
+        return viejo
     tarjeta = db.query(Tarjeta).filter(Tarjeta.id == reserva.tarjeta_garantia_id).first()
     usuario = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
     if not tarjeta or not usuario:
@@ -175,7 +184,7 @@ def renovar_garantias_por_vencer(db: Session, ahora: Optional[datetime] = None) 
                              reserva.id, reserva.estado)
             continue
         try:
-            renovar(db, reserva)
+            renovar(db, reserva, ahora=ahora)
             resultado["renovadas"] += 1
             continue
         except RenovacionError as e:

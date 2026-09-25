@@ -179,11 +179,22 @@ def _reserva_de(db: Session, pago: Pago) -> Optional[Reserva]:
 
 
 def _checkout_completo(db: Session, reserva: Reserva) -> bool:
-    """Todos los pagos del checkout de la reserva quedaron bien (ninguno sigue en revisión)."""
+    """
+    La reserva quedó pagada: la garantía retenida y el arriendo cobrado, cada
+    uno por (al menos) el monto que calculó el servidor, y nada sigue en
+    revisión del banco. No basta con que "los pagos que hay" estén bien: una
+    garantía de $1 abierta a mano, sin cobro del arriendo, dejaba la reserva pagada.
+    """
     pagos = db.query(Pago).filter(Pago.reserva_id == reserva.id, Pago.tipo.in_(TIPOS_CHECKOUT)).all()
     # Los intentos anteriores que fallaron o se soltaron no cuentan.
     vigentes = [p for p in pagos if p.estado not in ("fallido",) + ESTADOS_CERRADOS]
-    return bool(vigentes) and all(p.estado in ("retenido",) + ESTADOS_COBRADOS for p in vigentes)
+    if not vigentes or not all(p.estado in ("retenido",) + ESTADOS_COBRADOS for p in vigentes):
+        return False
+    requeridos = {"hold_reserva": int(reserva.monto_hold or 0), "cobro_arriendo": int(reserva.monto_cobro or 0)}
+    for tipo, monto in requeridos.items():
+        if monto > 0 and not any(p.tipo == tipo and int(p.monto or 0) >= monto for p in vigentes):
+            return False
+    return True
 
 
 def _deshacer_en_reserva_cancelada(db: Session, pago: Pago, reserva: Reserva, estado_mp: str) -> None:

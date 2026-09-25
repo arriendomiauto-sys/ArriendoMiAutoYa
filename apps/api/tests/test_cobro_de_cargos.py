@@ -63,9 +63,6 @@ def escenario(usuario_factory, auth_as, db_session):
               "lugar_entrega_acordado": "Plaza de Armas"},
     ).json()
     rid = reserva["id"]
-    assert auth_as(cliente).post(
-        f"/api/v1/reservas/{rid}/firmar-contrato", json={"metodo": "huella", "acepta_terminos": True}
-    ).status_code == 200
     pago = auth_as(cliente).post(
         f"/api/v1/reservas/{rid}/pagar", json={"tarjeta_cobro_id": debito["id"], "tarjeta_garantia_id": credito["id"]}
     )
@@ -80,6 +77,10 @@ def _entregar(auth_as, esc):
     qr = auth_as(esc["cliente"]).post(f"/api/v1/reservas/{rid}/generar-codigo").json()["codigo_qr_hash"]
     auth_as(esc["dueno"]).post("/api/v1/entrega/validar-codigo", json={"codigo_qr_hash": qr})
     auth_as(esc["dueno"]).post(f"/api/v1/entrega/{rid}/confirmar-verificacion", json={"resultado": "confirmada", "tipo": "entrega"})
+    # Ya juntos y con las fotos: el dueño firma con su huella; el arrendatario, con el trazo del checklist.
+    assert auth_as(esc["dueno"]).post(
+        f"/api/v1/reservas/{rid}/firmar-contrato", json={"metodo": "huella", "acepta_terminos": True}
+    ).status_code == 200
     r = auth_as(esc["dueno"]).post(
         f"/api/v1/entrega/{rid}/checklist",
         json={"tipo": "antes", "fotos": ["https://ej.com/1.jpg", "https://ej.com/2.jpg"], "kilometraje": 25000,
@@ -182,6 +183,8 @@ def test_los_cargos_mayores_a_la_garantia_se_cobran_solo_hasta_el_tope(escenario
 
 
 def test_si_la_pasarela_no_captura_no_se_le_paga_al_dueno_lo_que_no_se_cobro(escenario, auth_as, db_session, monkeypatch):
+    from app.features.payments import cargos_service
+
     hold = _uno(db_session, escenario["rid"], "hold_reserva")
     hold.referencia_pago = "987654321"
     db_session.commit()
@@ -191,14 +194,34 @@ def test_si_la_pasarela_no_captura_no_se_le_paga_al_dueno_lo_que_no_se_cobro(esc
     )
     monkeypatch.setattr(
         MercadoPagoService, "liberar_hold",
-        classmethod(lambda cls, payment_id: {"success": True, "estado": "cancelled"}),
+        classmethod(lambda cls, payment_id: pytest.fail("una captura fallida no debe soltar la garantía")),
     )
 
     _entregar(auth_as, escenario)
     _devolver(auth_as, escenario, combustible="1/2", limpieza="sucio_estandar")
 
+    # No se cobró: el dueño recibe solo lo suyo del arriendo, la garantía sigue
+    # retenida y los extras quedan anotados para cobrarse después.
     assert _uno(db_session, escenario["rid"], "liquidacion_dueno").monto == BASE_DUENO
-    assert _uno(db_session, escenario["rid"], "hold_reserva").estado == "liberado"
+    assert _uno(db_session, escenario["rid"], "hold_reserva").estado == "retenido"
+    assert _uno(db_session, escenario["rid"], "cargo_devolucion").estado == "pendiente"
+
+    # La pasarela se recupera: el barrido cobra los extras y se los abona al dueño.
+    capturas = []
+
+    def capturar(cls, payment_id, monto=None):
+        capturas.append((payment_id, monto))
+        return {"success": True, "capturado": True, "estado": "approved"}
+
+    monkeypatch.setattr(MercadoPagoService, "capturar_pago", classmethod(capturar))
+    assert cargos_service.reintentar_garantias(db_session)["cobradas"] == 1
+
+    assert capturas == [("987654321", EXTRAS)]
+    hold = _uno(db_session, escenario["rid"], "hold_reserva")
+    assert (hold.estado, hold.monto) == ("capturado", EXTRAS)
+    assert _uno(db_session, escenario["rid"], "cargo_devolucion").estado == "capturado"
+    abonos = sorted(p.monto for p in _pagos(db_session, escenario["rid"], "liquidacion_dueno"))
+    assert abonos == sorted([BASE_DUENO, EXTRAS])
 
 
 # ------------------------------------------------------------------ multas

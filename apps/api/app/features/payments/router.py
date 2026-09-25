@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -87,6 +88,21 @@ def iniciar_pago(
             raise HTTPException(status_code=404, detail="Reserva no encontrada")
         if reserva_destino.cliente_id != current_user.id and "admin" not in (current_user.roles_activos or []):
             raise HTTPException(status_code=403, detail="Esa reserva no es tuya.")
+        # El monto de la garantía lo fija el servidor, no el cliente: una
+        # "garantía" de $1 atada a la reserva la daba por pagada.
+        if tipo == "hold_reserva":
+            from app.features.payments import cargos_service
+
+            esperado = cargos_service.garantia_total(db, reserva_destino)
+            if monto != esperado:
+                SecurityAudit.log_event(
+                    "PAGO_MONTO_ALTERADO", user_id=current_user.id, resource=f"reserva:{reserva_id}",
+                    details={"monto": monto, "esperado": esperado}, status="BLOCKED",
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"La garantía de esta reserva es de ${esperado:,} CLP.".replace(",", "."),
+                )
 
     # La protección contra open redirect NO se relaja en modo simulado: dejar
     # pasar un dominio ajeno acá abriría en pruebas justo el agujero que el
@@ -273,8 +289,14 @@ async def webhook_mercadopago(
     no recibe 200, y un aviso de un pago ajeno reintentado para siempre solo
     agrega ruido.
     """
-    cuerpo = await request.json()
-    data_id = str((cuerpo.get("data") or {}).get("id") or "")
+    try:
+        cuerpo = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El aviso no es JSON válido")
+    if not isinstance(cuerpo, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El aviso no es JSON válido")
+    data = cuerpo.get("data") if isinstance(cuerpo.get("data"), dict) else {}
+    data_id = str(data.get("id") or "")
     tipo = cuerpo.get("type") or cuerpo.get("topic")
 
     if tipo != "payment" or not data_id:
@@ -288,6 +310,12 @@ async def webhook_mercadopago(
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Firma inválida")
 
+    # La consulta a Mercado Pago y la base son bloqueantes: en un hilo, para no
+    # dejar a toda la API sin responder mientras dura (hasta 15 s por consulta).
+    return await run_in_threadpool(_procesar_aviso_de_pago, db, data_id)
+
+
+def _procesar_aviso_de_pago(db: Session, data_id: str) -> Dict[str, Any]:
     # El aviso solo dice "mirá este pago": el estado se consulta contra la API,
     # que es la única fuente que no se puede falsificar.
     resultado = MercadoPagoService.obtener_pago(data_id)

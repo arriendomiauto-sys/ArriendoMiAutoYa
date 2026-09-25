@@ -69,9 +69,9 @@ def _reserva(
     if con_pagos:
         db_session.add_all([
             Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="hold_reserva",
-                 monto=MONTO_HOLD, estado="retenido", referencia_pago="MP-HOLD-1"),
+                 monto=MONTO_HOLD, estado="retenido", referencia_pago="1000000001"),
             Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="cobro_arriendo",
-                 monto=MONTO_COBRO, estado=cobro_estado, referencia_pago="MP-COBRO-1"),
+                 monto=MONTO_COBRO, estado=cobro_estado, referencia_pago="1000000002"),
         ])
         db_session.commit()
     return reserva
@@ -134,10 +134,6 @@ def _pagar(auth_as, db_session, cliente, dueno, patente="PLKP-11"):
         json={"auto_id": auto.id, "fecha_inicio": _fecha(10), "fecha_fin": _fecha(13),
               "lugar_entrega_acordado": "Plaza de Armas"},
     ).json()
-    auth_as(cliente).post(
-        f"/api/v1/reservas/{reserva['id']}/firmar-contrato",
-        json={"metodo": "huella", "acepta_terminos": True},
-    )
     resp = auth_as(cliente).post(
         f"/api/v1/reservas/{reserva['id']}/pagar",
         json={"tarjeta_cobro_id": deb["id"], "tarjeta_garantia_id": cred["id"]},
@@ -211,11 +207,11 @@ def test_un_resultado_tardio_de_la_pasarela_no_confirma_una_reserva_esperando_al
     cliente, dueno = partes
     reserva = _reserva(db_session, cliente, dueno, estado="pendiente", con_pagos=False)
     pago = Pago(reserva_id=reserva.id, usuario_id=cliente.id, tipo="hold_reserva",
-                monto=MONTO_HOLD, estado="procesando", referencia_pago="MP-X")
+                monto=MONTO_HOLD, estado="procesando", referencia_pago="1000000003")
     db_session.add(pago)
     db_session.commit()
 
-    _aplicar_resultado(db_session, pago, {"autorizada": True, "retenido": True, "payment_id": "MP-X"})
+    _aplicar_resultado(db_session, pago, {"autorizada": True, "retenido": True, "payment_id": "1000000003"})
 
     db_session.refresh(reserva)
     assert reserva.estado == "pendiente"  # solo el dueño la confirma
@@ -273,7 +269,7 @@ def test_si_el_dueno_no_confirma_en_plazo_se_cancela_devolviendo_todo(partes, db
     assert reserva.motivo_cancelacion == "dueno_no_confirmo"
     assert _pagos(db_session, reserva, "hold_reserva")[0].estado == "liberado"
     assert _pagos(db_session, reserva, "cobro_arriendo")[0].estado == "reembolsado"
-    assert pasarela["reembolsar"] == [("MP-COBRO-1", None)]  # reembolso TOTAL
+    assert pasarela["reembolsar"] == [("1000000002", None)]  # reembolso TOTAL
 
 
 def test_al_vencer_el_plazo_se_avisa_al_conductor_y_al_dueno(partes, db_session, pasarela):
@@ -376,8 +372,8 @@ def test_la_multa_se_descuenta_de_lo_cobrado_y_se_devuelve_el_resto(partes, auth
 
     _no_presentacion(auth_as, admin, reserva)
 
-    assert pasarela["reembolsar"] == [("MP-COBRO-1", 60000)]  # 90.000 − 30.000
-    assert pasarela["liberar"] == ["MP-HOLD-1"]               # la garantía se suelta entera
+    assert pasarela["reembolsar"] == [("1000000002", 60000)]  # 90.000 − 30.000
+    assert pasarela["liberar"] == ["1000000001"]               # la garantía se suelta entera
     assert _pagos(db_session, reserva, "hold_reserva")[0].estado == "liberado"
     reembolso = _pagos(db_session, reserva, "reembolso_parcial")[0]
     assert reembolso.monto == 60000 and reembolso.estado == "reembolsado"
@@ -576,7 +572,7 @@ def test_llega_el_dueno_y_no_el_arrendatario_se_multa_al_arrendatario(partes, db
     db_session.refresh(reserva)
     assert reserva.estado == "cancelada" and reserva.motivo_cancelacion == "no_presentacion"
     assert _pagos(db_session, reserva, "liquidacion_dueno")[0].monto == 30000
-    assert pasarela["reembolsar"] == [("MP-COBRO-1", 60000)]
+    assert pasarela["reembolsar"] == [("1000000002", 60000)]
 
 
 def test_llega_el_arrendatario_y_no_el_dueno_se_multa_al_dueno_y_se_devuelve_todo(partes, db_session, pasarela):
@@ -590,8 +586,8 @@ def test_llega_el_arrendatario_y_no_el_dueno_se_multa_al_dueno_y_se_devuelve_tod
     db_session.refresh(reserva)
     assert reserva.estado == "cancelada" and reserva.motivo_cancelacion == "dueno_no_presentacion"
     # El arrendatario recupera TODO: la falla es del dueño.
-    assert pasarela["reembolsar"] == [("MP-COBRO-1", None)]
-    assert pasarela["liberar"] == ["MP-HOLD-1"]
+    assert pasarela["reembolsar"] == [("1000000002", None)]
+    assert pasarela["liberar"] == ["1000000001"]
     assert _pagos(db_session, reserva, "cobro_arriendo")[0].estado == "reembolsado"
     assert _pagos(db_session, reserva, "hold_reserva")[0].estado == "liberado"
     # Y la multa queda como deuda del dueño: no se le paga nada por esta reserva.
@@ -624,8 +620,8 @@ def test_si_no_llega_ninguno_se_cancela_devolviendo_todo_sin_multas(partes, db_s
     assert resultado == {"arrendatario": 0, "dueno": 0, "ninguno": 1}
     db_session.refresh(reserva)
     assert reserva.estado == "cancelada" and reserva.motivo_cancelacion == "ninguno_se_presento"
-    assert pasarela["reembolsar"] == [("MP-COBRO-1", None)]
-    assert pasarela["liberar"] == ["MP-HOLD-1"]
+    assert pasarela["reembolsar"] == [("1000000002", None)]
+    assert pasarela["liberar"] == ["1000000001"]
     assert not reserva.multas_detalle
     assert _pagos(db_session, reserva, "multa_dueno") == []
     assert _pagos(db_session, reserva, "liquidacion_dueno") == []

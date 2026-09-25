@@ -70,5 +70,8 @@ def test_registrar_checklist_solo_lo_puede_el_dueno_del_auto(db_session, auth_as
     resp_intruso = auth_as(intruso).post(f"/api/v1/entrega/{reserva.id}/checklist", json=payload)
     assert resp_intruso.status_code == 403
 
+    from conftest import dejar_listo_para_firmar
+
+    dejar_listo_para_firmar(db_session, reserva.id)
     resp_dueno = auth_as(dueno).post(f"/api/v1/entrega/{reserva.id}/checklist", json=payload)
     assert resp_dueno.status_code == 200
