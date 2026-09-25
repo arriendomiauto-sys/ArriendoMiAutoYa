@@ -22,6 +22,7 @@ Uso (desde apps/api):
   python scripts/limpiar_datos_prueba.py                        # simulacro
   python scripts/limpiar_datos_prueba.py --email ren@gmail.com  # sumar cuentas de prueba
   python scripts/limpiar_datos_prueba.py --ejecutar             # borrar de verdad
+  python scripts/limpiar_datos_prueba.py --solo-emails --email a@x.com   # solo esas cuentas
 """
 import argparse
 import os
@@ -69,6 +70,8 @@ def main() -> None:
     ap.add_argument("--ejecutar", action="store_true", help="guardar los cambios (sin esto es un simulacro)")
     ap.add_argument("--email", action="append", default=[], help="correo extra a tratar como de prueba")
     ap.add_argument("--incluir-staff", action="store_true", help="borrar también cuentas admin/manager/soporte")
+    ap.add_argument("--solo-emails", action="store_true",
+                    help="borrar SOLO las cuentas de --email (sin los datos seed/QA)")
     args = ap.parse_args()
 
     insp = inspect(engine)
@@ -81,17 +84,21 @@ def main() -> None:
     tx = cx.begin()
     try:
         objetivo = defaultdict(set)
-        usuarios = _ids(cx, "select id from usuarios where email ilike :d or id like 'seed-%'", d=f"%{DOMINIO_PRUEBA}")
+        if args.solo_emails and not args.email:
+            ap.error("--solo-emails necesita al menos un --email")
+        usuarios = set() if args.solo_emails else _ids(
+            cx, "select id from usuarios where email ilike :d or id like 'seed-%'", d=f"%{DOMINIO_PRUEBA}")
         usuarios |= _en(cx, "select id from usuarios where lower(email) in :ids", {e.lower() for e in args.email})
         staff = _en(cx, "select id from usuarios where id in :ids and (" +
                     " or ".join(f"roles_activos::text ilike '%\"{r}\"%'" for r in ROLES_STAFF) + ")", usuarios)
         if not args.incluir_staff:
             usuarios -= staff
         objetivo["usuarios"] = usuarios
-        objetivo["autos"] = _ids(cx, "select id from autos where id like 'seed-%'") | _en(
+        semilla = not args.solo_emails
+        objetivo["autos"] = (_ids(cx, "select id from autos where id like 'seed-%'") if semilla else set()) | _en(
             cx, "select id from autos where dueno_id in :ids", usuarios)
         objetivo["reservas"] = (
-            _ids(cx, "select id from reservas where id like 'seed-%'")
+            (_ids(cx, "select id from reservas where id like 'seed-%'") if semilla else set())
             | _en(cx, "select id from reservas where cliente_id in :ids", usuarios)
             | _en(cx, "select id from reservas where auto_id in :ids", objetivo["autos"])
         )
