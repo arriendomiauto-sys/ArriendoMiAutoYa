@@ -123,6 +123,34 @@ export async function consultarMetodoPago(numero) {
 }
 
 /**
+ * Token de un solo uso para cobrar una tarjeta YA guardada: Mercado Pago pide
+ * el CVV de nuevo en cada cobro. Devuelve null si no hay a quién pedírselo
+ * (modo simulado local o tarjeta simulada): en ese caso el backend se arregla solo.
+ *
+ * @param cardId  `mp_card_id` de la tarjeta (viene en GET /usuarios/me/tarjetas)
+ * @param cvv     código de seguridad que escribió el usuario
+ */
+export async function tokenizarTarjetaGuardada({ cardId, cvv }) {
+  const { publicKey, puedeContactarMP } = configMercadoPago();
+  if (!puedeContactarMP || !cardId || String(cardId).startsWith("SIM-")) return null;
+
+  const datos = await pedirMP(
+    `${MP_API}/card_tokens?public_key=${encodeURIComponent(publicKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ card_id: String(cardId), security_code: soloDigitos(cvv) }),
+    }
+  );
+  if (!datos?.id) {
+    const err = new Error("Mercado Pago no devolvió un token de tarjeta.");
+    err.codigo = "TARJETA_INVALIDA";
+    throw err;
+  }
+  return datos.id;
+}
+
+/**
  * Genera el card_token de un solo uso.
  *
  * @param datos.numero        número de la tarjeta (con o sin espacios)

@@ -18,6 +18,8 @@ import {
   CarPhotoThumb,
   hapticoExito,
   hapticoError,
+  configMercadoPago,
+  tokenizarTarjetaGuardada,
 } from "@rentacar/mobile-shared";
 import { SelectorTarjeta } from "../components/SelectorTarjeta";
 
@@ -56,6 +58,10 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
   const [tarjetaGarantiaId, setTarjetaGarantiaId] = useState(null);
   const [errorCobro, setErrorCobro] = useState(null);
   const [errorGarantia, setErrorGarantia] = useState(null);
+  // Mercado Pago pide el CVV en cada cobro a una tarjeta guardada. No se guarda
+  // en ningún lado: se usa para generar el token y se olvida al salir.
+  const [cvvCobro, setCvvCobro] = useState("");
+  const [cvvGarantia, setCvvGarantia] = useState("");
 
   const [modalAgregar, setModalAgregar] = useState(null); // "debito" | "credito" | null
   const [firmando, setFirmando] = useState(false);
@@ -116,7 +122,14 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
     }
   }, [tarjetaCobroId, tarjetaGarantiaId]);
 
-  const listo = !!tarjetaCobroId && !!tarjetaGarantiaId && !pagando;
+  // Al cambiar de tarjeta, el CVV escrito ya no corresponde.
+  useEffect(() => setCvvCobro(""), [tarjetaCobroId]);
+  useEffect(() => setCvvGarantia(""), [tarjetaGarantiaId]);
+
+  const pedirCvv = !pagoSimulado && configMercadoPago().puedeContactarMP;
+  const cvvOk = (c) => c.length >= 3;
+  const cvvsListos = !pedirCvv || (cvvOk(cvvCobro) && cvvOk(cvvGarantia));
+  const listo = !!tarjetaCobroId && !!tarjetaGarantiaId && cvvsListos && !pagando;
 
   const cuenta = useCuentaRegresiva(pendiente?.expira_en || reserva?.expira_en || null);
 
@@ -128,7 +141,12 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
       return;
     }
     if (!listo) {
-      showAlert("Elige tus tarjetas", "Falta elegir la tarjeta del cobro y la de la garantía.");
+      showAlert(
+        "Completa tus tarjetas",
+        cvvsListos
+          ? "Falta elegir la tarjeta del cobro y la de la garantía."
+          : "Escribe el código de seguridad (CVV) de las dos tarjetas."
+      );
       return;
     }
     setErrorCobro(null);
@@ -178,9 +196,33 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
     pagandoRef.current = true;
     setPagando(true);
     try {
+      // Tokens nuevos en cada intento: son de un solo uso.
+      let token_cobro = null;
+      let token_garantia = null;
+      if (pedirCvv) {
+        const porId = (id) => validadas.find((t) => t.id === id);
+        try {
+          token_garantia = await tokenizarTarjetaGuardada({
+            cardId: porId(tarjetaGarantiaId)?.mp_card_id, cvv: cvvGarantia,
+          });
+        } catch (e) {
+          setErrorGarantia(e?.message || "No pudimos validar el código de seguridad de esta tarjeta.");
+          return;
+        }
+        try {
+          token_cobro = await tokenizarTarjetaGuardada({
+            cardId: porId(tarjetaCobroId)?.mp_card_id, cvv: cvvCobro,
+          });
+        } catch (e) {
+          setErrorCobro(e?.message || "No pudimos validar el código de seguridad de esta tarjeta.");
+          return;
+        }
+      }
       const res = await ApiClient.pagarReserva(r.id, {
         tarjeta_cobro_id: tarjetaCobroId,
         tarjeta_garantia_id: tarjetaGarantiaId,
+        token_cobro,
+        token_garantia,
       });
       if (res?.estado === "confirmada") {
         hapticoExito();
@@ -215,7 +257,15 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
       const codigo = e?.codigo || e?.detail?.codigo;
       const campo = e?.campo || e?.detail?.campo;
 
-      if (codigo === "SIN_CUPO") {
+      if (codigo === "CVV_INVALIDO") {
+        if (campo === "garantia") {
+          setCvvGarantia("");
+          setErrorGarantia(mensajeLimpio || "El código de seguridad es incorrecto. Revísalo y reintenta.");
+        } else {
+          setCvvCobro("");
+          setErrorCobro(mensajeLimpio || "El código de seguridad es incorrecto. Revísalo y reintenta.");
+        }
+      } else if (codigo === "SIN_CUPO") {
         setErrorGarantia(
           `Esta tarjeta no tiene cupo disponible para la retención de garantía (${clp(garantia)}). Puedes seleccionar otra o agregar una tarjeta de crédito con cupo.`
         );
@@ -357,6 +407,12 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
           onAgregar={() => setModalAgregar(tarjetasDebito.length ? "credito" : "debito")}
           error={errorCobro}
           tipoVacio="débito o crédito"
+          pedirCvv={pedirCvv}
+          cvv={cvvCobro}
+          onCvv={(v) => {
+            setCvvCobro(v);
+            setErrorCobro(null);
+          }}
         />
 
         <SelectorTarjeta
@@ -372,6 +428,12 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
           onAgregar={() => setModalAgregar("credito")}
           error={errorGarantia}
           tipoVacio="crédito"
+          pedirCvv={pedirCvv}
+          cvv={cvvGarantia}
+          onCvv={(v) => {
+            setCvvGarantia(v);
+            setErrorGarantia(null);
+          }}
         />
 
         <Card padded className="gap-3">

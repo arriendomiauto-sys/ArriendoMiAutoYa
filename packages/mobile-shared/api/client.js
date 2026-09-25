@@ -870,10 +870,22 @@ export class ApiClient {
 
   // Cobra el arriendo (a la tarjeta de débito) y autoriza el hold de garantía
   // (a la de crédito) en un solo paso. Va DESPUÉS de firmar el contrato.
-  static async pagarReserva(reservaId, { tarjeta_cobro_id, tarjeta_garantia_id, device_id = null }) {
+  // `token_cobro` / `token_garantia`: card_tokens generados con el CVV (tokenizarTarjetaGuardada).
+  static async pagarReserva(
+    reservaId,
+    { tarjeta_cobro_id, tarjeta_garantia_id, device_id = null, token_cobro = null, token_garantia = null }
+  ) {
     return this.request(`/reservas/${reservaId}/pagar`, {
       method: "POST",
-      body: JSON.stringify({ tarjeta_cobro_id, tarjeta_garantia_id, device_id }),
+      body: JSON.stringify({ tarjeta_cobro_id, tarjeta_garantia_id, device_id, token_cobro, token_garantia }),
+    });
+  }
+
+  // Renueva la garantía que vence antes del fin del arriendo (token generado con el CVV).
+  static async renovarGarantia(reservaId, { token_garantia = null }) {
+    return this.request(`/reservas/${reservaId}/garantia/renovar`, {
+      method: "POST",
+      body: JSON.stringify({ token_garantia }),
     });
   }
 

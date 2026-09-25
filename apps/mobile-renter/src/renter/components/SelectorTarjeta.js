@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { colors, Icon } from "@rentacar/mobile-shared";
 
 // Sigla corta para el chip de la fila y color de fondo por marca.
@@ -24,6 +24,8 @@ const TIPO_LABEL = { credito: "Crédito", debito: "Débito" };
  * @param error          texto de error inline (SIN_CUPO / COBRO_RECHAZADO)
  * @param tipoVacio      "débito" | "crédito"  — para el copy del estado vacío
  * @param insignia       texto corto en una píldora junto al título (p. ej. quién procesa el pago)
+ * @param pedirCvv       muestra el campo del código de seguridad de la tarjeta elegida
+ * @param cvv / onCvv    valor y setter del código de seguridad
  */
 export function SelectorTarjeta({
   titulo,
@@ -35,7 +37,11 @@ export function SelectorTarjeta({
   error,
   tipoVacio,
   insignia,
+  pedirCvv,
+  cvv,
+  onCvv,
 }) {
+  const seleccionada = tarjetas.find((t) => t.id === seleccionadaId);
   return (
     <View className="gap-2">
       <View className="gap-0.5">
@@ -118,6 +124,26 @@ export function SelectorTarjeta({
           </TouchableOpacity>
         </View>
       )}
+
+      {pedirCvv && seleccionada ? (
+        <View className="flex-row items-center gap-3">
+          <Text className="flex-1 text-xs text-textMuted leading-4">
+            Código de seguridad de la •••• {seleccionada.ultimos4} (atrás de la tarjeta)
+          </Text>
+          <TextInput
+            testID={`cvv-${tipoVacio === "crédito" ? "credito" : "debito"}`}
+            className="w-[84px] h-11 border-[1.5px] border-gray-200 rounded-xl px-3 text-[15px] text-gray-900 bg-white text-center"
+            value={cvv}
+            onChangeText={(t) => onCvv(t.replace(/\D/g, "").slice(0, 4))}
+            placeholder="CVV"
+            placeholderTextColor={colors.textPlaceholder}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={4}
+            accessibilityLabel={`Código de seguridad de la tarjeta terminada en ${seleccionada.ultimos4}`}
+          />
+        </View>
+      ) : null}
 
       {error ? (
         <View className="gap-2 bg-red-50/80 border border-red-200 rounded-xl p-3">

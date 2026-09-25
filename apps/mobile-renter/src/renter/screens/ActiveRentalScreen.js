@@ -27,6 +27,7 @@ import {
   LlegadaPorUbicacion,
   CarPhotoThumb,
 } from "@rentacar/mobile-shared";
+import { RenovarGarantiaAviso } from "../components/RenovarGarantiaAviso";
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
 
@@ -181,6 +182,7 @@ export function ActiveRentalScreen({
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Tu reserva" onBack={onBack} />
         <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+          <RenovarGarantiaAviso reserva={res} onRenovada={() => setRes((r) => ({ ...r, garantia_por_renovar: false }))} />
           <View className="w-[68px] h-[68px] rounded-full bg-amber-50 items-center justify-center self-center mt-4">
             <Icon name="clock" size={32} color="#F59E0B" />
           </View>
@@ -265,6 +267,7 @@ export function ActiveRentalScreen({
         <StatusBar barStyle="dark-content" />
         <ScreenHeader title="Tu arriendo" onBack={onBack} />
         <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+          <RenovarGarantiaAviso reserva={res} onRenovada={() => setRes((r) => ({ ...r, garantia_por_renovar: false }))} />
           <View className="items-center gap-2">
             <View className="w-[68px] h-[68px] rounded-full bg-teal-50 items-center justify-center">
               <Icon name="check" size={32} color="#0F766E" />
@@ -507,6 +510,7 @@ export function ActiveRentalScreen({
         right={<Badge variant={res.estado === "en_curso" ? "info" : "neutral"} label={res.estado === "en_curso" ? "En curso" : res.estado || "—"} />}
       />
       <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+        <RenovarGarantiaAviso reserva={res} onRenovada={() => setRes((r) => ({ ...r, garantia_por_renovar: false }))} />
         <Card padded className="flex-row items-center gap-3">
           <CarPhotoThumb uri={car.fotos?.[0]} className="w-[76px] h-[58px] rounded-xl" />
           <View className="flex-1">

@@ -128,7 +128,7 @@ export {
   vencimientoValido,
 } from "./components/FormularioTarjeta";
 export { AgregarTarjetaModal } from "./components/AgregarTarjetaModal";
-export { configMercadoPago, crearCardToken, consultarMetodoPago } from "./api/mercadopago";
+export { configMercadoPago, crearCardToken, consultarMetodoPago, tokenizarTarjetaGuardada } from "./api/mercadopago";
 export { ContractModal } from "./screens/ContractModal";
 export { ContractSignatureModal } from "./screens/ContractSignatureModal";
 export { RatingModal } from "./components/RatingModal";
