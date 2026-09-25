@@ -515,6 +515,8 @@ def registrar_no_presentacion(db: Session, reserva: Reserva, ahora: Optional[dat
             hecho = _reembolsar_parcial(cobro, resto)
             reembolso_pendiente = not hecho
             devuelto = resto if hecho else 0
+            # Si falló queda "pendiente" y el barrido lo reintenta (estado_pagos) con la misma
+            # clave de idempotencia: si el primer intento sí llegó, no se devuelve dos veces.
             db.add(Pago(
                 reserva_id=reserva.id, usuario_id=reserva.cliente_id, tipo="reembolso_parcial",
                 monto=resto, estado="reembolsado" if hecho else "pendiente",
@@ -716,33 +718,3 @@ def resolver_no_presentaciones(db: Session, ahora: Optional[datetime] = None, fo
             db.rollback()
     return resumen
 
-
-def reintentar_reembolsos_pendientes(db: Session) -> dict:
-    """
-    Reintenta reembolsos parciales o totales de cancelaciones que fallaron en la pasarela
-    y quedaron en estado 'pendiente'. Devuelve cuántos se lograron y cuántos siguen pendientes.
-    """
-    pendientes = (
-        db.query(Pago)
-        .filter(
-            Pago.tipo.in_(["reembolso_parcial", "reembolso_total"]),
-            Pago.estado == "pendiente",
-        )
-        .all()
-    )
-    exitosos = 0
-    fallidos = 0
-    for pago in pendientes:
-        if pago.referencia_pago:
-            res = MercadoPagoService.reembolsar(pago.referencia_pago, pago.monto)
-            if res.get("success"):
-                pago.estado = "reembolsado"
-                exitosos += 1
-            else:
-                fallidos += 1
-                logger.warning("[REEMBOLSO_REINTENTO] Falló reintento de pago %s: %s", pago.id, res.get("error"))
-        else:
-            fallidos += 1
-    if exitosos:
-        db.commit()
-    return {"reintentados": len(pendientes), "exitosos": exitosos, "pendientes": fallidos}

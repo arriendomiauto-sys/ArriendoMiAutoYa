@@ -32,8 +32,8 @@ from app.services import pagos_simulados
 
 logger = logging.getLogger(__name__)
 
-# Reservas cuya garantía todavía respalda algo: pagada, confirmada o en curso.
-ESTADOS_CON_GARANTIA = ("pendiente", "confirmada", "en_curso")
+# Reservas cuya garantía todavía respalda algo: pagada, confirmada, en curso o en disputa.
+ESTADOS_CON_GARANTIA = ("pendiente", "confirmada", "en_curso", "disputada")
 
 # La garantía tiene que seguir viva un rato después de la devolución: ahí se
 # capturan los cargos (daños, combustible, atraso).
@@ -119,6 +119,8 @@ def renovar(db: Session, reserva: Reserva, token_app: Optional[str] = None) -> P
         tarjeta, usuario, int(viejo.monto), capturar=False, ref=ref, token_app=token_app, reserva=reserva,
     )
     if not res.get("autorizada"):
+        if checkout_service._en_revision(res):
+            checkout_service._liberar(res.get("payment_id"))
         if checkout_service._cvv_rechazado(res):
             raise RenovacionError(402, "CVV_INVALIDO", "El código de seguridad de tu tarjeta de crédito es incorrecto.")
         raise RenovacionError(402, "SIN_CUPO", "Tu tarjeta de crédito no tiene cupo para renovar la garantía.")

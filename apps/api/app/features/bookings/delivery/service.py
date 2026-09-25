@@ -492,7 +492,11 @@ class DeliveryService:
                     usuario_id=reserva.cliente_id,
                     tipo="disputa",
                     titulo="Garantía retenida por reporte en devolución",
-                    mensaje=f"El dueño reportó una diferencia o daño en la devolución ({notas}). Tu garantía se mantendrá retenida mientras el equipo de soporte evalúa el caso.",
+                    mensaje=(
+                        f"El dueño reportó una diferencia o daño en la devolución ({notas}). Tu garantía se hace "
+                        "efectiva mientras el equipo de soporte evalúa el caso: al resolverlo se cobra solo lo que "
+                        "corresponda y te devolvemos el resto a tu tarjeta."
+                    ),
                     entidad_tipo="reserva",
                     entidad_id=reserva.id,
                     commit=False,
@@ -503,7 +507,7 @@ class DeliveryService:
                         usuario_id=auto.dueno_id,
                         tipo="disputa",
                         titulo="Reporte de daño registrado",
-                        mensaje="Tu reporte fue recibido exitosamente. La garantía del arrendatario permanecerá retenida a la espera de presupuestos y resolución de soporte.",
+                        mensaje="Tu reporte fue recibido exitosamente. La garantía del arrendatario quedó asegurada a la espera de presupuestos y resolución de soporte.",
                         entidad_tipo="reserva",
                         entidad_id=reserva.id,
                         commit=False,
@@ -511,7 +515,13 @@ class DeliveryService:
             elif garantia_retenida:
                 garantia_liberada = resultado_garantia.garantia_liberada
                 cobrado = resultado_garantia.cobrado
-                if cobrado > 0:
+                if resultado_garantia.captura_pendiente:
+                    titulo_g = "Procesando tu garantía"
+                    mensaje_g = (
+                        "Estamos procesando con Mercado Pago el descuento de los cargos del arriendo de tu garantía. "
+                        "Apenas se complete te avisamos y se libera el remanente."
+                    )
+                elif cobrado > 0:
                     titulo_g = "Descuento de tu garantía"
                     mensaje_g = (
                         f"Se descontaron ${cobrado:,} CLP de tu garantía por los cargos del arriendo "

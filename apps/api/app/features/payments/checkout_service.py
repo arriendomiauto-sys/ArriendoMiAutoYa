@@ -265,6 +265,10 @@ def procesar_pago(
     res_hold = _mover(tg, usuario, monto_hold, capturar=False, ref=f"HOLD-{ref_base}",
                       token_app=token_garantia, reserva=reserva, device_id=device_id)
     if not res_hold.get("autorizada"):
+        # Una garantía "en revisión" del banco que abandonamos se cancela: si no, el banco
+        # la aprueba después y el cupo queda tomado días sin reserva que la respalde.
+        if _en_revision(res_hold):
+            _liberar(res_hold.get("payment_id"))
         if _cvv_rechazado(res_hold):
             raise CheckoutError(402, "CVV_INVALIDO",
                                 "El código de seguridad de tu tarjeta de crédito es incorrecto.", campo="garantia")
@@ -275,7 +279,7 @@ def procesar_pago(
     res_cobro = _mover(tc, usuario, monto_cobro, capturar=True, ref=f"COBRO-{ref_base}",
                        token_app=token_cobro, reserva=reserva, device_id=device_id)
 
-    if res_cobro.get("estado") == "pending":
+    if _en_revision(res_cobro):
         # Cobro en revisión del banco: se deja la garantía tomada y la reserva
         # a la espera; el webhook / reintento la confirma.
         _registrar_pago(db, reserva, usuario, "hold_reserva", monto_hold, "retenido", res_hold.get("payment_id"))
@@ -326,6 +330,11 @@ def _registrar_pago(db, reserva, usuario, tipo, monto, estado, payment_id) -> No
         referencia_pago=str(payment_id) if payment_id else None,
     ))
     db.flush()
+
+
+def _en_revision(res: Dict[str, Any]) -> bool:
+    """El banco todavía no decide (Mercado Pago lo informa como `pending` o `in_process`)."""
+    return res.get("estado") in ("pending", "in_process")
 
 
 def _cvv_rechazado(res: Dict[str, Any]) -> bool:

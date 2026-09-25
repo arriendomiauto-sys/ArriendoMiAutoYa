@@ -48,6 +48,8 @@ class ResultadoGarantia:
     extras_cobrados: int = 0  # parte de `cobrado` que corresponde a los extras de la devolución
     sin_cubrir: int = 0       # CLP que se debían y no se pudieron cobrar
     garantia_liberada: bool = False
+    # La captura falló (red, pasarela): la garantía sigue retenida y el barrido reintenta.
+    captura_pendiente: bool = False
 
 
 # ===========================================================================
@@ -71,6 +73,16 @@ def _garantia_retenida(db: Session, reserva: Reserva) -> Optional[Pago]:
     return (
         _pagos_de(db, reserva)
         .filter(Pago.tipo == "hold_reserva", Pago.estado == "retenido")
+        .order_by(Pago.timestamp.desc())
+        .first()
+    )
+
+
+def _garantia_en_disputa(db: Session, reserva: Reserva) -> Optional[Pago]:
+    """Garantía ya capturada entera al abrir una disputa, a la espera de la resolución."""
+    return (
+        _pagos_de(db, reserva)
+        .filter(Pago.tipo == "hold_reserva", Pago.estado == "capturado_disputa")
         .first()
     )
 
@@ -180,39 +192,19 @@ def liberar_garantia(garantia: Pago) -> bool:
     return True
 
 
-def saldar_garantia(db: Session, reserva: Reserva, extras: int, cobrar: bool = True) -> ResultadoGarantia:
-    """
-    Cierra la garantía al devolver el auto.
+def _anotar_extras(db: Session, reserva: Reserva, extras: int) -> None:
+    """Los cargos de la devolución quedan como cargo pendiente para cobrarse más adelante."""
+    if extras > 0:
+        db.add(Pago(
+            reserva_id=reserva.id, usuario_id=reserva.cliente_id, tipo="cargo_devolucion",
+            monto=int(extras), estado="pendiente",
+        ))
+        db.flush()
 
-    `extras` son los cargos calculados en la devolución (combustible, km,
-    limpieza, atraso). Se suman a los cargos pendientes del arriendo y se
-    capturan de la garantía hasta su monto; lo que sobra de la garantía se
-    libera. Con `cobrar=False` (hay disputa) no se toca nada.
-    """
-    extras = max(0, int(extras or 0))
-    pendientes = cargos_pendientes(db, reserva)
-    total = extras + sum(int(p.monto or 0) for p in pendientes)
-    garantia = _garantia_retenida(db, reserva)
 
-    if not cobrar or garantia is None:
-        return ResultadoGarantia(sin_cubrir=total if cobrar else 0, garantia_liberada=False)
-
-    if total <= 0:
-        return ResultadoGarantia(garantia_liberada=liberar_garantia(garantia))
-
-    a_capturar = min(total, int(garantia.monto or 0))
-    referencia = garantia.referencia_pago
-    if _capturar(garantia, a_capturar):
-        garantia.estado = "capturado"
-        garantia.monto = a_capturar
-        cobrado = a_capturar
-    else:
-        # Sin captura no hay dinero cobrado: se suelta la garantía para no dejarle
-        # el cupo bloqueado al arrendatario, y el dueño no recibe lo no cobrado.
-        cobrado = 0
-        liberar_garantia(garantia)
-
-    # Reparto de lo cobrado: primero los extras de la devolución, luego los cargos en orden.
+def _repartir(db: Session, reserva: Reserva, cobrado: int, extras: int, pendientes: List[Pago],
+              referencia: Optional[str]) -> None:
+    """Reparte lo cobrado: primero los extras de la devolución, luego los cargos en orden."""
     restante = max(0, cobrado - extras)
     for cargo in pendientes:
         monto = int(cargo.monto or 0)
@@ -233,12 +225,169 @@ def saldar_garantia(db: Session, reserva: Reserva, extras: int, cobrar: bool = T
             cargo.estado = "fallido"
     db.flush()
 
+
+def asegurar_garantia_en_disputa(db: Session, reserva: Reserva, extras: int = 0) -> bool:
+    """
+    Al abrir una disputa se captura la garantía ENTERA y se guarda como
+    `capturado_disputa`. Una retención dura pocos días y una disputa puede
+    tardar semanas: si se esperaba a la resolución, la retención ya se había
+    liberado sola y el dueño no cobraba los daños. Al resolver se cobra lo que
+    corresponda y el resto se le devuelve al arrendatario (saldar_garantia).
+
+    `True` si la garantía quedó asegurada. Si la captura falla, sigue retenida
+    y el barrido lo reintenta.
+    """
+    _anotar_extras(db, reserva, max(0, int(extras or 0)))
+    garantia = _garantia_retenida(db, reserva)
+    if garantia is None:
+        return _garantia_en_disputa(db, reserva) is not None
+    if not _capturar(garantia, int(garantia.monto or 0)):
+        return False
+    garantia.estado = "capturado_disputa"
+    db.flush()
+    return True
+
+
+def _saldar_desde_captura(db: Session, reserva: Reserva, garantia: Pago, extras: int,
+                          pendientes: List[Pago], total: int) -> ResultadoGarantia:
+    """Resuelve una garantía capturada en disputa: queda lo que se cobra, el resto se devuelve."""
+    from app.features.payments import estado_pagos
+    from app.features.payments.mercadopago_service import MercadoPagoService
+
+    capturado = int(garantia.monto or 0)
+    cobrado = min(total, capturado)
+    devolver = capturado - cobrado
+    devuelto = True
+    if devolver > 0 and _es_real(garantia.referencia_pago):
+        res = MercadoPagoService.reembolsar(garantia.referencia_pago, devolver)
+        if not res.get("success"):
+            logger.error("[CARGOS] No se pudo devolver %s de la garantía %s: %s",
+                         devolver, garantia.referencia_pago, res.get("error"))
+            estado_pagos.registrar_reembolso_pendiente(db, garantia, devolver, "reembolso_parcial")
+            devuelto = False
+    garantia.monto = cobrado
+    garantia.estado = "reembolsado" if cobrado == 0 and devuelto else "capturado"
+    _repartir(db, reserva, cobrado, extras, pendientes, garantia.referencia_pago)
     return ResultadoGarantia(
         cobrado=cobrado,
         extras_cobrados=min(extras, cobrado),
         sin_cubrir=total - cobrado,
-        garantia_liberada=garantia.estado == "liberado" or cobrado < int(reserva.monto_hold or 0),
+        garantia_liberada=devolver > 0,
     )
+
+
+def saldar_garantia(db: Session, reserva: Reserva, extras: int, cobrar: bool = True) -> ResultadoGarantia:
+    """
+    Cierra la garantía al devolver el auto (o al resolver una disputa).
+
+    `extras` son los cargos calculados en la devolución (combustible, km,
+    limpieza, atraso). Se suman a los cargos pendientes del arriendo y se
+    capturan de la garantía hasta su monto; lo que sobra se libera (o se
+    devuelve, si la garantía ya estaba capturada por una disputa).
+
+    Con `cobrar=False` (se abre una disputa) la garantía se captura entera y
+    los extras quedan como cargo pendiente: se resuelve después.
+    """
+    extras = max(0, int(extras or 0))
+    if not cobrar:
+        if not asegurar_garantia_en_disputa(db, reserva, extras):
+            logger.error("[CARGOS] Reserva %s: no se pudo asegurar la garantía de la disputa; se reintenta.",
+                         reserva.id)
+        return ResultadoGarantia()
+
+    pendientes = cargos_pendientes(db, reserva)
+    total = extras + sum(int(p.monto or 0) for p in pendientes)
+
+    en_disputa = _garantia_en_disputa(db, reserva)
+    if en_disputa is not None:
+        return _saldar_desde_captura(db, reserva, en_disputa, extras, pendientes, total)
+
+    garantia = _garantia_retenida(db, reserva)
+    if garantia is None:
+        return ResultadoGarantia(sin_cubrir=total, garantia_liberada=False)
+
+    if total <= 0:
+        return ResultadoGarantia(garantia_liberada=liberar_garantia(garantia))
+
+    a_capturar = min(total, int(garantia.monto or 0))
+    if not _capturar(garantia, a_capturar):
+        # Antes se soltaba la garantía y los cargos se perdían por un simple timeout.
+        # Ahora sigue retenida, los extras quedan anotados y el barrido reintenta
+        # (reintentar_garantias) hasta que se cobre o la retención venza.
+        _anotar_extras(db, reserva, extras)
+        return ResultadoGarantia(captura_pendiente=True)
+
+    garantia.estado = "capturado"
+    garantia.monto = a_capturar
+    _repartir(db, reserva, a_capturar, extras, pendientes, garantia.referencia_pago)
+    return ResultadoGarantia(
+        cobrado=a_capturar,
+        extras_cobrados=min(extras, a_capturar),
+        sin_cubrir=total - a_capturar,
+        garantia_liberada=a_capturar < int(reserva.monto_hold or 0),
+    )
+
+
+def reintentar_garantias(db: Session) -> Dict[str, int]:
+    """
+    Barrido de garantías que quedaron colgando:
+      · disputas cuya garantía sigue retenida -> se captura entera;
+      · arriendos finalizados con la garantía retenida -> se cobra lo pendiente
+        (o se libera si no hay nada que cobrar), abonándole al dueño lo cobrado.
+    Si la retención ya venció, se avisa a los admins con lo que quedó sin cobrar.
+    """
+    from app.features.payments import estado_pagos, garantia_renovacion
+
+    from app.models.entities import ChecklistAuto
+
+    resumen = {"disputas_aseguradas": 0, "cobradas": 0, "liberadas": 0, "vencidas": 0}
+    ahora = garantia_renovacion._ahora()
+    # Solo las disputas abiertas en la DEVOLUCIÓN (daños): una disputa previa al arriendo
+    # (identidad que no coincide) no justifica cobrarle la garantía al arrendatario.
+    devueltas = db.query(ChecklistAuto.reserva_id).filter(ChecklistAuto.tipo == "despues")
+    retenidas = (
+        db.query(Pago, Reserva)
+        .join(Reserva, Reserva.id == Pago.reserva_id)
+        .filter(Pago.tipo == "hold_reserva", Pago.estado == "retenido",
+                Reserva.estado.in_(["disputada", "finalizada"]),
+                Reserva.id.in_(devueltas))
+        .all()
+    )
+    for garantia, reserva in retenidas:
+        try:
+            if garantia_renovacion.vence_en(garantia) <= ahora:
+                pendientes = cargos_pendientes(db, reserva)
+                sin_cobrar = sum(int(p.monto or 0) for p in pendientes)
+                garantia.estado = "vencido"
+                for cargo in pendientes:
+                    cargo.estado = "fallido"
+                resumen["vencidas"] += 1
+                if sin_cobrar or reserva.estado == "disputada":
+                    estado_pagos.avisar_admins(
+                        db, "Garantía vencida sin cobrar",
+                        (f"La garantía de la reserva ({reserva.estado}) se liberó sola en Mercado Pago "
+                         f"antes de poder cobrarla. Quedaron ${sin_cobrar:,} CLP sin cobrar: evalúa un "
+                         "cobro posterior a la tarjeta de crédito.").replace(",", "."),
+                        reserva.id,
+                    )
+            elif reserva.estado == "disputada":
+                if asegurar_garantia_en_disputa(db, reserva):
+                    resumen["disputas_aseguradas"] += 1
+            else:
+                resultado = saldar_garantia(db, reserva, extras=0, cobrar=True)
+                if resultado.cobrado > 0:
+                    abono = abonar_al_dueno(db, reserva, resultado.cobrado)
+                    reserva.liquidacion_dueno_clp = int(reserva.liquidacion_dueno_clp or 0) + resultado.cobrado
+                    db.commit()
+                    liquidar_sin_bloquear(db, abono)
+                    resumen["cobradas"] += 1
+                elif resultado.garantia_liberada:
+                    resumen["liberadas"] += 1
+            db.commit()
+        except Exception:  # noqa: BLE001 — una reserva mala no frena el barrido
+            db.rollback()
+            logger.exception("[CARGOS] Falló el reintento de la garantía de la reserva %s", reserva.id)
+    return resumen
 
 
 # ===========================================================================
@@ -265,14 +414,28 @@ def tarjeta_del_cobro(db: Session, reserva: Reserva) -> Optional[Tarjeta]:
     return db.query(Tarjeta).filter(Tarjeta.id == reserva.tarjeta_cobro_id).first()
 
 
-def cobrar_a_tarjeta(db: Session, reserva: Reserva, tarjeta: Tarjeta, monto: int, ref: str) -> Dict[str, Any]:
-    """Cobra `monto` a `tarjeta` (captura inmediata). Devuelve la respuesta de la pasarela."""
+def cobrar_a_tarjeta(
+    db: Session, reserva: Reserva, tarjeta: Tarjeta, monto: int, ref: str, token_app: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Cobra `monto` a `tarjeta` (captura inmediata). Devuelve la respuesta de la pasarela.
+
+    Un cobro que queda "en revisión" del banco se cancela y se informa como no
+    autorizado: quien llama no lo registra, y si el banco lo aprobara después
+    el cliente quedaría cobrado por algo que no recibió.
+    """
     from app.features.payments import checkout_service
 
     cliente = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
     if not cliente:
         raise CargoError(404, "Cliente no encontrado.")
-    return checkout_service._mover(tarjeta, cliente, int(monto), capturar=True, ref=ref, reserva=reserva)
+    res = checkout_service._mover(
+        tarjeta, cliente, int(monto), capturar=True, ref=ref, reserva=reserva, token_app=token_app,
+    )
+    if not res.get("autorizada") and checkout_service._en_revision(res):
+        checkout_service._liberar(res.get("payment_id"))
+        res = {**res, "detalle_estado": "en_revision_cancelado"}
+    return res
 
 
 def abonar_al_dueno(db: Session, reserva: Reserva, monto: int) -> Optional[Pago]:

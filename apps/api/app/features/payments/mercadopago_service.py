@@ -292,9 +292,35 @@ class MercadoPagoService:
 
     @classmethod
     def reembolsar(cls, payment_id: str, monto: Optional[int] = None) -> Dict[str, Any]:
-        """Devuelve total o parcialmente un pago ya cobrado."""
+        """
+        Devuelve total o parcialmente un pago ya cobrado.
+
+        La clave de idempotencia sale del pago y el monto: si un reembolso se
+        reintenta porque la respuesta se perdió (timeout), Mercado Pago lo
+        reconoce y no devuelve dos veces.
+        """
         cuerpo = {"amount": int(monto)} if monto is not None else {}
-        return cls._pedir("POST", f"/v1/payments/{payment_id}/refunds", json=cuerpo)
+        clave = f"REEMB-{payment_id}-{int(monto) if monto is not None else 'total'}"
+        return cls._pedir(
+            "POST", f"/v1/payments/{payment_id}/refunds", json=cuerpo, idempotency_key=clave
+        )
+
+    @classmethod
+    def buscar_pagos_actualizados(cls, desde_iso: str, hasta_iso: str, offset: int = 0, limite: int = 100) -> Dict[str, Any]:
+        """Pagos de la cuenta actualizados en el rango (para la conciliación)."""
+        params = {
+            "range": "date_last_updated", "begin_date": desde_iso, "end_date": hasta_iso,
+            "sort": "date_last_updated", "criteria": "asc", "offset": offset, "limit": limite,
+        }
+        resultado = cls._pedir("GET", "/v1/payments/search", params=params)
+        if not resultado["success"]:
+            return resultado
+        datos = resultado["data"] or {}
+        return {
+            "success": True,
+            "pagos": [cls._resumen_pago(p) for p in (datos.get("results") or [])],
+            "total": (datos.get("paging") or {}).get("total", 0),
+        }
 
     # -----------------------------------------------------------------
     # Webhook

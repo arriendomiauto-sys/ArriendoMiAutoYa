@@ -916,6 +916,7 @@ class BookingOut(BaseModel):
     # arrendatario tiene que renovarla con su CVV (POST /reservas/{id}/garantia/renovar).
     garantia_por_renovar: bool = False
     tarjeta_garantia_id: Optional[str] = None
+    tarjeta_cobro_id: Optional[str] = None
     cargo_limpieza_clp: int = 0
     cargo_combustible_clp: int = 0
     cargo_km_extra_clp: int = 0
@@ -1287,6 +1288,8 @@ class CalendarBlockOut(BaseModel):
 # ==============================================================================
 class ExtendBookingRequest(BaseModel):
     dias_adicionales: int = Field(..., gt=0, le=30)
+    # card_token de la tarjeta del arriendo generado por la app con el CVV (ver PagarReservaRequest).
+    token_cobro: Optional[str] = None
 
 # ==============================================================================
 # MENSAJERÍA (CHAT POR RESERVA)

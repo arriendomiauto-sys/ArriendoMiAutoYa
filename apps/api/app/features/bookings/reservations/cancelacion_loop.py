@@ -15,15 +15,21 @@ def _hubo_trabajo(resultado) -> bool:
     return bool(resultado)
 
 
+def _pasada(session_factory):
+    db = session_factory()
+    try:
+        return cancelacion_service.barrido_reservas(db)
+    finally:
+        db.close()
+
+
 async def _bucle(session_factory) -> None:
     while True:
         try:
             await asyncio.sleep(max(1, settings.RESERVAS_BARRIDO_INTERVALO_MINUTOS) * 60)
-            db = session_factory()
-            try:
-                resultado = cancelacion_service.barrido_reservas(db)
-            finally:
-                db.close()
+            # En un hilo aparte: la pasada llama a Mercado Pago (reembolsos, capturas,
+            # conciliación) y en el event loop dejaba a la API sin responder mientras tanto.
+            resultado = await asyncio.to_thread(_pasada, session_factory)
             if _hubo_trabajo(resultado):
                 logger.info("[reservas] Barrido: %s", resultado)
         except asyncio.CancelledError:

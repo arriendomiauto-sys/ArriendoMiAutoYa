@@ -61,6 +61,11 @@ def _ahora() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _corte_retencion() -> datetime:
+    """Solo se transfieren las liquidaciones creadas antes de este momento (UTC sin zona, como la columna)."""
+    return _ahora() - timedelta(days=settings.LIQUIDACION_RETENCION_DIAS)
+
+
 def _minutos_stale_procesando() -> int:
     """Umbral de antigüedad para tratar un 'procesando' como huérfano."""
     intervalo = int(getattr(settings, "LIQUIDACIONES_INTERVALO_MINUTOS", 0) or 0)
@@ -264,6 +269,9 @@ def ejecutar_liquidaciones_pendientes(
     filtros = [
         Pago.tipo == "liquidacion_dueno",
         ~Pago.reserva_id.in_(reservas_disputadas),
+        # La plata del arrendatario todavía puede volver (contracargo, reembolso por
+        # disputa): no se le transfiere al dueño hasta que pase el período de retención.
+        Pago.timestamp <= _corte_retencion(),
         or_(
             Pago.estado.in_(["pendiente", "fallido"]),
             and_(
@@ -319,6 +327,9 @@ def intentar_liquidar(db: Session, pago: Pago) -> None:
         db.rollback()
 
     if not settings.BCI_PAYOUTS_HABILITADO:
+        return
+    # Recién creada nunca pasó la retención; la paga el barrido de fondo cuando corresponda.
+    if settings.LIQUIDACION_RETENCION_DIAS > 0:
         return
     try:
         if int(pago.monto or 0) >= settings.BCI_PAYOUT_MIN_CLP:

@@ -224,7 +224,17 @@ _CHECKS_ESPERADAS = {
         "pagos_estado_check",
         "estado",
         ("pendiente", "procesando", "capturado", "retenido",
-         "liberado", "fallido", "reembolsado", "pagado"),
+         "liberado", "fallido", "reembolsado", "pagado",
+         # Cargos o liquidaciones anulados (resolución de disputas).
+         "cancelado",
+         # El banco revirtió el cobro a pedido del tarjetahabiente (webhook charged_back).
+         "contracargo",
+         # Garantía capturada entera al abrir una disputa: se salda o devuelve al resolverla.
+         "capturado_disputa",
+         # Liquidación congelada hasta que un admin revise (contracargo o reembolso tardío).
+         "en_revision",
+         # Garantía que Mercado Pago liberó sola antes de poder cobrar los cargos.
+         "vencido"),
     ),
     # El código sumó tipos nuevos de Pago con el tiempo (bono de referidos,
     # multas por falta, cargos de GPS, cobros posteriores por TAG/peaje) sin
@@ -249,6 +259,12 @@ _CHECKS_ESPERADAS = {
             "reembolso_parcial",
             # Multa que el dueño debe por no presentarse a una entrega confirmada (deuda pendiente).
             "multa_dueno",
+            # Mitad del deducible que se le carga al arrendatario al resolver una disputa 50/50.
+            "cargo_deducible_50_50",
+            # Devolución completa de un cobro que falló en la pasarela y queda para reintentar.
+            "reembolso_total",
+            # Cargos calculados al devolver (combustible, km, limpieza, atraso) que quedan por cobrar.
+            "cargo_devolucion",
         ),
     ),
 }

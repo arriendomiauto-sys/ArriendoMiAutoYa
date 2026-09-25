@@ -14,7 +14,7 @@ from app.core.url_validator import validate_safe_return_url
 from app.models.entities import Auto, Pago, Reserva, Usuario
 from app.features.auth.login.service import get_current_user
 from app.features.payments.mercadopago_service import MercadoPagoService
-from app.features.bookings.reservations import confirmacion_service
+from app.features.payments import estado_pagos
 # Mock payments handling for local development
 from app.services import pagos_simulados
 
@@ -25,37 +25,10 @@ router = APIRouter(prefix="/pagos", tags=["Pasarela de Pagos (Mercado Pago)"])
 
 def _aplicar_resultado(db: Session, pago: Optional[Pago], resultado: Dict[str, Any]) -> None:
     """
-    Lleva el estado de la pasarela a nuestras tablas.
-
-    Vive aparte porque hay dos caminos que terminan acá: la vuelta del usuario
-    desde el checkout y el webhook de Mercado Pago. Los dos tienen que dejar
-    exactamente lo mismo, y el que llegue segundo no debe deshacer nada — de
-    ahí que la reserva solo avance de `pendiente` a `confirmada`.
+    Lleva el estado de la pasarela a nuestras tablas. Vive en `estado_pagos`
+    porque lo comparten la vuelta del checkout, el webhook y la conciliación.
     """
-    if not pago:
-        return
-
-    if not resultado.get("autorizada"):
-        pago.estado = "fallido"
-        db.commit()
-        return
-
-    # `retenido` es la garantía autorizada sin capturar: el cupo está tomado en
-    # la tarjeta pero al arrendatario no se le cobró nada todavía.
-    pago.estado = "retenido" if resultado.get("retenido") else "capturado"
-    if resultado.get("payment_id"):
-        pago.referencia_pago = str(resultado["payment_id"])
-
-    if pago.reserva_id:
-        reserva = db.query(Reserva).filter(Reserva.id == pago.reserva_id).first()
-        # Pagada, no confirmada: la reserva espera al dueño. Una reserva que ya está en `pendiente`
-        # (o más adelante) NO se toca: un aviso tardío de la pasarela no puede saltarse su confirmación.
-        if reserva and reserva.estado == "pendiente_pago":
-            confirmacion_service.esperar_confirmacion_del_dueno(db, reserva)
-            db.flush()
-
-    db.commit()
-    db.refresh(pago)
+    estado_pagos.aplicar_estado_pasarela(db, pago, resultado)
 
 
 def _mensaje_de_rechazo(resultado: Dict[str, Any]) -> str:
@@ -323,10 +296,7 @@ async def webhook_mercadopago(
             status_code=status.HTTP_502_BAD_GATEWAY, detail="No se pudo consultar el pago"
         )
 
-    referencia = resultado.get("referencia_externa")
-    pago = db.query(Pago).filter(Pago.id == referencia).first() if referencia else None
-    if not pago:
-        pago = db.query(Pago).filter(Pago.referencia_pago == str(data_id)).first()
+    pago = estado_pagos.buscar_pago_local(db, resultado)
 
     if not pago:
         logger.warning("[MERCADOPAGO] Aviso de un pago que no reconocemos: %s", data_id)

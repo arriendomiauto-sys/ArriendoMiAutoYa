@@ -150,6 +150,12 @@ class Settings(BaseSettings):
     # No intentar transferencias por montos ínfimos (se acumulan / se pagan a mano).
     BCI_PAYOUT_MIN_CLP: int = 1000
     LIQUIDACIONES_INTERVALO_MINUTOS: int = 10
+    # Días que espera una liquidación antes de transferirse al dueño: en ese plazo
+    # un contracargo o un reembolso por disputa todavía puede anularla o rebajarla.
+    # Idealmente >= el plazo en que Mercado Pago te libera el dinero.
+    LIQUIDACION_RETENCION_DIAS: int = 7
+    # Cada cuánto se concilian los pagos con Mercado Pago (corre dentro del barrido de reservas).
+    CONCILIACION_INTERVALO_MINUTOS: int = 60
     # Cada cuánto se cancelan las reservas `pendiente_pago` vencidas y se sueltan garantías colgadas.
     RESERVAS_BARRIDO_INTERVALO_MINUTOS: int = 5
     # Cuánto dura una retención (pago autorizado sin capturar) antes de que Mercado Pago la

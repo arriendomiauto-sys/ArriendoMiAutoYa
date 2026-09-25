@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Response, Request
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -35,7 +36,9 @@ import uuid
 from app.core.validators import validar_disponibilidad_reserva
 from app.features.auth.onboarding.license_service import evaluar_licencia_usuario
 from app.services import tarjetas
-from app.features.payments import checkout_service, cargos_service
+from app.features.payments import checkout_service, cargos_service, garantia_renovacion
+from app.features.payments.mercadopago_service import MercadoPagoService
+from app.services import pagos_simulados
 from app.features.auth.background_checks import certificados_service
 from app.core.config import settings
 from app.features.bookings.reservations import cancelacion_service, confirmacion_service
@@ -43,6 +46,8 @@ from app.features.bookings.reservations import cancelacion_service, confirmacion
 # Límites de las fechas de una reserva (mismo tope de 30 días que las extensiones).
 MAX_DIAS_RESERVA = 30
 TOLERANCIA_INICIO_PASADO = timedelta(hours=1)  # la app redondea el retiro a la media hora
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reservas", tags=["Reservas"])
 
@@ -71,8 +76,9 @@ def _con_desglose_pago(reserva: Reserva):
     """
     reserva.cobro = checkout_service.desglose_cobro(reserva.monto_cobro or 0)
     reserva.garantia = {"monto": int(reserva.monto_hold or 0)}
-    reserva.garantia_por_renovar = bool(reserva.garantia_renovacion_pedida_en) and reserva.estado in (
-        "pendiente", "confirmada", "en_curso"
+    reserva.garantia_por_renovar = (
+        bool(reserva.garantia_renovacion_pedida_en)
+        and reserva.estado in garantia_renovacion.ESTADOS_CON_GARANTIA
     )
     return reserva
 
@@ -775,9 +781,15 @@ def extender_reserva(
             detail="No encontramos la tarjeta con la que pagaste este arriendo. Agrega una tarjeta para extenderlo.",
         )
     cobro = cargos_service.cobrar_a_tarjeta(
-        db, reserva, tarjeta, monto_adicional, ref=f"EXT-{reserva.id[:8]}-{uuid.uuid4().hex[:6]}"
+        db, reserva, tarjeta, monto_adicional, ref=f"EXT-{reserva.id[:8]}-{uuid.uuid4().hex[:6]}",
+        token_app=payload.token_cobro,
     )
     if not cobro.get("autorizada"):
+        if checkout_service._cvv_rechazado(cobro):
+            raise HTTPException(
+                status_code=402,
+                detail={"codigo": "CVV_INVALIDO", "mensaje": "El código de seguridad de la tarjeta es incorrecto."},
+            )
         raise HTTPException(
             status_code=402,
             detail="El banco no aprobó el cobro de los días adicionales. Prueba con otra tarjeta; el arriendo no se extendió.",
@@ -793,7 +805,15 @@ def extender_reserva(
         estado="capturado",
         referencia_pago=str(cobro.get("payment_id") or ""),
     ))
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        # Ya se cobró y no quedó registrado: se devuelve para no cobrar días que no se extendieron.
+        db.rollback()
+        logger.exception("[EXTENSION] No se pudo guardar la extensión de %s; se devuelve el cobro", reserva_id)
+        if cobro.get("payment_id") and not pagos_simulados.es_pago_simulado(str(cobro["payment_id"])):
+            MercadoPagoService.reembolsar(str(cobro["payment_id"]))
+        raise HTTPException(status_code=500, detail="No pudimos extender el arriendo. No se te cobró nada; reintenta.")
     db.refresh(reserva)
     return reserva
 

@@ -65,16 +65,14 @@ def _liberar(pago: Pago) -> bool:
     return True
 
 
-def _reembolsar(pago: Pago) -> bool:
-    """Devuelve un cobro ya capturado. `True` si quedó hecho."""
-    if _en_pasarela(pago):
-        res = MercadoPagoService.reembolsar(pago.referencia_pago)
-        if not res.get("success"):
-            logger.error("[CANCELACION] No se pudo reembolsar el pago %s (%s): %s",
-                         pago.id, pago.referencia_pago, res.get("error"))
-            return False
-    pago.estado = "reembolsado"
-    return True
+def _reembolsar(db: Session, pago: Pago) -> bool:
+    """
+    Devuelve un cobro ya capturado. `True` si quedó hecho; si la pasarela falla
+    queda anotado un `reembolso_total` pendiente que el barrido reintenta.
+    """
+    from app.features.payments import estado_pagos
+
+    return estado_pagos.reembolsar_total(db, pago)
 
 
 def _corresponde_reembolso_total(reserva: Reserva, cancela_arrendatario: bool, ahora: datetime) -> bool:
@@ -102,12 +100,18 @@ def _devolver_dinero(db: Session, reserva: Reserva, reembolso_total: bool) -> di
                 resultado["garantia"] += pago.monto
             else:
                 resultado["pendiente"] = True
+        elif pago.tipo == "hold_reserva" and pago.estado == "capturado_disputa":
+            # Garantía capturada al abrir una disputa: soltarla es devolverla.
+            if _reembolsar(db, pago):
+                resultado["garantia"] += pago.monto
+            else:
+                resultado["pendiente"] = True
         elif pago.tipo == "cobro_arriendo" and pago.estado == "pendiente":
             # Cobro que el banco nunca acreditó: se cancela, no se "reembolsa".
             if not _liberar(pago):
                 resultado["pendiente"] = True
         elif pago.tipo == "cobro_arriendo" and pago.estado == "capturado" and reembolso_total:
-            if _reembolsar(pago):
+            if _reembolsar(db, pago):
                 resultado["reembolsado"] += pago.monto
             else:
                 resultado["pendiente"] = True
@@ -238,7 +242,7 @@ def barrido_reservas(db: Session) -> dict:
     """Una pasada del bucle de fondo: expira lo vencido, cancela lo que el dueño no confirmó y suelta garantías colgadas."""
     # Import local: confirmacion_service usa las utilidades de este módulo.
     from app.features.bookings.reservations import confirmacion_service
-    from app.features.payments import garantia_renovacion
+    from app.features.payments import cargos_service, estado_pagos, garantia_renovacion
 
     return {
         "expiradas": expirar_reservas_vencidas(db),
@@ -248,4 +252,7 @@ def barrido_reservas(db: Session) -> dict:
         "no_presentaciones": confirmacion_service.resolver_no_presentaciones(db),
         "garantias_liberadas": liberar_garantias_colgadas(db),
         "garantias_renovadas": garantia_renovacion.renovar_garantias_por_vencer(db),
+        "reembolsos": estado_pagos.reintentar_reembolsos_pendientes(db),
+        "garantias_por_saldar": cargos_service.reintentar_garantias(db),
+        "conciliacion": estado_pagos.conciliar(db),
     }
