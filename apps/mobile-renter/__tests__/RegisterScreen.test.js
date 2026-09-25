@@ -318,13 +318,29 @@ describe("RegisterScreen (arrendatario)", () => {
       return tr;
     }
     const pegarCodigo = (tr, codigo) =>
-      act(() => tr.root.findByType(CodigoVerificacion).props.onCambiar(0, codigo));
+      act(() => tr.root.findByType(CodigoVerificacion).props.onCambiar(codigo));
 
     it("sin los seis dígitos no verifica", async () => {
       const tr = await irAlCodigo();
       await tocar(tr, "btn-verificar");
       expect(textOf(tr)).toContain("Escribe los 6 dígitos que enviamos a tu correo.");
       expect(mockVerifyOtp).not.toHaveBeenCalled();
+    });
+
+    it("un solo campo recibe el código: escribir y borrar dígito a dígito va llenando las casillas", async () => {
+      const tr = await irAlCodigo();
+      const campo = () => tr.root.findAll((n) => n.props?.testID === "input-codigo" && n.props.onChangeText)[0];
+      const digitos = () => tr.root.findByType(CodigoVerificacion).props.digitos;
+
+      act(() => campo().props.onChangeText("4"));
+      act(() => campo().props.onChangeText("48"));
+      expect(digitos()).toEqual(["4", "8", "", "", "", ""]);
+      act(() => campo().props.onChangeText("4"));
+      expect(digitos()).toEqual(["4", "", "", "", "", ""]);
+      // Letras o espacios pegados se ignoran.
+      act(() => campo().props.onChangeText("4 82-915x"));
+      expect(digitos()).toEqual(["4", "8", "2", "9", "1", "5"]);
+      expect(tr.root.findAllByType(TextInput)).toHaveLength(1);
     });
 
     it("acepta pegar el código completo y verifica con el correo sin espacios", async () => {

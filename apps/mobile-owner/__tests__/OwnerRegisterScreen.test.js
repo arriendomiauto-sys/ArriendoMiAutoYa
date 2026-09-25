@@ -112,7 +112,10 @@ describe("OwnerRegisterScreen", () => {
   it("aceptar crea la cuenta con el rol de dueño y pasa al código", async () => {
     const tr = montar(<OwnerRegisterScreen onNavigate={() => {}} />);
     await crearCuenta(tr);
-    expect(mockRegister).toHaveBeenCalledWith("j.contreras@correo.cl", "autos2026", "owner");
+    expect(mockRegister).toHaveBeenCalledWith("j.contreras@correo.cl", "autos2026", "owner", {
+      nombre: "Jorge Contreras",
+      telefono: "+56 9 8765 4321",
+    });
     expect(textOf(tr)).toContain("Revisa tu correo");
   });
 
@@ -130,7 +133,7 @@ describe("OwnerRegisterScreen", () => {
     const onNavigate = jest.fn();
     const tr = montar(<OwnerRegisterScreen onNavigate={onNavigate} />);
     await crearCuenta(tr);
-    act(() => tr.root.findByType(CodigoVerificacion).props.onCambiar(0, "123456"));
+    act(() => tr.root.findByType(CodigoVerificacion).props.onCambiar("123456"));
     await tocar(tr, "btn-verificar");
 
     expect(ApiClient.actualizarPerfilBasico).toHaveBeenCalledWith({
@@ -150,7 +153,7 @@ describe("OwnerRegisterScreen", () => {
     mockVerifyOtp.mockResolvedValue({ error: new Error("expired") });
     const tr = montar(<OwnerRegisterScreen onNavigate={() => {}} />);
     await crearCuenta(tr);
-    act(() => tr.root.findByType(CodigoVerificacion).props.onCambiar(0, "000000"));
+    act(() => tr.root.findByType(CodigoVerificacion).props.onCambiar("000000"));
     await tocar(tr, "btn-verificar");
     expect(textOf(tr)).toContain("El código no coincide o venció. Pide uno nuevo.");
   });

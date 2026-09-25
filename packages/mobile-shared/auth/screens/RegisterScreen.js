@@ -272,10 +272,9 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
 
             <CodigoVerificacion
               digitos={codigo.digitos}
-              casillasRef={codigo.casillasRef}
+              inputRef={codigo.inputRef}
               error={codigo.error}
-              onCambiar={codigo.cambiarDigito}
-              onTecla={codigo.teclaDigito}
+              onCambiar={codigo.cambiarCodigo}
             />
 
             <View className="flex-grow min-h-[8px]" />

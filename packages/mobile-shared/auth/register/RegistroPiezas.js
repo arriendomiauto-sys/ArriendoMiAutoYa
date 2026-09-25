@@ -69,54 +69,64 @@ export function RequisitosContrasena({ contrasena }) {
   );
 }
 
-function CasillaCodigo({ indice, valor, inputRef, error, onCambiar, onTecla }) {
-  const [enfocada, setEnfocada] = useState(false);
-  const estado = error
-    ? "border-danger bg-surface"
-    : enfocada
-      ? "border-accent bg-surface"
-      : valor
-        ? "border-accent-200 bg-[#F1FAF7]"
-        : "border-gray-200 bg-surface";
-  return (
-    <TextInput
-      testID={`codigo-${indice}`}
-      ref={inputRef}
-      className={`flex-1 h-[54px] rounded-xl border-[1.5px] p-0 text-center text-[22px] font-bold text-textDark ${estado}`}
-      value={valor}
-      onChangeText={(texto) => onCambiar(indice, texto)}
-      onKeyPress={(e) => onTecla(indice, e)}
-      onFocus={() => setEnfocada(true)}
-      onBlur={() => setEnfocada(false)}
-      keyboardType="number-pad"
-      // Más de 1 para poder pegar el código entero en cualquier casilla.
-      maxLength={6}
-      selectTextOnFocus
-      accessibilityLabel={`Dígito ${indice + 1}`}
-      autoComplete={indice === 0 ? "sms-otp" : "off"}
-      textContentType={indice === 0 ? "oneTimeCode" : "none"}
-    />
-  );
-}
-
-/** Seis casillas grandes; el foco avanza solo y acepta pegar el código completo. */
-export function CodigoVerificacion({ digitos, casillasRef, error, onCambiar, onTecla }) {
+/**
+ * Seis casillas que muestran el código, con UN solo campo de texto invisible
+ * encima que recibe todo lo que se escribe o se pega.
+ *
+ * Antes eran seis TextInput: cada dígito movía el foco a la casilla siguiente
+ * y en Android eso se sentía con lag (el teclado "saltaba" y a veces se comía
+ * un dígito escrito rápido). Con un campo único el teclado no cambia de dueño,
+ * el autocompletado del código (oneTimeCode / sms-otp) llena todo de una vez y
+ * borrar funciona como en cualquier campo.
+ */
+export function CodigoVerificacion({ digitos, inputRef, error, onCambiar }) {
+  const [enfocado, setEnfocado] = useState(false);
+  const texto = digitos.join("");
+  const activa = Math.min(texto.length, digitos.length - 1);
   return (
     <View className="gap-2">
       <View className="flex-row gap-2" accessibilityLabel="Código de verificación">
-        {digitos.map((valor, i) => (
-          <CasillaCodigo
-            key={i}
-            indice={i}
-            valor={valor}
-            error={!!error}
-            inputRef={(el) => {
-              casillasRef.current[i] = el;
-            }}
-            onCambiar={onCambiar}
-            onTecla={onTecla}
-          />
-        ))}
+        {digitos.map((valor, i) => {
+          const estaActiva = enfocado && i === activa;
+          const estado = error
+            ? "border-danger bg-surface"
+            : estaActiva
+              ? "border-accent bg-surface"
+              : valor
+                ? "border-accent-200 bg-[#F1FAF7]"
+                : "border-gray-200 bg-surface";
+          return (
+            <View
+              key={i}
+              testID={`codigo-${i}`}
+              className={`flex-1 h-[54px] rounded-xl border-[1.5px] items-center justify-center ${estado}`}
+            >
+              {valor ? (
+                <Text className="text-[22px] font-bold text-textDark">{valor}</Text>
+              ) : estaActiva ? (
+                <View className="w-0.5 h-6 rounded-full bg-accent" />
+              ) : null}
+            </View>
+          );
+        })}
+        <TextInput
+          testID="input-codigo"
+          ref={inputRef}
+          value={texto}
+          onChangeText={onCambiar}
+          onFocus={() => setEnfocado(true)}
+          onBlur={() => setEnfocado(false)}
+          keyboardType="number-pad"
+          maxLength={digitos.length}
+          autoFocus
+          caretHidden
+          contextMenuHidden={false}
+          autoComplete="sms-otp"
+          textContentType="oneTimeCode"
+          accessibilityLabel={`Código de verificación de ${digitos.length} dígitos`}
+          // Cubre las seis casillas: tocar cualquiera abre el teclado.
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, opacity: 0.02, color: "transparent" }}
+        />
       </View>
       {error ? <MensajeCampo testID="error-codigo">{error}</MensajeCampo> : null}
     </View>

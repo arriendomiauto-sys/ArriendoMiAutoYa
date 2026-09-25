@@ -59,7 +59,7 @@ export function useRegistroCuenta({ role }) {
   const [codigo, setCodigo] = useState(nuevoCodigo);
   const [errorCodigo, setErrorCodigo] = useState(null);
   const [tiempoReenvio, setTiempoReenvio] = useState(ESPERA_REENVIO_S);
-  const casillasRef = useRef([]);
+  const codigoInputRef = useRef(null);
 
   // Refs para que "Siguiente" del teclado salte al campo que sigue.
   const apellidoRef = useRef(null);
@@ -136,32 +136,12 @@ export function useRegistroCuenta({ role }) {
   };
 
   // ---- Paso 3: código ------------------------------------------------------
-  const cambiarDigito = (indice, valor) => {
+  // El código entero llega de un solo campo (ver CodigoVerificacion): escribir,
+  // borrar y pegar son el mismo caso.
+  const cambiarCodigo = (texto) => {
     if (errorCodigo) setErrorCodigo(null);
-    const digitos = String(valor || "").replace(/\D/g, "");
-    // Pegar el código completo llena las seis casillas.
-    if (digitos.length >= LARGO_CODIGO) {
-      setCodigo(digitos.slice(0, LARGO_CODIGO).split(""));
-      casillasRef.current[LARGO_CODIGO - 1]?.focus();
-      return;
-    }
-    setCodigo((actual) => {
-      const nuevo = [...actual];
-      nuevo[indice] = digitos.slice(-1);
-      return nuevo;
-    });
-    if (digitos && indice < LARGO_CODIGO - 1) casillasRef.current[indice + 1]?.focus();
-  };
-
-  const teclaDigito = (indice, evento) => {
-    if (evento?.nativeEvent?.key === "Backspace" && !codigo[indice] && indice > 0) {
-      setCodigo((actual) => {
-        const nuevo = [...actual];
-        nuevo[indice - 1] = "";
-        return nuevo;
-      });
-      casillasRef.current[indice - 1]?.focus();
-    }
+    const digitos = String(texto || "").replace(/\D/g, "").slice(0, LARGO_CODIGO);
+    setCodigo(Array.from({ length: LARGO_CODIGO }, (_, i) => digitos[i] || ""));
   };
 
   const verificar = async () => {
@@ -255,11 +235,10 @@ export function useRegistroCuenta({ role }) {
     aceptarYCrear,
     codigo: {
       digitos: codigo,
-      casillasRef,
+      inputRef: codigoInputRef,
       error: errorCodigo,
       tiempoReenvio,
-      cambiarDigito,
-      teclaDigito,
+      cambiarCodigo,
       verificar,
       reenviar,
     },
