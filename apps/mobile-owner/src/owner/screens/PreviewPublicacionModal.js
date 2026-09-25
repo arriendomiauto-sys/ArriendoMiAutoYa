@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, Icon, SectionLabel, PhotoViewer, FOTOS_AUTO } from "@rentacar/mobile-shared";
+import { colors, Icon, SectionLabel, usePhotoViewer, FOTOS_AUTO } from "@rentacar/mobile-shared";
 
 // Los mismos rótulos que usa la ficha del arrendatario
 // (mobile-renter/src/renter/screens/CarDetailScreen.js): la gracia de esta
@@ -47,7 +47,7 @@ export function PreviewPublicacionModal({ visible, car, onClose }) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [indice, setIndice] = useState(0);
-  const [zoom, setZoom] = useState(null); // índice de la foto abierta a pantalla completa
+  const abrirVisor = usePhotoViewer();
   const heroRef = useRef(null);
   const tiraRef = useRef(null);
 
@@ -103,7 +103,7 @@ export function PreviewPublicacionModal({ visible, car, onClose }) {
                 keyExtractor={(uri, i) => `${uri}-${i}`}
                 getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
                 renderItem={({ item, index }) => (
-                  <TouchableOpacity activeOpacity={0.95} onPress={() => setZoom(index)}>
+                  <TouchableOpacity activeOpacity={0.95} onPress={() => abrirVisor(fotos, index)}>
                     <Image source={{ uri: item }} style={{ width, height: ALTO_HERO }} resizeMode="cover" />
                   </TouchableOpacity>
                 )}
@@ -282,13 +282,6 @@ export function PreviewPublicacionModal({ visible, car, onClose }) {
             Quien arrienda ve acá el selector de fechas y el botón para reservar.
           </Text>
         </View>
-
-        <PhotoViewer
-          visible={zoom !== null}
-          photos={fotos}
-          initialIndex={zoom || 0}
-          onClose={() => setZoom(null)}
-        />
       </View>
     </Modal>
   );

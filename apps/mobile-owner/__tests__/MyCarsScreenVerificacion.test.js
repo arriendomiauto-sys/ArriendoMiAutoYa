@@ -10,6 +10,13 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
+// La vista previa abre el visor de fotos, que en la app vive en el
+// PhotoViewerProvider de App.js; acá no se monta.
+jest.mock("@rentacar/mobile-shared", () => ({
+  ...jest.requireActual("@rentacar/mobile-shared"),
+  usePhotoViewer: () => jest.fn(),
+}));
+
 const auto = { id: "auto-1", marca: "Kia", modelo: "Rio", anio: 2022, tarifa_dia: 30000, estado: "activo",
                documentos_verificados: false, fotos: [] };
 

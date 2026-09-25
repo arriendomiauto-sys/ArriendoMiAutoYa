@@ -18,7 +18,13 @@ jest.mock("react-native-safe-area-context", () => ({
 const mockActualizarAuto = jest.fn();
 jest.mock("@rentacar/mobile-shared", () => {
   const real = jest.requireActual("@rentacar/mobile-shared");
-  return { ...real, ApiClient: { ...real.ApiClient, actualizarAuto: (...a) => mockActualizarAuto(...a) } };
+  return {
+    ...real,
+    ApiClient: { ...real.ApiClient, actualizarAuto: (...a) => mockActualizarAuto(...a) },
+    // La vista previa abre el visor de fotos, que en la app vive en el
+    // PhotoViewerProvider de App.js; acá no se monta.
+    usePhotoViewer: () => jest.fn(),
+  };
 });
 
 const auto = {
