@@ -1,6 +1,8 @@
 import React from "react";
 import { TextInput } from "react-native";
 import { act } from "react-test-renderer";
+import * as Clipboard from "expo-clipboard";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiClient, CodigoVerificacion } from "@rentacar/mobile-shared";
 import { RegisterScreen } from "@rentacar/mobile-shared/auth/screens/RegisterScreen";
 import {
@@ -182,6 +184,60 @@ describe("RegisterScreen (arrendatario)", () => {
     });
   });
 
+  describe("código de colaborador", () => {
+    const asentar = () => act(async () => {
+      await new Promise((r) => setImmediate(r));
+    });
+
+    beforeEach(async () => {
+      await AsyncStorage.clear();
+      await Clipboard.setStringAsync("");
+    });
+
+    it("un código copiado NO se pone solo: se sugiere y se usa al tocar 'Usar'", async () => {
+      await Clipboard.setStringAsync("abc123");
+      jest.spyOn(ApiClient, "validarCodigoReferido").mockResolvedValue({ valido: true, codigo: "ABC123", nombre_referente: "Pedro" });
+      const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
+      await asentar();
+
+      expect(porTestId(tr, "input-codigo-colaborador").props.value).toBe("");
+      expect(textOf(tr)).toContain("¿Te invitó Pedro?");
+      expect(textOf(tr)).toContain("ABC123");
+
+      await tocar(tr, "btn-usar-sugerencia");
+      expect(porTestId(tr, "input-codigo-colaborador").props.value).toBe("ABC123");
+      expect(tr.root.findAll((n) => n.props?.testID === "sugerencia-codigo")).toHaveLength(0);
+    });
+
+    it("lo copiado que no es un código válido (p. ej. el código del correo) no aparece en ningún lado", async () => {
+      await Clipboard.setStringAsync("482915");
+      jest.spyOn(ApiClient, "validarCodigoReferido").mockResolvedValue({ valido: false, codigo: "482915" });
+      const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
+      await asentar();
+
+      expect(porTestId(tr, "input-codigo-colaborador").props.value).toBe("");
+      expect(tr.root.findAll((n) => n.props?.testID === "sugerencia-codigo")).toHaveLength(0);
+    });
+
+    it("un código guardado por el sistema anterior (que mezclaba el portapapeles) se descarta", async () => {
+      await AsyncStorage.setItem("@rentacar/pending_referral_code", "ZZZ999");
+      const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
+      await asentar();
+
+      expect(porTestId(tr, "input-codigo-colaborador").props.value).toBe("");
+      expect(await AsyncStorage.getItem("@rentacar/pending_referral_code")).toBeNull();
+    });
+
+    it("un código que vino de un enlace de invitación sí se pone solo", async () => {
+      await AsyncStorage.setItem("@rentacar/pending_referral_code_enlace", "LNK123");
+      const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
+      await asentar();
+
+      expect(porTestId(tr, "input-codigo-colaborador").props.value).toBe("LNK123");
+      expect(textOf(tr)).toContain("Código de colaborador detectado del enlace");
+    });
+  });
+
   describe("paso 2 · términos y condiciones", () => {
     it("es una pantalla para leer: el documento completo y nada más que pedir", async () => {
       const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
@@ -207,7 +263,10 @@ describe("RegisterScreen (arrendatario)", () => {
     it("aceptar crea la cuenta con el correo sin espacios y el rol de arrendatario, y pasa al código", async () => {
       const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
       await crearCuenta(tr);
-      expect(mockRegister).toHaveBeenCalledWith("camila.rojas@correo.cl", "camila2026", "renter");
+      expect(mockRegister).toHaveBeenCalledWith("camila.rojas@correo.cl", "camila2026", "renter", {
+        nombre: "Camila Rojas",
+        telefono: "+56 9 1234 5678",
+      });
       const t = textOf(tr);
       expect(t).toContain("Paso 3 de 3");
       expect(t).toContain("Revisa tu correo");

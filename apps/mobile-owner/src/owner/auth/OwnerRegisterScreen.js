@@ -8,6 +8,7 @@ import {
   SegmentosPaso,
   RequisitosContrasena,
   CodigoVerificacion,
+  SugerenciaCodigo,
   ReenvioCodigo,
   EncabezadoCentrado,
   ResumenCuenta,
@@ -278,6 +279,11 @@ export function OwnerRegisterScreen({ onNavigate }) {
                 onChangeText={(val) => r.setCodigoReferido(val.toUpperCase())}
                 autoCapitalize="characters"
                 autoCorrect={false}
+              />
+              <SugerenciaCodigo
+                sugerencia={r.sugerenciaCodigo}
+                onUsar={r.usarSugerenciaCodigo}
+                onDescartar={r.descartarSugerenciaCodigo}
               />
               {r.codigoDetectadoAutomaticamente ? (
                 <View className="flex-row items-center gap-1.5 px-1">

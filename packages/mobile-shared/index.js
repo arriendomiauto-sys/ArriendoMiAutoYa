@@ -110,6 +110,7 @@ export {
   MensajeCampo,
   RequisitosContrasena,
   CodigoVerificacion,
+  SugerenciaCodigo,
   ReenvioCodigo,
   EncabezadoCentrado,
   ResumenCuenta,

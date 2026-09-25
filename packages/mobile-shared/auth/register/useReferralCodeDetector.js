@@ -2,8 +2,13 @@ import { useState, useEffect } from "react";
 import * as Linking from "expo-linking";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ApiClient } from "../../api/client";
 
-const STORAGE_KEY = "@rentacar/pending_referral_code";
+// Solo guarda códigos que llegaron por un enlace de invitación. La clave
+// anterior (`pending_referral_code`) también guardaba lo que se sacaba del
+// portapapeles, así que se descarta al arrancar: podía tener cualquier cosa.
+const STORAGE_KEY = "@rentacar/pending_referral_code_enlace";
+const STORAGE_KEY_ANTERIOR = "@rentacar/pending_referral_code";
 const CODE_REGEX = /^[A-Z0-9]{6}$/;
 
 /**
@@ -31,19 +36,38 @@ function extraerCodigoDeUrl(url) {
 }
 
 /**
- * Hook para detectar automáticamente códigos de colaboradores e invitación:
- * 1. Desde Deep Links entrantes (Linking).
- * 2. Desde AsyncStorage si se guardó previamente.
- * 3. Desde el Portapapeles (Deferred deep linking al descargar desde la web).
+ * Detecta códigos de colaboradores e invitación para el registro.
+ *
+ * - `detectedCode`: llegó por un enlace de invitación (deep link, o guardado de
+ *   un enlace anterior). La persona tocó ese enlace a propósito, así que el
+ *   registro lo pone solo en el campo.
+ * - `sugerencia`: estaba en el portapapeles (la web lo copia al tocar
+ *   "Descargar"). NO se pone solo: antes cualquier texto de 6 letras/números
+ *   copiado -- el código del correo, por ejemplo -- aparecía como código de
+ *   invitación sin que la persona hiciera nada. Ahora solo se sugiere si el
+ *   backend confirma que es un código válido, y se usa si la persona lo acepta.
  */
 export function useReferralCodeDetector() {
   const [detectedCode, setDetectedCode] = useState(null);
+  const [sugerencia, setSugerencia] = useState(null);
 
   useEffect(() => {
     let activo = true;
 
+    const desdeEnlace = async (code) => {
+      if (!code || !activo) return;
+      setDetectedCode(code);
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, code);
+      } catch {}
+    };
+
     async function detectar() {
-      // 1. Revisar storage primero
+      try {
+        await AsyncStorage.removeItem(STORAGE_KEY_ANTERIOR);
+      } catch {}
+
+      // 1. Código de un enlace abierto antes (se guardó hasta terminar el registro).
       try {
         const guardado = await AsyncStorage.getItem(STORAGE_KEY);
         if (guardado && CODE_REGEX.test(guardado) && activo) {
@@ -52,40 +76,32 @@ export function useReferralCodeDetector() {
         }
       } catch {}
 
-      // 2. Revisar URL inicial (cold start)
+      // 2. URL con que se abrió la app (cold start).
       try {
-        const initialUrl = await Linking.getInitialURL();
-        const codeFromUrl = extraerCodigoDeUrl(initialUrl);
-        if (codeFromUrl && activo) {
-          setDetectedCode(codeFromUrl);
-          await AsyncStorage.setItem(STORAGE_KEY, codeFromUrl);
+        const codeFromUrl = extraerCodigoDeUrl(await Linking.getInitialURL());
+        if (codeFromUrl) {
+          await desdeEnlace(codeFromUrl);
           return;
         }
       } catch {}
 
-      // 3. Revisar portapapeles (copiado desde la web al presionar "Descargar")
+      // 3. Portapapeles: solo como sugerencia, y solo si el código existe.
       try {
-        const text = await Clipboard.getStringAsync();
-        const limpio = (text || "").trim().toUpperCase();
-        if (CODE_REGEX.test(limpio) && activo) {
-          setDetectedCode(limpio);
-          await AsyncStorage.setItem(STORAGE_KEY, limpio);
+        const limpio = ((await Clipboard.getStringAsync()) || "").trim().toUpperCase();
+        if (!CODE_REGEX.test(limpio)) return;
+        const validacion = await ApiClient.validarCodigoReferido(limpio);
+        if (validacion?.valido && activo) {
+          setSugerencia({ codigo: limpio, nombreReferente: validacion.nombre_referente || null });
         }
       } catch {}
     }
 
     detectar();
 
-    // 4. Escuchar URLs entrantes mientras la app está abierta
+    // 4. Enlaces que llegan mientras la app está abierta.
     const subscription =
       typeof Linking?.addEventListener === "function"
-        ? Linking.addEventListener("url", async (event) => {
-            const code = extraerCodigoDeUrl(event.url);
-            if (code && activo) {
-              setDetectedCode(code);
-              await AsyncStorage.setItem(STORAGE_KEY, code);
-            }
-          })
+        ? Linking.addEventListener("url", (event) => desdeEnlace(extraerCodigoDeUrl(event.url)))
         : null;
 
     return () => {
@@ -96,6 +112,7 @@ export function useReferralCodeDetector() {
 
   const clearDetectedCode = async () => {
     setDetectedCode(null);
+    setSugerencia(null);
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
     } catch {}
@@ -105,5 +122,7 @@ export function useReferralCodeDetector() {
     detectedCode,
     setDetectedCode,
     clearDetectedCode,
+    sugerencia,
+    descartarSugerencia: () => setSugerencia(null),
   };
 }

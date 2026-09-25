@@ -38,7 +38,7 @@ export function useRegistroCuenta({ role }) {
   const [loading, setLoading] = useState(false);
   const enCurso = useRef(false);
 
-  const { detectedCode, clearDetectedCode } = useReferralCodeDetector();
+  const { detectedCode, clearDetectedCode, sugerencia, descartarSugerencia } = useReferralCodeDetector();
   const [codigoReferido, setCodigoReferido] = useState("");
 
   useEffect(() => {
@@ -266,6 +266,13 @@ export function useRegistroCuenta({ role }) {
     codigoReferido,
     setCodigoReferido,
     codigoDetectadoAutomaticamente: Boolean(detectedCode),
+    // Código copiado en el portapapeles y válido: solo se usa si la persona lo acepta.
+    sugerenciaCodigo: codigoReferido ? null : sugerencia,
+    usarSugerenciaCodigo: () => {
+      if (sugerencia) setCodigoReferido(sugerencia.codigo);
+      descartarSugerencia();
+    },
+    descartarSugerenciaCodigo: descartarSugerencia,
     irACuenta,
     volver,
   };

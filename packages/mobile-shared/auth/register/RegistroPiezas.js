@@ -123,6 +123,37 @@ export function CodigoVerificacion({ digitos, casillasRef, error, onCambiar, onT
   );
 }
 
+/**
+ * Código de invitación encontrado en el portapapeles. Se ofrece, no se pone
+ * solo: la persona decide si lo usa.
+ */
+export function SugerenciaCodigo({ sugerencia, onUsar, onDescartar }) {
+  if (!sugerencia) return null;
+  return (
+    <View
+      testID="sugerencia-codigo"
+      className="flex-row items-center gap-2.5 rounded-xl border border-accent-200 bg-accent-100/40 px-3 py-2.5"
+    >
+      <Icon name="gift" size={16} color={colors.accent800} />
+      <Text className="flex-1 text-[12.5px] leading-[17px] text-textDark">
+        {sugerencia.nombreReferente ? `¿Te invitó ${sugerencia.nombreReferente}? ` : ""}
+        Tienes copiado el código <Text className="font-bold">{sugerencia.codigo}</Text>.
+      </Text>
+      <TouchableOpacity testID="btn-usar-sugerencia" onPress={onUsar} hitSlop={theme.control.hitSlop} accessibilityRole="button">
+        <Text className="text-[13px] font-bold text-accent-700">Usar</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onDescartar}
+        hitSlop={theme.control.hitSlop}
+        accessibilityRole="button"
+        accessibilityLabel="Descartar código sugerido"
+      >
+        <Icon name="close" size={16} color={colors.textMuted} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 /** "Reenviar código en 0:38" mientras corre la espera; después, la acción. */
 export function ReenvioCodigo({ segundos, deshabilitado, onReenviar }) {
   if (segundos > 0) {

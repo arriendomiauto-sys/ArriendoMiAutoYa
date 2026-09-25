@@ -262,6 +262,12 @@ export class ApiClient {
     });
   }
 
+  // Público: dice si un código de invitación existe y se puede usar
+  // (`{ valido, codigo, nombre_referente, beneficio_invitado, mensaje }`).
+  static async validarCodigoReferido(codigo) {
+    return this.request(`/usuarios/codigo-referido/${encodeURIComponent(codigo)}/validar`);
+  }
+
   static async aplicarCodigoReferido(codigo) {
     return this.request("/usuarios/me/codigo-referido", {
       method: "PUT",
