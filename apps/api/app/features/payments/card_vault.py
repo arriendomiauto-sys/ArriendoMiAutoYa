@@ -193,14 +193,23 @@ def registrar_tarjeta(
 
     En modo simulado NUNCA se contacta a Mercado Pago — ni con un token real de
     una llave `TEST-`: sin `MERCADOPAGO_ACCESS_TOKEN` no hay a quién preguntarle,
-    así que se arma la tarjeta con lo que detectó/eligió la app. Un token falso
-    `SIMULADO-...` fuerza el camino simulado aunque el flag esté apagado (solo la
-    app local lo genera y no hay nada real que hacer con él).
+    así que se arma la tarjeta con lo que detectó/eligió la app. Con la pasarela
+    real, un token falso `SIMULADO-...` se rechaza (lo genera una app sin la public
+    key de Mercado Pago y no hay nada real que cobrar con él).
     """
     token_falso = (card_token or "").upper().startswith("SIMULADO-")
-    if token_falso or pagos_simulados.pagos_simulados_activos():
+    if pagos_simulados.pagos_simulados_activos():
         return _tarjeta_desde_token_simulado(
             card_token, nombre, tipo_hint, ultimos4_hint, marca_hint
+        )
+    if token_falso:
+        # Con la pasarela real, un token falso es una app compilada sin la public key de
+        # Mercado Pago (o alguien probando): antes se guardaba como tarjeta válida, habilitaba
+        # a reservar y después ningún cobro funcionaba.
+        logger.error("[VAULT] Token simulado recibido con la pasarela real: la app no tiene la public key de MP.")
+        raise VaultError(
+            "TARJETA_INVALIDA",
+            "No pudimos validar tu tarjeta con Mercado Pago. Actualiza la app e inténtalo de nuevo.",
         )
 
     customer_id = _asegurar_cliente(email, nombre, mp_customer_id)
