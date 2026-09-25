@@ -22,6 +22,7 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_yatHGTQbfFjv9RadBTBO8Q_4iF9Q6b5",
         "EXPO_PUBLIC_WEB_URL": "https://arriendomiautoya.cl",
         "EXPO_PUBLIC_USE_RN_FETCH": "1",
+        "EXPO_PUBLIC_MP_PUBLIC_KEY": "APP_USR-1a69c392-1435-41ab-9f55-58f9b2681d8c",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
@@ -31,7 +32,8 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://rgxiyidijtoazcrmijly.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_yatHGTQbfFjv9RadBTBO8Q_4iF9Q6b5",
         "EXPO_PUBLIC_WEB_URL": "https://arriendomiautoya.cl",
-        "EXPO_PUBLIC_USE_RN_FETCH": "1"
+        "EXPO_PUBLIC_USE_RN_FETCH": "1",
+        "EXPO_PUBLIC_MP_PUBLIC_KEY": "APP_USR-1a69c392-1435-41ab-9f55-58f9b2681d8c"
       }
     }
   },
