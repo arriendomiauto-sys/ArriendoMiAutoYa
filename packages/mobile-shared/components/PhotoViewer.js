@@ -1,11 +1,17 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, View, Text, TouchableOpacity, ScrollView, Image, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  GestureViewer,
-  useGestureViewerController,
-  useGestureViewerState,
-} from "react-native-gesture-image-viewer";
+// La librería depende de react-native-reanimated/worklets NATIVOS. Si el binario
+// instalado no los trae (build de desarrollo viejo), importarla directo tumbaba
+// la app entera al arrancar ("NativeWorklets … loadUnpackers of undefined"). Se
+// carga protegida, como el resto de la app carga Reanimated, y sin ella el visor
+// cae a una versión simple (deslizar y cerrar, sin zoom).
+let visorConGestos = null;
+try {
+  visorConGestos = require("react-native-gesture-image-viewer");
+} catch {
+  visorConGestos = null;
+}
 
 import { colors } from "../theme/colors";
 import { Icon } from "./Icon";
@@ -22,7 +28,56 @@ import { Icon } from "./Icon";
 const ID_VISOR = "visor-fotos";
 const TAMANO_MINIATURA = 44;
 
+/** Visor sin la librería de gestos: páginas horizontales, contador y cerrar. */
+function PhotoViewerSimple({ photos, initialIndex, onClose }) {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const [indice, setIndice] = useState(initialIndex);
+  return (
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          contentOffset={{ x: initialIndex * width, y: 0 }}
+          onMomentumScrollEnd={(e) => setIndice(Math.round(e.nativeEvent.contentOffset.x / width))}
+        >
+          {photos.map((uri, i) => (
+            <Image key={uri + i} source={{ uri }} style={{ width, height }} resizeMode="contain" />
+          ))}
+        </ScrollView>
+        <View
+          pointerEvents="box-none"
+          className="absolute left-0 right-0 flex-row items-center justify-between px-4"
+          style={{ top: insets.top + 8 }}
+        >
+          {photos.length > 1 ? (
+            <View className="bg-black/60 rounded-full px-3 py-1.5">
+              <Text className="text-[13px] font-bold text-white">
+                {indice + 1} / {photos.length}
+              </Text>
+            </View>
+          ) : (
+            <View />
+          )}
+          <TouchableOpacity
+            className="w-10 h-10 rounded-full bg-black/60 items-center justify-center"
+            onPress={onClose}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar visor"
+          >
+            <Icon name="close" size={20} color={colors.textWhite} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function PhotoViewerModal({ photos, initialIndex, onClose }) {
+  const { GestureViewer, useGestureViewerController, useGestureViewerState } = visorConGestos;
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { goToIndex } = useGestureViewerController(ID_VISOR);
@@ -160,9 +215,12 @@ export function PhotoViewerProvider({ children }) {
     <PhotoViewerContext.Provider value={valor}>
       <View className="flex-1">
         {children}
-        {visor && (
-          <PhotoViewerModal photos={visor.photos} initialIndex={visor.initialIndex} onClose={cerrar} />
-        )}
+        {visor &&
+          (visorConGestos ? (
+            <PhotoViewerModal photos={visor.photos} initialIndex={visor.initialIndex} onClose={cerrar} />
+          ) : (
+            <PhotoViewerSimple photos={visor.photos} initialIndex={visor.initialIndex} onClose={cerrar} />
+          ))}
       </View>
     </PhotoViewerContext.Provider>
   );
