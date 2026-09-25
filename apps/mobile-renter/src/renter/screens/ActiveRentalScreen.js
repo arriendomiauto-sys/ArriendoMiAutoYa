@@ -96,6 +96,12 @@ export function ActiveRentalScreen({
     onUpdateReservation?.(nuevo);
   };
   const [modalPrecheck, setModalPrecheck] = useState(false);
+  // Re-render cada minuto para que las cuentas regresivas no queden congeladas.
+  const [, setTic] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTic((n) => n + 1), 60000);
+    return () => clearInterval(t);
+  }, []);
   const [modalSegundoConductor, setModalSegundoConductor] = useState(false);
   const car = res.car || res.auto || {};
   const montoHold = res.monto_hold || 0;
@@ -205,7 +211,7 @@ export function ActiveRentalScreen({
           {res.cobro?.monto ? (
             <Card padded className="gap-2.5">
               <SectionLabel>Resumen del pago</SectionLabel>
-              <Row label="Cobrado hoy" value={clp(res.cobro.monto)} strong />
+              <Row label="Arriendo pagado" value={clp(res.cobro.monto)} strong />
               <Row label="Garantía retenida" value={clp(res.garantia?.monto ?? res.monto_hold)} />
               <Text className="text-xs text-textMuted leading-[17px]">
                 La garantía es una retención sobre tu cupo, no un cargo. Se libera al devolver el auto sin daños (la reversa bancaria tarda entre 24 y 72 hrs hábiles).
@@ -262,215 +268,277 @@ export function ActiveRentalScreen({
 
   // ------------------------------------------------------------ CONFIRMADA
   if (view === "confirmed") {
+    const msRetiro = instante(res.fecha_inicio);
+    const msHastaRetiro = msRetiro !== null ? msRetiro - Date.now() : null;
+    const faltaRetiro = restanteHasta(res.fecha_inicio);
+    const dentroDe24h = msHastaRetiro !== null && msHastaRetiro <= 24 * 3600000;
+    // Cancelar con 24 h o más de anticipación devuelve todo (cancelacion_service.HORAS_REEMBOLSO_TOTAL).
+    const cancelaSinCosto = msHastaRetiro !== null && msHastaRetiro >= 24 * 3600000;
+    const dias =
+      instante(res.fecha_inicio) !== null && instante(res.fecha_fin) !== null
+        ? Math.max(1, Math.round((instante(res.fecha_fin) - instante(res.fecha_inicio)) / 86400000))
+        : null;
+
+    // Solo coordenadas reales: antes, sin ubicación el mapa y "Cómo llegar" caían a
+    // una coordenada fija de Los Ángeles y mandaban a la persona a otra ciudad.
+    const lat = Number(res.lugar_entrega_lat ?? car.latitud);
+    const lng = Number(res.lugar_entrega_lng ?? car.longitud);
+    const hayCoordenadas = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+    const direccion = res.lugar_entrega_acordado || car.ubicacion_base || "";
+    const abrirMapa = () => {
+      const destino = hayCoordenadas ? `${lat},${lng}` : encodeURIComponent(direccion);
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${destino}`);
+    };
+
+    const precheckListo = !!res.precheck_cliente_confirmado;
+    const sc = res.segundo_conductor;
+    const estadoSc = {
+      verificado: { label: "Verificado", variant: "success" },
+      requiere_revision_manual: { label: "En revisión", variant: "warning" },
+      rechazado: { label: "Rechazado", variant: "danger" },
+    }[sc?.estado_kyc] || { label: "Pendiente", variant: "neutral" };
+
     return (
       <View className="flex-1 bg-background">
         <StatusBar barStyle="dark-content" />
-        <ScreenHeader title="Tu arriendo" onBack={onBack} />
-        <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
+        <ScreenHeader title="Tu reserva" onBack={onBack} />
+        <ScrollView contentContainerClassName="p-4 gap-4 pb-8" showsVerticalScrollIndicator={false}>
           <RenovarGarantiaAviso reserva={res} onRenovada={() => setRes((r) => ({ ...r, garantia_por_renovar: false }))} />
-          <View className="items-center gap-2">
-            <View className="w-[68px] h-[68px] rounded-full bg-teal-50 items-center justify-center">
-              <Icon name="check" size={32} color="#0F766E" />
+
+          {/* Encabezado: qué auto, estado y cuánto falta para el retiro */}
+          <Card padded={false} className="overflow-hidden">
+            <View className="h-[150px] bg-teal-50">
+              <CarPhotoThumb uri={car.fotos?.[0]} className="w-full h-full" iconSize={34} />
+              <View className="absolute top-3 left-3 flex-row items-center gap-1.5 bg-white/95 rounded-full px-2.5 py-1">
+                <Icon name="check" size={13} color="#0F766E" />
+                <Text className="text-[12px] font-bold text-teal-800">Reserva confirmada</Text>
+              </View>
             </View>
-            <Text className="text-xl font-bold text-textDark text-center">Reserva confirmada</Text>
-            <Text className="text-[15px] text-textMuted leading-[22px] text-center">Ya puedes coordinar el retiro con el dueño.</Text>
-          </View>
-
-          {/* Resumen del pago: solo si la reserva trae el desglose del cobro */}
-          {res.cobro?.monto ? (
-            <Card padded className="gap-2.5">
-              <SectionLabel>Resumen del pago</SectionLabel>
-              <Row label="Cobrado hoy" value={clp(res.cobro.monto)} strong />
-              <Row label="Garantía retenida" value={clp(res.garantia?.monto ?? res.monto_hold)} />
-              <Text className="text-xs text-textMuted leading-[17px]">
-                La garantía es una retención sobre tu cupo, no un cargo. Se libera al devolver el auto sin daños (la reversa bancaria tarda entre 24 y 72 hrs hábiles).
-              </Text>
-            </Card>
-          ) : null}
-
-          {/* Verificación previa al viaje: primero la de 24h (confirmar
-              asistencia e intención), y solo cuando falten menos de 2h,
-              la llegada real al punto de encuentro comprobada por GPS.
-              Ese orden cronológico es el que sigue el arrendatario. */}
-          <SectionLabel>Antes del retiro</SectionLabel>
-
-          {(() => {
-            const msHastaRetiro = instante(res.fecha_inicio) !== null ? instante(res.fecha_inicio) - Date.now() : null;
-            const dentroDe24h = msHastaRetiro !== null && msHastaRetiro <= 24 * 3600000;
-
-            return (
-              <Card padded className={`gap-2 ${res.precheck_cliente_confirmado ? "bg-teal-100" : "bg-white"}`}>
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2">
-                    <Icon name="check" size={18} color={res.precheck_cliente_confirmado ? "#115E59" : "#64748B"} />
-                    <Text className="text-sm font-bold text-textDark">
-                      Verificación 24h antes
-                    </Text>
+            <View className="p-4 gap-3">
+              <View className="flex-row items-start justify-between gap-3">
+                <View className="flex-1">
+                  <Text className="text-lg font-extrabold text-textDark" numberOfLines={2}>{nombre}</Text>
+                  {car.patente ? <Text className="text-[13px] text-textMuted mt-0.5">Patente {car.patente}</Text> : null}
+                </View>
+                {faltaRetiro && !faltaRetiro.vencido ? (
+                  <View className="items-end">
+                    <Text className="text-[11px] font-semibold text-textMuted uppercase tracking-wide">Retiro en</Text>
+                    <Text className="text-lg font-extrabold text-primary">{faltaRetiro.texto}</Text>
                   </View>
+                ) : null}
+              </View>
+
+              <View className="flex-row items-stretch rounded-xl border border-border overflow-hidden">
+                <View className="flex-1 p-3 gap-0.5">
+                  <Text className="text-[11px] font-semibold text-textMuted uppercase tracking-wide">Retiro</Text>
+                  <Text className="text-[13px] font-bold text-textDark capitalize">{fechaHora(res.fecha_inicio)}</Text>
+                </View>
+                <View className="w-px bg-border" />
+                <View className="flex-1 p-3 gap-0.5">
+                  <Text className="text-[11px] font-semibold text-textMuted uppercase tracking-wide">Devolución</Text>
+                  <Text className="text-[13px] font-bold text-textDark capitalize">{fechaHora(res.fecha_fin)}</Text>
+                </View>
+              </View>
+              {dias ? (
+                <Text className="text-xs text-textMuted">
+                  {dias} {dias === 1 ? "día" : "días"} de arriendo
+                </Text>
+              ) : null}
+            </View>
+          </Card>
+
+          {/* Pasos antes del retiro, en el orden en que ocurren */}
+          <SectionLabel>Antes del retiro</SectionLabel>
+          <Card padded className="gap-3">
+            <View className="flex-row items-start gap-3">
+              <View
+                className={`w-7 h-7 rounded-full items-center justify-center ${
+                  precheckListo ? "bg-teal-600" : dentroDe24h ? "bg-amber-100" : "bg-slate-100"
+                }`}
+              >
+                {precheckListo ? (
+                  <Icon name="check" size={15} color="#FFFFFF" />
+                ) : (
+                  <Text className={`text-[13px] font-bold ${dentroDe24h ? "text-amber-800" : "text-slate-500"}`}>1</Text>
+                )}
+              </View>
+              <View className="flex-1 gap-1">
+                <View className="flex-row items-center justify-between gap-2">
+                  <Text className="text-sm font-bold text-textDark">Confirma tu viaje</Text>
                   <Badge
-                    variant={res.precheck_cliente_confirmado ? "success" : dentroDe24h ? "warning" : "default"}
-                    label={res.precheck_cliente_confirmado ? "Confirmado" : dentroDe24h ? "Pendiente" : "Próximamente"}
+                    variant={precheckListo ? "success" : dentroDe24h ? "warning" : "neutral"}
+                    label={precheckListo ? "Listo" : dentroDe24h ? "Pendiente" : "24 h antes"}
                   />
                 </View>
-                <Text className="text-[13px] text-textMuted">
-                  {res.precheck_cliente_confirmado
-                    ? "Has confirmado tu viaje y asistencia para la entrega."
+                <Text className="text-[13px] text-textMuted leading-[19px]">
+                  {precheckListo
+                    ? "Confirmaste tu asistencia a la entrega."
                     : dentroDe24h
-                    ? "Faltan menos de 24 horas para tu viaje. Confirma tu asistencia y condiciones de viaje."
-                    : "La confirmación de viaje se habilitará automáticamente 24 horas antes del retiro."}
+                    ? "Faltan menos de 24 horas: confirma que vas a retirar el auto."
+                    : "Se habilita 24 horas antes del retiro. Te avisaremos."}
                 </Text>
-                {!res.precheck_cliente_confirmado && dentroDe24h && (
+                {!precheckListo && dentroDe24h ? (
                   <Button
-                    variant="secondary"
                     size="sm"
-                    label="Completar verificación de viaje"
+                    label="Confirmar mi viaje"
                     iconRight="arrow-right"
                     onPress={() => setModalPrecheck(true)}
+                    className="mt-1"
                   />
-                )}
-              </Card>
-            );
-          })()}
+                ) : null}
+              </View>
+            </View>
 
-          {/* Llegada al punto de encuentro, comprobada por ubicación (desde 2 h antes de la entrega) */}
-          <LlegadaPorUbicacion reserva={res} rol="cliente" onActualizada={handlePrecheckConfirmed} />
+            <View className="h-px bg-border" />
 
-          <Card padded className="gap-3">
-            <SectionLabel>Punto de encuentro</SectionLabel>
-            <View className="h-[140px] rounded-xl overflow-hidden bg-teal-50 items-center justify-center">
-              {MapView ? (
+            <View className="flex-row items-start gap-3">
+              <View className="w-7 h-7 rounded-full items-center justify-center bg-slate-100">
+                <Text className="text-[13px] font-bold text-slate-500">2</Text>
+              </View>
+              <View className="flex-1 gap-1">
+                <Text className="text-sm font-bold text-textDark">Avisa tu llegada al punto de encuentro</Text>
+                <Text className="text-[13px] text-textMuted leading-[19px]">
+                  Desde 2 horas antes, la app confirma por ubicación que llegaste.
+                </Text>
+              </View>
+            </View>
+            <LlegadaPorUbicacion reserva={res} rol="cliente" onActualizada={handlePrecheckConfirmed} />
+
+            <View className="h-px bg-border" />
+
+            <View className="flex-row items-start gap-3">
+              <View className="w-7 h-7 rounded-full items-center justify-center bg-slate-100">
+                <Text className="text-[13px] font-bold text-slate-500">3</Text>
+              </View>
+              <View className="flex-1 gap-1">
+                <Text className="text-sm font-bold text-textDark">Muestra tu código de entrega</Text>
+                <Text className="text-[13px] text-textMuted leading-[19px]">
+                  El dueño lo escanea, registra las fotos del auto y firmas el acta en tu celular.
+                </Text>
+              </View>
+            </View>
+          </Card>
+
+          {/* Punto de encuentro */}
+          <Card padded={false} className="overflow-hidden">
+            {hayCoordenadas && MapView ? (
+              <View className="h-[150px] bg-teal-50">
                 <MapView
-                  className="w-full h-full"
                   style={{ width: "100%", height: "100%" }}
-                  initialRegion={{
-                    latitude: Number(res.lugar_entrega_lat || car.latitud || -37.4697),
-                    longitude: Number(res.lugar_entrega_lng || car.longitud || -72.3536),
-                    latitudeDelta: 0.015,
-                    longitudeDelta: 0.015,
-                  }}
+                  initialRegion={{ latitude: lat, longitude: lng, latitudeDelta: 0.012, longitudeDelta: 0.012 }}
                   scrollEnabled={false}
                   zoomEnabled={false}
                   pitchEnabled={false}
                   rotateEnabled={false}
+                  toolbarEnabled={false}
                 >
-                  <Marker
-                    coordinate={{
-                      latitude: Number(res.lugar_entrega_lat || car.latitud || -37.4697),
-                      longitude: Number(res.lugar_entrega_lng || car.longitud || -72.3536),
-                    }}
-                    title={res.lugar_entrega_acordado || car.ubicacion_base || "Punto de encuentro"}
-                  />
+                  <Marker coordinate={{ latitude: lat, longitude: lng }} title={direccion || "Punto de encuentro"} />
                 </MapView>
-              ) : (
-                <Icon name="pin" size={26} color="#0F766E" />
-              )}
-            </View>
-            <View className="flex-row justify-between items-center">
-              <View className="flex-1 mr-2">
-                <Text className="text-[15px] font-bold text-textDark">
-                  {res.lugar_entrega_acordado || car.ubicacion_base || "Por coordinar"}
-                </Text>
-                <Text className="text-[13px] text-textMuted capitalize">{fechaHora(res.fecha_inicio, true)}</Text>
               </View>
-              <Button
-                variant="secondary"
-                size="sm"
-                label="Cómo llegar"
-                iconLeft="pin"
-                fullWidth={false}
-                onPress={() => {
-                  const lat = Number(res.lugar_entrega_lat || car.latitud || -37.4697);
-                  const lng = Number(res.lugar_entrega_lng || car.longitud || -72.3536);
-                  Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
-                }}
-              />
+            ) : null}
+            <View className="p-4 flex-row items-center gap-3">
+              <View className="w-10 h-10 rounded-full bg-teal-50 items-center justify-center">
+                <Icon name="pin" size={20} color="#0F766E" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[11px] font-semibold text-textMuted uppercase tracking-wide">Punto de encuentro</Text>
+                <Text className="text-[15px] font-bold text-textDark" numberOfLines={2}>
+                  {direccion || "Por coordinar con el dueño"}
+                </Text>
+              </View>
+              {hayCoordenadas || direccion ? (
+                <Button variant="secondary" size="sm" label="Cómo llegar" fullWidth={false} onPress={abrirMapa} />
+              ) : null}
             </View>
           </Card>
 
+          {/* Dueño */}
           <Card padded className="flex-row items-center gap-3">
-            <View className="w-11 h-11 rounded-full bg-slate-100 items-center justify-center overflow-hidden">
+            <View className="w-12 h-12 rounded-full bg-slate-100 items-center justify-center overflow-hidden">
               {duenoFoto && !ownerFotoError ? (
                 <Image
                   source={{ uri: duenoFoto }}
-                  className="w-11 h-11 rounded-full"
+                  style={{ width: 48, height: 48, borderRadius: 24 }}
                   onError={() => setOwnerFotoError(true)}
                 />
               ) : (
-                <Icon name="user" size={20} color="#64748B" />
+                <Icon name="user" size={22} color="#64748B" />
               )}
             </View>
             <View className="flex-1">
-              <Text className="text-[15px] font-bold text-textDark">{duenoNombre}</Text>
-              <Text className="text-[13px] text-textMuted mt-0.5">Coordina por el chat de la reserva</Text>
+              <Text className="text-[11px] font-semibold text-textMuted uppercase tracking-wide">Tu anfitrión</Text>
+              <Text className="text-[15px] font-bold text-textDark" numberOfLines={1}>{duenoNombre}</Text>
             </View>
             <Button variant="secondary" size="sm" iconLeft="chat" label="Chat" onPress={onOpenChat} fullWidth={false} />
           </Card>
 
-          {/* Segundo Conductor */}
-          <Card padded className="gap-1.5">
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center gap-2">
-                <Icon name="user" size={18} color="#0F766E" />
-                <Text className="text-sm font-bold text-textDark">
-                  Segundo Conductor
-                </Text>
+          {/* Qué llevar */}
+          <View className="bg-teal-50 rounded-2xl p-4 gap-2.5">
+            <Text className="text-sm font-bold text-primary">Qué llevar a la entrega</Text>
+            {[
+              "Tu licencia de conducir física",
+              "Tu carnet de identidad",
+              "La tarjeta de crédito de la garantía",
+            ].map((item) => (
+              <View key={item} className="flex-row items-center gap-2">
+                <Icon name="check" size={14} color="#0F766E" />
+                <Text className="text-[13px] text-primary">{item}</Text>
               </View>
-              {res.segundo_conductor ? (
-                <Badge
-                  label={
-                    res.segundo_conductor.estado_kyc === "verificado"
-                      ? "Verificado"
-                      : res.segundo_conductor.estado_kyc === "requiere_revision_manual"
-                      ? "En revisión"
-                      : res.segundo_conductor.estado_kyc === "rechazado"
-                      ? "Rechazado"
-                      : "Pendiente"
-                  }
-                  variant={
-                    res.segundo_conductor.estado_kyc === "verificado"
-                      ? "success"
-                      : res.segundo_conductor.estado_kyc === "requiere_revision_manual"
-                      ? "warning"
-                      : res.segundo_conductor.estado_kyc === "rechazado"
-                      ? "danger"
-                      : "neutral"
-                  }
-                />
+            ))}
+          </View>
+
+          {/* Pago */}
+          {res.cobro?.monto ? (
+            <Card padded className="gap-2.5">
+              <SectionLabel>Pago</SectionLabel>
+              <Row label="Arriendo pagado" value={clp(res.cobro.monto)} strong />
+              <Row label="Garantía retenida" value={clp(res.garantia?.monto ?? res.monto_hold)} />
+              <Text className="text-xs text-textMuted leading-[17px]">
+                La garantía es una retención en tu tarjeta, no un cargo. Se libera al devolver el auto sin daños; tu
+                banco tarda entre 24 y 72 horas hábiles en reflejarlo.
+              </Text>
+              {onOpenContract ? (
+                <Button variant="ghost" size="sm" iconLeft="document" label="Ver el contrato" onPress={onOpenContract} />
               ) : null}
+            </Card>
+          ) : null}
+
+          {/* Segundo conductor */}
+          <Card padded className="gap-2">
+            <View className="flex-row justify-between items-center gap-2">
+              <Text className="text-sm font-bold text-textDark">Segundo conductor</Text>
+              {sc ? <Badge label={estadoSc.label} variant={estadoSc.variant} /> : null}
             </View>
-            {res.segundo_conductor ? (
-              <Text className="text-[13px] text-textMuted">
-                {/* El nombre ya no se ingresa a mano: lo completa Didit al
-                    verificar la identidad, así que puede no existir aún. */}
-                {res.segundo_conductor.nombre
-                  ? `${res.segundo_conductor.nombre} (Doc: ${res.segundo_conductor.rut || res.segundo_conductor.numero_documento || "—"})`
-                  : "Verificación de identidad en curso…"}
-              </Text>
-            ) : (
-              <Text className="text-xs text-textMuted">
-                ¿Otra persona manejará el vehículo? Asígnala con verificación KYC previa.
-              </Text>
-            )}
+            <Text className="text-[13px] text-textMuted leading-[19px]">
+              {sc
+                ? sc.nombre
+                  ? `${sc.nombre} · ${sc.rut || sc.numero_documento || "sin documento"}`
+                  : "Verificación de identidad en curso…"
+                : "¿Otra persona también va a manejar? Agrégala; debe verificar su identidad antes del retiro."}
+            </Text>
             <Button
               variant="secondary"
               size="sm"
-              label={res.segundo_conductor ? "Gestionar segundo conductor" : "+ Asignar segundo conductor"}
+              label={sc ? "Gestionar segundo conductor" : "Agregar segundo conductor"}
               onPress={() => setModalSegundoConductor(true)}
-              className="mt-1"
             />
           </Card>
 
-          <View className="w-full bg-teal-50 rounded-xl p-4 gap-1">
-            <Text className="text-sm font-bold text-primary">Qué esperar en la entrega</Text>
-            <Text className="text-[13px] text-primary leading-[19px]">
-              El dueño registrará el checklist fotográfico de 8 ángulos y firmarás el contrato en tu celular.
-              Lleva tu licencia de conducir física: el dueño puede pedirte verla al momento de la entrega.
-            </Text>
-          </View>
+          {/* Cancelación, con la política clara */}
+          {onCancelReservation ? (
+            <View className="items-center gap-1 pt-1">
+              <Button variant="ghost" size="sm" label="Cancelar la reserva" onPress={onCancelReservation} />
+              <Text className="text-xs text-textMuted text-center px-6 leading-[17px]">
+                {cancelaSinCosto
+                  ? "Si cancelas ahora te devolvemos todo: el arriendo y la garantía."
+                  : "Faltan menos de 24 horas para el retiro: si cancelas ahora, el arriendo no se devuelve."}
+              </Text>
+            </View>
+          ) : null}
         </ScrollView>
         {footer(
           <>
-            <Button label="Mostrar mi código de entrega" iconRight="arrow-right" onPress={onStartDelivery} />
+            <Button label="Mostrar mi código de entrega" iconLeft="qr" onPress={onStartDelivery} />
             <Button variant="ghost" size="sm" label="Ver el detalle de la reserva" onPress={() => setView("detail")} />
           </>
         )}
@@ -488,8 +556,8 @@ export function ActiveRentalScreen({
           reservaId={res.id}
           initialData={res.segundo_conductor}
           onClose={() => setModalSegundoConductor(false)}
-          onSaved={(sc) => {
-            const nuevo = { ...res, segundo_conductor: sc };
+          onSaved={(nuevoSc) => {
+            const nuevo = { ...res, segundo_conductor: nuevoSc };
             setRes(nuevo);
             onUpdateReservation?.(nuevo);
           }}
