@@ -3,7 +3,14 @@ import os
 # La suite NUNCA debe tocar la base real. El `.env` local puede apuntar a
 # Supabase; se fuerza sqlite en memoria antes de importar `app.main` (que crea
 # el engine al importarse). El engine de los tests se define más abajo aparte.
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+# Asignación directa, no setdefault: con DATABASE_URL exportada en la terminal,
+# setdefault la respetaba y la suite corría contra producción.
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# Tampoco debe mandar correos reales: con la key del `.env` cada corrida enviaba
+# más de 100 correos a direcciones @test.cl, agotaba el cupo diario de Resend
+# (y con él los correos de confirmación de Supabase) y dañaba la reputación del
+# dominio. Los tests que prueban el envío ponen su propia key con monkeypatch.
+os.environ["RESEND_API_KEY"] = ""
 
 import uuid
 import pytest
@@ -230,6 +237,17 @@ def _ocr_en_mock():
     yield
     for k, v in previos.items():
         setattr(settings, k, v)
+
+
+@pytest.fixture(autouse=True)
+def _liquidaciones_sin_retencion(monkeypatch):
+    """
+    Los tests de liquidaciones crean el pago y lo liquidan en el acto. La
+    retención de días antes de transferir (LIQUIDACION_RETENCION_DIAS) se
+    prueba aparte, fijándola explícitamente (ver test_liquidaciones_retencion.py).
+    """
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "LIQUIDACION_RETENCION_DIAS", 0)
 
 
 @pytest.fixture(autouse=True)
