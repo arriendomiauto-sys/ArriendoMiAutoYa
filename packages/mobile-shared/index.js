@@ -30,6 +30,7 @@ export { CarPhotoThumb } from "./components/CarPhotoThumb";
 export { ScreenTransition } from "./components/ScreenTransition";
 export { ErrorBoundary } from "./components/ErrorBoundary";
 export { AppTourScreen } from "./components/AppTourScreen";
+export { CarruselPasos, PuntosPaso } from "./components/CarruselPasos";
 export { TabBar } from "./components/TabBar";
 export { BrandLogo } from "./components/BrandLogo";
 export { VerifyIdentityBanner } from "./components/VerifyIdentityBanner";

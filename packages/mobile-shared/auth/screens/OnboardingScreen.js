@@ -1,12 +1,9 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-} from "react-native";
+import React, { useRef, useState } from "react";
+import { View, Text, TouchableOpacity } from "react-native";
 import { colors } from "../../theme/colors";
 import { Icon } from "../../components/Icon";
 import { Button, BottomBar } from "../../components/ui";
+import { CarruselPasos, PuntosPaso } from "../../components/CarruselPasos";
 
 const ONBOARDING_SLIDES = [
   {
@@ -47,16 +44,18 @@ const ONBOARDING_SLIDES = [
  * default) como para el recorrido guiado ya adentro de la app, con otro
  * contenido (ver `AppTourScreen`) -- mismo lenguaje visual, mismo botón de
  * "Saltar" siempre presente salvo en la última pantalla.
+ *
+ * Las pantallas se pasan deslizando o con el botón; los puntos también llevan
+ * a la que se toque.
  */
 export function OnboardingScreen({ onFinish, slides = ONBOARDING_SLIDES }) {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const carruselRef = useRef(null);
+  const esUltima = currentSlide >= slides.length - 1;
 
   const handleNext = () => {
-    if (currentSlide < slides.length - 1) {
-      setCurrentSlide(currentSlide + 1);
-    } else {
-      onFinish();
-    }
+    if (esUltima) onFinish();
+    else carruselRef.current?.irA(currentSlide + 1);
   };
 
   const slide = slides[currentSlide];
@@ -65,7 +64,7 @@ export function OnboardingScreen({ onFinish, slides = ONBOARDING_SLIDES }) {
     <View className="flex-1 bg-surface justify-between">
       {/* Top Skip Button */}
       <View className="px-8 pt-2 flex-row justify-end h-10">
-        {currentSlide < slides.length - 1 ? (
+        {!esUltima ? (
           <TouchableOpacity onPress={onFinish} className="py-1.5 px-2">
             <Text className="text-sm font-semibold text-accent-700">Saltar</Text>
           </TouchableOpacity>
@@ -74,31 +73,28 @@ export function OnboardingScreen({ onFinish, slides = ONBOARDING_SLIDES }) {
         )}
       </View>
 
-      {/* Center Content */}
-      <View className="flex-1 px-8 py-4 justify-between gap-8">
-        <View className="flex-1 rounded-2xl items-center justify-center" style={{ backgroundColor: slide.iconBg }}>
-          <Icon name={slide.iconName} size={110} color={slide.iconColor} />
-        </View>
+      <CarruselPasos
+        ref={carruselRef}
+        items={slides}
+        indice={currentSlide}
+        onCambiarIndice={setCurrentSlide}
+        renderItem={({ item }) => (
+          <View className="flex-1 px-8 py-4 justify-between gap-8">
+            <View className="flex-1 rounded-2xl items-center justify-center" style={{ backgroundColor: item.iconBg }}>
+              <Icon name={item.iconName} size={110} color={item.iconColor} />
+            </View>
 
-        <View className="gap-4">
-          <Text className="text-[28px] leading-[34px] font-bold text-gray-900">{slide.title}</Text>
-          <Text className="text-base leading-[25px] text-gray-500">{slide.description}</Text>
-        </View>
-      </View>
+            <View className="gap-4">
+              <Text className="text-[28px] leading-[34px] font-bold text-gray-900">{item.title}</Text>
+              <Text className="text-base leading-[25px] text-gray-500">{item.description}</Text>
+            </View>
+          </View>
+        )}
+      />
 
       {/* Bottom Controls */}
       <BottomBar bordered={false} className="px-8 bg-transparent gap-5">
-        <View className="flex-row justify-center items-center gap-1.5">
-          {slides.map((_, idx) => (
-            <View
-              key={idx}
-              className={`h-1.5 rounded-full ${
-                idx === currentSlide ? "w-6 bg-primary-700" : "w-1.5 bg-primary-200"
-              }`}
-            />
-          ))}
-        </View>
-
+        <PuntosPaso total={slides.length} actual={currentSlide} onElegir={(i) => carruselRef.current?.irA(i)} />
         <Button label={slide.cta} onPress={handleNext} />
       </BottomBar>
     </View>
