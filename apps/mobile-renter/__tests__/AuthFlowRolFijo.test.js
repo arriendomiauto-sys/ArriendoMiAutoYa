@@ -31,6 +31,34 @@ describe("AuthFlow · rol fijo", () => {
     expect(t).not.toContain("Quiero arrendar");
   });
 
+  it("con fixedRole='renter' no hay recuadro de rol: explica cómo funciona el servicio", () => {
+    const tr = renderTree(<AuthFlow fixedRole="renter" />);
+    avanzar(700);
+
+    const t = textOf(tr);
+    expect(t).not.toContain("Quiero arrendar");
+    expect(t).not.toContain("Quiero publicar mi auto");
+    expect(t).toContain("Encuentra un auto cerca");
+    expect(t).toContain("Entrega 100% digital");
+    expect(t).toContain("Crear mi cuenta");
+  });
+
+  it("el carrusel de la bienvenida avanza solo y se puede elegir un paso tocando su punto", () => {
+    const tr = renderTree(<AuthFlow fixedRole="renter" />);
+    avanzar(700);
+    const pasoActivo = () =>
+      tr.root.findAll((n) => n.props?.accessibilityState?.selected === true && /Ir al paso/.test(n.props?.accessibilityLabel || ""))[0]
+        ?.props.accessibilityLabel;
+
+    expect(pasoActivo()).toBe("Ir al paso 1 de 4");
+    avanzar(4500);
+    expect(pasoActivo()).toBe("Ir al paso 2 de 4");
+
+    const punto4 = tr.root.findAll((n) => n.props?.accessibilityLabel === "Ir al paso 4 de 4" && n.props?.onPress)[0];
+    act(() => punto4.props.onPress());
+    expect(pasoActivo()).toBe("Ir al paso 4 de 4");
+  });
+
   it("sin fixedRole, la bienvenida ofrece los dos roles como siempre", () => {
     const tr = renderTree(<AuthFlow />);
     avanzar(700);
