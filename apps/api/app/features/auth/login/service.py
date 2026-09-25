@@ -117,6 +117,26 @@ class AuthService:
 
         return True
 
+def _perfil_desde_metadata(metadata: Optional[dict]) -> dict:
+    """
+    Nombre y teléfono que la app manda en `signUp(options.data)`. Antes solo se
+    guardaban después de verificar el código dentro de la app: quien confirmaba
+    por otra vía (link del correo) quedaba sin nombre. Se pasan por la misma
+    validación que el endpoint de perfil básico; si no valen, se ignoran.
+    """
+    from app.schemas.schemas import PerfilBasicoUpdate
+
+    meta = metadata or {}
+    nombre = (meta.get("nombre") or "").strip()
+    if not nombre:
+        return {}
+    try:
+        perfil = PerfilBasicoUpdate(nombre=nombre, telefono=meta.get("telefono") or None)
+    except Exception:  # noqa: BLE001 — metadata editable por el usuario: si no valida, no se usa
+        return {}
+    return {"nombre": perfil.nombre, "telefono": perfil.telefono}
+
+
 async def autenticar_token(token: str, db: Session) -> Usuario:
     """
     Valida un access token de Supabase Auth y devuelve el Usuario local,
@@ -156,7 +176,10 @@ async def autenticar_token(token: str, db: Session) -> Usuario:
     # 2. Bloque: verificación local del JWT (sin red)
     claims = _decodificar_jwt_local(token)
     if claims and claims.get("sub"):
-        user = await asyncio.to_thread(_sincronizar_usuario_local, db, claims["sub"], claims.get("email"))
+        user = await asyncio.to_thread(
+            _sincronizar_usuario_local, db, claims["sub"], claims.get("email"),
+            _perfil_desde_metadata(claims.get("user_metadata")),
+        )
         _cache_guardar(token, user.id)
         return user
 
@@ -182,15 +205,18 @@ async def autenticar_token(token: str, db: Session) -> Usuario:
     data = resp.json()
     supa_id = data.get("id")
     supa_email = data.get("email")
+    perfil_registro = _perfil_desde_metadata(data.get("user_metadata"))
     if not supa_id:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
 
-    user = await asyncio.to_thread(_sincronizar_usuario_local, db, supa_id, supa_email)
+    user = await asyncio.to_thread(_sincronizar_usuario_local, db, supa_id, supa_email, perfil_registro)
     _cache_guardar(token, user.id)
     return user
 
 
-def _sincronizar_usuario_local(db: Session, supa_id: str, supa_email: Optional[str]) -> Usuario:
+def _sincronizar_usuario_local(
+    db: Session, supa_id: str, supa_email: Optional[str], perfil_registro: Optional[dict] = None,
+) -> Usuario:
     """
     Devuelve el Usuario local para un id/email de Supabase Auth, creándolo en
     el primer request y promoviendo roles de staff si el email lo indica.
@@ -214,6 +240,8 @@ def _sincronizar_usuario_local(db: Session, supa_id: str, supa_email: Optional[s
                 user.id, supa_email, supa_id,
             )
 
+    perfil_registro = perfil_registro or {}
+
     def _inferir_roles_staff(email: Optional[str]) -> List[str]:
         # Match EXACTO contra la allowlist de settings, no substring: un
         # email de staff se define a mano (STAFF_ADMIN_EMAILS y similares),
@@ -234,10 +262,12 @@ def _sincronizar_usuario_local(db: Session, supa_id: str, supa_email: Optional[s
 
     if not user:
         roles = _inferir_roles_staff(supa_email)
+        es_staff = any(r in ("admin", "manager", "soporte") for r in roles)
         user = Usuario(
             id=supa_id,
             email=supa_email,
-            nombre="Usuario Staff" if any(r in ("admin", "manager", "soporte") for r in roles) else None,
+            nombre="Usuario Staff" if es_staff else perfil_registro.get("nombre"),
+            telefono=None if es_staff else perfil_registro.get("telefono"),
             roles_activos=roles,
             estado_documentos="verificado" if any(r in ("admin", "manager", "soporte") for r in roles) else "pendiente",
         )
@@ -266,6 +296,14 @@ def _sincronizar_usuario_local(db: Session, supa_id: str, supa_email: Optional[s
             cambio = True
         if cambio:
             user.roles_activos = roles_actuales
+        # Cuenta que quedó sin nombre (confirmó el correo fuera de la app): se completa
+        # con lo que escribió al registrarse. Nunca pisa un nombre que ya tenga.
+        if not user.nombre and perfil_registro.get("nombre"):
+            user.nombre = perfil_registro["nombre"]
+            if not user.telefono and perfil_registro.get("telefono"):
+                user.telefono = perfil_registro["telefono"]
+            cambio = True
+        if cambio:
             db.commit()
             db.refresh(user)
 
