@@ -46,6 +46,9 @@ def test_confirmar_verificacion_solo_lo_puede_el_dueno_del_auto(db_session, auth
     )
     assert resp_intruso.status_code == 403
 
+    from conftest import simular_escaneo_qr
+
+    simular_escaneo_qr(db_session, reserva.id)
     resp_dueno = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/confirmar-verificacion",
         json={"resultado": "confirmada", "tipo": "entrega"},

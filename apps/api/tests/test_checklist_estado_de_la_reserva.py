@@ -37,6 +37,11 @@ def _checklist(auth_as, dueno, reserva_id, tipo):
         # Juntos en la entrega: identidad verificada y el dueño firmó; el arrendatario firma con el trazo.
         dejar_listo_para_firmar(object_session(dueno), reserva_id)
         cuerpo["firma_svg"] = "M1 1L2 2"
+    else:
+        from conftest import dejar_listo_para_devolver
+
+        # Juntos en la devolución: identidad del arrendatario verificada.
+        dejar_listo_para_devolver(object_session(dueno), reserva_id)
     return auth_as(dueno).post(f"/api/v1/entrega/{reserva_id}/checklist", json=cuerpo)
 
 

@@ -352,6 +352,9 @@ class Reserva(Base):
     liquidacion_dueno_clp = Column(Integer, default=0) # CLP
     codigo_qr_hash = Column(String, index=True, nullable=True)
     codigo_qr_expira_en = Column(DateTime, nullable=True)
+    # Cuándo el dueño escaneó el QR del arrendatario (prueba de que están juntos).
+    # La verificación de identidad lo consume: sin escaneo reciente no hay verificación.
+    codigo_qr_escaneado_en = Column(DateTime, nullable=True)
     lugar_entrega_acordado = Column(String, nullable=False)
     contrato_pdf_url = Column(String, nullable=True)
     hash_contrato_sha256 = Column(String(64), nullable=True)

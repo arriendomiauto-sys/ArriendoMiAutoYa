@@ -81,6 +81,7 @@ def validar_codigo_entrega(
     resultado = DeliveryService.validar_codigo_qr(payload.codigo_qr_hash, db)
     reserva = _obtener_reserva_o_404(resultado["reserva_id"], db)
     _requerir_dueno_del_auto(reserva, current_user, db)
+    DeliveryService.registrar_escaneo_qr(reserva, db)
     return resultado
 
 @router.post(

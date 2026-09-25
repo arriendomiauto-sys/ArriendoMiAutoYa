@@ -90,6 +90,11 @@ def _entregar(auth_as, esc):
 
 
 def _devolver(auth_as, esc, combustible="lleno", limpieza="limpio", cargo_limpieza_clp=None):
+    # Al devolver también se encuentran: QR del arrendatario e identidad verificada.
+    rid = esc["rid"]
+    qr = auth_as(esc["cliente"]).post(f"/api/v1/reservas/{rid}/generar-codigo").json()["codigo_qr_hash"]
+    auth_as(esc["dueno"]).post("/api/v1/entrega/validar-codigo", json={"codigo_qr_hash": qr})
+    auth_as(esc["dueno"]).post(f"/api/v1/entrega/{rid}/confirmar-verificacion", json={"resultado": "confirmada", "tipo": "devolucion"})
     cuerpo = {"tipo": "despues", "fotos": ["https://ej.com/final.jpg"], "kilometraje": 25400,
               "nivel_combustible": combustible, "estado_limpieza": limpieza, "notas": "Devuelto."}
     if cargo_limpieza_clp is not None:

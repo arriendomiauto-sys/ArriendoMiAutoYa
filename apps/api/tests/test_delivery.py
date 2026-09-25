@@ -1,4 +1,4 @@
-from conftest import dejar_listo_para_firmar
+from conftest import dejar_listo_para_devolver, dejar_listo_para_firmar, simular_escaneo_qr
 from app.models.entities import Reserva, Disputa, Usuario, ChecklistAuto, Pago
 
 def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
@@ -51,7 +51,13 @@ def test_flujo_completo_entrega_y_checklist(client, db_session, auth_as):
     assert resp_check_antes.status_code == 200
     assert resp_check_antes.json()["estado_reserva"] == "en_curso"
 
-    # 6. Al devolver el auto: Dueño completa checklist 'despues' con suciedad estándar
+    # 6. Al devolver: nuevo QR del cliente e identidad verificada en persona
+    qr = auth_as(cliente).post(f"/api/v1/reservas/{reserva.id}/generar-codigo").json()["codigo_qr_hash"]
+    auth_as(dueno).post("/api/v1/entrega/validar-codigo", json={"codigo_qr_hash": qr})
+    resp_dev = auth_as(dueno).post(f"/api/v1/entrega/{reserva.id}/confirmar-verificacion", json={"resultado": "confirmada", "tipo": "devolucion"})
+    assert resp_dev.status_code == 200, resp_dev.text
+
+    # 7. Dueño completa checklist 'despues' con suciedad estándar
     resp_check_despues = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/checklist",
         json={
@@ -172,6 +178,7 @@ def test_checklist_despues_no_necesita_firma(client, db_session, auth_as):
         }
     )
 
+    dejar_listo_para_devolver(db_session, reserva.id)
     resp = c.post(
         f"/api/v1/entrega/{reserva.id}/checklist",
         json={
@@ -196,7 +203,8 @@ def test_rechazo_identidad_crea_disputa_y_bloquea(client, db_session, auth_as):
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
     dejar_listo_para_firmar(db_session, reserva.id)
 
-    # Dueño rechaza la identidad con foto y motivo
+    # Dueño escanea el QR y rechaza la identidad con foto y motivo
+    simular_escaneo_qr(db_session, reserva.id)
     resp_rechazo = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/confirmar-verificacion",
         json={
@@ -251,7 +259,8 @@ def test_checklist_despues_con_dano_retiene_garantia_y_abre_disputa(client, db_s
         }
     )
 
-    # Checklist de devolución con reporte de daño
+    # Checklist de devolución con reporte de daño (arrendatario presente y verificado)
+    dejar_listo_para_devolver(db_session, reserva.id)
     resp_ret = c.post(
         f"/api/v1/entrega/{reserva.id}/checklist",
         json={

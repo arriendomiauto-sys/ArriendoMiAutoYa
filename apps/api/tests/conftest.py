@@ -407,6 +407,32 @@ def dejar_listo_para_firmar(db, reserva_id, con_firma_dueno=True):
     return reserva
 
 
+def simular_escaneo_qr(db, reserva_id):
+    """El dueño acaba de escanear el QR del arrendatario (están juntos): habilita
+    UNA verificación de identidad. `from conftest import simular_escaneo_qr`."""
+    from datetime import datetime, timezone
+    from app.models.entities import Reserva
+
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    reserva.codigo_qr_escaneado_en = datetime.now(timezone.utc)
+    db.commit()
+    return reserva
+
+
+def dejar_listo_para_devolver(db, reserva_id):
+    """Identidad del arrendatario verificada en persona al devolver: sin esto el
+    dueño no puede cerrar la devolución. `from conftest import dejar_listo_para_devolver`."""
+    from app.models.entities import Auto, Reserva, VerificacionEntrega
+
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
+    db.add(VerificacionEntrega(
+        reserva_id=reserva_id, tipo="devolucion", resultado="confirmada", dueno_id_que_verifica=auto.dueno_id,
+    ))
+    db.commit()
+    return reserva
+
+
 @pytest.fixture
 def preparar_entrega(db_session):
     """`preparar_entrega(reserva, con_firma_dueno=True)`: ver `dejar_listo_para_firmar`."""

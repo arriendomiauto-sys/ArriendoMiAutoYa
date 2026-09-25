@@ -6,6 +6,7 @@ backend emite `entrega_confirmada` a la sala de la reserva por Socket.IO.
 """
 from unittest.mock import AsyncMock, patch
 
+from conftest import simular_escaneo_qr
 from app.models.entities import Reserva, Usuario
 
 
@@ -13,6 +14,7 @@ def test_confirmar_identidad_exitosa_emite_entrega_confirmada(client, db_session
     reserva = db_session.query(Reserva).first()
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
 
+    simular_escaneo_qr(db_session, reserva.id)
     with patch(
         "app.features.bookings.delivery.router.sio.emit", new_callable=AsyncMock
     ) as mock_emit:
@@ -33,6 +35,7 @@ def test_confirmar_identidad_rechazada_no_emite_entrega_confirmada(client, db_se
     reserva = db_session.query(Reserva).first()
     dueno = db_session.query(Usuario).filter(Usuario.email == "dueno@arriendatuauto.cl").first()
 
+    simular_escaneo_qr(db_session, reserva.id)
     with patch(
         "app.features.bookings.delivery.router.sio.emit", new_callable=AsyncMock
     ) as mock_emit:

@@ -56,6 +56,10 @@ def _cerrar_devolucion(client, db_session, auth_as, notas_despues="Devuelto limp
     )
     assert r_antes.json()["estado_reserva"] == "en_curso"
 
+    # Al devolver también se encuentran: QR del arrendatario e identidad verificada.
+    qr = auth_as(cliente).post(f"/api/v1/reservas/{reserva.id}/generar-codigo").json()["codigo_qr_hash"]
+    auth_as(dueno).post("/api/v1/entrega/validar-codigo", json={"codigo_qr_hash": qr})
+    auth_as(dueno).post(f"/api/v1/entrega/{reserva.id}/confirmar-verificacion", json={"resultado": "confirmada", "tipo": "devolucion"})
     r_despues = auth_as(dueno).post(
         f"/api/v1/entrega/{reserva.id}/checklist",
         json={

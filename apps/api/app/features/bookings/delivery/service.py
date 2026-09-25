@@ -15,6 +15,8 @@ from app.features.communications.notifications.service import crear_notificacion
 from app.services import referidos
 from app.features.payments import cargos_service
 
+# Minutos entre el escaneo del QR y la confirmación de identidad del dueño.
+VENTANA_VERIFICACION_MIN = 10
 
 def _foto_perfil_vigente(cliente: Optional[Usuario], db: Session) -> Optional[str]:
     """
@@ -172,6 +174,15 @@ class DeliveryService:
         }
 
     @staticmethod
+    def registrar_escaneo_qr(reserva: Reserva, db: Session) -> None:
+        """El dueño del auto escaneó el QR vigente: queda la prueba de que el
+        arrendatario estaba presente y el código se consume (un solo uso)."""
+        reserva.codigo_qr_escaneado_en = datetime.now(timezone.utc)
+        reserva.codigo_qr_hash = None
+        reserva.codigo_qr_expira_en = None
+        db.commit()
+
+    @staticmethod
     def confirmar_verificacion(
         reserva_id: str,
         resultado: str,
@@ -181,9 +192,35 @@ class DeliveryService:
         foto_evidencia_url: Optional[str] = None,
         motivo_rechazo: Optional[str] = None
     ) -> Dict[str, Any]:
-        reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+        reserva = db.query(Reserva).filter(Reserva.id == reserva_id).with_for_update().first()
         if not reserva:
             raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+        # La verificación en persona corresponde al momento del arriendo: la de
+        # entrega antes de entregar y la de devolución con el arriendo en curso.
+        estado_esperado = {"entrega": "confirmada", "devolucion": "en_curso"}.get(tipo)
+        if estado_esperado is None:
+            raise HTTPException(status_code=400, detail="Tipo de verificación inválido.")
+        if reserva.estado != estado_esperado:
+            raise HTTPException(
+                status_code=409,
+                detail=f"No corresponde verificar la {tipo} de una reserva en estado '{reserva.estado}'.",
+            )
+
+        # Sin un escaneo reciente del QR del arrendatario no hay prueba de que esté
+        # presente: el dueño no puede "verificar" (ni rechazar) a alguien a distancia.
+        escaneado = reserva.codigo_qr_escaneado_en
+        if escaneado is not None and escaneado.tzinfo is None:
+            escaneado = escaneado.replace(tzinfo=timezone.utc)
+        if escaneado is None or datetime.now(timezone.utc) - escaneado > timedelta(minutes=VENTANA_VERIFICACION_MIN):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "codigo": "QR_NO_ESCANEADO",
+                    "mensaje": "Escanea el código QR del arrendatario (con él presente) antes de verificar su identidad.",
+                },
+            )
+        reserva.codigo_qr_escaneado_en = None
 
         if resultado == "rechazada":
             if not motivo_rechazo:
@@ -338,6 +375,29 @@ class DeliveryService:
                 raise HTTPException(
                     status_code=400,
                     detail="No se puede registrar la devolución: el arriendo no está en curso.",
+                )
+            # El cierre descuenta cargos de la garantía: solo con el arrendatario
+            # presente (QR + identidad verificados al devolver). Si no aparece, no se
+            # cierra desde acá: el dueño abre una disputa.
+            devolucion_verificada = (
+                db.query(VerificacionEntrega.id)
+                .filter(
+                    VerificacionEntrega.reserva_id == reserva.id,
+                    VerificacionEntrega.tipo == "devolucion",
+                    VerificacionEntrega.resultado == "confirmada",
+                )
+                .first()
+            )
+            if not devolucion_verificada:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "codigo": "DEVOLUCION_SIN_VERIFICAR",
+                        "mensaje": (
+                            "Escanea el QR del arrendatario y verifica su identidad antes de "
+                            "registrar la devolución. Si no se presentó, abre una disputa."
+                        ),
+                    },
                 )
 
         if len(fotos) < 1:
