@@ -82,6 +82,14 @@ def monto_garantia(config: Any, categoria: Optional[str]) -> int:
     return GARANTIA_FALLBACK_CLP
 
 
+def monto_garantia_auto(config: Any, auto: Any) -> int:
+    """Garantía del auto: la propia (`auto.garantia_clp`) si la tiene, si no la de su categoría."""
+    propia = getattr(auto, "garantia_clp", None)
+    if propia is not None and int(propia) > 0:
+        return int(propia)
+    return monto_garantia(config, getattr(auto, "categoria", None))
+
+
 def _ahora() -> datetime:
     return datetime.utcnow()
 

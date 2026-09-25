@@ -88,7 +88,7 @@ def garantia_total(db: Session, reserva: Reserva) -> int:
     from app.features.vehicles.catalog.pricing_service import PricingService
 
     auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
-    return checkout_service.monto_garantia(PricingService.obtener_configuracion(db), getattr(auto, "categoria", None))
+    return checkout_service.monto_garantia_auto(PricingService.obtener_configuracion(db), auto)
 
 
 def tope_disponible(db: Session, reserva: Reserva) -> int:

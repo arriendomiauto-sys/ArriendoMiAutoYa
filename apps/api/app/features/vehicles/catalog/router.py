@@ -44,8 +44,8 @@ def _sanear_auto_out(auto: Auto, current_user: Optional[Usuario] = None) -> Auto
     if auto.dueno:
         out.dueno_nombre = auto.dueno.nombre or "Anfitrión"
         out.dueno_foto_url = auto.dueno.foto_perfil_verificada_url or getattr(auto.dueno, "foto_perfil_url", None)
-    # Garantía estimada por categoría (sin config: usa los valores por defecto).
-    out.monto_garantia = checkout_service.monto_garantia(None, auto.categoria)
+    # Garantía estimada: la propia del auto o la de su categoría (sin config: valores por defecto).
+    out.monto_garantia = checkout_service.monto_garantia_auto(None, auto)
     return out
 
 def _adjuntar_calificaciones(db: Session, autos: List[Auto]) -> List[Auto]:

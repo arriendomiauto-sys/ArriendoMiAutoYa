@@ -258,7 +258,7 @@ def crear_reserva(
     # expirar si no se paga.
     dias = PricingService.calcular_dias_reserva(payload.fecha_inicio, payload.fecha_fin)
     monto_cobro = PricingService.calcular_monto_hold_reserva(auto.tarifa_dia, dias)
-    monto_hold = checkout_service.monto_garantia(config, auto.categoria)
+    monto_hold = checkout_service.monto_garantia_auto(config, auto)
     expira_en = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
         minutes=checkout_service.TTL_RESERVA_MINUTOS
     )

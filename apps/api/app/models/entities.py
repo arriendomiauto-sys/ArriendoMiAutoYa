@@ -255,6 +255,9 @@ class Auto(Base):
     asientos = Column(Integer, nullable=True)
     puertas = Column(Integer, nullable=True)
     categoria = Column(String, nullable=True)     # "economico" | "sedan" | "suv" | "camioneta" | "premium"
+    # Garantía (hold) propia del auto, en CLP. NULL = la fija de su categoría.
+    # Solo se setea a mano (p.ej. el auto de prueba de la pasarela real).
+    garantia_clp = Column(Integer, nullable=True)
     descripcion = Column(Text, nullable=True)
 
     # Documentos legales del vehículo — obligatorios para publicar. Se
