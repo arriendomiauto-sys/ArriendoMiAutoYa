@@ -3,12 +3,10 @@ import { View } from "react-native";
 
 let Animated = null;
 let FadeInUp = null;
-let FadeOut = null;
 try {
   const reanimated = require("react-native-reanimated");
   Animated = reanimated.default || reanimated;
   FadeInUp = reanimated.FadeInUp;
-  FadeOut = reanimated.FadeOut;
 } catch {
   // react-native-reanimated no disponible en binario nativo
 }
@@ -22,7 +20,7 @@ try {
  * Se usa envolviendo el resultado de `renderContent()` con una `key` que
  * cambie según qué pantalla está activa (ej. `capasAbiertas[0]?.nivel`): al
  * cambiar la key, React desmonta el `Animated.View` anterior y monta uno
- * nuevo, lo que dispara `entering`/`exiting`.
+ * nuevo, lo que dispara la animación de entrada.
  *
  * Es un fundido + deslizamiento leve hacia arriba, no un slide horizontal
  * completo: sin lógica de "hacia adelante" vs "atrás" (esta app no la
@@ -39,7 +37,9 @@ export function ScreenTransition({ children, style }) {
       // es un salto grande, más pensado para un ítem de lista que para una
       // pantalla completa -- acá solo se busca un roce sutil, no un salto.
       entering={FadeInUp.duration(220).withInitialValues({ transform: [{ translateY: 14 }] })}
-      exiting={FadeOut.duration(120)}
+      // Sin `exiting`: en Android, la animación de salida de Reanimated al
+      // desmontar dejaba a veces la pantalla anterior como vista fantasma
+      // congelada encima de la nueva (mismo bug que tenía el visor de fotos).
       style={[{ flex: 1 }, style]}
     >
       {children}

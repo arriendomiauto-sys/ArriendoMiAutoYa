@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { supabase } from "../api/supabase";
@@ -15,13 +14,12 @@ WebBrowser.maybeCompleteAuthSession();
  * de la app agregada en Authentication → URL Configuration → Redirect URLs
  * (ver `redirectUriOAuth()` abajo para el valor exacto).
  *
- * Apple solo se muestra en iOS: la App Store exige "Sign in with Apple" si
- * hay otro login social, y en Android no aporta.
+ * Google y Apple en todas las plataformas (sin Facebook). En iOS la App
+ * Store exige "Sign in with Apple" si hay otro login social; en Android Apple
+ * funciona por el mismo flujo web de Supabase (requiere el Services ID de
+ * Apple configurado en el proveedor Apple de Supabase).
  */
-export const PROVEEDORES_OAUTH = Platform.select({
-  ios: ["google", "apple"],
-  default: ["google", "facebook"],
-});
+export const PROVEEDORES_OAUTH = ["google", "apple"];
 
 export const NOMBRE_PROVEEDOR = {
   google: "Google",

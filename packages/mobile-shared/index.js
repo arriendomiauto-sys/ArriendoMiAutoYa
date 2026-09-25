@@ -1,3 +1,5 @@
+// Primero: que el className funcione en MapView, CameraView y Svg (ver el archivo).
+import "./utils/nativewindInterop";
 export { colors } from "./theme/colors";
 export { theme, spacing, radius, typography, shadow, control } from "./theme/tokens";
 export {

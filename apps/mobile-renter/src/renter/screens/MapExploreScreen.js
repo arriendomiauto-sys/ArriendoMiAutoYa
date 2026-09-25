@@ -192,7 +192,8 @@ export function MapExploreScreen({ onBack, onSelectCar }) {
 
       <MapView
         ref={mapRef}
-        className="absolute inset-0"
+        // Estilo explícito además de className: sin tamaño, el mapa quedaba de 0×0.
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
         initialRegion={initialRegion}
         showsUserLocation={!!userCoords}
         showsMyLocationButton={false}

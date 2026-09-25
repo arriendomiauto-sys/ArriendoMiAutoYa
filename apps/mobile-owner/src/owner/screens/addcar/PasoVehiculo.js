@@ -288,6 +288,7 @@ export function PasoVehiculo({ wizard }) {
             <MapView
               ref={wizard.mapaRef}
               className="w-full h-full"
+                style={{ width: "100%", height: "100%" }}
               initialRegion={{
                 latitude: form.latitud ?? PUNTO_INICIAL.latitude,
                 longitude: form.longitud ?? PUNTO_INICIAL.longitude,

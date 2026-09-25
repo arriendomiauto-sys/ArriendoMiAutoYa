@@ -158,6 +158,7 @@ export function GpsTrackingModal({ visible, autoId, patente, nombreAuto, onClose
             ) : lat && lng && MapView ? (
               <MapView
                 className="w-full h-full"
+                style={{ width: "100%", height: "100%" }}
                 initialRegion={{
                   latitude: lat,
                   longitude: lng,
