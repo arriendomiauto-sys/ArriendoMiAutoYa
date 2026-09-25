@@ -71,6 +71,9 @@ def _con_desglose_pago(reserva: Reserva):
     """
     reserva.cobro = checkout_service.desglose_cobro(reserva.monto_cobro or 0)
     reserva.garantia = {"monto": int(reserva.monto_hold or 0)}
+    reserva.garantia_por_renovar = bool(reserva.garantia_renovacion_pedida_en) and reserva.estado in (
+        "pendiente", "confirmada", "en_curso"
+    )
     return reserva
 
 @router.post("", response_model=BookingOut, summary="Crear una nueva solicitud de reserva (Cliente)")

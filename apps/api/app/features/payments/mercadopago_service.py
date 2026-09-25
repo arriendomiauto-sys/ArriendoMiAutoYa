@@ -26,7 +26,7 @@ import hashlib
 import hmac
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import httpx
 
@@ -102,11 +102,10 @@ class MercadoPagoService:
             }
 
         idempotency_key = kwargs.pop("idempotency_key", None)
+        headers = {**cls._headers(idempotency_key), **(kwargs.pop("headers_extra", None) or {})}
         try:
             with httpx.Client(timeout=TIMEOUT) as client:
-                respuesta = client.request(
-                    metodo, f"{API_BASE}{ruta}", headers=cls._headers(idempotency_key), **kwargs
-                )
+                respuesta = client.request(metodo, f"{API_BASE}{ruta}", headers=headers, **kwargs)
         except Exception as e:
             logger.error("[MERCADOPAGO] Fallo de conexión en %s %s: %s", metodo, ruta, e)
             return {"success": False, "error": str(e)}
@@ -206,6 +205,9 @@ class MercadoPagoService:
         referencia_externa: str,
         payment_method_id: Optional[str] = None,
         capturar: bool = True,
+        pagador: Optional[Dict[str, Any]] = None,
+        item: Optional[Dict[str, Any]] = None,
+        device_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Cobra (o solo autoriza) contra una tarjeta ya tokenizada por el SDK de
@@ -217,6 +219,11 @@ class MercadoPagoService:
 
         El número de la tarjeta nunca pasa por acá: el cliente tokeniza contra
         Mercado Pago y manda solo el token.
+
+        `pagador` ({nombre, apellido, rut, telefono, registrado_en}), `item`
+        ({id, titulo, descripcion}) y `device_id` alimentan el antifraude de
+        Mercado Pago: sin ellos rechaza más cobros como riesgosos
+        (`cc_rejected_high_risk`). Todos son opcionales.
         """
         email = cls.resolver_email_pagador(email_pagador) or EMAIL_PRUEBA
         cuerpo = {
@@ -227,12 +234,19 @@ class MercadoPagoService:
             "payer": {"email": email},
             "external_reference": referencia_externa,
             "capture": bool(capturar),
+            "statement_descriptor": settings.MERCADOPAGO_STATEMENT_DESCRIPTOR,
         }
         if payment_method_id:
             cuerpo["payment_method_id"] = payment_method_id
+        payer_extra, additional_info = cls._datos_antifraude(pagador, item, monto, descripcion)
+        cuerpo["payer"].update(payer_extra)
+        if additional_info:
+            cuerpo["additional_info"] = additional_info
 
+        headers_extra = {"X-meli-session-id": device_id} if device_id else None
         resultado = cls._pedir(
-            "POST", "/v1/payments", json=cuerpo, idempotency_key=referencia_externa
+            "POST", "/v1/payments", json=cuerpo, idempotency_key=referencia_externa,
+            headers_extra=headers_extra,
         )
         if not resultado["success"]:
             return resultado
@@ -321,6 +335,44 @@ class MercadoPagoService:
         # compare_digest y no ==: una comparación normal filtra por tiempo
         # cuántos caracteres del principio coinciden.
         return hmac.compare_digest(esperada, recibida)
+
+    # -----------------------------------------------------------------
+    @classmethod
+    def _datos_antifraude(
+        cls, pagador: Optional[Dict[str, Any]], item: Optional[Dict[str, Any]], monto: int, descripcion: str,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """
+        `(campos extra de payer, additional_info)` del pago. En modo prueba no
+        se mandan los datos reales del usuario (mismo criterio que el email).
+        """
+        if not pagador or getattr(settings, "MERCADOPAGO_TEST_MODE", True):
+            return {}, {}
+        payer: Dict[str, Any] = {}
+        info_payer: Dict[str, Any] = {}
+        if pagador.get("nombre"):
+            payer["first_name"] = info_payer["first_name"] = pagador["nombre"][:255]
+        if pagador.get("apellido"):
+            payer["last_name"] = info_payer["last_name"] = pagador["apellido"][:255]
+        if pagador.get("rut"):
+            payer["identification"] = {"type": "RUT", "number": pagador["rut"]}
+        if pagador.get("telefono"):
+            info_payer["phone"] = {"number": pagador["telefono"]}
+        if pagador.get("registrado_en"):
+            info_payer["registration_date"] = pagador["registrado_en"]
+
+        additional_info: Dict[str, Any] = {
+            "items": [{
+                "id": (item or {}).get("id") or "arriendo",
+                "title": ((item or {}).get("titulo") or descripcion)[:255],
+                "description": ((item or {}).get("descripcion") or descripcion)[:255],
+                "category_id": "services",
+                "quantity": 1,
+                "unit_price": int(monto),
+            }],
+        }
+        if info_payer:
+            additional_info["payer"] = info_payer
+        return payer, additional_info
 
     # -----------------------------------------------------------------
     @staticmethod

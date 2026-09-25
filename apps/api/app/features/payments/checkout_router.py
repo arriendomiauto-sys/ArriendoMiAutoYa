@@ -15,9 +15,11 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.limiter import limiter
 from app.models.entities import Auto, Reserva, Usuario
-from app.schemas.schemas import PagarReservaRequest, CobroPosteriorRequest, CobroPosteriorOut
+from app.schemas.schemas import (
+    PagarReservaRequest, RenovarGarantiaRequest, CobroPosteriorRequest, CobroPosteriorOut,
+)
 from app.features.auth.login.service import get_current_user
-from app.features.payments import checkout_service, cargos_service
+from app.features.payments import checkout_service, cargos_service, garantia_renovacion
 from app.features.communications.notifications.service import crear_notificacion
 
 logger = logging.getLogger(__name__)
@@ -46,9 +48,35 @@ def pagar_reserva(
             tarjeta_cobro_id=payload.tarjeta_cobro_id,
             tarjeta_garantia_id=payload.tarjeta_garantia_id,
             device_id=payload.device_id,
+            token_cobro=payload.token_cobro,
+            token_garantia=payload.token_garantia,
         )
     except checkout_service.CheckoutError as e:
         raise HTTPException(status_code=e.http_status, detail=e.as_detail())
+
+
+@router.post("/{reserva_id}/garantia/renovar", summary="Renueva la garantía que vence antes del fin del arriendo")
+@limiter.limit("10/minute")
+def renovar_garantia(
+    request: Request,
+    reserva_id: str,
+    payload: RenovarGarantiaRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    reserva = db.query(Reserva).filter(Reserva.id == reserva_id).first()
+    if not reserva:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    if reserva.cliente_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Esta reserva no es tuya.")
+    if reserva.estado not in garantia_renovacion.ESTADOS_CON_GARANTIA:
+        raise HTTPException(status_code=409, detail="Esta reserva ya no tiene una garantía que renovar.")
+
+    try:
+        garantia_renovacion.renovar(db, reserva, token_app=payload.token_garantia)
+    except garantia_renovacion.RenovacionError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.as_detail())
+    return {"renovada": True, **garantia_renovacion.resumen(db, reserva)}
 
 
 @router.post(

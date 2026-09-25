@@ -324,6 +324,9 @@ class Reserva(Base):
     # antes de esta fecha se cancela y se devuelve todo (confirmacion_service).
     # NULL en las reservas anteriores a la política: el barrido no las toca.
     confirmar_dueno_antes_de = Column(DateTime, nullable=True)
+    # Cuándo se le pidió al arrendatario que renueve la garantía (con el CVV) porque
+    # la retención vence antes de que termine el arriendo. NULL = no hay pedido pendiente.
+    garantia_renovacion_pedida_en = Column(DateTime, nullable=True)
     # Por qué se canceló, cuando no fue una decisión manual: "dueno_no_confirmo" |
     # "no_presentacion". NULL en el resto.
     motivo_cancelacion = Column(String, nullable=True)

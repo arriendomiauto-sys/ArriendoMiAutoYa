@@ -272,7 +272,7 @@ def cobrar_a_tarjeta(db: Session, reserva: Reserva, tarjeta: Tarjeta, monto: int
     cliente = db.query(Usuario).filter(Usuario.id == reserva.cliente_id).first()
     if not cliente:
         raise CargoError(404, "Cliente no encontrado.")
-    return checkout_service._mover(tarjeta, cliente, int(monto), capturar=True, ref=ref)
+    return checkout_service._mover(tarjeta, cliente, int(monto), capturar=True, ref=ref, reserva=reserva)
 
 
 def abonar_al_dueno(db: Session, reserva: Reserva, monto: int) -> Optional[Pago]:

@@ -238,6 +238,7 @@ def barrido_reservas(db: Session) -> dict:
     """Una pasada del bucle de fondo: expira lo vencido, cancela lo que el dueño no confirmó y suelta garantías colgadas."""
     # Import local: confirmacion_service usa las utilidades de este módulo.
     from app.features.bookings.reservations import confirmacion_service
+    from app.features.payments import garantia_renovacion
 
     return {
         "expiradas": expirar_reservas_vencidas(db),
@@ -246,4 +247,5 @@ def barrido_reservas(db: Session) -> dict:
         "recordatorios": confirmacion_service.enviar_recordatorios_de_politica(db),
         "no_presentaciones": confirmacion_service.resolver_no_presentaciones(db),
         "garantias_liberadas": liberar_garantias_colgadas(db),
+        "garantias_renovadas": garantia_renovacion.renovar_garantias_por_vencer(db),
     }

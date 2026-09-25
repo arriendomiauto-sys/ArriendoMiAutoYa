@@ -54,6 +54,9 @@ def serializar(t: Tarjeta) -> Dict[str, Any]:
         "estado": t.estado,
         "predeterminada_cobro": bool(t.predeterminada_cobro),
         "predeterminada_garantia": bool(t.predeterminada_garantia),
+        # La app lo necesita para tokenizar la tarjeta guardada con el CVV al pagar
+        # (POST /card_tokens con card_id + security_code). Sin el CVV no sirve para cobrar.
+        "mp_card_id": t.mp_card_id,
     }
 
 

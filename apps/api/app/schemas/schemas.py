@@ -364,6 +364,16 @@ class PagarReservaRequest(BaseModel):
     tarjeta_cobro_id: str
     tarjeta_garantia_id: str
     device_id: Optional[str] = None
+    # `card_token` de un uso que la app genera desde la tarjeta guardada + el CVV
+    # que escribe el usuario. Si faltan, el backend lo genera sin CVV (solo sirve
+    # si la cuenta de Mercado Pago tiene habilitado el cobro sin CVV).
+    token_cobro: Optional[str] = None
+    token_garantia: Optional[str] = None
+
+
+class RenovarGarantiaRequest(BaseModel):
+    """`card_token` de la tarjeta de la garantía, generado por la app con el CVV."""
+    token_garantia: Optional[str] = None
 
 
 class CobroPosteriorRequest(BaseModel):
@@ -902,6 +912,10 @@ class BookingOut(BaseModel):
     # (`{monto}`).
     cobro: Optional[Dict[str, int]] = None
     garantia: Optional[Dict[str, int]] = None
+    # La retención de la garantía vence antes de que termine el arriendo y el
+    # arrendatario tiene que renovarla con su CVV (POST /reservas/{id}/garantia/renovar).
+    garantia_por_renovar: bool = False
+    tarjeta_garantia_id: Optional[str] = None
     cargo_limpieza_clp: int = 0
     cargo_combustible_clp: int = 0
     cargo_km_extra_clp: int = 0

@@ -274,6 +274,25 @@ class DeliveryService:
                     status_code=400,
                     detail=f"No se puede registrar la entrega de una reserva en estado '{reserva.estado}'.",
                 )
+            # No se entrega el auto con una garantía a punto de vencer. Acá no se renueva
+            # (haría commit y soltaría el bloqueo de la fila): ya lo intentó el barrido y,
+            # si no pudo, el arrendatario la renueva desde la app con su CVV.
+            from app.features.payments import garantia_renovacion
+
+            hold = garantia_renovacion.hold_vigente(db, reserva)
+            if hold and garantia_renovacion.necesita_renovacion(reserva, hold):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "codigo": "GARANTIA_POR_RENOVAR",
+                        "mensaje": (
+                            "La garantía del arrendatario vence antes de que termine el arriendo. "
+                            "Pídele que la renueve desde su reserva en la app (le pedirá el código "
+                            "de seguridad de su tarjeta) y vuelve a intentar la entrega."
+                        ),
+                    },
+                )
+
             # El segundo conductor también maneja el auto: sus antecedentes tienen que estar
             # aprobados (certificados oficiales; ver certificados_service).
             from app.core.config import settings

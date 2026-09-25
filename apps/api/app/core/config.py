@@ -127,6 +127,8 @@ class Settings(BaseSettings):
     # Cuando está activo, usa test@test.com como pagador para que Mercado Pago
     # permita procesar tarjetas de prueba sin rechazar por comprador no autorizado.
     MERCADOPAGO_TEST_MODE: bool = True
+    # Lo que ve el arrendatario en el estado de cuenta de su tarjeta (corto, sin tildes).
+    MERCADOPAGO_STATEMENT_DESCRIPTOR: str = "ARRIENDOMIAUTO"
 
     # ===== BLOQUE TEMPORAL — PAGOS SIMULADOS ==============================
     # Mientras la cuenta de Mercado Pago no esté configurada, esto deja pasar el
@@ -150,6 +152,11 @@ class Settings(BaseSettings):
     LIQUIDACIONES_INTERVALO_MINUTOS: int = 10
     # Cada cuánto se cancelan las reservas `pendiente_pago` vencidas y se sueltan garantías colgadas.
     RESERVAS_BARRIDO_INTERVALO_MINUTOS: int = 5
+    # Cuánto dura una retención (pago autorizado sin capturar) antes de que Mercado Pago la
+    # libere sola. CONFIRMAR con Mercado Pago para la cuenta: si es menos, bajarlo acá.
+    GARANTIA_HOLD_VALIDEZ_DIAS: int = 7
+    # Con cuánta anticipación a ese vencimiento se renueva la garantía.
+    GARANTIA_RENOVAR_ANTES_HORAS: int = 48
     # ====================================================================
 
     # Storage Local Directory Fallback

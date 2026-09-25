@@ -10,6 +10,7 @@ El movimiento es atómico para el usuario: si el cobro falla después de tomar
 el hold, el hold se libera y la reserva queda igual que antes ("pendiente_pago").
 """
 import logging
+import re
 import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -97,14 +98,46 @@ def _ahora() -> datetime:
 # ===========================================================================
 # Movimientos contra la pasarela
 # ===========================================================================
-def _mover(tarjeta: Tarjeta, usuario: Usuario, monto: int, capturar: bool, ref: str) -> Dict[str, Any]:
-    """Cobra (`capturar=True`) o retiene un hold (`capturar=False`) sobre `tarjeta`."""
+def _pagador(usuario: Usuario) -> Dict[str, Any]:
+    """Datos del arrendatario para el antifraude de Mercado Pago."""
+    partes = (usuario.nombre or "").split()
+    registrado = getattr(usuario, "fecha_registro", None)
+    return {
+        "nombre": partes[0] if partes else None,
+        "apellido": " ".join(partes[1:]) or None,
+        # Mismo formato que manda la app al tokenizar: sin puntos ni guion.
+        "rut": re.sub(r"[^0-9Kk]", "", usuario.rut or "").upper() or None,
+        "telefono": usuario.telefono,
+        "registrado_en": registrado.isoformat() if registrado else None,
+    }
+
+
+def _item(reserva: Optional[Reserva]) -> Optional[Dict[str, Any]]:
+    auto = getattr(reserva, "auto", None)
+    if not reserva or not auto:
+        return None
+    nombre = " ".join(str(p) for p in (auto.marca, auto.modelo, auto.anio) if p)
+    return {"id": auto.id, "titulo": f"Arriendo {nombre}", "descripcion": f"Reserva {reserva.id[:8]}"}
+
+
+def _mover(
+    tarjeta: Tarjeta, usuario: Usuario, monto: int, capturar: bool, ref: str,
+    token_app: Optional[str] = None,
+    reserva: Optional[Reserva] = None,
+    device_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Cobra (`capturar=True`) o retiene un hold (`capturar=False`) sobre `tarjeta`.
+
+    `token_app` es el token que generó la app con el CVV. Si no viene, se genera
+    acá sin CVV, y eso solo funciona si la cuenta de Mercado Pago tiene habilitado el cobro sin CVV.
+    """
     if pagos_simulados.pagos_simulados_activos():
         # Convención de pruebas: una tarjeta terminada en 0000 siempre rechaza.
         rechazar = (tarjeta.ultimos4 or "") == "0000"
         return pagos_simulados.pagar_simulado(monto, capturar=capturar, rechazar=rechazar)
 
-    token = card_vault.token_para_movimiento(tarjeta.mp_customer_id, tarjeta.mp_card_id)
+    token = token_app or card_vault.token_para_movimiento(tarjeta.mp_customer_id, tarjeta.mp_card_id)
     if not token:
         return {"autorizada": False, "estado": "error", "detalle_estado": "sin_token", "success": False}
 
@@ -115,6 +148,9 @@ def _mover(tarjeta: Tarjeta, usuario: Usuario, monto: int, capturar: bool, ref: 
         email_pagador=usuario.email,
         referencia_externa=ref,
         capturar=capturar,
+        pagador=_pagador(usuario),
+        item=_item(reserva),
+        device_id=device_id,
     )
 
 
@@ -145,7 +181,9 @@ def procesar_pago(
     usuario: Usuario,
     tarjeta_cobro_id: str,
     tarjeta_garantia_id: str,
-    device_id: Optional[str] = None,  # noqa: ARG001 — plumbing MP fingerprint pendiente
+    device_id: Optional[str] = None,
+    token_cobro: Optional[str] = None,
+    token_garantia: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Ejecuta el pago dual de la reserva. Devuelve `{estado: "esperando_dueno", confirmar_antes_de}`
@@ -224,13 +262,18 @@ def procesar_pago(
     ref_base = f"{reserva.id[:8]}-{uuid.uuid4().hex[:6]}"
 
     # --- Paso 1: hold de la garantía (autorización sin captura) --------------
-    res_hold = _mover(tg, usuario, monto_hold, capturar=False, ref=f"HOLD-{ref_base}")
+    res_hold = _mover(tg, usuario, monto_hold, capturar=False, ref=f"HOLD-{ref_base}",
+                      token_app=token_garantia, reserva=reserva, device_id=device_id)
     if not res_hold.get("autorizada"):
+        if _cvv_rechazado(res_hold):
+            raise CheckoutError(402, "CVV_INVALIDO",
+                                "El código de seguridad de tu tarjeta de crédito es incorrecto.", campo="garantia")
         raise CheckoutError(402, "SIN_CUPO",
                             "Tu tarjeta de crédito no tiene cupo para la garantía.", campo="garantia")
 
     # --- Paso 2: cobro del arriendo ----------------------------------------
-    res_cobro = _mover(tc, usuario, monto_cobro, capturar=True, ref=f"COBRO-{ref_base}")
+    res_cobro = _mover(tc, usuario, monto_cobro, capturar=True, ref=f"COBRO-{ref_base}",
+                       token_app=token_cobro, reserva=reserva, device_id=device_id)
 
     if res_cobro.get("estado") == "pending":
         # Cobro en revisión del banco: se deja la garantía tomada y la reserva
@@ -248,6 +291,10 @@ def procesar_pago(
 
     if not res_cobro.get("autorizada"):
         _liberar(res_hold.get("payment_id"))
+        if _cvv_rechazado(res_cobro):
+            raise CheckoutError(402, "CVV_INVALIDO",
+                                "El código de seguridad de la tarjeta del arriendo es incorrecto. "
+                                "No se retuvo ninguna garantía.", campo="cobro")
         raise CheckoutError(402, "COBRO_RECHAZADO",
                             _motivo_rechazo(res_cobro), campo="cobro")
 
@@ -279,6 +326,10 @@ def _registrar_pago(db, reserva, usuario, tipo, monto, estado, payment_id) -> No
         referencia_pago=str(payment_id) if payment_id else None,
     ))
     db.flush()
+
+
+def _cvv_rechazado(res: Dict[str, Any]) -> bool:
+    return (res.get("detalle_estado") or "").lower() == "cc_rejected_bad_filled_security_code"
 
 
 def _motivo_rechazo(res: Dict[str, Any]) -> str:
