@@ -31,6 +31,7 @@ export { ScreenTransition, useDireccionTransicion } from "./components/ScreenTra
 export { ErrorBoundary } from "./components/ErrorBoundary";
 export { AppTourScreen } from "./components/AppTourScreen";
 export { CarruselPasos, PuntosPaso } from "./components/CarruselPasos";
+export { AntecedentesBanner, antecedentesPendientes } from "./components/AntecedentesBanner";
 export { TabBar } from "./components/TabBar";
 export { BrandLogo } from "./components/BrandLogo";
 export { VerifyIdentityBanner } from "./components/VerifyIdentityBanner";
@@ -79,6 +80,7 @@ export {
 export { ApiClient } from "./api/client";
 export { conectarChat, urlDelSocket } from "./api/chatSocket";
 export { useConversaciones } from "./hooks/useConversaciones";
+export { useEstadoAntecedentes } from "./hooks/useEstadoAntecedentes";
 export { useFavoritos } from "./hooks/useFavoritos";
 export { useTarjetas, limpiarCacheTarjetas } from "./hooks/useTarjetas";
 export { useCuentaRegresiva } from "./hooks/useCuentaRegresiva";

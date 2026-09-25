@@ -60,3 +60,45 @@ describe("Perfil del arrendatario · Antecedentes", () => {
     expect(textOf(tr)).toContain(meta);
   });
 });
+
+describe("Perfil del arrendatario · aviso destacado de antecedentes", () => {
+  const banner = (tr) => tr.root.findAll((n) => n.props?.testID === "banner-antecedentes" && n.props.onPress)[0];
+
+  it("mientras falten, hay un aviso arriba del menú que abre la pantalla de certificados", async () => {
+    mockUsuario = usuario("pendiente");
+    const onOpenAntecedentes = jest.fn();
+    const tr = await montar({ onOpenAntecedentes, antecedentesObligatorios: true });
+
+    expect(textOf(tr)).toContain("Sube tus antecedentes y tu hoja de vida");
+    expect(textOf(tr)).toContain("Son obligatorios para reservar");
+    act(() => banner(tr).props.onPress());
+    expect(onOpenAntecedentes).toHaveBeenCalledTimes(1);
+  });
+
+  it("si hoy no se exigen, no dice que son obligatorios", async () => {
+    mockUsuario = usuario("pendiente");
+    const tr = await montar({ antecedentesObligatorios: false });
+
+    expect(textOf(tr)).toContain("Sube tus antecedentes y tu hoja de vida");
+    expect(textOf(tr)).not.toContain("obligatorios");
+  });
+
+  it("en revisión lo dice sin pedir nada más", async () => {
+    mockUsuario = usuario("revision");
+    const tr = await montar();
+    expect(textOf(tr)).toContain("Estamos revisando tus certificados");
+  });
+
+  it("aprobados, el aviso desaparece", async () => {
+    mockUsuario = usuario("limpio");
+    const tr = await montar();
+    expect(banner(tr)).toBeUndefined();
+  });
+
+  it("el estado que llega del servidor manda sobre el del perfil cargado", async () => {
+    mockUsuario = usuario("pendiente");
+    const tr = await montar({ estadoAntecedentes: "limpio" });
+    expect(banner(tr)).toBeUndefined();
+    expect(textOf(tr)).toContain("Aprobados");
+  });
+});

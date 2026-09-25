@@ -20,6 +20,7 @@ import {
   SectionLabel,
   EmptyState,
   VerifyIdentityBanner,
+  AntecedentesBanner,
   useFavoritos,
 } from "@rentacar/mobile-shared";
 import { CarCard, CarCardSkeleton } from "../components/CarCard";
@@ -293,7 +294,16 @@ function ModalFiltros({ visible, valor, cars, q, catActiva, currentUserId, onCam
   );
 }
 
-export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onVerifyIdentity, onOpenActiveRental }) {
+export function MarketplaceScreen({
+  onSelectCar,
+  onOpenMap,
+  onOpenFavorites,
+  onVerifyIdentity,
+  onOpenActiveRental,
+  estadoAntecedentes,
+  antecedentesObligatorios,
+  onOpenAntecedentes,
+}) {
   const { cars, carsError, currentUser, loadData, loading, activeReservation } = useApp();
   const { esFavorito, favoritoIds, toggle: toggleFavorito } = useFavoritos();
   const identidadVerificada = currentUser?.estado_documentos === "verificado";
@@ -628,6 +638,16 @@ export function MarketplaceScreen({ onSelectCar, onOpenMap, onOpenFavorites, onV
                 <VerifyIdentityBanner role="renter" onPress={onVerifyIdentity} />
               </View>
             )}
+
+            {/* `null` = todavía no se sabe: no se muestra hasta tener el estado real. */}
+            {onOpenAntecedentes && estadoAntecedentes ? (
+              <AntecedentesBanner
+                className="mb-4"
+                estado={estadoAntecedentes}
+                obligatorio={antecedentesObligatorios}
+                onPress={onOpenAntecedentes}
+              />
+            ) : null}
 
             {filteredCars.length > 0 && (
               <Text className="text-[13px] text-textMuted mb-3 font-medium">

@@ -15,6 +15,7 @@ import {
   LegalModal,
   ReadinessBand,
   AdminPromoterInviteModal,
+  AntecedentesBanner,
 } from "@rentacar/mobile-shared";
 
 /**
@@ -27,6 +28,8 @@ export function RenterProfileScreen({
   onOpenEnrolment,
   onOpenPaymentMethods,
   onOpenAntecedentes,
+  estadoAntecedentes,
+  antecedentesObligatorios,
   onOpenEditProfile,
   onOpenFavorites,
   onOpenNotifications,
@@ -86,8 +89,9 @@ export function RenterProfileScreen({
       : user.estado_documentos === "requiere_revision_manual"
         ? "En revisión"
         : "Pendiente";
+  const antecedentesActual = estadoAntecedentes ?? user.antecedentes_estado;
   const antecedentesMeta =
-    { limpio: "Aprobados", revision: "En revisión", bloqueado: "Contacta a soporte" }[user.antecedentes_estado] || "Pendiente";
+    { limpio: "Aprobados", revision: "En revisión", bloqueado: "Contacta a soporte" }[antecedentesActual] || "Pendiente";
   const tarjetaMeta = user.tarjeta_ultimos4
     ? `•• ${user.tarjeta_ultimos4}`
     : user.tarjeta_estado === "validada"
@@ -176,12 +180,15 @@ export function RenterProfileScreen({
           />
         </Card>
 
+        {/* Destacado arriba de la lista mientras falten: sin ellos no se reserva. */}
+        <AntecedentesBanner estado={antecedentesActual} obligatorio={antecedentesObligatorios} onPress={onOpenAntecedentes} />
+
         <View>
           <Text className="text-[13px] font-bold text-textMuted mb-2 ml-1">Cuenta</Text>
           <MenuList>
             <MenuRow tile tileTone="menta" icon="shield" label="Identidad" meta={identidadMeta} onPress={handleKycPress} />
             <MenuRow tile tileTone="menta" icon="card" label="Medios de pago" meta={tarjetaMeta} onPress={onOpenPaymentMethods} />
-            <MenuRow tile tileTone="menta" icon="document" label="Antecedentes" meta={antecedentesMeta} onPress={onOpenAntecedentes} />
+            <MenuRow tile tileTone="menta" icon="document" label="Antecedentes y hoja de vida" meta={antecedentesMeta} onPress={onOpenAntecedentes} />
             <MenuRow tile icon="heart" label="Autos guardados" onPress={onOpenFavorites} />
             {esPromotor ? (
               <MenuRow tile tileTone="menta" icon="star" label="Invita y gana" onPress={onOpenPromoterPanel} />

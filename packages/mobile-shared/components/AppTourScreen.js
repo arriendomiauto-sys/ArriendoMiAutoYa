@@ -43,7 +43,7 @@ const TOUR_RENTER = [
     iconColor: colors.accent800,
     title: "Verifica tu identidad una vez",
     description:
-      "Sube tu carnet y licencia, agrega tus tarjetas desde \"Mi Perfil\" y ya puedes reservar cuando quieras.",
+      "Sube tu carnet, tu licencia, tus antecedentes y tu hoja de vida, y agrega tu tarjeta desde \"Mi Perfil\". Así ya puedes reservar cuando quieras.",
     cta: "Empezar",
   },
 ];

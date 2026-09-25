@@ -34,6 +34,13 @@ const BADGE = {
   rechazado: { variant: "danger", label: "Rechazado" },
 };
 
+// Cómo conseguirlos, en el orden en que se hace.
+const PASOS = [
+  "Entra a registrocivil.cl con tu ClaveÚnica.",
+  "Descarga gratis los dos certificados en PDF.",
+  "Súbelos aquí abajo: los revisa un ejecutivo.",
+];
+
 const RESUMEN = {
   limpio: "Antecedentes aprobados",
   revision: "Estamos revisando tus certificados",
@@ -97,7 +104,7 @@ export function AntecedentesScreen({ onBack }) {
   return (
     <View className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" />
-      <ScreenHeader title="Antecedentes" onBack={onBack} />
+      <ScreenHeader title="Antecedentes y hoja de vida" onBack={onBack} />
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: Math.max(insets.bottom, 16) + 24 }}
@@ -117,10 +124,26 @@ export function AntecedentesScreen({ onBack }) {
           </View>
         ) : null}
 
-        <Text className="text-sm text-text leading-5">
-          Para reservar necesitamos dos certificados oficiales del Registro Civil. Son gratis: se descargan con tu
-          ClaveÚnica en registrocivil.cl y se suben aquí en PDF.
-        </Text>
+        <View className="gap-1.5">
+          <Text className="text-xl font-bold text-textDark" style={{ letterSpacing: -0.3 }}>
+            Certificado de antecedentes y hoja de vida del conductor
+          </Text>
+          <Text className="text-sm text-textMuted leading-5">
+            Para reservar necesitamos estos dos certificados oficiales del Registro Civil. Son gratis y toman un par
+            de minutos.
+          </Text>
+        </View>
+
+        <View className="gap-2.5">
+          {PASOS.map((paso, i) => (
+            <View key={paso} className="flex-row items-center gap-3">
+              <View className="w-7 h-7 rounded-full bg-primary items-center justify-center">
+                <Text className="text-[13px] font-bold text-white">{i + 1}</Text>
+              </View>
+              <Text className="flex-1 text-[13.5px] text-text leading-[19px]">{paso}</Text>
+            </View>
+          ))}
+        </View>
         <Button
           label="Abrir registrocivil.cl"
           variant="secondary"

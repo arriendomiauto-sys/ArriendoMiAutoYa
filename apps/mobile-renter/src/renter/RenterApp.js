@@ -16,6 +16,8 @@ import {
   ApiClient,
   ScreenTransition,
   useDireccionTransicion,
+  useEstadoAntecedentes,
+  antecedentesPendientes,
 } from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
@@ -64,6 +66,10 @@ export function RenterApp() {
   const licenciaListaParaArrendar =
     currentUser?.licencia_estado === "verificada" ||
     (!currentUser?.licencia_estado && !!currentUser?.licencia_clase);
+  const antecedentes = useEstadoAntecedentes({
+    estadoInicial: currentUser?.antecedentes_estado ?? null,
+    activo: !!currentUser,
+  });
 
   // Pestañas de Navegación del Arrendatario
   const [activeTab, setActiveTab] = useState("explore"); // 'explore' | 'rentals' | 'chat' | 'profile'
@@ -108,6 +114,12 @@ export function RenterApp() {
   const abrirFavoritos = useCallback(() => setShowFavorites(true), []);
   const abrirEnrolamiento = useCallback(() => setShowEnrolment(true), []);
   const abrirArriendos = useCallback(() => setActiveTab("rentals"), []);
+  const abrirAntecedentes = useCallback(() => setShowAntecedentes(true), []);
+  const { recargar: recargarAntecedentes } = antecedentes;
+  const cerrarAntecedentes = useCallback(() => {
+    setShowAntecedentes(false);
+    recargarAntecedentes();
+  }, [recargarAntecedentes]);
 
   // Deep link desde una notificación push tocada (ver AppContext). Solo
   // actúa mientras RenterApp esté montado (mode === "renter"); si la
@@ -146,6 +158,12 @@ export function RenterApp() {
     // otra capa abierta todavía, así que no le pisa nada.
     if (tourVisto === false) {
       return <AppTourScreen role="renter" onFinish={marcarTourVisto} />;
+    }
+
+    // Antecedentes va antes que el detalle del auto: se abre también desde el
+    // aviso al intentar reservar, y al volver la persona sigue en ese auto.
+    if (showAntecedentes) {
+      return <AntecedentesScreen onBack={cerrarAntecedentes} />;
     }
 
     // 1. Verificación de Identidad KYC (captura y sube documentos reales,
@@ -309,6 +327,25 @@ export function RenterApp() {
               );
               return;
             }
+            // Antecedentes: el backend no deja reservar sin ellos aprobados
+            // cuando son obligatorios. Se avisa acá, antes de elegir fechas y
+            // pagar, en vez de que la reserva falle al final.
+            if (antecedentes.obligatorio && antecedentesPendientes(antecedentes.estado)) {
+              const enRevision = antecedentes.estado === "revision";
+              showAlert(
+                enRevision ? "Tus antecedentes están en revisión" : "Faltan tus antecedentes",
+                enRevision
+                  ? "Un ejecutivo está revisando tu certificado de antecedentes y tu hoja de vida. Te avisamos apenas puedas reservar."
+                  : "Para reservar necesitamos tu certificado de antecedentes y tu hoja de vida del conductor. Son gratis con tu ClaveÚnica y se suben en PDF.",
+                enRevision
+                  ? [{ text: "Entendido", style: "cancel" }]
+                  : [
+                      { text: "Ahora no", style: "cancel" },
+                      { text: "Subir ahora", onPress: () => setShowAntecedentes(true) },
+                    ]
+              );
+              return;
+            }
             setSelectedCar(car);
             setBookingDraft(draft);
             setShowPayment(true);
@@ -389,9 +426,6 @@ export function RenterApp() {
     if (showSupport) {
       return <SupportScreen variant="renter" onBack={() => setShowSupport(false)} />;
     }
-    if (showAntecedentes) {
-      return <AntecedentesScreen onBack={() => setShowAntecedentes(false)} />;
-    }
 
     // 9. Contenido de las Pestañas Principales
     switch (activeTab) {
@@ -403,6 +437,9 @@ export function RenterApp() {
             onOpenFavorites={abrirFavoritos}
             onVerifyIdentity={abrirEnrolamiento}
             onOpenActiveRental={abrirArriendos}
+            estadoAntecedentes={antecedentes.estado}
+            antecedentesObligatorios={antecedentes.obligatorio}
+            onOpenAntecedentes={abrirAntecedentes}
           />
         );
 
@@ -463,7 +500,9 @@ export function RenterApp() {
             onOpenFavorites={() => setShowFavorites(true)}
             onOpenNotifications={() => setShowNotifications(true)}
             onOpenSupport={() => setShowSupport(true)}
-            onOpenAntecedentes={() => setShowAntecedentes(true)}
+            onOpenAntecedentes={abrirAntecedentes}
+            estadoAntecedentes={antecedentes.estado}
+            antecedentesObligatorios={antecedentes.obligatorio}
             onOpenPromoterPanel={() => setShowPromoterPanel(true)}
           />
         );
@@ -495,6 +534,8 @@ export function RenterApp() {
   // la más visible y la que cierra primero). `showContract` NO está acá: es un
   // <Modal> nativo que ya se cierra solo vía su `onRequestClose`.
   const capasAbiertas = [];
+  // Primero: se puede abrir encima del detalle de un auto (ver renderContent).
+  if (showAntecedentes) capasAbiertas.push({ nivel: "antecedentes", onCerrar: cerrarAntecedentes });
   if (showEnrolment) capasAbiertas.push({ nivel: "kyc", onCerrar: () => setShowEnrolment(false) });
   if (showLicencia) capasAbiertas.push({ nivel: "licencia", onCerrar: () => setShowLicencia(false) });
   if (showPromoterPanel) capasAbiertas.push({ nivel: "invita-y-gana", onCerrar: () => setShowPromoterPanel(false) });
@@ -511,7 +552,6 @@ export function RenterApp() {
   if (showCancelModal) capasAbiertas.push({ nivel: "cancelar-reserva", onCerrar: () => setShowCancelModal(false) });
   if (showNotifications) capasAbiertas.push({ nivel: "notificaciones", onCerrar: () => setShowNotifications(false) });
   if (showSupport) capasAbiertas.push({ nivel: "soporte", onCerrar: () => setShowSupport(false) });
-  if (showAntecedentes) capasAbiertas.push({ nivel: "antecedentes", onCerrar: () => setShowAntecedentes(false) });
   if (activeTab === "rentals") {
     if (activeReservation) {
       capasAbiertas.push({ nivel: "arriendo-activo", onCerrar: () => setActiveReservation(null) });
