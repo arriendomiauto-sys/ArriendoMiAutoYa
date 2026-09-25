@@ -1,7 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StatusBar } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StatusBar, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApp, Button, Card, ScreenHeader, SectionLabel, ApiClient, showAlert, msjError } from "@rentacar/mobile-shared";
+import {
+  useApp,
+  Button,
+  Card,
+  ScreenHeader,
+  SectionLabel,
+  ApiClient,
+  showAlert,
+  msjError,
+  colors,
+  useTarjetas,
+  configMercadoPago,
+  tokenizarTarjetaGuardada,
+} from "@rentacar/mobile-shared";
 
 const DIA_MS = 86400000;
 
@@ -10,11 +23,17 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
   const { activeReservation, setActiveReservation } = useApp();
   const [dias, setDias] = useState(1);
   const [loading, setLoading] = useState(false);
+  // Mercado Pago pide el CVV en cada cobro a una tarjeta guardada.
+  const [cvv, setCvv] = useState("");
+  const { validadas } = useTarjetas();
 
   const res = activeReservation || {};
   const auto = res.auto || res.car || {};
   const tarifa = auto.tarifa_dia || 0;
   const adicional = tarifa * dias;
+  // La misma tarjeta que el backend va a cobrar: la del arriendo.
+  const tarjeta = validadas.find((t) => t.id === res.tarjeta_cobro_id);
+  const pedirCvv = configMercadoPago().puedeContactarMP && !!tarjeta;
 
   const finActual = new Date(res.fecha_fin || Date.now() + 2 * DIA_MS);
   const finNuevo = new Date(finActual.getTime() + dias * DIA_MS);
@@ -66,9 +85,14 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
       );
       return;
     }
+    if (pedirCvv && cvv.length < 3) {
+      showAlert("Falta el código de seguridad", `Escribe el CVV de tu tarjeta •••• ${tarjeta.ultimos4}.`);
+      return;
+    }
     setLoading(true);
     try {
-      const actualizada = await ApiClient.extenderReserva(res.id, dias);
+      const token_cobro = pedirCvv ? await tokenizarTarjetaGuardada({ cardId: tarjeta.mp_card_id, cvv }) : null;
+      const actualizada = await ApiClient.extenderReserva(res.id, dias, { token_cobro });
       setActiveReservation({ ...actualizada, auto: res.auto });
       showAlert(
         "Arriendo extendido",
@@ -76,6 +100,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
         [{ text: "Entendido", onPress: onComplete || onBack }]
       );
     } catch (err) {
+      setCvv("");
       showAlert("No se pudo extender", msjError(err, "Intenta de nuevo en unos segundos."));
     } finally {
       setLoading(false);
@@ -151,6 +176,25 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
           <Text className="text-xs text-textMuted leading-[17px] mt-1">
             El monto adicional se cobra de inmediato a la tarjeta con la que pagaste el arriendo. Tu garantía no cambia.
           </Text>
+          {pedirCvv ? (
+            <View className="flex-row items-center gap-3 mt-2">
+              <Text className="flex-1 text-xs text-textMuted leading-4">
+                Código de seguridad de la •••• {tarjeta.ultimos4}
+              </Text>
+              <TextInput
+                testID="cvv-extension"
+                className="w-[84px] h-11 border-[1.5px] border-gray-200 rounded-xl px-3 text-[15px] text-gray-900 bg-white text-center"
+                value={cvv}
+                onChangeText={(t) => setCvv(t.replace(/\D/g, "").slice(0, 4))}
+                placeholder="CVV"
+                placeholderTextColor={colors.textPlaceholder}
+                keyboardType="number-pad"
+                secureTextEntry
+                maxLength={4}
+                accessibilityLabel={`Código de seguridad de la tarjeta terminada en ${tarjeta.ultimos4}`}
+              />
+            </View>
+          ) : null}
         </Card>
       </ScrollView>
 
@@ -166,7 +210,7 @@ export function ExtendRentalScreen({ onBack, onComplete }) {
           }
           onPress={handleExtender}
           loading={loading}
-          disabled={!res.id || sinMargen || colisiona}
+          disabled={!res.id || sinMargen || colisiona || (pedirCvv && cvv.length < 3)}
         />
       </View>
     </View>

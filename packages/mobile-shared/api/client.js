@@ -394,10 +394,11 @@ export class ApiClient {
     });
   }
 
-  static async extenderReserva(reservaId, diasAdicionales) {
+  // `token_cobro`: card_token de la tarjeta del arriendo generado con el CVV (tokenizarTarjetaGuardada).
+  static async extenderReserva(reservaId, diasAdicionales, { token_cobro = null } = {}) {
     return this.request(`/reservas/${reservaId}/extender`, {
       method: "POST",
-      body: JSON.stringify({ dias_adicionales: diasAdicionales }),
+      body: JSON.stringify({ dias_adicionales: diasAdicionales, token_cobro }),
     });
   }
 
