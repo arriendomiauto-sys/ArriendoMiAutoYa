@@ -69,8 +69,25 @@ async function irALosTerminos(tr) {
   await tocar(tr, "btn-continuar");
 }
 
+// Desliza el documento legal visible hasta el final.
+function leerHastaElFinal(tr) {
+  const doc = tr.root.findAll((n) => n.props?.testID === "documento-legal" && n.props.onScroll)[0];
+  act(() =>
+    doc.props.onScroll({
+      nativeEvent: { contentOffset: { y: 2400 }, layoutMeasurement: { height: 600 }, contentSize: { height: 3000 } },
+    })
+  );
+}
+
+function leerLosDosDocumentos(tr) {
+  leerHastaElFinal(tr);
+  pressText(tr, "Privacidad");
+  leerHastaElFinal(tr);
+}
+
 async function crearCuenta(tr) {
   await irALosTerminos(tr);
+  leerLosDosDocumentos(tr);
   await tocar(tr, "btn-aceptar-terminos");
 }
 
@@ -245,10 +262,28 @@ describe("RegisterScreen (arrendatario)", () => {
       const t = textOf(tr);
       expect(t).toContain("Términos y condiciones");
       expect(t).toContain("Hold de garantía");
-      expect(t).toContain("Acepto y crear cuenta");
+      expect(t).toContain("Lee los dos documentos hasta el final");
       expect(tr.root.findAllByType(TextInput)).toHaveLength(0);
       // (el RUT de la empresa aparece dentro del texto legal; lo que no debe haber es un campo)
       expect(t).not.toContain("Celular");
+    });
+
+    it("no deja aceptar hasta leer los dos documentos hasta el final", async () => {
+      const tr = montar(<RegisterScreen onNavigate={() => {}} role="renter" />);
+      await irALosTerminos(tr);
+      const boton = () => porTestId(tr, "btn-aceptar-terminos");
+      expect(boton().props.disabled).toBe(true);
+      expect(textOf(tr)).toContain("Desliza hasta el final del documento para poder aceptar.");
+
+      leerHastaElFinal(tr);
+      expect(boton().props.disabled).toBe(true);
+      expect(textOf(tr)).toContain("Falta leer: Privacidad.");
+
+      pressText(tr, "Privacidad");
+      leerHastaElFinal(tr);
+      expect(boton().props.disabled).toBe(false);
+      expect(textOf(tr)).toContain("Acepto y crear cuenta");
+      expect(mockRegister).not.toHaveBeenCalled();
     });
 
     it("permite cambiar a la política de privacidad", async () => {

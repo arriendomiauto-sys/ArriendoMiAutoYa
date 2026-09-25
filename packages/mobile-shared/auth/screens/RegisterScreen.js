@@ -90,7 +90,15 @@ export function RegisterScreen({ onNavigate, role = "renter" }) {
         <StatusBar barStyle="dark-content" />
         {barraDePasos}
         <PasoTerminos error={r.errorEnvio}>
-          <Button testID="btn-aceptar-terminos" label="Acepto y crear cuenta" onPress={r.aceptarYCrear} loading={loading} />
+          {({ puedeAceptar }) => (
+            <Button
+              testID="btn-aceptar-terminos"
+              label={puedeAceptar ? "Acepto y crear cuenta" : "Lee los dos documentos hasta el final"}
+              onPress={r.aceptarYCrear}
+              disabled={!puedeAceptar}
+              loading={loading}
+            />
+          )}
         </PasoTerminos>
       </View>
     );
