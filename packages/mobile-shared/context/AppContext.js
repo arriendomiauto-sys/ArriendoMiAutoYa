@@ -526,8 +526,14 @@ function precargarImagenes(urls) {
     return () => clearInterval(t);
   }, [isLoggedIn, cargarNotificaciones, cargarReservas]);
 
-  const register = async (email, password, preferredMode) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+  // `perfil` ({ nombre, telefono }) viaja como metadata del registro: la API lo usa al
+  // crear el usuario, así no se pierde si el correo se confirma fuera de la app.
+  const register = async (email, password, preferredMode, perfil = null) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      ...(perfil ? { options: { data: perfil } } : {}),
+    });
     if (error) throw error;
 
     // El rol elegido en el registro fija el modo con el que arranca la app.

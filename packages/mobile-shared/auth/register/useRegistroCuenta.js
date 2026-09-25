@@ -99,7 +99,10 @@ export function useRegistroCuenta({ role }) {
     setErrorEnvio(null);
     setLoading(true);
     try {
-      await register(form.email.trim(), form.password, role);
+      await register(form.email.trim(), form.password, role, {
+        nombre: `${form.nombre.trim()} ${form.apellido.trim()}`,
+        telefono: normalizarTelefonoCompleto(form.telefono),
+      });
       setCodigo(nuevoCodigo());
       setErrorCodigo(null);
       setTiempoReenvio(ESPERA_REENVIO_S);
