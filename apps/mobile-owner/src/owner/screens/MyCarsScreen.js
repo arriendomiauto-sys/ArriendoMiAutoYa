@@ -158,7 +158,7 @@ export function MyCarsScreen({
               {item.marca} {item.modelo} {item.anio || ""}
             </Text>
             <Text className="text-[13px] text-textMuted mt-0.5">
-              {item.ubicacion_base || "Los Ángeles"} · {item.patente || "—"}
+              {item.ubicacion_base || "Sin ubicación"} · {item.patente || "—"}
             </Text>
           </View>
 

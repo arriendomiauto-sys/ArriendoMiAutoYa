@@ -870,7 +870,7 @@ export class ApiClient {
   }
 
   // Cobra el arriendo (a la tarjeta de débito) y autoriza el hold de garantía
-  // (a la de crédito) en un solo paso. Va DESPUÉS de firmar el contrato.
+  // (a la de crédito) en un solo paso. El contrato se firma después, en la entrega.
   // `token_cobro` / `token_garantia`: card_tokens generados con el CVV (tokenizarTarjetaGuardada).
   static async pagarReserva(
     reservaId,

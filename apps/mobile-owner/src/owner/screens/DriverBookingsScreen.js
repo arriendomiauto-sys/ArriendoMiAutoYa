@@ -10,7 +10,6 @@ import {
   EmptyState,
   ApiClient,
   RatingModal,
-  ContractSignatureModal,
   GpsTrackingModal,
   PreCheckinModal,
   ReportFineModal,
@@ -64,7 +63,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
   const [filter, setFilter] = useState("todas");
   const [calificadas, setCalificadas] = useState({});
   const [reservaACalificar, setReservaACalificar] = useState(null);
-  const [reservaAFirmar, setReservaAFirmar] = useState(null);
   const [autoRastreo, setAutoRastreo] = useState(null);
   const [reservaParaPrecheck, setReservaParaPrecheck] = useState(null);
   const [reservaParaMulta, setReservaParaMulta] = useState(null);
@@ -124,8 +122,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
     const badge = ESTADO_BADGE[item.estado] || ESTADO_BADGE.pendiente;
     const puedeEntregar = item.estado === "confirmada";
     const puedeDevolver = item.estado === "en_curso";
-    const yaFirmoDueno = Boolean(item.fecha_firma_biometrica) || (item.firmas || []).some((f) => f.rol === "arrendador");
-    const debeFirmar = !yaFirmoDueno && ["pendiente", "confirmada"].includes(item.estado);
     const instanteInicio = item.fecha_inicio ? instante(item.fecha_inicio) : null;
     const msHastaRetiro = instanteInicio !== null ? instanteInicio - Date.now() : null;
     const dentroDe24h = item.estado === "confirmada" && msHastaRetiro !== null && msHastaRetiro > 0 && msHastaRetiro < 86400000;
@@ -210,13 +206,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
           </View>
         )}
 
-        {debeFirmar && (
-          <Button
-            label="Firmar el contrato"
-            iconLeft="document"
-            onPress={() => setReservaAFirmar(item)}
-          />
-        )}
         {debePrecheck && (
           <Button
             variant="secondary"
@@ -231,7 +220,7 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
             testID={`btn-iniciar-entrega-${auto.patente || item.id}`}
             label={puedeEntregar ? "Iniciar entrega con QR" : "Iniciar devolución con QR"}
             iconRight="arrow-right"
-            variant={debeFirmar ? "secondary" : "primary"}
+            variant="primary"
             onPress={() => onOpenDelivery?.(item)}
           />
         )}
@@ -337,33 +326,6 @@ export function DriverBookingsScreen({ onOpenDelivery, onOpenContract, onOpenCha
           setCalificadas((prev) => ({ ...prev, [reservaACalificar.id]: true }));
           setReservaACalificar(null);
         }}
-      />
-
-      <ContractSignatureModal
-        visible={!!reservaAFirmar}
-        reservaId={reservaAFirmar?.id}
-        parte="arrendador"
-        onClose={() => setReservaAFirmar(null)}
-        onSigned={(firma) => {
-          if (reservaAFirmar) {
-            setReservas((prev) =>
-              prev.map((r) =>
-                r.id === reservaAFirmar.id
-                  ? {
-                      ...r,
-                      firmas: [
-                        ...(r.firmas || []).filter((f) => f.rol !== "arrendador"),
-                        firma || { rol: "arrendador" },
-                      ],
-                    }
-                  : r
-              )
-            );
-          }
-          setReservaAFirmar(null);
-          cargar();
-        }}
-        onVerContrato={reservaAFirmar ? () => onOpenContract?.(reservaAFirmar) : undefined}
       />
 
       <GpsTrackingModal

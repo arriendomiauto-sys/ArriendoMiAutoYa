@@ -665,7 +665,7 @@ export function ActiveRentalScreen({
         </Card>
 
         <MenuList>
-          <MenuRow icon="document" label="Ver el contrato firmado" onPress={onOpenContract} />
+          <MenuRow icon="document" label={res.fecha_firma_biometrica ? "Ver el contrato firmado" : "Ver el contrato"} onPress={onOpenContract} />
           <MenuRow
             icon="user"
             label={

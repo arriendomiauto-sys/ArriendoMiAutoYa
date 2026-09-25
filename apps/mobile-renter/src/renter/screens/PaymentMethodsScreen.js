@@ -8,7 +8,6 @@ import {
   ScreenHeader,
   ApiClient,
   showAlert,
-  ContractSignatureModal,
   ContractModal,
   AgregarTarjetaModal,
   msjError,
@@ -64,7 +63,6 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
   const [cvvGarantia, setCvvGarantia] = useState("");
 
   const [modalAgregar, setModalAgregar] = useState(null); // "debito" | "credito" | null
-  const [firmando, setFirmando] = useState(false);
   const [showContractPreview, setShowContractPreview] = useState(false);
   const [pagando, setPagando] = useState(false);
   const [pendiente, setPendiente] = useState(null); // { expira_en, motivo }
@@ -164,14 +162,11 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         });
         setReserva(r);
       }
-      const yaFirmo = Boolean(r.fecha_firma_biometrica) || (r.firmas || []).some((f) => f.rol === "arrendatario");
+      // El contrato NO se firma al pagar: se firma en la entrega, con el dueño,
+      // después de revisar el auto. Acá se paga directo.
       pagandoRef.current = false;
       setPagando(false);
-      if (yaFirmo) {
-        await ejecutarPago(r);
-      } else {
-        setFirmando(true);
-      }
+      await ejecutarPago(r);
     } catch (error) {
       pagandoRef.current = false;
       setPagando(false);
@@ -368,7 +363,7 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
             <View className="flex-1">
               <Text className="text-[15px] font-bold text-textDark">{nombreAuto || "Vehículo"}</Text>
               <Text className="text-[13px] text-textMuted mt-0.5">
-                {dias} {dias === 1 ? "día" : "días"} · {car.ubicacion_base || "Los Ángeles"}
+                {dias} {dias === 1 ? "día" : "días"}{car.ubicacion_base ? ` · ${car.ubicacion_base}` : ""}
               </Text>
             </View>
           </Card>
@@ -469,20 +464,11 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
         style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
       >
         {(() => {
-          const yaFirmo = Boolean(reserva?.fecha_firma_biometrica) || (reserva?.firmas || []).some((f) => f.rol === "arrendatario");
           return (
             <>
               <Button
                 testID="btn-confirmar-pago"
-                label={
-                  yaFirmo
-                    ? pagoSimulado
-                      ? "Confirmar reserva"
-                      : "Pagar y reservar"
-                    : pagoSimulado
-                    ? "Firmar y confirmar reserva"
-                    : "Firmar y reservar"
-                }
+                label={pagoSimulado ? "Confirmar reserva" : "Pagar y reservar"}
                 iconRight="arrow-right"
                 onPress={handleContinuar}
                 loading={pagando}
@@ -495,30 +481,16 @@ export function PaymentMethodsScreen({ car: carProp, booking, onBack, onPaymentS
                 </View>
               )}
               <Text className="text-xs text-textMuted text-center leading-[17px]">
-                {yaFirmo
-                  ? "Contrato ya firmado digitalmente. Al continuar autorizas la retención de la garantía."
-                  : "Al continuar firmas el contrato de arriendo y autorizas la retención de la garantía."}
+                Al pagar autorizas la retención de la garantía. El contrato lo firman tú y el dueño en la
+                entrega, después de revisar el auto.{" "}
+                <Text className="font-semibold text-primary" onPress={() => setShowContractPreview(true)}>
+                  Ver el contrato
+                </Text>
               </Text>
             </>
           );
         })()}
       </View>
-
-      <ContractSignatureModal
-        visible={firmando}
-        reservaId={reserva?.id}
-        parte="arrendatario"
-        nombreSugerido={currentUser?.nombre}
-        onVerContrato={() => setShowContractPreview(true)}
-        onClose={() => {
-          setFirmando(false);
-          if (reserva) onPaymentSuccess({ ...reserva, car, estado: "pendiente_pago" });
-        }}
-        onSigned={async () => {
-          setFirmando(false);
-          if (reserva) await ejecutarPago(reserva);
-        }}
-      />
 
       <ContractModal
         visible={showContractPreview}

@@ -29,6 +29,7 @@ import { showAlert } from "../utils/alert";
 import { msjError } from "../utils/msjError";
 import { formatearMilesEnVivo } from "../utils/formato";
 import { hapticoExito, hapticoError } from "../utils/haptics";
+import { tipoBiometriaDisponible, autenticarParaFirmar } from "../hooks/biometria";
 import { guardarColaFotos, leerColaFotos, borrarColaFotos } from "../utils/colaFotosOffline";
 import NetInfo from "@react-native-community/netinfo";
 import { E2E_TEST_MODE, fotoFixtureE2E } from "../utils/e2e";
@@ -166,13 +167,19 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
   const [selfieEntregaUrl, setSelfieEntregaUrl] = useState(null);
   const [subiendoSelfieEntrega, setSubiendoSelfieEntrega] = useState(false);
 
-  // Si el cliente ya firmó el contrato antes (digitalmente, por biometría o al reservar),
-  // no se le vuelve a pedir la firma en la entrega:
-  const clienteYaFirmo = Boolean(
-    datosValidados?.arrendatario_ya_firmo ||
-    reserva?.fecha_firma_biometrica ||
-    (reserva?.firmas || []).some((f) => f.rol === "arrendatario")
-  );
+  // El contrato se firma SIEMPRE acá, con las dos partes juntas y después de las
+  // fotos: primero el arrendatario (trazo + selfie en este teléfono) y después el
+  // dueño con su huella (o a mano si su teléfono no tiene biometría).
+  const [biometriaDueno, setBiometriaDueno] = useState(undefined); // "huella" | "facial" | null
+  const [firmaDuenoSvg, setFirmaDuenoSvg] = useState(null);
+  const [firmandoDueno, setFirmandoDueno] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    tipoBiometriaDisponible().then((t) => vivo && setBiometriaDueno(t || null));
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   // Calificación al cliente
   const [puntajeCliente, setPuntajeCliente] = useState(0);
@@ -439,12 +446,42 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
       setStage("26_review");
       return;
     }
-    // Si el cliente ya firmó el contrato digitalmente, no se vuelve a pedir la firma:
-    if (clienteYaFirmo) {
-      enviarChecklist();
+    setStage("23_signature");
+  };
+
+  const firmarYEntregar = async () => {
+    if (enviandoChecklist || firmandoDueno) return;
+    if (!firmaSvg) {
+      showAlert("Falta la firma del arrendatario", "Pídele que firme en el recuadro antes de continuar.");
       return;
     }
-    setStage("23_signature");
+    let metodo = biometriaDueno;
+    const extra = {};
+    if (biometriaDueno) {
+      const ok = await autenticarParaFirmar("Confirma con tu huella que entregas el auto");
+      if (!ok) {
+        showAlert("No se confirmó tu firma", "Vuelve a intentarlo con tu huella para entregar el auto.");
+        return;
+      }
+    } else {
+      if (!firmaDuenoSvg) {
+        showAlert("Falta tu firma", "Tu teléfono no tiene huella configurada: firma a mano en tu recuadro.");
+        return;
+      }
+      metodo = "escrita";
+      extra.firma_svg = firmaDuenoSvg;
+    }
+    setFirmandoDueno(true);
+    try {
+      await ApiClient.firmarContrato(reservaIdActiva, { metodo, acepta_terminos: true, ...extra });
+    } catch (error) {
+      hapticoError();
+      showAlert("No se pudo registrar tu firma", msjError(error, "Intenta de nuevo en unos segundos."));
+      return;
+    } finally {
+      setFirmandoDueno(false);
+    }
+    await enviarChecklist();
   };
 
   const enviarChecklist = async (notasExtra) => {
@@ -979,11 +1016,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           <Button
             testID="btn-continuar-metrics"
             label={
-              tipo === "despues"
-                ? "Ver la revisión"
-                : clienteYaFirmo
-                ? "Confirmar y entregar llaves"
-                : "Ir a la firma"
+              tipo === "despues" ? "Ver la revisión" : "Ir a la firma del contrato"
             }
             onPress={handleContinuarMetricas}
             loading={enviandoChecklist}
@@ -1002,7 +1035,9 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           <View className="flex-row gap-2 bg-primary-100 rounded-xl p-4">
             <Icon name="shield" size={18} color={colors.primary} />
             <Text className="flex-1 text-sm leading-5 text-primary">
-              Ahora firma <Text style={{ fontWeight: "700" }}>{datosValidados?.cliente_nombre || "el cliente"}</Text>. Pásale el teléfono.
+              Las fotos quedaron registradas. Ahora firman los dos: primero{" "}
+              <Text style={{ fontWeight: "700" }}>{datosValidados?.cliente_nombre || "el arrendatario"}</Text> (pásale el
+              teléfono) y al final tú, con tu huella.
             </Text>
           </View>
 
@@ -1013,7 +1048,7 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
           </Card>
 
           <View>
-            <SectionLabel>Firma</SectionLabel>
+            <SectionLabel>Firma del arrendatario</SectionLabel>
             <SignaturePad onChange={setFirmaSvg} />
           </View>
 
@@ -1039,16 +1074,30 @@ export function DeliveryScreen({ reserva, onBack, onCompleteDelivery, onOpenDisp
             </Text>
             <Text className="text-[13px] text-accent-300 text-center max-w-[240px] leading-[18px]">Se compara con la foto de tu cédula verificada al registrarte.</Text>
           </TouchableOpacity>
+
+          {biometriaDueno === null ? (
+            <View>
+              <SectionLabel>Tu firma (dueño)</SectionLabel>
+              <SignaturePad onChange={setFirmaDuenoSvg} />
+            </View>
+          ) : (
+            <View className="flex-row items-center gap-2 bg-slate-50 rounded-xl p-3 border border-border">
+              <Icon name="shield" size={16} color={colors.primary} />
+              <Text className="flex-1 text-[13px] text-textMuted leading-[18px]">
+                Al final firmas tú: te pediremos tu huella para confirmar la entrega.
+              </Text>
+            </View>
+          )}
         </ScrollView>
         <Footer>
           <Button
             testID="btn-firmar-entregar"
-            label="Firmar y entregar las llaves"
-            onPress={() => enviarChecklist()}
-            loading={enviandoChecklist}
-            disabled={!firmaSvg}
+            label={biometriaDueno ? "Firmar con mi huella y entregar" : "Firmar y entregar las llaves"}
+            onPress={firmarYEntregar}
+            loading={enviandoChecklist || firmandoDueno}
+            disabled={!firmaSvg || (biometriaDueno === null && !firmaDuenoSvg)}
           />
-          <Text className="text-xs text-textMuted text-center">Al firmar aceptas el estado registrado en las fotos.</Text>
+          <Text className="text-xs text-textMuted text-center">Al firmar, ambos aceptan el contrato y el estado del auto registrado en las fotos.</Text>
         </Footer>
 
         <SelfieLivenessModal
