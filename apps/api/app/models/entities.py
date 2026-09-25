@@ -236,7 +236,7 @@ class Auto(Base):
     )
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    dueno_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
+    dueno_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
     marca = Column(String, nullable=False)
     modelo = Column(String, nullable=False)
     anio = Column(Integer, nullable=False)
@@ -340,8 +340,8 @@ class Reserva(Base):
     # Tarjetas elegidas en el checkout (bóveda). Se guardan para poder
     # reintentar el pago de una reserva pendiente y para bloquear el borrado
     # de una tarjeta que está respaldando un arriendo vivo.
-    tarjeta_cobro_id = Column(String, ForeignKey("tarjetas.id"), nullable=True)
-    tarjeta_garantia_id = Column(String, ForeignKey("tarjetas.id"), nullable=True)
+    tarjeta_cobro_id = Column(String, ForeignKey("tarjetas.id"), nullable=True, index=True)
+    tarjeta_garantia_id = Column(String, ForeignKey("tarjetas.id"), nullable=True, index=True)
     cargo_limpieza_clp = Column(Integer, default=0) # CLP (multa por devolución sucia)
     cargo_combustible_clp = Column(Integer, default=0) # CLP (estanque devuelto incompleto)
     cargo_km_extra_clp = Column(Integer, default=0) # CLP (exceso de kilometraje)
@@ -428,7 +428,7 @@ class VerificacionEntrega(Base):
     __tablename__ = "verificaciones_entrega"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False, index=True)
     tipo = Column(String, nullable=False) # entrega, devolucion
     resultado = Column(String, nullable=False) # confirmada, rechazada
     foto_evidencia_url = Column(String, nullable=True)
@@ -443,7 +443,7 @@ class ChecklistAuto(Base):
     __tablename__ = "checklists_auto"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False, index=True)
     tipo = Column(String, nullable=False) # antes, despues
     fotos = Column(JSON, default=list) # URLs de fotos (mínimo 9 obligatorias: 4 exterior, 3 interior, 1 tablero/odómetro/combustible, 1 limpieza)
     kilometraje = Column(Integer, nullable=False)
@@ -480,10 +480,10 @@ class Calificacion(Base):
     __tablename__ = "calificaciones"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False, index=True)
     autor_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
     autor_rol = Column(String, nullable=False) # dueno, cliente
-    destinatario_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
+    destinatario_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
     puntaje = Column(Integer, nullable=False) # 1 a 5
     comentario = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=utc_now)
@@ -502,7 +502,7 @@ class Pago(Base):
     estado = Column(String, default="pendiente", index=True) # pendiente, procesando, capturado, retenido, liberado, fallido, reembolsado, pagado
     # Id del pago en la pasarela (Mercado Pago). Antes se llamaba
     # `referencia_transbank`; al cambiar de pasarela el nombre quedó mintiendo.
-    referencia_pago = Column(String, nullable=True)
+    referencia_pago = Column(String, nullable=True, index=True)
     timestamp = Column(DateTime, default=utc_now)
 
     # Liquidación automática a la cuenta de cobro del dueño (ver liquidaciones_service).
@@ -520,7 +520,7 @@ class Disputa(Base):
     __tablename__ = "disputas"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False, index=True)
     tipo = Column(String, nullable=False) # no_coincidencia_identidad, dano, incumplimiento, limpieza, combustible, atraso, otro
     estado = Column(String, default="abierta") # abierta, en_revision, resuelta
     admin_asignado_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
@@ -537,7 +537,7 @@ class TicketSoporte(Base):
     __tablename__ = "tickets_soporte"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
+    usuario_id = Column(String, ForeignKey("usuarios.id"), nullable=False, index=True)
     sucursal_id = Column(String, ForeignKey("sucursales.id"), nullable=True)
     asunto = Column(String, nullable=False)
     descripcion = Column(Text, nullable=False)
@@ -568,7 +568,7 @@ class MantencionAuto(Base):
     __tablename__ = "mantenciones_auto"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    auto_id = Column(String, ForeignKey("autos.id"), nullable=False)
+    auto_id = Column(String, ForeignKey("autos.id"), nullable=False, index=True)
     tipo = Column(String, nullable=False) # documento_legal, servicio_mecanico
     nombre = Column(String, nullable=False) # ej. "Revisión Técnica", "Cambio de aceite"
     fecha_vencimiento = Column(DateTime, nullable=True) # solo aplica a documento_legal
@@ -584,7 +584,7 @@ class BloqueoCalendarioAuto(Base):
     __tablename__ = "bloqueos_calendario_auto"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    auto_id = Column(String, ForeignKey("autos.id"), nullable=False)
+    auto_id = Column(String, ForeignKey("autos.id"), nullable=False, index=True)
     fecha = Column(DateTime, nullable=False) # día bloqueado (00:00 del día)
     motivo = Column(String, nullable=True)
     creado_en = Column(DateTime, default=utc_now)
@@ -596,7 +596,7 @@ class Mensaje(Base):
     __tablename__ = "mensajes"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False)
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False, index=True)
     autor_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
     texto = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=utc_now)

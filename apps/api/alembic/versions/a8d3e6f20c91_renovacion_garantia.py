@@ -16,7 +16,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("reservas", sa.Column("garantia_renovacion_pedida_en", sa.DateTime(), nullable=True))
+    # Idempotente: en producción la columna ya la crea schema_sync al arrancar la API.
+    columnas = {c["name"] for c in sa.inspect(op.get_bind()).get_columns("reservas")}
+    if "garantia_renovacion_pedida_en" not in columnas:
+        op.add_column("reservas", sa.Column("garantia_renovacion_pedida_en", sa.DateTime(), nullable=True))
 
 
 def downgrade() -> None:

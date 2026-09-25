@@ -164,6 +164,10 @@ def renovar_garantias_por_vencer(db: Session, ahora: Optional[datetime] = None) 
         pago = hold_vigente(db, reserva)
         if not pago or not necesita_renovacion(reserva, pago, ahora):
             continue
+        if pagos_simulados.es_pago_simulado(pago.referencia_pago) and not pagos_simulados.pagos_simulados_activos():
+            # Garantía de datos de prueba (seed/QA) con la pasarela real: no hay nada que renovar
+            # ni a quién pedirle el CVV.
+            continue
         if reserva.garantia_renovacion_pedida_en:
             # Ya se le pidió: solo el arrendatario (con su CVV) puede renovarla.
             if vence_en(pago) <= ahora:

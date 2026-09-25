@@ -265,6 +265,10 @@ def token_para_movimiento(mp_customer_id: Optional[str], mp_card_id: Optional[st
     """
     if not mp_card_id or str(mp_card_id).startswith("SIM-") or pagos_simulados.pagos_simulados_activos():
         return f"SIMTOK-{uuid.uuid4().hex[:20]}"
+    if not str(mp_card_id).strip().isdigit():
+        # Los card_id de Mercado Pago son numéricos: este es un dato de prueba (seed/QA).
+        logger.warning("[VAULT] card_id %s no es de Mercado Pago: no se puede cobrar.", mp_card_id)
+        return None
 
     cuerpo = {"card_id": mp_card_id}
     if mp_customer_id:

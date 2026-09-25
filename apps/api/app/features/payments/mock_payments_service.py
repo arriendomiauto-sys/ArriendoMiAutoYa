@@ -34,11 +34,16 @@ def pagos_simulados_activos() -> bool:
 
 def es_pago_simulado(payment_id: str) -> bool:
     """
-    Un pago simulado se reconoce por su prefijo, así que un payment_id real de
-    Mercado Pago que llegue mientras la simulación está encendida se sigue
-    consultando contra la API de verdad.
+    `True` si el id NO es de un pago real de Mercado Pago, así que no hay que
+    mandarlo a la API (capturar, liberar, reembolsar).
+
+    Los ids reales de Mercado Pago son numéricos. Todo lo demás es simulado:
+    el prefijo `SIMULADO-` y también los ids inventados de los datos de prueba
+    (seed/QA, p. ej. "MP-QA-HOLD-01"), que con la pasarela real activa se
+    mandaban a Mercado Pago y fallaban en cada barrido. Un payment_id real que
+    llegue con la simulación encendida se sigue consultando contra la API.
     """
-    return bool(payment_id) and str(payment_id).startswith(PREFIJO_TOKEN)
+    return bool(payment_id) and not str(payment_id).strip().isdigit()
 
 
 def crear_preferencia_simulada(referencia_externa: str, monto: int, return_url: str) -> Dict[str, Any]:

@@ -272,9 +272,38 @@ _CHECKS_ESPERADAS = {
 # (tabla, nombre_constraint, columna, valores_permitidos)
 _CHECKS_LISTA = [
     ("reservas", "reservas_estado_check", "estado", _CHECKS_ESPERADAS["reservas"][2]),
+    # Declarada en el modelo Auto (y en su migración), pero nunca llegó a producción.
+    ("autos", "ck_auto_categoria_valida", "categoria", ("economico", "sedan", "suv", "camioneta", "premium")),
     ("pagos", "pagos_estado_check", "estado", _CHECKS_ESPERADAS["pagos"][2]),
     ("pagos", "pagos_tipo_check", "tipo", _CHECKS_ESPERADAS["pagos_tipo"][2]),
 ]
+
+
+def sync_missing_indexes() -> None:
+    """
+    Crea los índices que declaran los modelos (`index=True`, `Index(...)`) y no
+    existen en la base. `create_all()` solo los crea junto con una tabla nueva y
+    `sync_missing_columns()` agrega columnas sin su índice, así que columnas como
+    `pagos.referencia_pago` (la busca el webhook) quedaban sin índice. Idempotente.
+
+    Un índice ÚNICO puede fallar si ya hay duplicados: se loguea y se sigue, sin
+    tocar los datos (hay que limpiarlos a mano o con su migración).
+    """
+    inspector = inspect(engine)
+    tablas_existentes = set(inspector.get_table_names())
+    for tabla in Base.metadata.sorted_tables:
+        if tabla.name not in tablas_existentes:
+            continue
+        existentes = {i["name"] for i in inspector.get_indexes(tabla.name)}
+        existentes |= {u["name"] for u in inspector.get_unique_constraints(tabla.name)}
+        for indice in tabla.indexes:
+            if indice.name in existentes:
+                continue
+            try:
+                indice.create(bind=engine, checkfirst=True)
+                logger.warning("schema_sync: índice creado %s en %s", indice.name, tabla.name)
+            except Exception as e:
+                logger.error("schema_sync: no se pudo crear el índice %s en %s: %s", indice.name, tabla.name, e)
 
 
 def reconcile_check_constraints() -> None:

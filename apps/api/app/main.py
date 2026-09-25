@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.core.schema_sync import (
     sync_missing_columns,
+    sync_missing_indexes,
     backfill_null_defaults,
     reconcile_check_constraints,
     backfill_cuentas_cobro,
@@ -80,6 +81,8 @@ async def lifespan(app: FastAPI):
     # que se hayan sumado a los modelos (Postgres no se puede "regenerar
     # borrando el archivo" como el SQLite local).
     sync_missing_columns()
+    # Índices de los modelos que la base no tiene (el webhook busca por pagos.referencia_pago).
+    sync_missing_indexes()
     # Recrea las CHECK de Postgres que se quedaron viejas (schema.sql tenía un
     # set de valores y el código sumó estados después, p. ej. reservas.estado
     # 'pendiente_pago'). No-op en SQLite.
