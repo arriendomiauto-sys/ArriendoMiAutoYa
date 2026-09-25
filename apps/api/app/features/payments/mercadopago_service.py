@@ -42,19 +42,52 @@ TIMEOUT = 15.0
 # - authorized: autorizado sin capturar, que es el hold de la garantía.
 APROBADO = "approved"
 AUTORIZADO = "authorized"
+# - cancelled:  garantía soltada sin cobrar.
+CANCELADO = "cancelled"
 ESTADOS_OK = (APROBADO, AUTORIZADO)
 
-# Correo de pagador usado en modo prueba (sandbox) para evitar rechazos
-# o ensuciar el entorno con correos de usuarios reales.
-EMAIL_PRUEBA = "test@test.com"
+# Si la cuenta de Mercado Pago es un usuario de prueba (se consulta una vez a /users/me).
+_cuenta_de_prueba: Optional[bool] = None
 
 
 class MercadoPagoService:
     @classmethod
+    def cuenta_es_de_prueba(cls) -> bool:
+        """
+        `True` si el access token es de un usuario de prueba de Mercado Pago.
+        Sus credenciales también empiezan con `APP_USR-`, así que no se nota en el
+        token: se le pregunta a Mercado Pago (etiqueta `test_user`) y se recuerda.
+        """
+        global _cuenta_de_prueba
+        if _cuenta_de_prueba is None and cls.credenciales_configuradas():
+            resultado = cls._pedir("GET", "/users/me")
+            if resultado["success"]:
+                _cuenta_de_prueba = "test_user" in ((resultado["data"] or {}).get("tags") or [])
+                if _cuenta_de_prueba:
+                    logger.warning("[MERCADOPAGO] Las credenciales son de un USUARIO DE PRUEBA: no se cobra dinero real.")
+        return bool(_cuenta_de_prueba)
+
+    @classmethod
+    def modo_prueba(cls) -> bool:
+        """Sandbox: forzado por `MERCADOPAGO_TEST_MODE` o porque la cuenta es de prueba."""
+        return bool(getattr(settings, "MERCADOPAGO_TEST_MODE", True)) or cls.cuenta_es_de_prueba()
+
+    @staticmethod
+    def email_de_prueba(email_real: Optional[str]) -> str:
+        """
+        Correo de pagador para el sandbox. Mercado Pago exige el formato
+        `test_payer_[0-9]{1,10}@testuser.com` con usuarios de prueba (cualquier otro
+        responde "Unauthorized use of live credentials"). Sale del correo real, así
+        cada usuario tiene siempre el mismo y su propia bóveda de tarjetas.
+        """
+        n = int(hashlib.sha256((email_real or "").strip().lower().encode()).hexdigest(), 16) % 10**9 + 1
+        return f"test_payer_{n}@testuser.com"
+
+    @classmethod
     def resolver_email_pagador(cls, email_pagador: Optional[str] = None) -> Optional[str]:
-        """En modo prueba siempre usa test@test.com para los cobros que pasen por MP."""
-        if getattr(settings, "MERCADOPAGO_TEST_MODE", True):
-            return EMAIL_PRUEBA
+        """En modo prueba usa el correo de pagador de prueba que corresponde al usuario."""
+        if cls.modo_prueba():
+            return cls.email_de_prueba(email_pagador)
         return email_pagador
     @classmethod
     def credenciales_configuradas(cls) -> bool:
@@ -68,7 +101,7 @@ class MercadoPagoService:
         con `APP_USR-`. Por tanto, si `MERCADOPAGO_TEST_MODE` es True o el entorno no
         es 'production', se debe operar en sandbox (sandbox_init_point).
         """
-        if getattr(settings, "MERCADOPAGO_TEST_MODE", True):
+        if cls.modo_prueba():
             return False
         token = (settings.MERCADOPAGO_ACCESS_TOKEN or "").strip()
         if not token.startswith("APP_USR-"):
@@ -121,7 +154,16 @@ class MercadoPagoService:
                 "status_code": respuesta.status_code,
             }
 
-        return {"success": True, "data": respuesta.json()}
+        try:
+            datos = respuesta.json()
+        except ValueError:
+            # Un 2xx sin JSON (proxy, página de mantenimiento): no se sabe qué pasó,
+            # así que se informa como error en vez de reventar a quien llamó.
+            logger.error("[MERCADOPAGO] %s %s respondió %s sin JSON: %s",
+                         metodo, ruta, respuesta.status_code, respuesta.text[:300])
+            return {"success": False, "error": "Respuesta inválida de Mercado Pago",
+                    "status_code": respuesta.status_code}
+        return {"success": True, "data": datos}
 
     # -----------------------------------------------------------------
     # Checkout Pro: el usuario paga en la página de Mercado Pago
@@ -225,7 +267,7 @@ class MercadoPagoService:
         Mercado Pago: sin ellos rechaza más cobros como riesgosos
         (`cc_rejected_high_risk`). Todos son opcionales.
         """
-        email = cls.resolver_email_pagador(email_pagador) or EMAIL_PRUEBA
+        email = cls.resolver_email_pagador(email_pagador) or cls.email_de_prueba(None)
         cuerpo = {
             "transaction_amount": int(monto),
             "token": token_tarjeta,
@@ -274,7 +316,7 @@ class MercadoPagoService:
 
         resultado = cls._pedir("PUT", f"/v1/payments/{payment_id}", json=cuerpo)
         if not resultado["success"]:
-            return resultado
+            return cls._si_ya_quedo(payment_id, APROBADO, resultado, monto)
         return cls._resumen_pago(resultado["data"])
 
     @classmethod
@@ -287,8 +329,30 @@ class MercadoPagoService:
         """
         resultado = cls._pedir("PUT", f"/v1/payments/{payment_id}", json={"status": "cancelled"})
         if not resultado["success"]:
-            return resultado
+            return cls._si_ya_quedo(payment_id, CANCELADO, resultado)
         return cls._resumen_pago(resultado["data"])
+
+    @classmethod
+    def _si_ya_quedo(
+        cls, payment_id: str, estado_buscado: str, fallo: Dict[str, Any], monto: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Capturar y liberar no aceptan clave de idempotencia: si la primera
+        llamada llegó a Mercado Pago pero la respuesta se perdió (timeout), el
+        reintento responde error porque el pago ya cambió de estado. Antes el
+        barrido reintentaba hasta que la garantía "vencía" y avisaba que no se
+        había cobrado, aunque la plata ya estaba cobrada. Se consulta el pago:
+        si ya está como se quería (y por el mismo monto), la operación está hecha.
+        """
+        actual = cls.obtener_pago(payment_id)
+        if not actual.get("success") or actual.get("estado") != estado_buscado:
+            return fallo
+        if monto is not None and actual.get("monto") is not None and int(float(actual["monto"])) != int(monto):
+            logger.error("[MERCADOPAGO] El pago %s quedó '%s' por %s y no por %s: revisar a mano.",
+                         payment_id, estado_buscado, actual["monto"], monto)
+            return fallo
+        logger.warning("[MERCADOPAGO] El pago %s ya estaba '%s': se da por hecho.", payment_id, estado_buscado)
+        return actual
 
     @classmethod
     def reembolsar(cls, payment_id: str, monto: Optional[int] = None) -> Dict[str, Any]:
@@ -371,7 +435,7 @@ class MercadoPagoService:
         `(campos extra de payer, additional_info)` del pago. En modo prueba no
         se mandan los datos reales del usuario (mismo criterio que el email).
         """
-        if not pagador or getattr(settings, "MERCADOPAGO_TEST_MODE", True):
+        if not pagador or cls.modo_prueba():
             return {}, {}
         payer: Dict[str, Any] = {}
         info_payer: Dict[str, Any] = {}
