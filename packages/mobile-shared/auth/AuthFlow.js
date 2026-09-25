@@ -8,6 +8,11 @@ import { WelcomeScreen } from "./screens/WelcomeScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { RegisterScreen } from "./screens/RegisterScreen";
 import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen";
+import { ScreenTransition, useDireccionTransicion } from "../components/ScreenTransition";
+
+// Orden "natural" de los pasos: ir hacia uno posterior entra desde la derecha,
+// volver a uno anterior desde la izquierda.
+const ORDEN_PASOS = ["splash", "onboarding", "welcome", "login", "forgot", "register", "confirm_email"];
 
 /**
  * Orquestador del flujo de autenticación.
@@ -27,6 +32,7 @@ import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen";
  */
 export function AuthFlow({ fixedRole }) {
   const [step, setStep] = useState("splash");
+  const direccion = useDireccionTransicion(ORDEN_PASOS.indexOf(step), "auth");
 
   const appCtx = typeof useApp === "function" ? useApp() : null;
   const onboardingVisto = appCtx?.onboardingVisto;
@@ -37,86 +43,99 @@ export function AuthFlow({ fixedRole }) {
   // bienvenida no ofrece elegir el otro.
   const [role, setRole] = useState(fixedRole || "renter");
 
-  if (step === "splash") {
-    return (
-      <SplashScreen
-        duracionMs={onboardingVisto ? 700 : 1800}
-        onFinish={() => {
-          setStep(onboardingVisto ? "welcome" : "onboarding");
-        }}
-      />
-    );
-  }
+  // Cada paso se monta con su propia `key`, así el cambio de pantalla anima
+  // (antes el flujo de entrada saltaba de una pantalla a otra sin transición).
+  // El splash no se anima: es lo primero que se ve al abrir la app.
+  const pantalla = renderPaso();
+  if (step === "splash") return pantalla;
+  return (
+    <ScreenTransition key={step} direccion={direccion}>
+      {pantalla}
+    </ScreenTransition>
+  );
 
-  if (step === "onboarding") {
-    return (
-      <OnboardingScreen
-        onFinish={() => {
-          marcarOnboardingVisto?.();
-          setStep("welcome");
-        }}
-      />
-    );
-  }
+  function renderPaso() {
+    if (step === "splash") {
+      return (
+        <SplashScreen
+          duracionMs={onboardingVisto ? 700 : 1800}
+          onFinish={() => {
+            setStep(onboardingVisto ? "welcome" : "onboarding");
+          }}
+        />
+      );
+    }
 
-  if (step === "welcome") {
-    return (
-      <WelcomeScreen
-        role={role}
-        fixedRole={fixedRole}
-        onSelectRole={fixedRole ? undefined : setRole}
-        onNavigate={(screen) => {
-          if (screen === "login") setStep("login");
-          else if (screen === "register") setStep("register");
-        }}
-      />
-    );
-  }
+    if (step === "onboarding") {
+      return (
+        <OnboardingScreen
+          onFinish={() => {
+            marcarOnboardingVisto?.();
+            setStep("welcome");
+          }}
+        />
+      );
+    }
 
-  if (step === "register") {
-    return (
-      <RegisterScreen
-        role={role}
-        onNavigate={(screen) => {
-          if (screen === "welcome") setStep("welcome");
-          else if (screen === "login") setStep("login");
-          else if (screen === "confirm_email") setStep("confirm_email");
-        }}
-      />
-    );
-  }
+    if (step === "welcome") {
+      return (
+        <WelcomeScreen
+          role={role}
+          fixedRole={fixedRole}
+          onSelectRole={fixedRole ? undefined : setRole}
+          onNavigate={(screen) => {
+            if (screen === "login") setStep("login");
+            else if (screen === "register") setStep("register");
+          }}
+        />
+      );
+    }
 
-  if (step === "confirm_email") {
-    return (
-      <View className="flex-1 bg-surface justify-between px-8 py-[34px]">
-        <StatusBar barStyle="dark-content" />
-        <View className="flex-1 items-center justify-center">
-          <EmptyState
-            icon="chat"
-            title="Confirma tu correo"
-            message="Te enviamos un enlace de confirmación a tu correo. Ábrelo para activar tu cuenta y luego vuelve a iniciar sesión."
-          />
+    if (step === "register") {
+      return (
+        <RegisterScreen
+          role={role}
+          onNavigate={(screen) => {
+            if (screen === "welcome") setStep("welcome");
+            else if (screen === "login") setStep("login");
+            else if (screen === "confirm_email") setStep("confirm_email");
+          }}
+        />
+      );
+    }
+
+    if (step === "confirm_email") {
+      return (
+        <View className="flex-1 bg-surface justify-between px-8 py-[34px]">
+          <StatusBar barStyle="dark-content" />
+          <View className="flex-1 items-center justify-center">
+            <EmptyState
+              icon="chat"
+              title="Confirma tu correo"
+              message="Te enviamos un enlace de confirmación a tu correo. Ábrelo para activar tu cuenta y luego vuelve a iniciar sesión."
+            />
+          </View>
+          <Button label="Ir a Iniciar sesión" onPress={() => setStep("login")} />
         </View>
-        <Button label="Ir a Iniciar sesión" onPress={() => setStep("login")} />
-      </View>
-    );
-  }
+      );
+    }
 
-  if (step === "login") {
-    return (
-      <LoginScreen
-        onNavigate={(screen) => {
-          if (screen === "welcome") setStep("welcome");
-          else if (screen === "register") setStep("register");
-          else if (screen === "forgot") setStep("forgot");
-        }}
-      />
-    );
-  }
+    if (step === "login") {
+      return (
+        <LoginScreen
+          onNavigate={(screen) => {
+            if (screen === "welcome") setStep("welcome");
+            else if (screen === "register") setStep("register");
+            else if (screen === "forgot") setStep("forgot");
+          }}
+        />
+      );
+    }
 
-  if (step === "forgot") {
-    return <ForgotPasswordScreen onNavigate={(screen) => setStep(screen)} />;
-  }
+    if (step === "forgot") {
+      return <ForgotPasswordScreen onNavigate={(screen) => setStep(screen)} />;
+    }
 
-  return null;
+    return null;
+  }
 }

@@ -15,6 +15,7 @@ import {
   EditProfileScreen,
   ApiClient,
   ScreenTransition,
+  useDireccionTransicion,
 } from "@rentacar/mobile-shared";
 
 // Screens del Usuario Normal / Arrendatario
@@ -538,12 +539,17 @@ export function RenterApp() {
   // igual de bien como "qué pantalla se ve ahora" para disparar la
   // transición de entrada cada vez que cambia (ver ScreenTransition).
   const pantallaActual = capasAbiertas[0]?.nivel || `tab-${activeTab}`;
+  // Abrir una capa entra desde la derecha, cerrarla desde la izquierda y
+  // cambiar de pestaña es un fundido.
+  const direccionTransicion = useDireccionTransicion(capasAbiertas.length, activeTab);
 
   const contenido = (
     <View className="flex-1 bg-background">
       {/* Pantalla Activa */}
       <View className="flex-1">
-        <ScreenTransition key={pantallaActual}>{renderContent()}</ScreenTransition>
+        <ScreenTransition key={pantallaActual} direccion={direccionTransicion}>
+          {renderContent()}
+        </ScreenTransition>
       </View>
 
       {/* Barra de Navegación Inferior Exclusiva del Arrendatario */}

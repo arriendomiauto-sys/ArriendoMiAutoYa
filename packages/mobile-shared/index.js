@@ -27,7 +27,7 @@ export { AlertaInline } from "./components/AlertaInline";
 export { PhotoViewerProvider, usePhotoViewer } from "./components/PhotoViewer";
 export { AvatarFoto } from "./components/AvatarFoto";
 export { CarPhotoThumb } from "./components/CarPhotoThumb";
-export { ScreenTransition } from "./components/ScreenTransition";
+export { ScreenTransition, useDireccionTransicion } from "./components/ScreenTransition";
 export { ErrorBoundary } from "./components/ErrorBoundary";
 export { AppTourScreen } from "./components/AppTourScreen";
 export { CarruselPasos, PuntosPaso } from "./components/CarruselPasos";
