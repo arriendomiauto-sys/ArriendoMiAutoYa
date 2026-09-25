@@ -29,6 +29,15 @@ class Usuario(Base):
             postgresql_where=text("expo_push_token IS NOT NULL"),
             sqlite_where=text("expo_push_token IS NOT NULL"),
         ),
+        # Un celular = una cuenta (ver features/auth/users/telefonos.py). Parcial:
+        # las cuentas sin celular (staff, OAuth recién creado) no chocan entre sí.
+        Index(
+            "uq_usuarios_telefono",
+            "telefono",
+            unique=True,
+            postgresql_where=text("telefono IS NOT NULL"),
+            sqlite_where=text("telefono IS NOT NULL"),
+        ),
     )
 
     id = Column(String, primary_key=True, default=generate_uuid)

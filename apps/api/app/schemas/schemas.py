@@ -395,6 +395,14 @@ class CobroPosteriorOut(BaseModel):
     comprobante_url: str
     creado_en: datetime
 
+class TelefonoDisponibleIn(BaseModel):
+    telefono: str = Field(..., min_length=8, max_length=20)
+
+
+class TelefonoDisponibleOut(BaseModel):
+    disponible: bool
+
+
 class PerfilBasicoUpdate(BaseModel):
     """
     Datos de perfil que NO son de identidad (no pasan por OCR/Módulo-11) —

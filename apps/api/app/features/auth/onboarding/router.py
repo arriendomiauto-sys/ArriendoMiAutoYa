@@ -18,6 +18,7 @@ from datetime import datetime
 import uuid
 
 from app.core.validators import validar_documento_identidad
+from app.features.auth.users.telefonos import exigir_telefono_libre
 from app.features.auth.onboarding.license_service import evaluar_licencia_usuario
 from app.features.vehicles.catalog.pricing_service import PricingService
 from app.features.payments import cards_service as tarjetas
@@ -184,6 +185,9 @@ def completar_enrolamiento(
     # Si el usuario ya está verificado, no re-ejecutar OCR ni volver a cobrar el hold
     if current_user.estado_documentos == "verificado":
         return current_user
+
+    if payload.telefono is not None:
+        exigir_telefono_libre(db, payload.telefono, current_user.id)
 
     # --- Verificación de identidad con proveedor externo (Didit) -----------
     # Con el flag encendido, la identidad + control facial la resuelve Didit

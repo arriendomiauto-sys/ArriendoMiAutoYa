@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.features.communications.email import service as email_service
 from app.models.entities import Usuario
+from app.features.auth.users.telefonos import telefono_ocupado
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +264,12 @@ def _sincronizar_usuario_local(
     if not user:
         roles = _inferir_roles_staff(supa_email)
         es_staff = any(r in ("admin", "manager", "soporte") for r in roles)
+        # Un celular = una cuenta: si el número de la metadata ya es de otra
+        # cuenta, se crea sin celular (la app ya lo avisa antes de registrar;
+        # esto cubre a quien se salte ese paso). Fallar acá dejaría a la cuenta
+        # sin poder hacer ningún request.
+        if perfil_registro.get("telefono") and telefono_ocupado(db, perfil_registro["telefono"]):
+            perfil_registro = {**perfil_registro, "telefono": None}
         user = Usuario(
             id=supa_id,
             email=supa_email,
@@ -301,7 +308,8 @@ def _sincronizar_usuario_local(
         if not user.nombre and perfil_registro.get("nombre"):
             user.nombre = perfil_registro["nombre"]
             if not user.telefono and perfil_registro.get("telefono"):
-                user.telefono = perfil_registro["telefono"]
+                if not telefono_ocupado(db, perfil_registro["telefono"], excepto_usuario_id=user.id):
+                    user.telefono = perfil_registro["telefono"]
             cambio = True
         if cambio:
             db.commit()

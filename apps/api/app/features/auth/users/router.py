@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Body, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Body, HTTPException, Request, Response, status
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -8,7 +8,7 @@ from app.models.entities import Usuario, Reserva
 from app.schemas.schemas import (
     UserOut, CuentaBancariaUpdate, PerfilBasicoUpdate, TarjetaUpdate, TarjetaOut,
     CodigoReferidoUpdate, TarjetaVaultCreate, CuentaCobroCreate, CuentaCobroOut,
-    EstadisticasReferidosOut, ValidacionCodigoReferidoOut,
+    EstadisticasReferidosOut, ValidacionCodigoReferidoOut, TelefonoDisponibleIn, TelefonoDisponibleOut,
 )
 from app.features.auth.login.service import get_current_user
 from app.services import tarjetas
@@ -16,6 +16,8 @@ from app.features.auth.onboarding import referrals_service as referidos
 from app.features.payments import wallet_service, cuentas_cobro_service
 from app.features.system.storage.service import StorageService
 from app.core.config import settings
+from app.core.limiter import limiter
+from app.features.auth.users.telefonos import exigir_telefono_libre, telefono_ocupado
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
@@ -194,6 +196,20 @@ def eliminar_tarjeta(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post(
+    "/telefono-disponible",
+    response_model=TelefonoDisponibleOut,
+    summary="Público: dice si un celular ya tiene cuenta (se consulta al registrarse)",
+)
+@limiter.limit("10/minute")
+def telefono_disponible(
+    request: Request,
+    payload: TelefonoDisponibleIn,
+    db: Session = Depends(get_db),
+):
+    return TelefonoDisponibleOut(disponible=not telefono_ocupado(db, payload.telefono))
+
+
 @router.put(
     "/me/perfil-basico",
     response_model=UserOut,
@@ -204,6 +220,8 @@ def actualizar_perfil_basico(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
+    if payload.telefono is not None:
+        exigir_telefono_libre(db, payload.telefono, current_user.id)
     current_user.nombre = payload.nombre
     if payload.telefono is not None:
         current_user.telefono = payload.telefono
