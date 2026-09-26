@@ -28,6 +28,7 @@ import { ActiveRentalScreen } from "./screens/ActiveRentalScreen";
 import { ExtendRentalScreen } from "./screens/ExtendRentalScreen";
 import { RentalHistoryScreen } from "./screens/RentalHistoryScreen";
 import { RoadsideClaimScreen } from "./screens/RoadsideClaimScreen";
+import { ReportarAccidenteScreen } from "./screens/ReportarAccidenteScreen";
 import { PaymentMethodsScreen } from "./screens/PaymentMethodsScreen";
 import { CancelReservationModal } from "./screens/CancelReservationModal";
 import { RenterProfileScreen } from "./screens/RenterProfileScreen";
@@ -91,6 +92,7 @@ export function RenterApp() {
   const [showEnrolment, setShowEnrolment] = useState(false);
   const [showExtendRental, setShowExtendRental] = useState(false);
   const [showRoadsideClaim, setShowRoadsideClaim] = useState(false);
+  const [showReportarAccidente, setShowReportarAccidente] = useState(false);
   const [showMyQRCode, setShowMyQRCode] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -364,7 +366,17 @@ export function RenterApp() {
       );
     }
 
-    // 5. Asistencia en Ruta y Siniestros
+    // 5. Accidente: caso con el soporte 24/7 (aviso al dueño y garantía asegurada)
+    if (showReportarAccidente && activeReservation) {
+      return (
+        <ReportarAccidenteScreen
+          reservation={activeReservation}
+          onBack={() => setShowReportarAccidente(false)}
+        />
+      );
+    }
+
+    // 5b. Asistencia en Ruta (grúa, pinchazo, panne)
     if (showRoadsideClaim) {
       return (
         <RoadsideClaimScreen
@@ -453,6 +465,7 @@ export function RenterApp() {
               onStartReturn={() => setShowMyQRCode(true)}
               onExtendRental={() => setShowExtendRental(true)}
               onRoadsideClaim={() => setShowRoadsideClaim(true)}
+              onReportarAccidente={() => setShowReportarAccidente(true)}
               onCancelReservation={() => setShowCancelModal(true)}
               onOpenChat={() => setActiveTab("chat")}
               onOpenContract={() => setShowContract(true)}
@@ -522,6 +535,7 @@ export function RenterApp() {
     !!resumingReservation ||
     showExtendRental ||
     showRoadsideClaim ||
+    showReportarAccidente ||
     showWallet ||
     showMyQRCode ||
     showCancelModal ||
@@ -546,6 +560,7 @@ export function RenterApp() {
   if (selectedCar && showPayment) capasAbiertas.push({ nivel: "pago", onCerrar: () => setShowPayment(false) });
   if (selectedCar && !showPayment) capasAbiertas.push({ nivel: "detalle-auto", onCerrar: () => setSelectedCar(null) });
   if (showExtendRental && activeReservation) capasAbiertas.push({ nivel: "extender-arriendo", onCerrar: () => setShowExtendRental(false) });
+  if (showReportarAccidente) capasAbiertas.push({ nivel: "accidente", onCerrar: () => setShowReportarAccidente(false) });
   if (showRoadsideClaim) capasAbiertas.push({ nivel: "asistencia-ruta", onCerrar: () => setShowRoadsideClaim(false) });
   if (showWallet) capasAbiertas.push({ nivel: "tarjetas", onCerrar: () => setShowWallet(false) });
   if (showMyQRCode) capasAbiertas.push({ nivel: "qr", onCerrar: () => setShowMyQRCode(false) });

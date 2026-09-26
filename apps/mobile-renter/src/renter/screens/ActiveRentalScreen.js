@@ -28,6 +28,7 @@ import {
   CarPhotoThumb,
 } from "@rentacar/mobile-shared";
 import { RenovarGarantiaAviso } from "../components/RenovarGarantiaAviso";
+import { CasoSiniestroCard } from "@rentacar/mobile-shared/siniestros/CasoSiniestroCard";
 
 const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || "").replace(/\/$/, "");
 
@@ -75,6 +76,7 @@ export function ActiveRentalScreen({
   onStartReturn,
   onExtendRental,
   onRoadsideClaim,
+  onReportarAccidente,
   onCancelReservation,
   onOpenChat,
   onOpenContract,
@@ -579,6 +581,7 @@ export function ActiveRentalScreen({
       />
       <ScrollView contentContainerClassName="p-4 gap-4" showsVerticalScrollIndicator={false}>
         <RenovarGarantiaAviso reserva={res} onRenovada={() => setRes((r) => ({ ...r, garantia_por_renovar: false }))} />
+        <CasoSiniestroCard reservaId={res.id} />
         <Card padded className="flex-row items-center gap-3">
           <CarPhotoThumb uri={car.fotos?.[0]} className="w-[76px] h-[58px] rounded-xl" />
           <View className="flex-1">
@@ -681,7 +684,10 @@ export function ActiveRentalScreen({
             <MenuRow icon="pin" label="Mi código de entrega" onPress={onStartDelivery} />
           )}
           <MenuRow icon="calendar" label="Extender arriendo" onPress={onExtendRental} />
-          <MenuRow icon="shield" label="Asistencia en ruta / siniestro" onPress={onRoadsideClaim} />
+          {res.estado === "en_curso" && onReportarAccidente && (
+            <MenuRow icon="alert" label="Tuve un accidente" onPress={onReportarAccidente} danger />
+          )}
+          <MenuRow icon="shield" label="Asistencia en ruta (grúa, pinchazo, panne)" onPress={onRoadsideClaim} />
           <MenuRow icon="chat" label="Escribirle al dueño" onPress={onOpenChat} />
         </MenuList>
       </ScrollView>
@@ -689,7 +695,7 @@ export function ActiveRentalScreen({
         <>
           <Button label="Mostrar mi código de devolución" iconRight="arrow-right" onPress={onStartReturn} />
           {res.estado === "en_curso" ? (
-            <Button variant="secondary" size="sm" label="Reportar un problema" iconLeft="shield" onPress={onRoadsideClaim} />
+            <Button variant="dangerOutline" size="sm" label="Tuve un accidente" iconLeft="alert" onPress={onReportarAccidente || onRoadsideClaim} />
           ) : (
             <Button variant="danger" size="sm" label="Cancelar la reserva" onPress={onCancelReservation} />
           )}

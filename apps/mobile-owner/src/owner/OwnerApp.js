@@ -40,6 +40,7 @@ import { CarMaintenanceScreen } from "./screens/CarMaintenanceScreen";
 import { DriverBookingsScreen } from "./screens/DriverBookingsScreen";
 import { EarningsScreen } from "./screens/EarningsScreen";
 import { DisputesScreen } from "./screens/DisputesScreen";
+import { CasoAccidenteScreen } from "./screens/CasoAccidenteScreen";
 import { OwnerProfileScreen } from "./screens/OwnerProfileScreen";
 
 export function OwnerApp() {
@@ -92,6 +93,8 @@ export function OwnerApp() {
   const [showDeliveryFlow, setShowDeliveryFlow] = useState(false);
   const [showDisputes, setShowDisputes] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  // Reserva cuyo caso de accidente se está mirando (desde la notificación).
+  const [casoAccidenteReservaId, setCasoAccidenteReservaId] = useState(null);
   const [showSupport, setShowSupport] = useState(false);
   const [showContract, setShowContract] = useState(false);
   const [selectedCarForModal, setSelectedCarForModal] = useState(null);
@@ -262,6 +265,10 @@ export function OwnerApp() {
       );
     }
 
+    if (casoAccidenteReservaId) {
+      return <CasoAccidenteScreen reservaId={casoAccidenteReservaId} onBack={() => setCasoAccidenteReservaId(null)} />;
+    }
+
     if (showNotifications) {
       return (
         <NotificationsScreen
@@ -270,6 +277,10 @@ export function OwnerApp() {
           onSelectNotification={(n) => {
             setShowNotifications(false);
             if (n.entidad_tipo !== "reserva" || !n.entidad_id) return;
+            if (n.tipo === "siniestro") {
+              setCasoAccidenteReservaId(n.entidad_id);
+              return;
+            }
             ApiClient.getReservas("dueno")
               .then((lista) => {
                 const r = (lista || []).find((x) => x.id === n.entidad_id);
@@ -393,6 +404,7 @@ export function OwnerApp() {
     showDisputes ||
     showAddCar ||
     showNotifications ||
+    !!casoAccidenteReservaId ||
     showSupport ||
     showContract ||
     showChat;
@@ -412,6 +424,7 @@ export function OwnerApp() {
   if (showVerificacionAuto) capasAbiertas.push({ nivel: "verificacion-auto", onCerrar: () => setShowVerificacionAuto(false) });
   if (showDisputes) capasAbiertas.push({ nivel: "disputas", onCerrar: () => setShowDisputes(false) });
   if (showAddCar) capasAbiertas.push({ nivel: "alta-auto", onCerrar: () => setShowAddCar(false) });
+  if (casoAccidenteReservaId) capasAbiertas.push({ nivel: "caso-accidente", onCerrar: () => setCasoAccidenteReservaId(null) });
   if (showNotifications) capasAbiertas.push({ nivel: "notificaciones", onCerrar: () => setShowNotifications(false) });
   if (showSupport) capasAbiertas.push({ nivel: "soporte", onCerrar: () => setShowSupport(false) });
   if (showChat) {
