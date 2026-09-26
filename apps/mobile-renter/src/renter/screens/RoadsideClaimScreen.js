@@ -25,8 +25,11 @@ const TIPOS = [
   { id: "robo", label: "Robo / daño a terceros" },
 ];
 const LABEL = Object.fromEntries(TIPOS.map((t) => [t.id, t.label]));
+// Estos son siniestros: con el arriendo en curso van al reporte de accidente
+// (caso con soporte 24/7, aviso al dueño y garantía asegurada), no a un ticket.
+const ES_ACCIDENTE = new Set(["colision", "robo"]);
 
-export function RoadsideClaimScreen({ onBack, onComplete }) {
+export function RoadsideClaimScreen({ onBack, onComplete, onReportarAccidente }) {
   const insets = useSafeAreaInsets();
   const { activeReservation } = useApp();
   const [tipo, setTipo] = useState("colision");
@@ -36,6 +39,8 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
   const [subiendo, setSubiendo] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [solicitandoGrua, setSolicitandoGrua] = useState(false);
+  const derivarAAccidente =
+    ES_ACCIDENTE.has(tipo) && activeReservation?.estado === "en_curso" && Boolean(onReportarAccidente);
 
   const addFoto = async () => {
     const uri = await elegirImagen({
@@ -126,6 +131,16 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
           </View>
         </Card>
 
+        {derivarAAccidente ? (
+          <Card padded className="gap-2 bg-red-50 border border-red-200">
+            <Text className="text-[15px] font-bold text-textDark">Esto se reporta como accidente</Text>
+            <Text className="text-[13px] text-textMuted">
+              Se abre un caso con el soporte 24/7, le avisamos al dueño del auto y todo lo que se decida les llega
+              por escrito a ambos. Primero te mostramos los números de emergencia.
+            </Text>
+          </Card>
+        ) : (
+        <>
         <Card padded className="gap-2">
           <SectionLabel>Detalle de lo ocurrido</SectionLabel>
           <TextInput
@@ -172,13 +187,19 @@ export function RoadsideClaimScreen({ onBack, onComplete }) {
             </TouchableOpacity>
           </View>
         </Card>
+        </>
+        )}
       </ScrollView>
 
       <View
         className="px-4 pt-3 bg-white border-t border-border"
         style={{ paddingBottom: Math.max(insets.bottom, 12) + 8 }}
       >
-        <Button label="Enviar reporte y activar seguro" iconRight="arrow-right" onPress={enviarReporte} loading={enviando} />
+        {derivarAAccidente ? (
+          <Button variant="danger" label="Reportar el accidente" iconRight="arrow-right" onPress={onReportarAccidente} />
+        ) : (
+          <Button label="Enviar solicitud de asistencia" iconRight="arrow-right" onPress={enviarReporte} loading={enviando} />
+        )}
       </View>
     </KeyboardAvoidingView>
   );

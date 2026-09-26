@@ -382,6 +382,10 @@ export function RenterApp() {
         <RoadsideClaimScreen
           reservation={activeReservation}
           onBack={() => setShowRoadsideClaim(false)}
+          onReportarAccidente={() => {
+            setShowRoadsideClaim(false);
+            setShowReportarAccidente(true);
+          }}
         />
       );
     }
