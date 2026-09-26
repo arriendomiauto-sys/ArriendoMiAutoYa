@@ -241,6 +241,33 @@ export class ApiClient {
     );
   }
 
+  // Siniestros (accidentes reportados por el arrendatario, soporte 24/7)
+  static getSiniestros(estado) {
+    return this.request(`/soporte/siniestros${estado ? `?estado=${estado}` : ""}`);
+  }
+
+  static atenderSiniestro(id) {
+    return this.request(`/soporte/siniestros/${id}/atender`, { method: "POST" });
+  }
+
+  static marcarDuenoContactado(id) {
+    return this.request(`/soporte/siniestros/${id}/dueno-contactado`, { method: "POST" });
+  }
+
+  static informarSiniestro(id, mensaje) {
+    return this.request(`/soporte/siniestros/${id}/informar`, {
+      method: "POST",
+      body: JSON.stringify({ mensaje }),
+    });
+  }
+
+  static cerrarSiniestro(id, mensaje) {
+    return this.request(`/soporte/siniestros/${id}/cerrar`, {
+      method: "POST",
+      body: JSON.stringify({ mensaje }),
+    });
+  }
+
   // Disputas
   static getDisputas(estado = "abierta") {
     return this.request(`/disputas?estado=${estado}`);

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
-  LayoutDashboard, Calendar, Users, Car, ShieldCheck, Gavel, LifeBuoy,
+  LayoutDashboard, Calendar, Users, Car, ShieldCheck, Gavel, LifeBuoy, Siren,
   Wallet, Settings, LogOut, ChevronRight, Search, Sun, Moon,
 } from "lucide-react";
 import RequireAuth from "./RequireAuth";
@@ -25,6 +25,7 @@ const NAV = [
       { href: "/kyc", label: "Verificación & KYC", icon: ShieldCheck },
       { href: "/disputas", label: "Disputas", icon: Gavel },
       { href: "/soporte", label: "Soporte", icon: LifeBuoy },
+      { href: "/siniestros", label: "Accidentes 24/7", icon: Siren },
     ],
   },
   {
