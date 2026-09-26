@@ -1182,6 +1182,72 @@ class TicketCreate(BaseModel):
     def sanitize_ticket_fields(cls, v: str) -> str:
         return sanitize_text(v) or v
 
+class SiniestroCreate(BaseModel):
+    descripcion: str = Field(..., min_length=10, max_length=3000)
+    hubo_lesionados: bool = False
+    hay_terceros: bool = False
+    auto_puede_circular: bool = True
+    parte_policial: Optional[str] = Field(None, max_length=100)
+    datos_tercero: Optional[str] = Field(None, max_length=1000)
+    ubicacion: Optional[str] = Field(None, max_length=300)
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    fotos: List[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("descripcion", "parte_policial", "datos_tercero", "ubicacion")
+    @classmethod
+    def limpiar_texto(cls, v):
+        return sanitize_text(v) if v else v
+
+
+class SiniestroActualizacion(BaseModel):
+    fecha: datetime
+    autor: str
+    mensaje: str
+
+
+class SiniestroOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    codigo: str
+    reserva_id: str
+    estado: str
+    descripcion: str
+    hubo_lesionados: bool
+    hay_terceros: bool
+    auto_puede_circular: bool
+    parte_policial: Optional[str] = None
+    datos_tercero: Optional[str] = None
+    ubicacion: Optional[str] = None
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+    fotos: List[str] = []
+    disputa_id: Optional[str] = None
+    agente_id: Optional[str] = None
+    atendido_en: Optional[datetime] = None
+    dueno_contactado_en: Optional[datetime] = None
+    actualizaciones: List[SiniestroActualizacion] = []
+    resumen_cierre: Optional[str] = None
+    cerrado_en: Optional[datetime] = None
+    creado_en: datetime
+    # Para la bandeja de soporte.
+    auto_descripcion: Optional[str] = None
+    cliente_nombre: Optional[str] = None
+    cliente_telefono: Optional[str] = None
+    dueno_nombre: Optional[str] = None
+    dueno_telefono: Optional[str] = None
+
+
+class SiniestroMensaje(BaseModel):
+    mensaje: str = Field(..., min_length=5, max_length=2000)
+
+    @field_validator("mensaje")
+    @classmethod
+    def limpiar(cls, v):
+        return sanitize_text(v) or v
+
+
 class TicketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

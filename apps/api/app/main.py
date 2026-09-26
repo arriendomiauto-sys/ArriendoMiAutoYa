@@ -54,6 +54,7 @@ from app.features.operations.disputes.router import router as disputes_router
 from app.features.operations.favorites.router import router as favorites_router
 from app.features.operations.reviews.router import router as reviews_router
 from app.features.operations.support.router import router as support_router
+from app.features.operations.siniestros.router import router as siniestros_router
 
 # System
 from app.features.system.storage.router import router as storage_router
@@ -196,6 +197,7 @@ app.include_router(cars_router, prefix=api_prefix)
 app.include_router(bookings_router, prefix=api_prefix)
 app.include_router(disputes_router, prefix=api_prefix)
 app.include_router(support_router, prefix=api_prefix)
+app.include_router(siniestros_router, prefix=api_prefix)
 app.include_router(admin_router, prefix=api_prefix)
 app.include_router(reviews_router, prefix=api_prefix)
 app.include_router(payments_router, prefix=api_prefix)

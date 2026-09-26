@@ -744,6 +744,14 @@ def extender_reserva(
         raise HTTPException(status_code=403, detail="Solo el arrendatario de esta reserva puede extenderla.")
     if reserva.estado not in ("confirmada", "en_curso"):
         raise HTTPException(status_code=400, detail="Solo se puede extender una reserva confirmada o en curso.")
+    # Con un accidente en curso el auto no se sigue arrendando: lo decide soporte.
+    from app.features.operations.siniestros.service import siniestro_abierto
+
+    if siniestro_abierto(db, reserva.id):
+        raise HTTPException(
+            status_code=409,
+            detail="Hay un accidente reportado en este arriendo: no se puede extender mientras soporte lo atiende.",
+        )
 
     auto = db.query(Auto).filter(Auto.id == reserva.auto_id).first()
     nueva_fecha_fin = reserva.fecha_fin + timedelta(days=payload.dias_adicionales)

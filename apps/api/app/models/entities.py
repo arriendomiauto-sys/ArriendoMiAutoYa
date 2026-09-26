@@ -545,6 +545,42 @@ class Disputa(Base):
     # Relaciones
     reserva = relationship("Reserva", back_populates="disputas")
 
+class Siniestro(Base):
+    """
+    Accidente reportado por el arrendatario durante el arriendo. Lo toma el
+    soporte 24/7: abre una disputa (tipo "accidente") para que la garantía quede
+    retenida y el dinero se resuelva por el flujo de disputas, y un ticket para
+    la bandeja de soporte. Todo lo que se informa a las partes queda en
+    `actualizaciones`, con el mismo texto que reciben ambas.
+    """
+    __tablename__ = "siniestros"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    codigo = Column(String, nullable=False, unique=True)  # SIN-XXXXXX, el número de caso que ven las partes
+    reserva_id = Column(String, ForeignKey("reservas.id"), nullable=False, index=True)
+    reportado_por_id = Column(String, ForeignKey("usuarios.id"), nullable=False)
+    estado = Column(String, default="reportado", index=True)  # reportado, en_atencion, cerrado
+    descripcion = Column(Text, nullable=False)
+    hubo_lesionados = Column(Boolean, default=False)
+    hay_terceros = Column(Boolean, default=False)
+    auto_puede_circular = Column(Boolean, default=True)
+    parte_policial = Column(String, nullable=True)  # número de parte / constancia de Carabineros
+    datos_tercero = Column(Text, nullable=True)  # patente, nombre, aseguradora del otro vehículo
+    ubicacion = Column(String, nullable=True)
+    latitud = Column(Float, nullable=True)
+    longitud = Column(Float, nullable=True)
+    fotos = Column(JSON, default=list)
+    disputa_id = Column(String, ForeignKey("disputas.id"), nullable=True)
+    ticket_id = Column(String, ForeignKey("tickets_soporte.id"), nullable=True)
+    agente_id = Column(String, ForeignKey("usuarios.id"), nullable=True)
+    atendido_en = Column(DateTime, nullable=True)
+    dueno_contactado_en = Column(DateTime, nullable=True)
+    actualizaciones = Column(JSON, default=list)  # [{fecha, autor, mensaje}]
+    resumen_cierre = Column(Text, nullable=True)
+    cerrado_en = Column(DateTime, nullable=True)
+    creado_en = Column(DateTime, default=utc_now)
+
+
 class TicketSoporte(Base):
     __tablename__ = "tickets_soporte"
 
