@@ -43,6 +43,7 @@ function formatearFecha(iso) {
 const ESTADO_BADGE = {
   confirmada: { variant: "info", label: "Por entregar" },
   en_curso: { variant: "success", label: "En curso" },
+  disputada: { variant: "danger", label: "En disputa / siniestro" },
   finalizada: { variant: "neutral", label: "Finalizada" },
   cancelada: { variant: "danger", label: "Cancelada" },
   pendiente: { variant: "warning", label: "Pendiente" },
